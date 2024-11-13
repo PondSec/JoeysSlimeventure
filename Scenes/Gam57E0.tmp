@@ -1,0 +1,47 @@
+[gd_scene load_steps=5 format=3 uid="uid://cmdh8rpdo8fb2"]
+
+[ext_resource type="Texture2D" uid="uid://d108tjd0tq2rl" path="res://Assets/player.pg.png" id="1_ywbac"]
+
+[sub_resource type="GDScript" id="GDScript_y7wgk"]
+resource_name = "Player"
+script/source = "extends CharacterBody2D
+
+func _process(delta):
+	var move = Vector2(0, 0)
+	
+	if Input.is_action_pressed(\"left\"):
+		move.x = -1
+	
+	if Input.is_action_pressed(\"right\"):
+		move.x = 1
+		
+	# move_and_slide benötigt jetzt den floor_normal-Parameter
+	move_and_slide(move, Vector2(0, 1))
+"
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_pop2l"]
+size = Vector2(279.5, 260)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_dtv3g"]
+size = Vector2(1927, 25.5)
+
+[node name="Game" type="Node2D"]
+
+[node name="PlayerModel" type="CharacterBody2D" parent="."]
+script = SubResource("GDScript_y7wgk")
+
+[node name="PlayerSprite" type="Sprite2D" parent="PlayerModel"]
+position = Vector2(140, 950)
+texture = ExtResource("1_ywbac")
+hframes = 5
+vframes = 2
+
+[node name="PlayerCollisionShape" type="CollisionShape2D" parent="PlayerModel"]
+position = Vector2(140.25, 950)
+shape = SubResource("RectangleShape2D_pop2l")
+
+[node name="Ground" type="StaticBody2D" parent="."]
+
+[node name="GroundCollisionShape" type="CollisionShape2D" parent="Ground"]
+position = Vector2(963.5, 1092.25)
+shape = SubResource("RectangleShape2D_dtv3g")

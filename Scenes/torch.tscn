@@ -1,0 +1,61 @@
+[gd_scene load_steps=6 format=3 uid="uid://ccep15ieo6o6o"]
+
+[ext_resource type="Texture2D" uid="uid://dexg2cvhympay" path="res://Assets/Light/torch.png" id="1_p3o0k"]
+[ext_resource type="Texture2D" uid="uid://b6qcgwlbukqr7" path="res://Assets/Light/light.png" id="2_llv11"]
+
+[sub_resource type="Animation" id="Animation_d6o2g"]
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [0, 7]
+}
+
+[sub_resource type="Animation" id="Animation_ll24q"]
+resource_name = "torch"
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [0, 7]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_5ydex"]
+_data = {
+"RESET": SubResource("Animation_d6o2g"),
+"torch": SubResource("Animation_ll24q")
+}
+
+[node name="Torch" type="Sprite2D"]
+position = Vector2(324, 974)
+scale = Vector2(0.3, 0.264)
+texture = ExtResource("1_p3o0k")
+hframes = 4
+vframes = 2
+
+[node name="TorchAnimation" type="AnimationPlayer" parent="."]
+libraries = {
+"": SubResource("AnimationLibrary_5ydex")
+}
+
+[node name="Light" type="PointLight2D" parent="."]
+position = Vector2(-3.33331, 15.1512)
+scale = Vector2(3.30929, 2.9957)
+color = Color(0.811765, 0.772549, 0.34902, 1)
+energy = 1.04
+shadow_enabled = true
+texture = ExtResource("2_llv11")
