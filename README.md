@@ -1,141 +1,140 @@
 # Dungeon Slayer
 
-*Dungeon Slayer* is a beta project developed using the Godot 4.3 engine. It is an exciting platformer where players must conquer levels, defeat various enemies, and face off against powerful mini-bosses.
+*Dungeon Slayer* is an action-packed platformer game currently in beta, developed using the Godot 4.3 engine. Players take on the role of a daring hero who must navigate through perilous dungeons, conquer various enemies, and defeat powerful mini-bosses.
 
 ## Game Description
 
-In *Dungeon Slayer*, you control your character through challenging dungeons, master complex platforming sections, and fight against a variety of foes. Each dungeon offers a mix of quick reflexes, clever maneuvering, and intense combat.
+In *Dungeon Slayer*, you control your character through treacherous dungeons filled with traps, enemies, and platforming challenges. The game combines fast-paced combat with precision movement, where every decision can lead to life or death. With each level, you’ll face tougher enemies and more complex obstacles, pushing your reflexes and combat skills to the limit.
 
 ---
 
 ## Player Abilities
 
-The player in *Dungeon Slayer* has a variety of movement and interaction abilities to navigate the dungeon's challenges:
+The player in *Dungeon Slayer* is equipped with a variety of abilities to traverse the dungeon and fight foes:
 
-1. **Running**: The player can move quickly left or right to dodge obstacles, reach platforms, or fight enemies.
-2. **Jumping**: The player can jump to cross gaps and reach higher platforms. The jumping mechanic allows for precise control.
-3. **Wall-Sliding**: The player can slide down walls, slowing their fall when touching a wall. This is useful for safer landings or setting up a wall jump.
-4. **Wall-Jumping**: The player can jump off walls to reach difficult platforming areas or escape tricky situations. This adds a dynamic and fluid movement element to vertical sections of the game.
+1. **Running**: Move quickly left or right to dodge enemies, avoid hazards, or engage in combat.
+2. **Jumping**: Jump to reach higher platforms, clear gaps, and navigate vertically challenging areas.
+3. **Wall-Sliding**: Slide down walls to slow your fall, helping you land safely or set up for a wall jump.
+4. **Wall-Jumping**: Jump off walls to reach difficult areas or escape dangerous situations, adding depth and fluidity to vertical movement.
+5. **Glowing**: The player has a special ability to toggle glowing, which is useful for illuminating dark areas or triggering certain mechanics.
+6. **Attacking**: The player can attack using a sword, which is triggered by pressing a button. The sword has a specific animation and can cause damage to enemies.
+
+---
+
+## Skeleton Enemy
+
+The **Skeleton** is one of the primary enemies in *Dungeon Slayer*. It is a basic enemy that can deal damage to the player when close. It has its own set of behaviors:
+
+### Skeleton Behavior
+- **Movement**: The skeleton can walk left and right and may patrol certain areas or chase the player when in range.
+- **Attack**: The skeleton has a simple melee attack. When it detects the player nearby, it will move towards them and try to deal damage.
+- **Health**: The skeleton has a health bar that decreases when it takes damage from the player or environmental hazards.
+- **Death**: When the skeleton's health reaches zero, it will play a death animation and be removed from the scene.
+
+### Skeleton Code Explanation
+The Skeleton is implemented as an `Area2D` in Godot and has an `AnimatedSprite2D` for its animation. It checks for the player's attack and reduces its health accordingly.
+
+```gdscript
+extends Area2D
+
+var health := 50
+var is_alive := true
+
+# Reference to the health bar for visual feedback
+onready var health_bar = $HealthBar
+
+# Function to handle damage taken by the skeleton
+func take_damage(damage: int):
+    if is_alive:
+        health -= damage
+        health_bar.value = health
+        if health <= 0:
+            die()
+
+# Function to handle the death of the skeleton
+func die():
+    is_alive = false
+    # Play death animation or effect here
+    queue_free()  # Remove the skeleton from the scene
+```
+
+---
+
+## Attacking
+
+The player's primary form of combat is through a sword attack. When the player presses the attack button, an animation plays, and if the sword collides with an enemy like the Skeleton, it will take damage. Here’s a breakdown of how the attack works:
+
+1. **Attack Activation**: When the player presses the attack button, the sword becomes visible, and an attack animation is triggered.
+2. **Collision Detection**: The sword is an `Area2D` with a collision shape (often a small rectangle or circle) that will detect enemies in range.
+3. **Damage Application**: If an enemy is within the attack area, the `take_damage()` function is called on the enemy, reducing its health.
+4. **Attack Animation**: The sword has an animation that plays when the player attacks, and it is visible only during the attack.
+
+### Player Attack Code
+
+The player's attack is managed by the following code in the `Player` script:
+
+```gdscript
+extends CharacterBody2D
+
+var is_attacking := false
+var attack_sprite: AnimatedSprite2D
+
+func _ready():
+    attack_sprite = $AttackSprite  # Reference to the AttackSprite node
+
+func attack():
+    if Input.is_action_just_pressed("Attack") and not is_attacking:
+        is_attacking = true
+        attack_sprite.visible = true  # Show the sword during attack
+        attack_sprite.play("swing")  # Play attack animation
+
+        # Wait for animation to finish and then hide the sword
+        attack_sprite.connect("animation_finished", Callable(self, "_on_attack_animation_finished"))
+
+func _on_attack_animation_finished():
+    is_attacking = false
+    attack_sprite.visible = false  # Hide the sword after the attack
+    attack_sprite.disconnect("animation_finished", Callable(self, "_on_attack_animation_finished"))
+
+# Collision detection for the sword
+func _check_attack_collision():
+    if is_attacking:
+        var attack_area = $AttackSprite.get_node("AttackArea")  # Node for the attack collision
+        var enemies = attack_area.get_overlapping_bodies()
+
+        for enemy in enemies:
+            if enemy.is_in_group("enemies"):  # Check if the object is an enemy
+                enemy.take_damage(25)  # Deal 25 damage to the enemy
+```
 
 ---
 
 ## Technical Details
 
 ### 1. **Game Environment**
-   - The game currently consists of two layers: **Background** and **Foreground**.
-     - **Background**: Static or slowly moving graphics that enhance the depth and atmosphere of the dungeons.
-     - **Foreground**: The layer where the player and all interactive objects exist. This is where the action happens.
-   - The **camera** is configured to follow the player smoothly and dynamically, ensuring a pleasant experience by avoiding abrupt cuts.
+   - The game currently consists of two main layers:
+     - **Background**: Aesthetic graphics that enhance the dungeon atmosphere.
+     - **Foreground**: The active layer where the player and interactable objects reside.
+   - The **camera** follows the player smoothly, dynamically adjusting to ensure optimal gameplay without abrupt shifts.
 
 ### 2. **Player Object**
-   - The main character is implemented as the **"PlayerModel"** object in the Godot engine. This object is based on the `CharacterBody2D` class, meaning it has built-in functionality for handling movement and collision.
+   - The main character is created using the **"PlayerModel"** node in Godot. Built on the `CharacterBody2D` class, this object provides built-in functionality for movement and collision handling.
 
----
-
-## Detailed Code Explanation
-
-The player object code manages all movement and interaction mechanics using Godot's `CharacterBody2D` class. Here's a detailed breakdown:
-
-### 1. **Movement Constants and Variables**
-   - **Constants**: These values define how the player behaves.
-     - `SPEED = 300.0`: The speed at which the player moves horizontally.
-     - `GRAVITY = 1200.0`: The force that pulls the player downward when in the air.
-     - `JUMP_VELOCITY = -550.0`: The speed at which the player is launched upward when jumping.
-     - `WALL_JUMP_VELOCITY_X = 200.0`: The horizontal speed when jumping off a wall.
-     - `WALL_JUMP_VELOCITY_Y = -500.0`: The vertical speed when wall jumping.
-     - `WALL_SLIDE_SPEED = 500.0`: The maximum speed at which the player can slide down a wall.
-   - **Variables**:
-     - `direction`: A `Vector2` that stores the player's current movement direction.
-     - `is_wall_sliding`: A boolean that checks if the player is sliding down a wall.
-     - `can_wall_jump`: A boolean that tracks if the player can perform a wall jump.
-     - `last_wall_normal`: Stores the normal of the wall to check if the player is on a new wall.
-
-### 2. **Gravity and Wall Logic**
-   - The player is pulled down by gravity when not on the ground:
-     ```gdscript
-     if not is_on_floor():
-         velocity.y += GRAVITY * delta
-     ```
-   - **Wall-Sliding**: The player's fall speed is reduced when touching a wall in the air:
-     ```gdscript
-     if is_on_wall() and not is_on_floor() and velocity.y > 0:
-         is_wall_sliding = true
-         if velocity.y > WALL_SLIDE_SPEED:
-             velocity.y = WALL_SLIDE_SPEED
-     ```
-   - **Wall Detection**: Checks if the player is on a new wall to reset the wall jump:
-     ```gdscript
-     var current_wall_normal = get_wall_normal()
-     if current_wall_normal != last_wall_normal:
-         can_wall_jump = true
-         last_wall_normal = current_wall_normal
-     ```
-
-### 3. **Jump Mechanics**
-   - The player can jump normally when on the ground or perform a wall jump when sliding down a wall:
-     ```gdscript
-     if Input.is_action_just_pressed("up"):
-         if is_on_floor():
-             velocity.y = JUMP_VELOCITY
-         elif is_wall_sliding and can_wall_jump:
-             velocity.y = WALL_JUMP_VELOCITY_Y
-             velocity.x = direction.x * -WALL_JUMP_VELOCITY_X
-             can_wall_jump = false
-     ```
-
-### 4. **Horizontal Movement**
-   - The player's movement is controlled based on input:
-     ```gdscript
-     direction.x = Input.get_axis("left", "right")
-     if direction.x != 0:
-         velocity.x = direction.x * SPEED
-     else:
-         velocity.x = move_toward(velocity.x, 0, SPEED)
-     ```
-
-### 5. **Movement and Collision**
-   - The player is moved using the `move_and_slide()` method, which handles collisions:
-     ```gdscript
-     move_and_slide()
-     ```
-
-### 6. **Animations**
-   - The code updates the player's animations based on movement:
-     ```gdscript
-     func set_animation():
-         if direction.x < 0:
-             $PlayerSprite.flip_h = true
-             $AnimationPlayer.play("walk")
-         elif direction.x > 0:
-             $PlayerSprite.flip_h = false
-             $AnimationPlayer.play("walk")
-
-         if direction.x == 0:
-             $AnimationPlayer.play("idle")
-
-         if is_in_air():
-             $AnimationPlayer.play("jump")
-     ```
-
-### 7. **Helper Functions**
-   - **`is_in_air()`**: Checks if the player is in the air:
-     ```gdscript
-     func is_in_air():
-         return not is_on_floor()
-     ```
+### 3. **Skeleton Object**
+   - The skeleton is represented by an `Area2D` node that detects the player's presence and reacts accordingly. When attacked, it takes damage, and when its health reaches zero, it dies and disappears.
 
 ---
 
 ## Installation and Execution
 
 1. Download the latest version of *Dungeon Slayer* from [this repository](#).
-2. Open the project with Godot 4.3 or a compatible version.
-3. Run the game in the Godot editor or export it to your desired platform.
+2. Open the project using Godot 4.3 or a compatible version.
+3. Run the game directly within the Godot editor or export it to your desired platform.
 
 ## License and Distribution
 
-The beta version of the game is freely available but may not be modified or distributed commercially without explicit permission from **Joshua Pond Studios**. For distribution or commercial usage inquiries, please contact us.
+The beta version of *Dungeon Slayer* is freely available, but commercial distribution or modification requires explicit permission from **Joshua Pond Studios**. For inquiries regarding distribution or commercial use, please contact us.
 
 ---
 
-**Note**: This README provides an overview of the current version of the game's mechanics and will be updated with future releases.
+**Note**: This README is based on the current version of the game and will be updated with each new release. Thank you for supporting *Dungeon Slayer*!
