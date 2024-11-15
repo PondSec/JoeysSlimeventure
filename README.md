@@ -1,16 +1,16 @@
-# Dungeon Slayer
+# Depths of the Ooze
 
-*Dungeon Slayer* is an action-packed platformer game currently in beta, developed using the Godot 4.3 engine. Players take on the role of a daring hero who must navigate through perilous dungeons, conquer various enemies, and defeat powerful mini-bosses.
+*Depths of the Ooze* is an action-packed platformer game currently in beta, developed using the Godot 4.3 engine. Players take on the role of a daring hero who must navigate through perilous dungeons, conquer various enemies, and defeat powerful mini-bosses.
 
 ## Game Description
 
-In *Dungeon Slayer*, you control your character through treacherous dungeons filled with traps, enemies, and platforming challenges. The game combines fast-paced combat with precision movement, where every decision can lead to life or death. With each level, you’ll face tougher enemies and more complex obstacles, pushing your reflexes and combat skills to the limit.
+In *Depths of the Ooze*, you control your character through treacherous dungeons filled with traps, enemies, and platforming challenges. The game combines fast-paced combat with precision movement, where every decision can lead to life or death. With each level, you’ll face tougher enemies and more complex obstacles, pushing your reflexes and combat skills to the limit.
 
 ---
 
 ## Player Abilities
 
-The player in *Dungeon Slayer* is equipped with a variety of abilities to traverse the dungeon and fight foes:
+The player in *Depths of the Ooze* is equipped with a variety of abilities to traverse the dungeon and fight foes:
 
 1. **Running**: Move quickly left or right to dodge enemies, avoid hazards, or engage in combat.
 2. **Jumping**: Jump to reach higher platforms, clear gaps, and navigate vertically challenging areas.
@@ -23,7 +23,7 @@ The player in *Dungeon Slayer* is equipped with a variety of abilities to traver
 
 ## Skeleton Enemy
 
-The **Skeleton** is one of the primary enemies in *Dungeon Slayer*. It is a basic enemy that can deal damage to the player when close. It has its own set of behaviors:
+The **Skeleton** is one of the primary enemies in *Depths of the Ooze*. It is a basic enemy that can deal damage to the player when close. It has its own set of behaviors:
 
 ### Skeleton Behavior
 - **Movement**: The skeleton can walk left and right and may patrol certain areas or chase the player when in range.
@@ -127,14 +127,14 @@ func _check_attack_collision():
 
 ## Installation and Execution
 
-1. Download the latest version of *Dungeon Slayer* from [this repository](#).
+1. Download the latest version of *Depths of the Ooze* from [this repository](#).
 2. Open the project using Godot 4.3 or a compatible version.
 3. Run the game directly within the Godot editor or export it to your desired platform.
 
 ## License and Distribution
 
-The beta version of *Dungeon Slayer* is freely available, but commercial distribution or modification requires explicit permission from **Joshua Pond Studios**. For inquiries regarding distribution or commercial use, please contact us.
+The beta version of *Depths of the Ooze* is freely available, but commercial distribution or modification requires explicit permission from **Joshua Pond Studios**. For inquiries regarding distribution or commercial use, please contact us.
 
 ---
 
-**Note**: This README is based on the current version of the game and will be updated with each new release. Thank you for supporting *Dungeon Slayer*!
+**Note**: This README is based on the current version of the game and will be updated with each new release. Thank you for supporting *Depths of the Ooze*!
