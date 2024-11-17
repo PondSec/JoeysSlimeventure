@@ -1,4 +1,4 @@
-# Depths of the Ooze
+# Joey's Slimeventure
 
 *Depths of the Ooze* is an action-packed platformer game currently in beta, developed using the Godot 4.3 engine. Players take on the role of a daring hero who must navigate through perilous dungeons, conquer various enemies, and defeat powerful mini-bosses.
 
