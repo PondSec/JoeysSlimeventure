@@ -1,0 +1,61 @@
+[gd_scene load_steps=2 format=3 uid="uid://dr37w2wmytfwd"]
+
+[sub_resource type="GDScript" id="GDScript_rxp1c"]
+resource_name = "pause"
+script/source = "extends Control
+
+# Called when the node enters the scene tree for the first time.
+func _ready() -> void:
+		pass
+
+# Funktion, die beim Klicken auf den \"Restart\"-Button aufgerufen wird
+func _on_restart_button_pressed() -> void:
+	# Hole den Game-Tree und lade die Game-Szene erneut
+	get_tree().reload_current_scene()  # Diese Methode lädt die aktuelle Szene neu
+
+# Funktion, die beim Klicken auf den \"Exit\"-Button aufgerufen wird
+func _on_exit_pressed() -> void:
+	# Lade das Hauptmenü
+	get_tree().change_scene(\"res://Scenes/main_menu.tscn\")  # Setze den Pfad zu deiner MainMenu-Szene
+"
+
+[node name="Control" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 758.0
+offset_top = 560.0
+offset_right = 758.0
+offset_bottom = 560.0
+grow_horizontal = 2
+grow_vertical = 2
+script = SubResource("GDScript_rxp1c")
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = -1
+anchor_right = 0.196
+anchor_bottom = 0.224
+offset_left = 5.0
+offset_top = 5.0
+offset_right = -307.32
+offset_bottom = -201.92
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+
+[node name="RestartButton" type="Button" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = "Restart"
+
+[node name="Exit" type="Button" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = "Exit"
+
+[node name="CanvasModulate" type="CanvasModulate" parent="."]
+color = Color(0.54, 0.54, 0.54, 0.756863)
+
+[connection signal="pressed" from="MarginContainer/VBoxContainer/RestartButton" to="." method="_on_continue_button_pressed"]
+[connection signal="pressed" from="MarginContainer/VBoxContainer/RestartButton" to="." method="_on_restart_button_pressed"]
+[connection signal="pressed" from="MarginContainer/VBoxContainer/Exit" to="." method="_on_exit_pressed"]

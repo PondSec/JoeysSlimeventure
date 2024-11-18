@@ -1,0 +1,308 @@
+[gd_scene load_steps=19 format=3 uid="uid://b6ublycstdj8n"]
+
+[ext_resource type="Texture2D" uid="uid://cildswtcj7qrc" path="res://Assets/slime-sprite.png" id="1_4yq4u"]
+[ext_resource type="Texture2D" uid="uid://b6qcgwlbukqr7" path="res://Assets/Light/light.png" id="2_o1l4t"]
+[ext_resource type="Texture2D" uid="uid://quh4mac3hef1" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame0.png" id="3_ubp3h"]
+[ext_resource type="Texture2D" uid="uid://cjb4nq6aeftnv" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame1.png" id="4_6hcqa"]
+[ext_resource type="Texture2D" uid="uid://dq3ow8oywurgq" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame2.png" id="5_eo1jl"]
+[ext_resource type="Texture2D" uid="uid://b8fkvpdoglnlv" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame3.png" id="6_whfsg"]
+[ext_resource type="Texture2D" uid="uid://bdf3l7k3ha5iw" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame4.png" id="7_ojgk2"]
+[ext_resource type="Texture2D" uid="uid://lhtf7y3rpgu1" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame5.png" id="8_efps6"]
+[ext_resource type="Texture2D" uid="uid://bjy6egsrs8xvt" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame6.png" id="9_obsdn"]
+[ext_resource type="Texture2D" uid="uid://dhohrt3t5t7ed" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame7.png" id="10_2w1s5"]
+
+[sub_resource type="GDScript" id="GDScript_381hh"]
+resource_name = "Player"
+script/source = "extends CharacterBody2D
+
+# Konstanten für die Bewegung und Sprünge
+const SPEED = 200.0
+const GRAVITY = 1200.0
+const JUMP_VELOCITY = -400.0
+const WALL_JUMP_VELOCITY_X = 300.0
+const WALL_JUMP_VELOCITY_Y = -400.0
+const WALL_SLIDE_SPEED = 1000.0
+
+# Variablen für die Laufrichtung und den Wall-Jump-Status
+var direction := Vector2.ZERO
+var is_wall_sliding := false
+var can_wall_jump := true
+var last_wall_normal := Vector2.ZERO
+
+# Variable, um den Glühstatus zu toggeln
+var is_glowing := true
+# Variable für den Angriff
+var is_attacking := false
+
+# Leben des Spielers
+var health := 100
+
+# Referenz zum Schwert (AttackSprite)
+var attack_sprite: AnimatedSprite
+
+func _ready() -> void:
+	# Initialisiere den AttackSprite Knoten (hier muss der korrekte Pfad zur AttackSprite angegeben werden)
+	attack_sprite = $AttackSprite  # Hier wird der Knoten AttackSprite gesucht, der unter Player ist
+
+func _physics_process(delta: float) -> void:
+	# Gravitation anwenden, wenn nicht auf dem Boden
+	if not is_on_floor():
+		velocity.y += GRAVITY * delta
+
+	# Überprüfen, ob der Charakter an einer Wand ist
+	if is_on_wall() and not is_on_floor() and velocity.y > 0:
+		is_wall_sliding = true
+		if velocity.y > WALL_SLIDE_SPEED:
+			velocity.y = WALL_SLIDE_SPEED
+		var current_wall_normal = get_wall_normal()
+		if current_wall_normal != last_wall_normal:
+			can_wall_jump = true
+			last_wall_normal = current_wall_normal
+	else:
+		is_wall_sliding = false
+		if is_on_floor():
+			can_wall_jump = true
+
+	# Sprung ausführen
+	if Input.is_action_just_pressed(\"up\"):
+		if is_on_floor():
+			velocity.y = JUMP_VELOCITY
+		elif is_wall_sliding and can_wall_jump:
+			velocity.y = WALL_JUMP_VELOCITY_Y
+			velocity.x = direction.x * -WALL_JUMP_VELOCITY_X
+			can_wall_jump = false
+
+	# Horizontale Bewegung basierend auf der Eingabe
+	direction.x = Input.get_axis(\"left\", \"right\")
+	if direction.x != 0:
+		velocity.x = direction.x * SPEED
+	else:
+		velocity.x = move_toward(velocity.x, 0, SPEED)
+
+	# Bewegen und gleiten lassen
+	move_and_slide()
+
+	# Animation einstellen
+	set_animation()
+
+	# Glüh-Status Toggle
+	glow()
+
+	# Angriff ausführen
+	attack()
+
+# Funktion zum Einstellen der Animation
+func set_animation():
+	if is_attacking:
+		return  # Wenn der Spieler angreift, keine anderen Animationen abspielen
+
+	if direction.x < 0:
+		$Player/AnimatedSprite.flip_h = true  # Flip horizontal, wenn nach links bewegt wird
+		$AttackSprite.flip_h = true  # Flip auch das Schwert
+		$Player/AnimatedSprite.play(\"walk\")
+	elif direction.x > 0:
+		$Player/AnimatedSprite.flip_h = false  # Flip horizontal, wenn nach rechts bewegt wird
+		$AttackSprite.flip_h = false  # Flip auch das Schwert
+		$Player/AnimatedSprite.play(\"walk\")
+
+	if direction.x == 0:
+		$Player/AnimatedSprite.play(\"idle\")
+
+	if is_in_air():
+		$Player/AnimatedSprite.play(\"jump\")
+
+func is_in_air():
+	return not is_on_floor()
+
+func glow():
+	if Input.is_action_just_pressed(\"GLow\"):
+		is_glowing = not is_glowing
+	$PlayerGlow.enabled = is_glowing
+
+# Funktion für den Angriff
+func attack():
+	if Input.is_action_just_pressed(\"Attack\") and not is_attacking:
+		is_attacking = true
+		$AttackSprite.visible = true  # Das Schwert sichtbar machen
+		$AttackSprite.play(\"swing\")  # Die Angriff-Animation abspielen
+
+		# Warten, bis die Animation fertig ist
+		# Verwende Callable, um das Signal zu verbinden
+		$AttackSprite.connect(\"animation_finished\", Callable(self, \"_on_attack_animation_finished\"))
+
+# Callback, wenn die Angriff-Animation fertig ist
+func _on_attack_animation_finished():
+	is_attacking = false
+	$AttackSprite.visible = false  # Das Schwert unsichtbar machen
+	# Disconnect, wenn die Animation fertig ist
+	$AttackSprite.disconnect(\"animation_finished\", Callable(self, \"_on_attack_animation_finished\"))
+
+# Überprüfung auf Kollision mit dem Skelett
+func _check_attack_collision():
+	if is_attacking:
+		# Überprüfen, ob das Schwert mit dem Skelett kollidiert (Schaden verursachen)
+		var attack_area = $AttackSprite.get_node(\"AttackArea\")  # Annahme: Ein Node für den Angriffbereich
+		var enemies = attack_area.get_overlapping_bodies()
+
+		for enemy in enemies:
+			if enemy.is_in_group(\"enemies\"):  # Überprüfen, ob das Objekt ein Gegner ist
+				enemy.take_damage(25)  # Schaden verursachen
+"
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_uwm2o"]
+size = Vector2(255, 386.667)
+
+[sub_resource type="Animation" id="Animation_chcy3"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("PlayerSprite:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [0]
+}
+
+[sub_resource type="Animation" id="Animation_uuvvo"]
+resource_name = "idle"
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("PlayerSprite:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.5),
+"transitions": PackedFloat32Array(1, 1),
+"update": 1,
+"values": [0, 1]
+}
+
+[sub_resource type="Animation" id="Animation_smtgq"]
+resource_name = "jump"
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("PlayerSprite:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [5]
+}
+
+[sub_resource type="Animation" id="Animation_wvi70"]
+resource_name = "walk"
+length = 0.5
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("PlayerSprite:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.5),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [0, 4]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_1fd5i"]
+_data = {
+"RESET": SubResource("Animation_chcy3"),
+"idle": SubResource("Animation_uuvvo"),
+"jump": SubResource("Animation_smtgq"),
+"walk": SubResource("Animation_wvi70")
+}
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_sgnk3"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("3_ubp3h")
+}, {
+"duration": 1.0,
+"texture": ExtResource("4_6hcqa")
+}, {
+"duration": 1.0,
+"texture": ExtResource("5_eo1jl")
+}, {
+"duration": 1.0,
+"texture": ExtResource("6_whfsg")
+}, {
+"duration": 1.0,
+"texture": ExtResource("7_ojgk2")
+}, {
+"duration": 1.0,
+"texture": ExtResource("8_efps6")
+}, {
+"duration": 1.0,
+"texture": ExtResource("9_obsdn")
+}, {
+"duration": 1.0,
+"texture": ExtResource("10_2w1s5")
+}],
+"loop": false,
+"name": &"swing",
+"speed": 30.0
+}]
+
+[node name="PlayerModel" type="CharacterBody2D"]
+position = Vector2(300, 697)
+scale = Vector2(0.07, 0.07)
+collision_mask = 3
+script = SubResource("GDScript_381hh")
+
+[node name="PlayerSprite" type="Sprite2D" parent="."]
+position = Vector2(140, 950)
+texture = ExtResource("1_4yq4u")
+hframes = 5
+vframes = 3
+
+[node name="PlayerGlow" type="PointLight2D" parent="."]
+position = Vector2(140, 950)
+color = Color(0.336, 0.84, 0.462, 1)
+energy = 1.16
+shadow_enabled = true
+texture = ExtResource("2_o1l4t")
+texture_scale = 8.72
+
+[node name="PlayerCollisionShape" type="CollisionShape2D" parent="."]
+position = Vector2(140, 1027.5)
+rotation = 1.5708
+scale = Vector2(0.999999, 0.999999)
+shape = SubResource("RectangleShape2D_uwm2o")
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+libraries = {
+"": SubResource("AnimationLibrary_1fd5i")
+}
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position = Vector2(150, 1050)
+scale = Vector2(5, 5)
+zoom = Vector2(4, 4)
+limit_left = -14
+limit_top = 522
+limit_right = 946
+limit_bottom = 1066
+limit_smoothed = true
+position_smoothing_enabled = true
+editor_draw_limits = true
+editor_draw_drag_margin = true
+
+[node name="AttackSprite" type="AnimatedSprite2D" parent="."]
+position = Vector2(157.143, 914.286)
+scale = Vector2(2.10119, 1.78373)
+sprite_frames = SubResource("SpriteFrames_sgnk3")
+animation = &"swing"
+frame = 7

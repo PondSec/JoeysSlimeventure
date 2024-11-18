@@ -1,0 +1,19 @@
+[gd_scene load_steps=5 format=3 uid="uid://bg07k5qecvgko"]
+
+[ext_resource type="Script" path="res://Scenes/hud.gd" id="1_due60"]
+[ext_resource type="Texture2D" uid="uid://cvax543ebmwyn" path="res://Assets/Health Bar/life_bar_under.png" id="2_fhuvp"]
+[ext_resource type="Texture2D" uid="uid://c56vlrcqst6x2" path="res://Assets/Health Bar/life_bar_over.png" id="3_bxddg"]
+[ext_resource type="Texture2D" uid="uid://cqaqu4kpb3fdj" path="res://Assets/Health Bar/life_bar.png" id="4_ydf0w"]
+
+[node name="CanvasLayer" type="CanvasLayer"]
+script = ExtResource("1_due60")
+
+[node name="TextureProgressBar" type="TextureProgressBar" parent="."]
+offset_left = 78.0
+offset_top = 91.0
+offset_right = 1578.0
+offset_bottom = 482.0
+texture_under = ExtResource("2_fhuvp")
+texture_over = ExtResource("3_bxddg")
+texture_progress = ExtResource("4_ydf0w")
+metadata/_edit_use_anchors_ = true

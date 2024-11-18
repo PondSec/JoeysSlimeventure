@@ -1,0 +1,131 @@
+[gd_scene load_steps=7 format=3 uid="uid://lud4ledapwml"]
+
+[ext_resource type="Texture2D" uid="uid://4myegyrrm76e" path="res://Assets/MainMenu/background_sprite.png" id="1_v1qke"]
+[ext_resource type="AudioStream" uid="uid://d23kx57arto1m" path="res://Assets/Sounds/8-bit-retro-game-music-233964.mp3" id="2_duyn5"]
+
+[sub_resource type="GDScript" id="GDScript_yvg2q"]
+resource_name = "menu"
+script/source = "extends Control
+
+# Called when the node enters the scene tree for the first time.
+func _ready() -> void:
+	$BackgroundSprite/AnimationPlayer.play(\"loop\")
+	pass
+
+# Funktion, die beim Klicken auf den \"Play\"-Button aufgerufen wird
+func _on_play_pressed() -> void:
+	# Lade die \"Game\"-Szene als PackedScene
+	var game_scene = load(\"res://Scenes/Game.tscn\")  # Hier wird die Szene geladen
+	
+	# Überprüfe, ob die Szene erfolgreich geladen wurde
+	if game_scene == null:
+		print(\"Fehler: Die Szene konnte nicht geladen werden.\")
+		return  # Beende die Funktion, wenn die Szene nicht geladen werden konnte
+
+	# Instanziiere die Szene
+	var scene_instance = game_scene.instantiate()  # Instanziiere die Szene
+	get_tree().current_scene.queue_free()  # Entlade die alte Szene
+
+	# Setze die neue Szene
+	get_tree().root.add_child(scene_instance)  # Füge die instanzierte Szene zur Root-Node hinzu
+
+# Funktion, die beim Klicken auf den \"Quit\"-Button aufgerufen wird
+func _on_quit_pressed() -> void:
+	# Beende das Spiel
+	get_tree().quit()
+"
+
+[sub_resource type="Animation" id="Animation_cii0q"]
+resource_name = "loop"
+length = 0.6
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.6),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [0, 5]
+}
+
+[sub_resource type="Animation" id="Animation_jnf7q"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [0]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_4agks"]
+_data = {
+"RESET": SubResource("Animation_jnf7q"),
+"loop": SubResource("Animation_cii0q")
+}
+
+[node name="MainMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -4.0
+offset_top = -1.0
+offset_right = 8.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 2
+script = SubResource("GDScript_yvg2q")
+
+[node name="BackgroundSprite" type="Sprite2D" parent="."]
+position = Vector2(964, 541)
+scale = Vector2(1, 1.04167)
+texture = ExtResource("1_v1qke")
+hframes = 5
+vframes = 2
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="BackgroundSprite"]
+libraries = {
+"": SubResource("AnimationLibrary_4agks")
+}
+
+[node name="AudioStreamPlayer2D" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("2_duyn5")
+autoplay = true
+parameters/looping = true
+
+[node name="Buttons" type="Node2D" parent="."]
+position = Vector2(800, 800)
+
+[node name="MarginContainer" type="MarginContainer" parent="Buttons"]
+offset_right = 400.0
+offset_bottom = 150.0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Buttons/MarginContainer"]
+custom_minimum_size = Vector2(400, 150)
+layout_mode = 2
+alignment = 1
+
+[node name="PlayButton" type="Button" parent="Buttons/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+text = "Play"
+
+[node name="QuitButton" type="Button" parent="Buttons/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+text = "Quit"
+
+[connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/PlayButton" to="." method="_on_play_pressed"]
+[connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/PlayButton" to="." method="_on_button_pressed"]
+[connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/QuitButton" to="." method="_on_button_3_pressed"]
+[connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/QuitButton" to="." method="_on_quit_pressed"]
