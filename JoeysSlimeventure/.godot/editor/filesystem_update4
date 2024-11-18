@@ -1,0 +1,9 @@
+res://Scenes/Game.tscn
+res://Scenes/player.tscn
+res://Scenes/HUD.tscn
+res://Scenes/gameover.tscn
+res://Scenes/bat.tscn
+res://Scenes/skeleton.tscn
+res://Scenes/torch.tscn
+res://Scenes/main_menu.tscn
+res://Scenes/PauseMenu.tscn
