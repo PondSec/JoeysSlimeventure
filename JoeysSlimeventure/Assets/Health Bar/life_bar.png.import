@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dmh4k0yq2bjpa"
-path="res://.godot/imported/BatStandard_Sheet.png-f9226f7c150b318bcf822ddf3eae0ae1.ctex"
+uid="uid://cqaqu4kpb3fdj"
+path="res://.godot/imported/life_bar.png-9327facd1aa2ba2f595bd82393967eca.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Assets/Bat/Standard/BatStandard_Sheet.png"
-dest_files=["res://.godot/imported/BatStandard_Sheet.png-f9226f7c150b318bcf822ddf3eae0ae1.ctex"]
+source_file="res://Assets/Health Bar/life_bar.png"
+dest_files=["res://.godot/imported/life_bar.png-9327facd1aa2ba2f595bd82393967eca.ctex"]
 
 [params]
 

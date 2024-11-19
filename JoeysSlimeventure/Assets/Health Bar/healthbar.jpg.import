@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dmh4k0yq2bjpa"
-path="res://.godot/imported/BatStandard_Sheet.png-f9226f7c150b318bcf822ddf3eae0ae1.ctex"
+uid="uid://nlysmfm70mra"
+path="res://.godot/imported/healthbar.jpg-050a4973dd075cafc833f1e2081ce83b.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Assets/Bat/Standard/BatStandard_Sheet.png"
-dest_files=["res://.godot/imported/BatStandard_Sheet.png-f9226f7c150b318bcf822ddf3eae0ae1.ctex"]
+source_file="res://Assets/Health Bar/healthbar.jpg"
+dest_files=["res://.godot/imported/healthbar.jpg-050a4973dd075cafc833f1e2081ce83b.ctex"]
 
 [params]
 

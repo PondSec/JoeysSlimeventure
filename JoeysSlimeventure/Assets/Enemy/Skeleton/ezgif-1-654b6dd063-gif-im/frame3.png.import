@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dmh4k0yq2bjpa"
-path="res://.godot/imported/BatStandard_Sheet.png-f9226f7c150b318bcf822ddf3eae0ae1.ctex"
+uid="uid://t8xkxxv8py5d"
+path="res://.godot/imported/frame3.png-d5c0fe6d51bbe5b6a41cb13014f45ca9.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Assets/Bat/Standard/BatStandard_Sheet.png"
-dest_files=["res://.godot/imported/BatStandard_Sheet.png-f9226f7c150b318bcf822ddf3eae0ae1.ctex"]
+source_file="res://Assets/Enemy/Skeleton/ezgif-1-654b6dd063-gif-im/frame3.png"
+dest_files=["res://.godot/imported/frame3.png-d5c0fe6d51bbe5b6a41cb13014f45ca9.ctex"]
 
 [params]
 
