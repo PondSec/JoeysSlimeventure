@@ -305,5 +305,6 @@ vertical_alignment = 1
 libraries = {
 "": SubResource("AnimationLibrary_5p1jn")
 }
+speed_scale = 4.0
 
 [connection signal="pressed" from="TextureButton" to="." method="_on_texture_button_pressed"]
