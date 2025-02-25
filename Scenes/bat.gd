@@ -119,14 +119,14 @@ func die():
 	await get_tree().create_timer(RESPAWN_COOLDOWN).timeout  # Respawn-Delay
 	spawn_near_player()
 
-func is_in_player_view(position: Vector2) -> bool:
-	if not player or not camera:
-		return false
+func is_valid_spawn_position(pos: Vector2) -> bool:
+	var space_state = get_world_2d().direct_space_state
+	var query = PhysicsPointQueryParameters2D.new()
+	query.position = pos
+	query.collision_mask = 1  # Stelle sicher, dass nur Wände überprüft werden
 
-	var viewport_rect = camera.get_viewport_rect()
-	var screen_position = camera.get_camera_transform().affine_inverse().xform(position)
-
-	return viewport_rect.has_point(screen_position)
+	var result = space_state.intersect_point(query)
+	return result.is_empty()  # Wenn leer, dann ist die Position frei
 
 func spawn_near_player() -> void:
 	if not player:
@@ -136,21 +136,17 @@ func spawn_near_player() -> void:
 	var valid_position_found = false
 	var new_position = global_position  # Fallback
 
-	for i in range(10):  # Maximal 10 Versuche, eine passende Position zu finden
+	for i in range(10):
 		var random_offset = Vector2(
 			randf_range(-DETECTION_RADIUS, DETECTION_RADIUS),
 			randf_range(-DETECTION_RADIUS, DETECTION_RADIUS)
 		)
 		var candidate_position = player.global_position + random_offset
 
-		# Stelle sicher, dass die Position sichtbar ist
-		if candidate_position.distance_to(player.global_position) >= MIN_DISTANCE and is_in_player_view(candidate_position):
-			navigation_agent.target_position = candidate_position
-			await get_tree().physics_frame
-			if navigation_agent.is_navigation_finished():
-				new_position = candidate_position
-				valid_position_found = true
-				break
+		if candidate_position.distance_to(player.global_position) >= MIN_DISTANCE and is_valid_spawn_position(candidate_position):
+			new_position = candidate_position
+			valid_position_found = true
+			break
 
 	if not valid_position_found:
 		print("WARNUNG: Keine ideale Spawn-Position gefunden, Respawn abgebrochen.")
