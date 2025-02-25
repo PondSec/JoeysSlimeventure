@@ -2,11 +2,11 @@ extends CharacterBody2D
 
 const SPEED = 140.0
 const DETECTION_RADIUS = 300.0
-const ATTACK_RANGE =40.0
+const ATTACK_RANGE = 40.0
 const ATTACK_COOLDOWN = 1.5
-const MIN_DISTANCE = 40.0
+const MIN_DISTANCE = 20.0
+const RESPAWN_COOLDOWN = 5
 
-var RESPAWN_COOLDOWN
 var is_dead := false
 var health := 50
 var is_attacking := false
@@ -20,7 +20,6 @@ var attack_timer := 0.0
 func _ready() -> void:
 	randomize()
 	add_to_group("enemies")
-	RESPAWN_COOLDOWN = randf_range(5, 10)
 
 func _physics_process(delta: float) -> void:
 	if is_dead:
@@ -153,10 +152,11 @@ func spawn_near_player() -> void:
 		print("WARNUNG: Keine ideale Spawn-Position gefunden, Respawn abgebrochen.")
 		return  # Fledermaus wird nicht gespawnt, wenn keine gültige Position gefunden wird
 
-	global_position = new_position
-	show()
-	set_deferred("collision_layer", 1)
-	set_deferred("collision_mask", 1)
-	is_dead = false
-	health = 50
-	print("Fledermaus respawned bei:", global_position)
+	else:
+		global_position = new_position
+		show()
+		set_deferred("collision_layer", 1)
+		set_deferred("collision_mask", 1)
+		is_dead = false
+		health = 50
+		print("Fledermaus respawned bei:", global_position)
