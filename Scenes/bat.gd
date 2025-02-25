@@ -2,11 +2,11 @@ extends CharacterBody2D
 
 const SPEED = 140.0
 const DETECTION_RADIUS = 300.0
-const ATTACK_RANGE = 50.0
+const ATTACK_RANGE =40.0
 const ATTACK_COOLDOWN = 1.5
 const MIN_DISTANCE = 40.0
-const RESPAWN_COOLDOWN = 5.0
 
+var RESPAWN_COOLDOWN
 var is_dead := false
 var health := 50
 var is_attacking := false
@@ -20,6 +20,7 @@ var attack_timer := 0.0
 func _ready() -> void:
 	randomize()
 	add_to_group("enemies")
+	RESPAWN_COOLDOWN = randf_range(5, 10)
 
 func _physics_process(delta: float) -> void:
 	if is_dead:
