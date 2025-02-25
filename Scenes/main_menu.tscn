@@ -187,6 +187,6 @@ offset_bottom = 722.144
 text = "v0.0.1.3"
 
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/PlayButton" to="." method="_on_play_button_pressed"]
-[connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/CreditsButton" to="." method="_on_credits_button_pressed"]
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/CreditsButton" to="." method="_on_texture_button_pressed"]
+[connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/CreditsButton" to="." method="_on_credits_button_pressed"]
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/QuitButton" to="." method="_on_quit_button_pressed"]
