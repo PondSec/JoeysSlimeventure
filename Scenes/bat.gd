@@ -20,30 +20,28 @@ var attack_timer := 0.0
 func _ready() -> void:
 	randomize()
 	add_to_group("enemies")
-	
 
 func _physics_process(delta: float) -> void:
 	if is_dead:
 		return
 
-	if player and player.is_glowing:
-		var distance_to_player = global_position.distance_to(player.global_position)
-		
-		if distance_to_player <= DETECTION_RADIUS:
-			navigation_agent.target_position = player.global_position
-			var direction = to_local(navigation_agent.get_next_path_position()).normalized()
-			
-			if distance_to_player > MIN_DISTANCE:
-				velocity = direction * SPEED
-			else:
-				velocity = Vector2.ZERO
-
-			attack_timer -= delta
-			if distance_to_player <= ATTACK_RANGE and attack_timer <= 0.0:
-				attack()
+	var distance_to_player = global_position.distance_to(player.global_position)
+	
+	if distance_to_player <= ATTACK_RANGE:
+		attack_timer -= delta
+		if attack_timer <= 0.0:
+			attack()
+	elif player and player.is_glowing and distance_to_player <= DETECTION_RADIUS:
+		navigation_agent.target_position = player.global_position
+		var direction = to_local(navigation_agent.get_next_path_position()).normalized()
+		if distance_to_player > MIN_DISTANCE:
+			velocity = direction * SPEED
 		else:
 			velocity = Vector2.ZERO
-
+	else:
+		velocity = Vector2.ZERO
+		is_attacking = false
+	
 	move_and_slide()
 	set_animation()
 
@@ -86,6 +84,7 @@ func _on_attack_animation_finished(anim_name: String) -> void:
 
 	animation_player.disconnect("animation_finished", Callable(self, "_on_attack_animation_finished"))
 	is_attacking = false
+	set_animation()  # Stelle sicher, dass die Animation aktualisiert wird
 
 func set_animation() -> void:
 	if is_dead:
@@ -119,7 +118,6 @@ func die():
 	await get_tree().create_timer(1.0).timeout  # Warte für die Sterbeanimation
 	await get_tree().create_timer(RESPAWN_COOLDOWN).timeout  # Respawn-Delay
 	spawn_near_player()
-
 
 func is_in_player_view(position: Vector2) -> bool:
 	if not player or not camera:
