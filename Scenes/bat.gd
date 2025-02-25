@@ -20,30 +20,28 @@ var attack_timer := 0.0
 func _ready() -> void:
 	randomize()
 	add_to_group("enemies")
-	
 
 func _physics_process(delta: float) -> void:
 	if is_dead:
 		return
 
-	if player:
-		var distance_to_player = global_position.distance_to(player.global_position)
-		
-		if distance_to_player <= DETECTION_RADIUS:
-			navigation_agent.target_position = player.global_position
-			var direction = to_local(navigation_agent.get_next_path_position()).normalized()
-			
-			if distance_to_player > MIN_DISTANCE:
-				velocity = direction * SPEED
-			else:
-				velocity = Vector2.ZERO
-
-			attack_timer -= delta
-			if distance_to_player <= ATTACK_RANGE and attack_timer <= 0.0:
-				attack()
+	var distance_to_player = global_position.distance_to(player.global_position)
+	
+	if distance_to_player <= ATTACK_RANGE:
+		attack_timer -= delta
+		if attack_timer <= 0.0:
+			attack()
+	elif player and player.is_glowing and distance_to_player <= DETECTION_RADIUS:
+		navigation_agent.target_position = player.global_position
+		var direction = to_local(navigation_agent.get_next_path_position()).normalized()
+		if distance_to_player > MIN_DISTANCE:
+			velocity = direction * SPEED
 		else:
 			velocity = Vector2.ZERO
-
+	else:
+		velocity = Vector2.ZERO
+		is_attacking = false
+	
 	move_and_slide()
 	set_animation()
 
@@ -86,6 +84,7 @@ func _on_attack_animation_finished(anim_name: String) -> void:
 
 	animation_player.disconnect("animation_finished", Callable(self, "_on_attack_animation_finished"))
 	is_attacking = false
+	set_animation()  # Stelle sicher, dass die Animation aktualisiert wird
 
 func set_animation() -> void:
 	if is_dead:
@@ -120,15 +119,22 @@ func die():
 	await get_tree().create_timer(RESPAWN_COOLDOWN).timeout  # Respawn-Delay
 	spawn_near_player()
 
+func is_in_player_view(position: Vector2) -> bool:
+	if not player or not camera:
+		return false
+
+	var viewport_rect = camera.get_viewport_rect()
+	var screen_position = camera.get_camera_transform().affine_inverse().xform(position)
+
+	return viewport_rect.has_point(screen_position)
 
 func spawn_near_player() -> void:
 	if not player:
 		print("FEHLER: Kein Spieler gefunden!")
 		return
 
-	# Versuche eine gültige Position in Reichweite, aber mit Mindestabstand zu finden
 	var valid_position_found = false
-	var new_position = global_position  # Fallback auf aktuelle Position
+	var new_position = global_position  # Fallback
 
 	for i in range(10):  # Maximal 10 Versuche, eine passende Position zu finden
 		var random_offset = Vector2(
@@ -136,14 +142,19 @@ func spawn_near_player() -> void:
 			randf_range(-DETECTION_RADIUS, DETECTION_RADIUS)
 		)
 		var candidate_position = player.global_position + random_offset
-		
-		if candidate_position.distance_to(player.global_position) >= MIN_DISTANCE:
-			new_position = candidate_position
-			valid_position_found = true
-			break
+
+		# Stelle sicher, dass die Position sichtbar ist
+		if candidate_position.distance_to(player.global_position) >= MIN_DISTANCE and is_in_player_view(candidate_position):
+			navigation_agent.target_position = candidate_position
+			await get_tree().physics_frame
+			if navigation_agent.is_navigation_finished():
+				new_position = candidate_position
+				valid_position_found = true
+				break
 
 	if not valid_position_found:
-		print("WARNUNG: Keine ideale Spawn-Position gefunden, nutze Fallback.")
+		print("WARNUNG: Keine ideale Spawn-Position gefunden, Respawn abgebrochen.")
+		return  # Fledermaus wird nicht gespawnt, wenn keine gültige Position gefunden wird
 
 	global_position = new_position
 	show()
