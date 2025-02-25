@@ -1,5 +1,3 @@
-# BAT.gd
-
 extends CharacterBody2D
 
 const SPEED = 140.0
@@ -7,24 +5,22 @@ const DETECTION_RADIUS = 300.0
 const ATTACK_RANGE = 50.0
 const ATTACK_COOLDOWN = 1.5
 const MIN_DISTANCE = 40.0
-const SPAWN_RADIUS = 30.0
 const RESPAWN_COOLDOWN = 5.0
 
 var is_dead := false
 var health := 50
 var is_attacking := false
 var attack_timer := 0.0
-var original_position: Vector2
 
 @export var player: CharacterBody2D
 @onready var animation_player = $Sprite2D/AnimationPlayer
 @onready var navigation_agent = $NavigationAgent2D
-@onready var camera: Camera2D = $Camera2D  # Deine Kamera im Szenenbaum
+@onready var camera: Camera2D = $Camera2D  # Kamera für Effekte
 
 func _ready() -> void:
 	randomize()
 	add_to_group("enemies")
-	original_position = global_position
+	
 
 func _physics_process(delta: float) -> void:
 	if is_dead:
@@ -53,23 +49,18 @@ func _physics_process(delta: float) -> void:
 
 func attack() -> void:
 	if player and not is_dead:
-		# Prüfe, ob es sich um einen kritischen Treffer handelt
 		var is_critical = randf() < 0.1  # 10% Chance für einen kritischen Treffer
 		if is_critical:
-			perform_critical_hit()  # Slow-Motion und Kamera-Wackeln sofort starten
+			perform_critical_hit()
 
-		# Spiele die Angriff-Animation ab
 		animation_player.play("attack")
 		attack_timer = ATTACK_COOLDOWN
 		is_attacking = true
 		animation_player.connect("animation_finished", Callable(self, "_on_attack_animation_finished"))
 
 func perform_critical_hit() -> void:
-	# Aktiviere Slow-Motion-Effekt
-	activate_slow_motion(0.3, 0.5)  # Zeitlupe für 0.3 Sekunden mit halber Geschwindigkeit
-
-	# Stärkeres Kamera-Wackeln
-	screen_shake(0.5, 30.0)  # Kamera-Wackeln für 0.5 Sekunden mit Intensität 30
+	activate_slow_motion(0.3, 0.5)
+	screen_shake(0.5, 30.0)
 
 func activate_slow_motion(duration: float, scale: float) -> void:
 	Engine.time_scale = scale
@@ -88,11 +79,8 @@ func _on_attack_animation_finished(anim_name: String) -> void:
 		var distance_to_player = global_position.distance_to(player.global_position)
 		if distance_to_player <= ATTACK_RANGE:
 			var random_damage = int(randf_range(7.0, 17.0))
-			
-			# Doppelt so viel Schaden bei einem kritischen Treffer
-			var is_critical = randf() < 0.1
-			if is_critical:
-				random_damage *= 2
+			if randf() < 0.1:
+				random_damage *= 2  # Kritischer Treffer macht doppelten Schaden
 			
 			player.take_damage(random_damage)
 
@@ -125,15 +113,42 @@ func die():
 	is_dead = true
 	animation_player.play("death")
 	velocity = Vector2.ZERO
-	queue_free()
-	await get_tree().create_timer(1.0).timeout
-	await get_tree().create_timer(RESPAWN_COOLDOWN).timeout
-	spawn_near_original_position()
+	hide()  # Fledermaus unsichtbar machen
+	set_deferred("collision_layer", 0)
+	set_deferred("collision_mask", 0)  
+	await get_tree().create_timer(1.0).timeout  # Warte für die Sterbeanimation
+	await get_tree().create_timer(RESPAWN_COOLDOWN).timeout  # Respawn-Delay
+	spawn_near_player()
 
-func spawn_near_original_position() -> void:
-	var random_offset = Vector2(randf_range(-SPAWN_RADIUS, SPAWN_RADIUS), randf_range(-SPAWN_RADIUS, SPAWN_RADIUS))
-	global_position = original_position + random_offset
-	navigation_agent.target_position = global_position
+
+func spawn_near_player() -> void:
+	if not player:
+		print("FEHLER: Kein Spieler gefunden!")
+		return
+
+	# Versuche eine gültige Position in Reichweite, aber mit Mindestabstand zu finden
+	var valid_position_found = false
+	var new_position = global_position  # Fallback auf aktuelle Position
+
+	for i in range(10):  # Maximal 10 Versuche, eine passende Position zu finden
+		var random_offset = Vector2(
+			randf_range(-DETECTION_RADIUS, DETECTION_RADIUS),
+			randf_range(-DETECTION_RADIUS, DETECTION_RADIUS)
+		)
+		var candidate_position = player.global_position + random_offset
+		
+		if candidate_position.distance_to(player.global_position) >= MIN_DISTANCE:
+			new_position = candidate_position
+			valid_position_found = true
+			break
+
+	if not valid_position_found:
+		print("WARNUNG: Keine ideale Spawn-Position gefunden, nutze Fallback.")
+
+	global_position = new_position
 	show()
+	set_deferred("collision_layer", 1)
+	set_deferred("collision_mask", 1)
 	is_dead = false
 	health = 50
+	print("Fledermaus respawned bei:", global_position)

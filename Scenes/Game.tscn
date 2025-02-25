@@ -354,11 +354,6 @@ position = Vector2(975, 1440)
 scale = Vector2(2, 2)
 player = NodePath("../PlayerModel")
 
-[node name="Bat2" parent="." node_paths=PackedStringArray("player") instance=ExtResource("6_u4atw")]
-position = Vector2(437, 1249)
-scale = Vector2(2, 2)
-player = NodePath("../PlayerModel")
-
 [node name="Bat3" parent="." node_paths=PackedStringArray("player") instance=ExtResource("6_u4atw")]
 position = Vector2(158, 999)
 scale = Vector2(2, 2)
@@ -366,16 +361,6 @@ player = NodePath("../PlayerModel")
 
 [node name="Bat4" parent="." node_paths=PackedStringArray("player") instance=ExtResource("6_u4atw")]
 position = Vector2(1315, 613)
-scale = Vector2(2, 2)
-player = NodePath("../PlayerModel")
-
-[node name="Bat5" parent="." node_paths=PackedStringArray("player") instance=ExtResource("6_u4atw")]
-position = Vector2(1388, 1255)
-scale = Vector2(2, 2)
-player = NodePath("../PlayerModel")
-
-[node name="Bat6" parent="." node_paths=PackedStringArray("player") instance=ExtResource("6_u4atw")]
-position = Vector2(889, 1314)
 scale = Vector2(2, 2)
 player = NodePath("../PlayerModel")
 
