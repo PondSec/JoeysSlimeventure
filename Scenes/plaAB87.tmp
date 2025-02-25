@@ -1,0 +1,214 @@
+[gd_scene load_steps=22 format=3 uid="uid://b6ublycstdj8n"]
+
+[ext_resource type="Texture2D" uid="uid://cildswtcj7qrc" path="res://Assets/slime-sprite.png" id="1_4yq4u"]
+[ext_resource type="Texture2D" uid="uid://b6qcgwlbukqr7" path="res://Assets/Light/light.png" id="2_o1l4t"]
+[ext_resource type="Texture2D" uid="uid://quh4mac3hef1" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame0.png" id="3_ubp3h"]
+[ext_resource type="Texture2D" uid="uid://cjb4nq6aeftnv" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame1.png" id="4_6hcqa"]
+[ext_resource type="Texture2D" uid="uid://dq3ow8oywurgq" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame2.png" id="5_eo1jl"]
+[ext_resource type="Texture2D" uid="uid://b8fkvpdoglnlv" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame3.png" id="6_whfsg"]
+[ext_resource type="Texture2D" uid="uid://bdf3l7k3ha5iw" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame4.png" id="7_ojgk2"]
+[ext_resource type="Texture2D" uid="uid://lhtf7y3rpgu1" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame5.png" id="8_efps6"]
+[ext_resource type="Texture2D" uid="uid://bjy6egsrs8xvt" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame6.png" id="9_obsdn"]
+[ext_resource type="Texture2D" uid="uid://dhohrt3t5t7ed" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame7.png" id="10_2w1s5"]
+[ext_resource type="PackedScene" uid="uid://bg07k5qecvgko" path="res://Scenes/HUD.tscn" id="11_7l0l2"]
+
+[sub_resource type="GDScript" id="GDScript_381hh"]
+resource_name = "Player"
+script/source = "# Funktion, die aufgerufen wird, wenn der Spieler stirbt
+func die():
+	# Hier kannst du alles tun, was beim Tod des Spielers passieren soll
+	print(\"Der Spieler ist tot!\")
+	
+	# Beispiel: Beende das Spiel (oder zeige Game Over an)
+	get_tree().paused = true  # Das Spiel pausieren
+	$GameOverScreen.visible = true  # Zeige einen Game-Over-Bildschirm, falls du einen hast
+	# Optional: Hier könnte auch eine Rückkehr zum Menü oder ein Neustart des Levels stattfinden
+"
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_uwm2o"]
+size = Vector2(255, 386.667)
+
+[sub_resource type="Animation" id="Animation_chcy3"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("PlayerSprite:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [0]
+}
+
+[sub_resource type="Animation" id="Animation_uuvvo"]
+resource_name = "idle"
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("PlayerSprite:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.5),
+"transitions": PackedFloat32Array(1, 1),
+"update": 1,
+"values": [0, 1]
+}
+
+[sub_resource type="Animation" id="Animation_smtgq"]
+resource_name = "jump"
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("PlayerSprite:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.5, 1),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 0,
+"values": [5, 6, 7]
+}
+
+[sub_resource type="Animation" id="Animation_wvi70"]
+resource_name = "walk"
+length = 0.5
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("PlayerSprite:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.5),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [0, 4]
+}
+
+[sub_resource type="Animation" id="Animation_28ebo"]
+resource_name = "fall_damage"
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("PlayerSprite:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [8, 11]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_1fd5i"]
+_data = {
+"RESET": SubResource("Animation_chcy3"),
+"fall_damage": SubResource("Animation_28ebo"),
+"idle": SubResource("Animation_uuvvo"),
+"jump": SubResource("Animation_smtgq"),
+"walk": SubResource("Animation_wvi70")
+}
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_sgnk3"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("3_ubp3h")
+}, {
+"duration": 1.0,
+"texture": ExtResource("4_6hcqa")
+}, {
+"duration": 1.0,
+"texture": ExtResource("5_eo1jl")
+}, {
+"duration": 1.0,
+"texture": ExtResource("6_whfsg")
+}, {
+"duration": 1.0,
+"texture": ExtResource("7_ojgk2")
+}, {
+"duration": 1.0,
+"texture": ExtResource("8_efps6")
+}, {
+"duration": 1.0,
+"texture": ExtResource("9_obsdn")
+}, {
+"duration": 1.0,
+"texture": ExtResource("10_2w1s5")
+}],
+"loop": false,
+"name": &"swing",
+"speed": 30.0
+}]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_jxxud"]
+size = Vector2(333.144, 240.267)
+
+[node name="PlayerModel" type="CharacterBody2D"]
+position = Vector2(300, 697)
+scale = Vector2(0.07, 0.07)
+collision_mask = 3
+script = SubResource("GDScript_381hh")
+
+[node name="ColisionArea" type="CollisionShape2D" parent="."]
+position = Vector2(140, 1027.5)
+rotation = 1.5708
+scale = Vector2(0.999999, 0.999999)
+shape = SubResource("RectangleShape2D_uwm2o")
+
+[node name="PlayerGlow" type="PointLight2D" parent="."]
+position = Vector2(140, 950)
+color = Color(0.623529, 1, 0.580392, 1)
+energy = 0.9
+shadow_enabled = true
+shadow_filter = 1
+shadow_filter_smooth = 11.0
+texture = ExtResource("2_o1l4t")
+texture_scale = 13.5
+
+[node name="PlayerSprite" type="Sprite2D" parent="."]
+position = Vector2(140, 950)
+texture = ExtResource("1_4yq4u")
+hframes = 5
+vframes = 3
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+libraries = {
+"": SubResource("AnimationLibrary_1fd5i")
+}
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position = Vector2(150, 1050)
+scale = Vector2(5, 5)
+zoom = Vector2(4, 4)
+limit_left = -14
+limit_top = 522
+limit_right = 946
+limit_bottom = 1066
+limit_smoothed = true
+position_smoothing_enabled = true
+editor_draw_limits = true
+editor_draw_drag_margin = true
+
+[node name="AttackSprite" type="AnimatedSprite2D" parent="."]
+position = Vector2(157.143, 914.286)
+scale = Vector2(2.10119, 1.78373)
+sprite_frames = SubResource("SpriteFrames_sgnk3")
+animation = &"swing"
+frame = 7
+frame_progress = 1.0
+
+[node name="AttackArea" type="Area2D" parent="AttackSprite"]
+position = Vector2(-0.000244141, 0)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="AttackSprite/AttackArea"]
+position = Vector2(-10.198, 64.0713)
+shape = SubResource("RectangleShape2D_jxxud")
+
+[node name="CanvasLayer" parent="." instance=ExtResource("11_7l0l2")]

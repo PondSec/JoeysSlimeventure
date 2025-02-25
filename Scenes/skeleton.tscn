@@ -1,0 +1,37 @@
+[gd_scene load_steps=3 format=3 uid="uid://bvftxmkkyvfj"]
+
+[sub_resource type="GDScript" id="GDScript_n8f1t"]
+resource_name = "skeleton"
+script/source = "extends CharacterBody2D
+
+@onready var navigation_agent = $NavigationAgent2D
+
+@export var Player:CharacterBody2D
+
+var Speed = 2
+
+func _physics_process(delta: float) -> void:
+	var Direction = to_local(navigation_agent.get_next_path_position())
+	velocity = Direction * Speed
+	move_and_slide()
+
+func _on_timer_timeout() -> void:
+	navigation_agent.target_position=Player.global_position
+"
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_31mh0"]
+
+[node name="skeleton" type="CharacterBody2D"]
+script = SubResource("GDScript_n8f1t")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_31mh0")
+debug_color = Color(0.999457, 0, 0.112459, 0.42)
+
+[node name="NavigationAgent2D" type="NavigationAgent2D" parent="."]
+
+[node name="Timer" type="Timer" parent="."]
+wait_time = 0.1
+autostart = true
+
+[connection signal="timeout" from="Timer" to="." method="_on_timer_timeout"]

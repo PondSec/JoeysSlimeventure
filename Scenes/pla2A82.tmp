@@ -1,0 +1,420 @@
+[gd_scene load_steps=22 format=3 uid="uid://b6ublycstdj8n"]
+
+[ext_resource type="Texture2D" uid="uid://cildswtcj7qrc" path="res://Assets/slime-sprite.png" id="1_4yq4u"]
+[ext_resource type="Texture2D" uid="uid://b6qcgwlbukqr7" path="res://Assets/Light/light.png" id="2_o1l4t"]
+[ext_resource type="Texture2D" uid="uid://quh4mac3hef1" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame0.png" id="3_ubp3h"]
+[ext_resource type="Texture2D" uid="uid://cjb4nq6aeftnv" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame1.png" id="4_6hcqa"]
+[ext_resource type="Texture2D" uid="uid://dq3ow8oywurgq" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame2.png" id="5_eo1jl"]
+[ext_resource type="Texture2D" uid="uid://b8fkvpdoglnlv" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame3.png" id="6_whfsg"]
+[ext_resource type="Texture2D" uid="uid://bdf3l7k3ha5iw" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame4.png" id="7_ojgk2"]
+[ext_resource type="Texture2D" uid="uid://lhtf7y3rpgu1" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame5.png" id="8_efps6"]
+[ext_resource type="Texture2D" uid="uid://bjy6egsrs8xvt" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame6.png" id="9_obsdn"]
+[ext_resource type="Texture2D" uid="uid://dhohrt3t5t7ed" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame7.png" id="10_2w1s5"]
+[ext_resource type="PackedScene" uid="uid://bg07k5qecvgko" path="res://Scenes/HUD.tscn" id="11_7l0l2"]
+
+[sub_resource type="GDScript" id="GDScript_381hh"]
+resource_name = "Player"
+script/source = "extends CharacterBody2D
+
+# Constants for movement and jumping
+const SPEED = 200.0
+const GRAVITY = 1200.0
+const JUMP_VELOCITY = -400.0
+const WALL_JUMP_VELOCITY_X = 300.0
+const WALL_JUMP_VELOCITY_Y = -400.0
+const WALL_SLIDE_SPEED = 1000.0  # Speed when sliding on the wall
+
+# Fall damage constants
+const MIN_FALL_HEIGHT = 10.0  # Minimum height for fall damage
+const FALL_DAMAGE_THRESHOLD = 500.0  # Minimum fall speed for damage (in pixels per second)
+
+# Variables for movement direction and wall jump status
+var direction := Vector2.ZERO
+var is_wall_sliding := false
+var can_wall_jump := true
+var last_wall_normal := Vector2.ZERO
+
+# Variable to toggle glow status
+var is_glowing := true
+# Variable for attack status
+var is_attacking := false
+
+# Player health
+var health := 100
+
+# Reference to the HUD
+var hud
+
+# Reference to the sword (AttackSprite)
+var attack_sprite: AnimatedSprite2D
+var attack_area: Area2D  # Reference to AttackArea node
+
+# Fall damage variables
+var fall_damage_animation_playing := false
+var fall_start_height := 0.0
+
+func _ready() -> void:
+	# Initialize the AttackSprite node (make sure to use the correct path)
+	attack_sprite = $AttackSprite  # Path to AttackSprite node
+	attack_area = $AttackSprite/AttackArea  # Path to AttackArea node
+
+	# Deactivate AttackArea at the beginning so it doesn't detect collisions
+	attack_area.monitoring = false  # Ensures no collisions initially
+
+	# Connect signal for detecting enemies
+	attack_area.connect(\"body_entered\", Callable(self, \"_on_attack_area_body_entered\"))
+
+	# Reference to the HUD in the Main Scene
+	hud = get_node(\"CanvasLayer\")  # Make sure to adjust the path to match your scene structure
+	hud.update_health(health)  # Update the HUD at the beginning with the player's current health
+
+func _physics_process(delta: float) -> void:
+	# Apply gravity if not on the floor
+	if not is_on_floor():
+		velocity.y += GRAVITY * delta
+
+		# Fall damage logic (check for high fall speeds)
+		if not fall_damage_animation_playing:
+			if position.y > MIN_FALL_HEIGHT and velocity.y > FALL_DAMAGE_THRESHOLD:
+				take_fall_damage()
+
+	# Check if the player is sliding on a wall (while falling)
+	if is_on_wall() and not is_on_floor() and velocity.y > 0:
+		is_wall_sliding = true
+		# Prevent the player from falling faster than the wall slide speed
+		velocity.y = min(velocity.y, WALL_SLIDE_SPEED)  # Ensure gravity doesn't increase speed during wall slide
+		var current_wall_normal = get_wall_normal()
+		if current_wall_normal != last_wall_normal:
+			can_wall_jump = true
+			last_wall_normal = current_wall_normal
+	else:
+		is_wall_sliding = false
+		if is_on_floor():
+			can_wall_jump = true
+
+	# Jumping logic
+	if Input.is_action_just_pressed(\"up\"):
+		if is_on_floor():
+			velocity.y = JUMP_VELOCITY
+		elif is_wall_sliding and can_wall_jump:
+			velocity.y = WALL_JUMP_VELOCITY_Y
+			velocity.x = direction.x * -WALL_JUMP_VELOCITY_X
+			can_wall_jump = false
+
+	# Horizontal movement based on input
+	direction.x = Input.get_axis(\"left\", \"right\")
+	if direction.x != 0:
+		velocity.x = direction.x * SPEED
+	else:
+		velocity.x = move_toward(velocity.x, 0, SPEED)
+
+	# Move and slide based on the calculated velocity
+	move_and_slide()
+
+	# Set animation based on movement or other actions
+	set_animation()
+
+	# Toggle glow state when button is pressed
+	glow()
+
+	# Execute attack when triggered
+	attack()
+
+# Function to set animation based on player's state
+func set_animation():
+	if is_attacking:
+		return  # No other animation when attacking
+
+	if direction.x < 0:
+		$PlayerSprite.flip_h = true  # Flip horizontally for left movement
+		$AttackSprite.flip_h = true  # Flip the sword as well
+		$AnimationPlayer.play(\"walk\")
+	elif direction.x > 0:
+		$PlayerSprite.flip_h = false  # Flip horizontally for right movement
+		$AttackSprite.flip_h = false  # Flip the sword as well
+		$AnimationPlayer.play(\"walk\")
+
+	if direction.x == 0:
+		$AnimationPlayer.play(\"idle\")
+
+	if is_in_air():
+		$AnimationPlayer.play(\"jump\")
+
+# Check if the player is in the air
+func is_in_air():
+	return not is_on_floor()
+
+# Toggle glow effect on button press
+func glow():
+	if Input.is_action_just_pressed(\"GLow\"):
+		is_glowing = not is_glowing
+	$PlayerGlow.enabled = is_glowing
+
+# Function to execute an attack
+func attack():
+	if Input.is_action_just_pressed(\"Attack\") and not is_attacking:
+		is_attacking = true
+		$AttackSprite.visible = true  # Make the sword visible
+		$AttackSprite.play(\"swing\")  # Play attack animation
+
+		# Activate the AttackArea for collision detection
+		attack_area.monitoring = true
+
+		# Wait until the animation is finished
+		$AttackSprite.connect(\"animation_finished\", Callable(self, \"_on_attack_animation_finished\"))
+
+# Callback when attack animation is finished
+func _on_attack_animation_finished():
+	is_attacking = false
+	$AttackSprite.visible = false  # Hide the sword
+	attack_area.monitoring = false  # Deactivate AttackArea after attack
+
+	# Disconnect after animation is finished
+	$AttackSprite.disconnect(\"animation_finished\", Callable(self, \"_on_attack_animation_finished\"))
+
+# Collision detection in attack area
+func _on_attack_area_body_entered(body):
+	if body.is_in_group(\"enemies\"):  # Check if the body is in the group \"enemies\"
+		body.take_damage(25)  # Deal 25 damage to the enemy
+
+# Function to take damage
+func take_damage(damage: int) -> void:
+	health -= damage
+	if health < 0:
+		health = 0
+		die()  # Logic for when the player dies
+	hud.update_health(health)  # Update the HUD with the new health value
+
+	# Change the glow color to indicate damage taken
+	$PlayerGlow.modulate = Color(1.0, 0.58, 0.58)  # FF9494 in RGB
+
+
+	var reset_glow_timer = Timer.new()
+	reset_glow_timer.wait_time = 0.2  # Duration in seconds before resetting
+	reset_glow_timer.one_shot = true
+	add_child(reset_glow_timer)
+	reset_glow_timer.connect(\"timeout\", Callable(self, \"_reset_glow_color\"))
+	reset_glow_timer.start()
+
+# Function to reset the glow color
+func _reset_glow_color():
+	$PlayerGlow.modulate = Color(0.62, 1.0, 0.58)  # 9FFF94 in RGB
+
+# Function to apply fall damage
+func take_fall_damage():
+	# Store the height from where the fall started (for debugging or better calculation)
+	fall_start_height = position.y
+
+	# Calculate the fall damage
+	var fall_damage = int((velocity.y - FALL_DAMAGE_THRESHOLD) / 10)  # Example damage formula
+	take_damage(fall_damage)
+
+	# Play fall damage animation
+	fall_damage_animation_playing = true
+	$AnimationPlayer.play(\"fall_damage\")  # Ensure you have a \"fall_damage\" animation in your AnimationPlayer
+
+	# Block movement during fall damage animation
+	velocity = Vector2.ZERO
+
+	# Wait for the animation to finish (using 'await' instead of 'yield')
+	await $AnimationPlayer.animation_finished
+
+	fall_damage_animation_playing = false  # Reset the fall damage animation flag
+	# Allow movement again after fall damage animation is done
+	velocity = Vector2.ZERO  # You may allow for slight movement here if needed
+
+# Function to die
+func die():
+	print(\"Der Spieler ist tot!\")
+	get_tree().paused = true  # Pausiere das Spiel
+	var game_over_screen = load(\"res://GameOverScreen.tscn\").instance()
+	get_tree().root.add_child(game_over_screen)  # Füge den Game-Over-Bildschirm hinzu
+"
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_uwm2o"]
+size = Vector2(255, 386.667)
+
+[sub_resource type="Animation" id="Animation_chcy3"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("PlayerSprite:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [0]
+}
+
+[sub_resource type="Animation" id="Animation_uuvvo"]
+resource_name = "idle"
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("PlayerSprite:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.5),
+"transitions": PackedFloat32Array(1, 1),
+"update": 1,
+"values": [0, 1]
+}
+
+[sub_resource type="Animation" id="Animation_smtgq"]
+resource_name = "jump"
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("PlayerSprite:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.5, 1),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 0,
+"values": [5, 6, 7]
+}
+
+[sub_resource type="Animation" id="Animation_wvi70"]
+resource_name = "walk"
+length = 0.5
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("PlayerSprite:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.5),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [0, 4]
+}
+
+[sub_resource type="Animation" id="Animation_28ebo"]
+resource_name = "fall_damage"
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("PlayerSprite:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [8, 11]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_1fd5i"]
+_data = {
+"RESET": SubResource("Animation_chcy3"),
+"fall_damage": SubResource("Animation_28ebo"),
+"idle": SubResource("Animation_uuvvo"),
+"jump": SubResource("Animation_smtgq"),
+"walk": SubResource("Animation_wvi70")
+}
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_sgnk3"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("3_ubp3h")
+}, {
+"duration": 1.0,
+"texture": ExtResource("4_6hcqa")
+}, {
+"duration": 1.0,
+"texture": ExtResource("5_eo1jl")
+}, {
+"duration": 1.0,
+"texture": ExtResource("6_whfsg")
+}, {
+"duration": 1.0,
+"texture": ExtResource("7_ojgk2")
+}, {
+"duration": 1.0,
+"texture": ExtResource("8_efps6")
+}, {
+"duration": 1.0,
+"texture": ExtResource("9_obsdn")
+}, {
+"duration": 1.0,
+"texture": ExtResource("10_2w1s5")
+}],
+"loop": false,
+"name": &"swing",
+"speed": 30.0
+}]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_jxxud"]
+size = Vector2(333.144, 240.267)
+
+[node name="PlayerModel" type="CharacterBody2D"]
+position = Vector2(300, 697)
+scale = Vector2(0.07, 0.07)
+collision_mask = 3
+script = SubResource("GDScript_381hh")
+
+[node name="ColisionArea" type="CollisionShape2D" parent="."]
+position = Vector2(140, 1027.5)
+rotation = 1.5708
+scale = Vector2(0.999999, 0.999999)
+shape = SubResource("RectangleShape2D_uwm2o")
+
+[node name="PlayerGlow" type="PointLight2D" parent="."]
+position = Vector2(140, 950)
+color = Color(0.623529, 1, 0.580392, 1)
+energy = 0.9
+shadow_enabled = true
+shadow_filter = 1
+shadow_filter_smooth = 11.0
+texture = ExtResource("2_o1l4t")
+texture_scale = 13.5
+
+[node name="PlayerSprite" type="Sprite2D" parent="."]
+position = Vector2(140, 950)
+texture = ExtResource("1_4yq4u")
+hframes = 5
+vframes = 3
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+libraries = {
+"": SubResource("AnimationLibrary_1fd5i")
+}
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position = Vector2(150, 1050)
+scale = Vector2(5, 5)
+zoom = Vector2(4, 4)
+limit_left = -14
+limit_top = 522
+limit_right = 946
+limit_bottom = 1066
+limit_smoothed = true
+position_smoothing_enabled = true
+editor_draw_limits = true
+editor_draw_drag_margin = true
+
+[node name="AttackSprite" type="AnimatedSprite2D" parent="."]
+position = Vector2(157.143, 914.286)
+scale = Vector2(2.10119, 1.78373)
+sprite_frames = SubResource("SpriteFrames_sgnk3")
+animation = &"swing"
+frame = 7
+frame_progress = 1.0
+
+[node name="AttackArea" type="Area2D" parent="AttackSprite"]
+position = Vector2(-0.000244141, 0)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="AttackSprite/AttackArea"]
+position = Vector2(-10.198, 64.0713)
+shape = SubResource("RectangleShape2D_jxxud")
+
+[node name="CanvasLayer" parent="." instance=ExtResource("11_7l0l2")]

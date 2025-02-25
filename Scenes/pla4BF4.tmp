@@ -1,0 +1,462 @@
+[gd_scene load_steps=22 format=3 uid="uid://b6ublycstdj8n"]
+
+[ext_resource type="Texture2D" uid="uid://cildswtcj7qrc" path="res://Assets/slime-sprite.png" id="1_4yq4u"]
+[ext_resource type="Texture2D" uid="uid://c771vveh0silu" path="res://Assets/Light/light_white.png" id="1_p71sj"]
+[ext_resource type="Texture2D" uid="uid://quh4mac3hef1" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame0.png" id="3_ubp3h"]
+[ext_resource type="Texture2D" uid="uid://cjb4nq6aeftnv" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame1.png" id="4_6hcqa"]
+[ext_resource type="Texture2D" uid="uid://dq3ow8oywurgq" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame2.png" id="5_eo1jl"]
+[ext_resource type="Texture2D" uid="uid://b8fkvpdoglnlv" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame3.png" id="6_whfsg"]
+[ext_resource type="Texture2D" uid="uid://bdf3l7k3ha5iw" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame4.png" id="7_ojgk2"]
+[ext_resource type="Texture2D" uid="uid://lhtf7y3rpgu1" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame5.png" id="8_efps6"]
+[ext_resource type="Texture2D" uid="uid://bjy6egsrs8xvt" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame6.png" id="9_obsdn"]
+[ext_resource type="Texture2D" uid="uid://dhohrt3t5t7ed" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame7.png" id="10_2w1s5"]
+[ext_resource type="Script" path="res://Scenes/canvas_layer.gd" id="11_4apbi"]
+
+[sub_resource type="GDScript" id="GDScript_381hh"]
+resource_name = "Player"
+script/source = "extends CharacterBody2D
+
+# Konstanten für Bewegung und Sprung
+const SPEED = 220.0
+const GRAVITY = 1200.0
+const JUMP_VELOCITY = -430.0
+const WALL_JUMP_VELOCITY_X = 300.0
+const WALL_JUMP_VELOCITY_Y = -400.0
+const WALL_SLIDE_SPEED = 1000.0
+const MIN_FALL_HEIGHT = 10.0  # Mindesthöhe, ab der die Lande-Animation abgespielt wird
+
+# Variablen für Bewegung und Status
+var direction := Vector2.ZERO
+var is_wall_sliding := false
+var can_wall_jump := true
+var last_wall_normal := Vector2.ZERO
+var is_glowing := true
+var is_attacking := false  # Angriffszustand
+var is_facing_left := false  # Blickrichtung des Spielers
+var was_in_air := false  # Variable, um zu überprüfen, ob der Spieler gerade in der Luft war
+var is_landing := false  # Variable, um die Landeanimation zu verfolgen
+var fall_start_y := 0.0  # Y-Position, bei der der Spieler zu fallen begann
+var fall_distance := 0.0  # Berechnete Fallhöhe
+
+# Referenzen zu Knoten
+var attack_sprite: AnimatedSprite2D
+var attack_area: Area2D
+var glow_effect: PointLight2D
+
+# Variablen für das Lebenssystem
+var max_health: int = 100
+var current_health: int = 100
+# Definiert die Originalfarbe und die Farbe, die bei Schaden angezeigt werden soll
+const COLOR_NORMAL = Color(0.62, 1.0, 0.58)  # Originalfarbe (9fff94 in Hex)
+const COLOR_DAMAGE = Color(1.0, 0.29, 0.29)  # Schadenfarbe (ff4a4a in Hex)
+
+# Referenz zur Lebensanzeige (ProgressBar)
+@onready var health_bar: ProgressBar = $CanvasLayer/ProgressBar
+@onready var canvas_layer: CanvasLayer = $CanvasLayer  # Referenz zum CanvasLayer für die Tween-Animationen
+
+
+func _ready() -> void:
+	# Initialisiere Angriffsknoten
+	attack_sprite = $PlayerSprite/AttackSprite
+	attack_area = $PlayerSprite/AttackSprite/AttackArea
+
+	# Deaktiviere das Angriffskollisionsgebiet anfänglich
+	attack_area.monitoring = false
+	attack_area.connect(\"body_entered\", Callable(self, \"_on_attack_area_body_entered\"))
+
+	# Spieler zur \"players\" Gruppe hinzufügen
+	add_to_group(\"players\")
+
+	# Initialisiere den Leuchteffekt (PointLight2D)
+	glow_effect = $PlayerGlow
+	glow_effect.visible = true  # Deaktiviere den Leuchteffekt anfänglich
+
+	# Setze die Lebensanzeige
+	update_health_bar()
+	
+
+# Lebensanzeige aktualisieren
+func update_health_bar() -> void:
+	# Setze den Wert der Lebensanzeige basierend auf dem aktuellen Gesundheitswert
+	health_bar.value = current_health
+
+
+func _process(delta: float) -> void:
+	if is_landing:
+		return  # Keine Aktionen während der Lande-Animation erlauben
+
+	# Angriff ausführen, wenn die Angriffstaste gedrückt wird
+	if Input.is_action_just_pressed(\"Attack\") and not is_attacking:
+		perform_attack()
+
+	# Leuchteffekt umschalten
+	if Input.is_action_just_pressed(\"Glow\"):
+		is_glowing = !is_glowing
+		update_glow_state()
+
+	# Testcode für Schaden und Heilung
+	if Input.is_action_just_pressed(\"damage\"):
+		take_damage(10)  # Nimmt 10 Schaden
+	elif Input.is_action_just_pressed(\"heal\"):
+		heal(10)  # Heilt 10 Lebenspunkte
+
+func _physics_process(delta: float) -> void:
+	if is_landing:
+		return  # Keine Bewegung während der Lande-Animation erlauben
+
+	# Schwerkraft anwenden, wenn nicht auf dem Boden
+	if not is_on_floor():
+		if not was_in_air:
+			# Speichere die Fallstartposition, wenn der Spieler gerade zu fallen beginnt
+			fall_start_y = global_position.y
+			fall_distance = 0.0  # Zurücksetzen der Fallhöhe
+
+		was_in_air = true
+		velocity.y += GRAVITY * delta
+
+		# Berechne die Fallhöhe
+		fall_distance = fall_start_y - global_position.y
+	else:
+		if was_in_air:
+			# Wenn der Spieler den Boden berührt hat und eine ausreichende Fallhöhe erreicht wurde
+			if fall_distance >= MIN_FALL_HEIGHT and velocity.y > 0:  # Nur wenn der Spieler fällt
+				# Wenn die Fallhöhe groß genug ist, spiele die Lande-Animation ab
+				play_landing_animation()
+			was_in_air = false  # Zurücksetzen der Variable
+
+	# Wandgleiten
+	if is_on_wall() and not is_on_floor() and velocity.y > 0:
+		is_wall_sliding = true
+		velocity.y = min(velocity.y, WALL_SLIDE_SPEED)
+		var current_wall_normal = get_wall_normal()
+		if current_wall_normal != last_wall_normal:
+			can_wall_jump = true
+			last_wall_normal = current_wall_normal
+	else:
+		is_wall_sliding = false
+		if is_on_floor():
+			can_wall_jump = true
+
+	# Wandsprung
+	if Input.is_action_just_pressed(\"up\"):
+		if is_on_floor():
+			velocity.y = JUMP_VELOCITY
+		elif is_wall_sliding and can_wall_jump:
+			var wall_normal = get_wall_normal()
+			velocity.y = WALL_JUMP_VELOCITY_Y
+			if wall_normal.x != 0:
+				velocity.x = -wall_normal.x * WALL_JUMP_VELOCITY_X
+			can_wall_jump = false
+			# Setze die Fallhöhe zurück, wenn ein Wandsprung ausgeführt wird
+			fall_start_y = global_position.y
+
+	# Horizontale Bewegung
+	direction.x = Input.get_axis(\"left\", \"right\")
+	if direction.x != 0:
+		velocity.x = direction.x * SPEED
+		is_facing_left = direction.x < 0
+	else:
+		velocity.x = move_toward(velocity.x, 0, SPEED)
+
+	# Bewegung ausführen
+	move_and_slide()
+
+	# Animationen setzen
+	set_animation()
+
+func play_landing_animation() -> void:
+	is_landing = true
+	$AnimationPlayer.stop()
+	$AnimationPlayer.play(\"landing\")
+	await $AnimationPlayer.animation_finished
+	is_landing = false
+
+func set_animation() -> void:
+	if is_attacking or is_landing:
+		return
+
+	if direction.x != 0:
+		$PlayerSprite.flip_h = is_facing_left
+		$AnimationPlayer.play(\"walk\")
+	else:
+		$AnimationPlayer.play(\"idle\")
+
+	if is_in_air():
+		$AnimationPlayer.play(\"jump\")
+
+func is_in_air() -> bool:
+	return not is_on_floor()
+
+# Angriffskollisionsbehandlung
+func _on_attack_area_body_entered(body) -> void:
+	if body.is_in_group(\"enemies\"):
+		body.take_damage(25)
+
+# Funktion, um den Spieler sterben zu lassen
+func die() -> void:
+	print(\"Der Spieler ist gestorben!\")
+	queue_free()
+
+# Angriff ausführen
+func perform_attack() -> void:
+	is_attacking = true
+	$PlayerSprite/AttackSprite.flip_h = is_facing_left
+	$PlayerSprite/AttackSprite.play(\"swing\")
+	attack_area.monitoring = true
+	await get_tree().create_timer(0.5).timeout
+	is_attacking = false
+	attack_area.monitoring = false
+
+# Leuchteffekt aktualisieren
+func update_glow_state() -> void:
+	glow_effect.visible = is_glowing
+
+# Methode, um Schaden zu nehmen
+func take_damage(amount: int) -> void:
+	current_health -= amount
+	show_damage_text(amount, false)  # Zeigt den erlittenen Schaden an
+	flash_damage_color()
+	if current_health <= 0:
+		current_health = 0
+		die()
+	update_health_bar()
+
+# Funktion, um die Farbe des Leuchteffekts bei Schaden zu ändern
+func flash_damage_color() -> void:
+	glow_effect.color = COLOR_DAMAGE
+	await get_tree().create_timer(0.3).timeout  # Warten für 0,3 Sekunden
+	glow_effect.color = COLOR_NORMAL
+
+
+# Methode, um Lebenspunkte zu regenerieren
+func heal(amount: int) -> void:
+	current_health += amount
+	show_damage_text(amount, true)  # Zeigt die Heilung an
+	if current_health > max_health:
+		current_health = max_health
+	update_health_bar()
+
+# Methode, um Schadenstext anzuzeigen
+func show_damage_text(amount: int, is_heal: bool) -> void:
+	var damage_label = Label.new()
+
+	# Text mit \"+\" für Heilung und \"-\" für Schaden setzen
+	damage_label.text = ( \"+\" if is_heal else \"-\" ) + str(amount)
+
+	# Position des Labels zufällig um den Spieler setzen
+	damage_label.position = global_position + Vector2(randf_range(-50, 50), -50)
+
+	# Schriftfarbe je nach Heilung oder Schaden setzen
+	damage_label.set(\"custom_fonts/font_color\", Color(0.0, 1.0, 0.0) if is_heal else Color(1.0, 0.0, 0.0))  # Grün für Heilung, Rot für Schaden
+
+	# Füge das Label zum CanvasLayer hinzu
+	$CanvasLayer.add_child(damage_label)  # Verwende den bereits vorhandenen CanvasLayer
+
+	# Bewege das Label nach oben
+	var target_position = damage_label.position + Vector2(0, -30)  # Bewege den Text 30 Pixel nach oben
+	var move_duration = 1.0  # Wie lange es dauern soll, um die Bewegung abzuschließen
+	var start_time = OS.get_ticks_msec() / 1000.0  # Zeit in Sekunden, zu Beginn der Bewegung
+
+	# Bewegungs-Loop, der das Label nach oben verschiebt
+	while OS.get_ticks_msec() / 1000.0 - start_time < move_duration:
+	    var elapsed_time = (OS.get_ticks_msec() / 1000.0 - start_time) / move_duration
+	    damage_label.position = damage_label.position.linear_interpolate(target_position, elapsed_time)
+	    await get_tree().idle_frame  # Warten auf den nächsten Frame
+
+	# Entferne das Label nach der Bewegung
+	damage_label.queue_free()
+"
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_uwm2o"]
+size = Vector2(255, 386.667)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_sgnk3"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("3_ubp3h")
+}, {
+"duration": 1.0,
+"texture": ExtResource("4_6hcqa")
+}, {
+"duration": 1.0,
+"texture": ExtResource("5_eo1jl")
+}, {
+"duration": 1.0,
+"texture": ExtResource("6_whfsg")
+}, {
+"duration": 1.0,
+"texture": ExtResource("7_ojgk2")
+}, {
+"duration": 1.0,
+"texture": ExtResource("8_efps6")
+}, {
+"duration": 1.0,
+"texture": ExtResource("9_obsdn")
+}, {
+"duration": 1.0,
+"texture": ExtResource("10_2w1s5")
+}],
+"loop": false,
+"name": &"swing",
+"speed": 30.0
+}]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_jxxud"]
+size = Vector2(383.993, 290.467)
+
+[sub_resource type="Animation" id="Animation_chcy3"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("PlayerSprite:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [0]
+}
+
+[sub_resource type="Animation" id="Animation_uuvvo"]
+resource_name = "idle"
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("PlayerSprite:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.5),
+"transitions": PackedFloat32Array(1, 1),
+"update": 1,
+"values": [0, 1]
+}
+
+[sub_resource type="Animation" id="Animation_smtgq"]
+resource_name = "jump"
+length = 0.5
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("PlayerSprite:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.2, 0.4),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 0,
+"values": [5, 6, 7]
+}
+
+[sub_resource type="Animation" id="Animation_28ebo"]
+resource_name = "landing"
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("PlayerSprite:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [8, 11]
+}
+
+[sub_resource type="Animation" id="Animation_wvi70"]
+resource_name = "walk"
+length = 0.5
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("PlayerSprite:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.5),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [0, 4]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_1fd5i"]
+_data = {
+"RESET": SubResource("Animation_chcy3"),
+"idle": SubResource("Animation_uuvvo"),
+"jump": SubResource("Animation_smtgq"),
+"landing": SubResource("Animation_28ebo"),
+"walk": SubResource("Animation_wvi70")
+}
+
+[node name="PlayerModel" type="CharacterBody2D"]
+position = Vector2(291, 687)
+scale = Vector2(0.07, 0.07)
+collision_mask = 3
+script = SubResource("GDScript_381hh")
+
+[node name="ColisionArea" type="CollisionShape2D" parent="."]
+position = Vector2(0.000167847, 0.00012207)
+rotation = 1.5708
+scale = Vector2(0.999999, 0.999999)
+shape = SubResource("RectangleShape2D_uwm2o")
+
+[node name="PlayerGlow" type="PointLight2D" parent="."]
+position = Vector2(0.000183105, 0)
+color = Color(0.623529, 1, 0.580392, 1)
+shadow_enabled = true
+shadow_filter = 1
+shadow_filter_smooth = 64.0
+texture = ExtResource("1_p71sj")
+texture_scale = 2.0
+
+[node name="PlayerSprite" type="Sprite2D" parent="."]
+position = Vector2(0.000183105, -71.4286)
+texture = ExtResource("1_4yq4u")
+hframes = 5
+vframes = 3
+
+[node name="AttackSprite" type="AnimatedSprite2D" parent="PlayerSprite"]
+position = Vector2(-0.000110626, 71.4288)
+scale = Vector2(1.89038, 1.79514)
+sprite_frames = SubResource("SpriteFrames_sgnk3")
+animation = &"swing"
+frame = 7
+
+[node name="AttackArea" type="Area2D" parent="PlayerSprite/AttackSprite"]
+position = Vector2(-8.10623e-06, 1.38283e-05)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="PlayerSprite/AttackSprite/AttackArea"]
+position = Vector2(-8.7738e-05, 0.000200272)
+shape = SubResource("RectangleShape2D_jxxud")
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+libraries = {
+"": SubResource("AnimationLibrary_1fd5i")
+}
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position = Vector2(7.62939e-06, 5.34058e-05)
+scale = Vector2(5, 5)
+zoom = Vector2(4, 4)
+limit_left = -14
+limit_top = 522
+limit_right = 946
+limit_bottom = 1066
+limit_smoothed = true
+position_smoothing_enabled = true
+editor_draw_limits = true
+editor_draw_drag_margin = true
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+script = ExtResource("11_4apbi")
+
+[node name="ProgressBar" type="ProgressBar" parent="CanvasLayer"]
+offset_left = 47.0
+offset_top = 53.0
+offset_right = 229.0
+offset_bottom = 80.0

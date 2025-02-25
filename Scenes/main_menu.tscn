@@ -1,0 +1,192 @@
+[gd_scene load_steps=17 format=3 uid="uid://lud4ledapwml"]
+
+[ext_resource type="Texture2D" uid="uid://4myegyrrm76e" path="res://Assets/MainMenu/background_sprite.png" id="1_v1qke"]
+[ext_resource type="AudioStream" uid="uid://d23kx57arto1m" path="res://Assets/Sounds/8-bit-retro-game-music-233964.mp3" id="2_duyn5"]
+[ext_resource type="Texture2D" uid="uid://dl1ey6lyc0txj" path="res://Assets/GUI/PlayButton/button1.png" id="3_4bm64"]
+[ext_resource type="Texture2D" uid="uid://cbto82p5b3me0" path="res://Assets/MainMenu/title.png" id="3_s41hg"]
+[ext_resource type="Texture2D" uid="uid://b404nielt6nu6" path="res://Assets/GUI/PlayButton/button1_pressed.png" id="4_70y1n"]
+[ext_resource type="Texture2D" uid="uid://cqynbv42p0c7b" path="res://Assets/GUI/PlayButton/button1_hover.png" id="5_2ihhd"]
+[ext_resource type="Texture2D" uid="uid://di548v6ushf2g" path="res://Assets/GUI/QuitButton/button1.png" id="7_frrdd"]
+[ext_resource type="Texture2D" uid="uid://cbul8tkeg6rsb" path="res://Assets/GUI/QuitButton/button1_pressed.png" id="8_fuqek"]
+[ext_resource type="Texture2D" uid="uid://ccpn3momywxaq" path="res://Assets/GUI/QuitButton/button1_hover.png" id="9_4dl0d"]
+[ext_resource type="Texture2D" uid="uid://byh2v56ttt30u" path="res://Assets/GUI/CreditsButton/button1.png" id="9_oyvpb"]
+[ext_resource type="Texture2D" uid="uid://cfko2vnod3rb" path="res://Assets/GUI/CreditsButton/button1_pressed.png" id="10_0ftmv"]
+[ext_resource type="Texture2D" uid="uid://3taoo46syb47" path="res://Assets/GUI/CreditsButton/button1_hover.png" id="11_xefrf"]
+
+[sub_resource type="GDScript" id="GDScript_yvg2q"]
+resource_name = "menu"
+script/source = "extends Control
+
+# Called when the node enters the scene tree for the first time.
+func _ready() -> void:
+	$BackgroundSprite/AnimationPlayer.play(\"loop\")
+	pass
+
+
+func _on_credits_button_pressed() -> void:
+	# Lade die \"Game\"-Szene als PackedScene
+	var credit_scene = load(\"res://Scenes/credits.tscn\")  # Hier wird die Kreditszene geladen
+
+	# Überprüfe, ob die Szene erfolgreich geladen wurde
+	if credit_scene == null:
+		print(\"Fehler: Die Szene konnte nicht geladen werden.\")
+		return  # Beende die Funktion, wenn die Szene nicht geladen werden konnte
+
+	# Entferne die Hauptmenüszene aus dem Szenenbaum
+	var current_scene = get_tree().current_scene  # Aktuelle Szene holen
+	if current_scene != null:
+		current_scene.queue_free()  # Entfernt die aktuelle Szene sicher aus dem Baum
+
+	# Instanziiere und füge die Kreditszene hinzu
+	var scene_instance = credit_scene.instantiate()
+	get_tree().root.add_child(scene_instance)
+	get_tree().current_scene = scene_instance  # Setze die neue Szene als aktuelle Szene
+
+
+func _on_play_button_pressed() -> void:
+	# Lade die \"Game\"-Szene als PackedScene
+	var game_scene = load(\"res://Scenes/Game.tscn\")  # Hier wird die Szene geladen
+	
+	# Überprüfe, ob die Szene erfolgreich geladen wurde
+	if game_scene == null:
+		print(\"Fehler: Die Szene konnte nicht geladen werden.\")
+		return  # Beende die Funktion, wenn die Szene nicht geladen werden konnte
+	
+	# Instanziiere die Szene
+	var scene_instance = game_scene.instantiate()  # Instanziiere die Szene
+	get_tree().current_scene.queue_free()  # Entlade die alte Szene
+
+	# Setze die neue Szene
+	get_tree().root.add_child(scene_instance)  # Füge die instanzierte Szene zur Root-Node hinzu
+
+
+func _on_quit_button_pressed() -> void:
+	get_tree().quit()
+"
+
+[sub_resource type="Animation" id="Animation_jnf7q"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [0]
+}
+
+[sub_resource type="Animation" id="Animation_cii0q"]
+resource_name = "loop"
+length = 0.6
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.6),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [0, 5]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_4agks"]
+_data = {
+"RESET": SubResource("Animation_jnf7q"),
+"loop": SubResource("Animation_cii0q")
+}
+
+[node name="MainMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -4.0
+offset_top = -1.0
+offset_right = 8.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 2
+script = SubResource("GDScript_yvg2q")
+
+[node name="BackgroundSprite" type="Sprite2D" parent="."]
+position = Vector2(964, 541)
+scale = Vector2(1, 1.04167)
+texture = ExtResource("1_v1qke")
+hframes = 5
+vframes = 2
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="BackgroundSprite"]
+libraries = {
+"": SubResource("AnimationLibrary_4agks")
+}
+
+[node name="AudioStreamPlayer2D" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("2_duyn5")
+autoplay = true
+parameters/looping = true
+
+[node name="Buttons" type="Node2D" parent="."]
+position = Vector2(200, 580)
+
+[node name="MarginContainer" type="MarginContainer" parent="Buttons"]
+custom_minimum_size = Vector2(0, -100)
+offset_right = 400.0
+offset_bottom = 150.0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Buttons/MarginContainer"]
+custom_minimum_size = Vector2(400, 300)
+layout_mode = 2
+alignment = 1
+
+[node name="PlayButton" type="TextureButton" parent="Buttons/MarginContainer/VBoxContainer"]
+custom_minimum_size = Vector2(400, 0)
+layout_mode = 2
+size_flags_vertical = 3
+texture_normal = ExtResource("3_4bm64")
+texture_pressed = ExtResource("5_2ihhd")
+texture_hover = ExtResource("4_70y1n")
+stretch_mode = 0
+
+[node name="CreditsButton" type="TextureButton" parent="Buttons/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+texture_normal = ExtResource("9_oyvpb")
+texture_pressed = ExtResource("11_xefrf")
+texture_hover = ExtResource("10_0ftmv")
+stretch_mode = 0
+
+[node name="QuitButton" type="TextureButton" parent="Buttons/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+texture_normal = ExtResource("7_frrdd")
+texture_pressed = ExtResource("9_4dl0d")
+texture_hover = ExtResource("8_fuqek")
+stretch_mode = 0
+
+[node name="Title" type="Sprite2D" parent="Buttons"]
+position = Vector2(203, -146)
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("3_s41hg")
+
+[node name="Label" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = -1
+anchor_right = 0.267
+anchor_bottom = 0.336
+offset_left = 1827.0
+offset_top = 1038.0
+offset_right = 1436.16
+offset_bottom = 722.144
+text = "v0.0.1.3"
+
+[connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/PlayButton" to="." method="_on_play_button_pressed"]
+[connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/CreditsButton" to="." method="_on_credits_button_pressed"]
+[connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/CreditsButton" to="." method="_on_texture_button_pressed"]
+[connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/QuitButton" to="." method="_on_quit_button_pressed"]

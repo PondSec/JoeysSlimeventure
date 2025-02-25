@@ -1,0 +1,34 @@
+[gd_scene load_steps=3 format=3 uid="uid://0hg2cyfd6vle"]
+
+[ext_resource type="Script" path="res://Scenes/button.gd" id="1_vferj"]
+
+[sub_resource type="ButtonGroup" id="ButtonGroup_4dtyp"]
+
+[node name="Control" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Label" type="Label" parent="."]
+layout_mode = 0
+offset_left = 431.0
+offset_top = 222.0
+offset_right = 1169.0
+offset_bottom = 340.0
+text = "Game Over"
+
+[node name="Button" type="Button" parent="Label"]
+layout_mode = 0
+offset_left = -1.0
+offset_top = 36.0
+offset_right = 89.0
+offset_bottom = 44.0
+toggle_mode = true
+action_mode = 0
+button_group = SubResource("ButtonGroup_4dtyp")
+text = "Restart
+"
+script = ExtResource("1_vferj")

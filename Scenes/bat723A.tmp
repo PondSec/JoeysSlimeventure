@@ -1,0 +1,146 @@
+[gd_scene load_steps=12 format=3 uid="uid://dqykudmd26o2q"]
+
+[ext_resource type="Script" path="res://Scenes/bat.gd" id="1_fveqw"]
+[ext_resource type="Texture2D" uid="uid://dmh4k0yq2bjpa" path="res://Assets/Bat/Standard/BatStandard_Sheet.png" id="2_kikkf"]
+
+[sub_resource type="Animation" id="Animation_wxra7"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [0]
+}
+
+[sub_resource type="Animation" id="Animation_yxgnl"]
+resource_name = "attack"
+length = 0.6
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.6),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [7, 12]
+}
+
+[sub_resource type="Animation" id="Animation_ey6uc"]
+resource_name = "death"
+length = 0.5
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.5),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [14, 15]
+}
+
+[sub_resource type="Animation" id="Animation_l3fkf"]
+resource_name = "flying"
+length = 0.4
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.4),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [0, 3]
+}
+
+[sub_resource type="Animation" id="Animation_tny1m"]
+resource_name = "idle"
+length = 0.8
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.8),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [0, 3]
+}
+
+[sub_resource type="Animation" id="Animation_m6oq1"]
+resource_name = "jump"
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [2]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_ojm6m"]
+_data = {
+"RESET": SubResource("Animation_wxra7"),
+"attack": SubResource("Animation_yxgnl"),
+"death": SubResource("Animation_ey6uc"),
+"flying": SubResource("Animation_l3fkf"),
+"idle": SubResource("Animation_tny1m"),
+"jump": SubResource("Animation_m6oq1")
+}
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_p57rr"]
+radius = 6.14636
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_chl00"]
+size = Vector2(10.0833, 10.25)
+
+[node name="Bat" type="CharacterBody2D"]
+scale = Vector2(1.5, 1.5)
+script = ExtResource("1_fveqw")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_kikkf")
+hframes = 7
+vframes = 5
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="Sprite2D"]
+libraries = {
+"": SubResource("AnimationLibrary_ojm6m")
+}
+
+[node name="AttackArea" type="Area2D" parent="."]
+
+[node name="Body" type="CollisionShape2D" parent="AttackArea"]
+position = Vector2(0.666667, -0.666667)
+shape = SubResource("CircleShape2D_p57rr")
+
+[node name="Collision" type="CollisionShape2D" parent="."]
+position = Vector2(0.666667, -0.666667)
+shape = SubResource("RectangleShape2D_chl00")
+
+[node name="NavigationAgent2D" type="NavigationAgent2D" parent="."]
+
+[node name="Timer" type="Timer" parent="NavigationAgent2D"]
+wait_time = 0.1
+autostart = true

@@ -1,0 +1,309 @@
+[gd_scene load_steps=10 format=3 uid="uid://u8xlcqx3gl74"]
+
+[ext_resource type="Script" path="res://Scenes/credits.gd" id="1_mcls7"]
+[ext_resource type="FontFile" uid="uid://c2wsertwqrai5" path="res://Assets/GUI/Font/PixelatedEleganceRegular-ovyAA.ttf" id="1_sgjby"]
+[ext_resource type="Texture2D" uid="uid://by5nnsktymsb6" path="res://Assets/GUI/Back/button.png" id="2_43lbw"]
+[ext_resource type="Texture2D" uid="uid://4myegyrrm76e" path="res://Assets/MainMenu/background_sprite.png" id="2_mmajw"]
+[ext_resource type="Texture2D" uid="uid://chol4j55hl3wo" path="res://Assets/GUI/Back/pressed.png" id="3_o1nwv"]
+[ext_resource type="Texture2D" uid="uid://ckkm2wypcxoa0" path="res://Assets/GUI/Back/hover.png" id="4_ep02m"]
+
+[sub_resource type="Animation" id="Animation_p8on2"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("ScrollContainer:position")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [Vector2(141, 1100)]
+}
+
+[sub_resource type="Animation" id="Animation_yioe8"]
+resource_name = "ScrollAnimation"
+length = 60.0
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("ScrollContainer:position")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 60),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Vector2(141, 1100), Vector2(141, -1550)]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_5p1jn"]
+_data = {
+"RESET": SubResource("Animation_p8on2"),
+"ScrollAnimation": SubResource("Animation_yioe8")
+}
+
+[node name="Credits" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_mcls7")
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="BackgroundSprite" type="Sprite2D" parent="CanvasLayer"]
+position = Vector2(964, 541)
+scale = Vector2(1, 1.04167)
+texture = ExtResource("2_mmajw")
+hframes = 5
+vframes = 2
+
+[node name="CanvasModulate" type="CanvasModulate" parent="CanvasLayer"]
+color = Color(0.32, 0.32, 0.32, 0.262745)
+
+[node name="ScrollContainer" type="ScrollContainer" parent="."]
+layout_mode = 0
+offset_left = 141.0
+offset_top = 1100.0
+offset_right = 1786.0
+offset_bottom = 3186.0
+horizontal_scroll_mode = 0
+vertical_scroll_mode = 0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Label" type="Label" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("1_sgjby")
+theme_override_font_sizes/font_size = 25
+text = "Programmed by:
+
+Joshua Pond"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Leer" type="Label" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("1_sgjby")
+theme_override_font_sizes/font_size = 25
+text = "
+
+
+"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Label2" type="Label" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("1_sgjby")
+theme_override_font_sizes/font_size = 25
+text = "Developed by:
+
+Joshua Pond"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Leer2" type="Label" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("1_sgjby")
+theme_override_font_sizes/font_size = 25
+text = "
+
+
+"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Label3" type="Label" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("1_sgjby")
+theme_override_font_sizes/font_size = 25
+text = "Bat Animation:
+
+Eduardo Scarpato"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Leer3" type="Label" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("1_sgjby")
+theme_override_font_sizes/font_size = 25
+text = "
+
+
+"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Label4" type="Label" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("1_sgjby")
+theme_override_font_sizes/font_size = 25
+text = "Hooded Protagonist:
+
+Artwork by Penzilla"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Leer4" type="Label" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("1_sgjby")
+theme_override_font_sizes/font_size = 25
+text = "
+
+
+"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Label5" type="Label" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("1_sgjby")
+theme_override_font_sizes/font_size = 25
+text = "Main Menu Background:
+
+Artwork by zkSkulls"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Leer5" type="Label" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("1_sgjby")
+theme_override_font_sizes/font_size = 25
+text = "
+
+
+"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Label6" type="Label" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("1_sgjby")
+theme_override_font_sizes/font_size = 25
+text = "GUI Elements:
+
+Mounir Tohami"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Leer6" type="Label" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("1_sgjby")
+theme_override_font_sizes/font_size = 25
+text = "
+
+
+"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Label7" type="Label" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("1_sgjby")
+theme_override_font_sizes/font_size = 25
+text = "Game Engine:
+
+Godot 4.3"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Leer7" type="Label" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("1_sgjby")
+theme_override_font_sizes/font_size = 25
+text = "
+
+
+"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Label8" type="Label" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("1_sgjby")
+theme_override_font_sizes/font_size = 25
+text = "Sound Effects:
+
+Joshua Pond
+Luis Köhler"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Leer8" type="Label" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("1_sgjby")
+theme_override_font_sizes/font_size = 25
+text = "
+
+
+"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Label9" type="Label" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("1_sgjby")
+theme_override_font_sizes/font_size = 25
+text = "A big thank you to all the other contributors who provided ideas, feedback, and support throughout the development of Joey's Slimeventure."
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="Leer9" type="Label" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("1_sgjby")
+theme_override_font_sizes/font_size = 25
+text = "
+
+
+"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Label10" type="Label" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("1_sgjby")
+theme_override_font_sizes/font_size = 25
+text = "Special Thanks:
+
+To milomilos from the Reddit community for personal help."
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="TextureButton" type="TextureButton" parent="."]
+layout_mode = 0
+offset_left = 26.0
+offset_top = 26.0
+offset_right = 210.0
+offset_bottom = 99.0
+texture_normal = ExtResource("2_43lbw")
+texture_pressed = ExtResource("3_o1nwv")
+texture_hover = ExtResource("4_ep02m")
+stretch_mode = 0
+
+[node name="Label" type="Label" parent="TextureButton"]
+layout_mode = 0
+offset_left = 27.0
+offset_top = 9.0
+offset_right = 163.0
+offset_bottom = 60.0
+theme_override_fonts/font = ExtResource("1_sgjby")
+theme_override_font_sizes/font_size = 25
+text = "Back"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+libraries = {
+"": SubResource("AnimationLibrary_5p1jn")
+}
+
+[connection signal="pressed" from="TextureButton" to="." method="_on_texture_button_pressed"]
