@@ -39,7 +39,6 @@ var was_in_air := false  # Variable, um zu überprüfen, ob der Spieler gerade i
 var is_landing := false  # Variable, um die Landeanimation zu verfolgen
 var fall_start_y := 0.0  # Y-Position, bei der der Spieler zu fallen begann
 var fall_distance := 10.0  # Berechnete Fallhöhe
-
 var heal_rate: float = 15.0  # Anfangsheilrate
 var min_heal_rate: float = 1  # Mindestheilrate, die nie unterschritten werden soll
 var heal_decay: float = 0.7  # Heilrate sinkt um diesen Betrag nach jeder Heilung
@@ -48,6 +47,7 @@ var heal_timer: Timer = Timer.new()  # Timer für regelmäßige Heilung
 var is_healing_active: bool = false  # Flag, ob Heilung aktiv ist
 var healed_to_full: bool = false  # Flag, ob der Spieler voll geheilt wurde
 var damage_timer: Timer = Timer.new()  # Timer für den Schadensabstand
+var attack_damage: int = 15
 
 # Referenzen zu Knoten
 var attack_sprite: AnimatedSprite2D
@@ -97,7 +97,7 @@ func _ready() -> void:
 	heal_timer.connect(\"timeout\", Callable(self, \"_on_heal_timer_timeout\"))
 	
 	add_child(damage_timer)  # Füge den Timer als Kind hinzu
-	damage_timer.wait_time = 3.0  # 3 Sekunden warten
+	damage_timer.wait_time = 0.5  # 3 Sekunden warten
 	damage_timer.one_shot = true  # Der Timer läuft nur einmal
 	damage_timer.autostart = false  # Timer startet nicht automatisch
 	damage_timer.connect(\"timeout\", Callable(self, \"_on_damage_timer_timeout\"))  # Signalverbindung
@@ -228,7 +228,7 @@ func is_in_air() -> bool:
 # Angriffskollisionsbehandlung
 func _on_attack_area_body_entered(body) -> void:
 	if body.is_in_group(\"enemies\"):
-		body.take_damage(25)
+		body.take_damage(attack_damage)
 
 # Funktion, um den Spieler sterben zu lassen
 func die() -> void:
@@ -469,6 +469,8 @@ scale = Vector2(1.89038, 1.79514)
 sprite_frames = SubResource("SpriteFrames_sgnk3")
 animation = &"swing"
 frame = 7
+frame_progress = 1.0
+speed_scale = 2.0
 
 [node name="AttackArea" type="Area2D" parent="PlayerSprite/AttackSprite"]
 position = Vector2(-8.10623e-06, 1.38283e-05)

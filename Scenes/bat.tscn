@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3 uid="uid://dqykudmd26o2q"]
+[gd_scene load_steps=13 format=3 uid="uid://dqykudmd26o2q"]
 
 [ext_resource type="Script" path="res://Scenes/bat.gd" id="1_fveqw"]
 [ext_resource type="Texture2D" uid="uid://dmh4k0yq2bjpa" path="res://Assets/Bat/Standard/BatStandard_Sheet.png" id="2_kikkf"]
@@ -99,6 +99,21 @@ tracks/0/keys = {
 "values": [2]
 }
 
+[sub_resource type="Animation" id="Animation_ghu1s"]
+resource_name = "stunned"
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [23, 27]
+}
+
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_ojm6m"]
 _data = {
 "RESET": SubResource("Animation_wxra7"),
@@ -106,7 +121,8 @@ _data = {
 "death": SubResource("Animation_ey6uc"),
 "flying": SubResource("Animation_l3fkf"),
 "idle": SubResource("Animation_tny1m"),
-"jump": SubResource("Animation_m6oq1")
+"jump": SubResource("Animation_m6oq1"),
+"stunned": SubResource("Animation_ghu1s")
 }
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_p57rr"]
@@ -120,6 +136,7 @@ scale = Vector2(1.5, 1.5)
 script = ExtResource("1_fveqw")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
+position = Vector2(0, -5)
 texture = ExtResource("2_kikkf")
 hframes = 7
 vframes = 5
@@ -128,6 +145,7 @@ vframes = 5
 libraries = {
 "": SubResource("AnimationLibrary_ojm6m")
 }
+speed_scale = 2.0
 
 [node name="AttackArea" type="Area2D" parent="."]
 
