@@ -195,13 +195,11 @@ func _physics_process(delta: float) -> void:
 	set_animation()
 
 func _on_heal_timer_timeout() -> void:
-	# Nur heilen, wenn Heilung aktiv ist
-	if is_healing_active and current_health < max_health:
-		heal(heal_rate)  # Spieler heilt um heal_rate Punkte
-		heal_rate = max(heal_rate - heal_decay, min_heal_rate)
-	else:
-		if current_health == max_health:
-			heal_rate = 10
+    # Nur heilen, wenn Heilung aktiv ist und der Spieler nicht voll geheilt ist
+    if is_healing_active and current_health < max_health:
+        var missing_health = max_health - current_health
+        var heal_amount = ceil(missing_health * 0.1)  # 10% des fehlenden Lebens
+        heal(heal_amount)
 
 
 func play_landing_animation() -> void:
