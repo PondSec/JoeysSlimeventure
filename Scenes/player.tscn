@@ -48,6 +48,7 @@ var is_healing_active: bool = false  # Flag, ob Heilung aktiv ist
 var healed_to_full: bool = false  # Flag, ob der Spieler voll geheilt wurde
 var damage_timer: Timer = Timer.new()  # Timer für den Schadensabstand
 var attack_damage: int = 15
+var is_stunned: bool = false  # Spieler kann sich während des Stuns nicht bewegen
 
 # Referenzen zu Knoten
 var attack_sprite: AnimatedSprite2D
@@ -66,6 +67,7 @@ const COLOR_DAMAGE = Color(1.0, 0.29, 0.29)  # Schadenfarbe (ff4a4a in Hex)
 @onready var health_bar: TextureProgressBar = $CanvasLayer/TextureProgressBar
 @onready var canvas_layer: CanvasLayer = $CanvasLayer  # Referenz zum CanvasLayer für die Tween-Animationen
 
+var stun_timer: Timer = Timer.new()
 
 func _ready() -> void:
 	# Initialisiere Angriffsknoten
@@ -101,6 +103,12 @@ func _ready() -> void:
 	damage_timer.one_shot = true  # Der Timer läuft nur einmal
 	damage_timer.autostart = false  # Timer startet nicht automatisch
 	damage_timer.connect(\"timeout\", Callable(self, \"_on_damage_timer_timeout\"))  # Signalverbindung
+	
+	# Stun-Timer initialisieren
+	add_child(stun_timer)
+	stun_timer.wait_time = 1  # Spieler ist 0,5 Sekunden gestunned
+	stun_timer.one_shot = true
+	stun_timer.connect(\"timeout\", Callable(self, \"_on_stun_timer_timeout\"))
 
 # Lebensanzeige aktualisieren
 func update_health_bar() -> void:
@@ -121,16 +129,16 @@ func _process(delta: float) -> void:
 		is_glowing = !is_glowing
 		update_glow_state()
 
-	# Testcode für Schaden und Heilung
-	if Input.is_action_just_pressed(\"damage\"):
-		take_damage(10)  # Nimmt 10 Schaden
-	elif Input.is_action_just_pressed(\"heal\"):
-		heal(10)  # Heilt 10 Lebenspunkte
-
 func _physics_process(delta: float) -> void:
+	# Falls gestunned, keine Steuerung erlauben, aber Schwerkraft beibehalten
+	if is_stunned:
+		velocity.y += GRAVITY * delta  # Weiter fallen lassen
+		move_and_slide()
+		return  # Beendet die Funktion, sodass keine Eingaben verarbeitet werden
+	
 	if is_landing:
 		return  # Keine Bewegung während der Lande-Animation erlauben
-
+	
 	# Schwerkraft anwenden, wenn nicht auf dem Boden
 	if not is_on_floor():
 		if not was_in_air:
@@ -150,10 +158,7 @@ func _physics_process(delta: float) -> void:
 				# Wenn die Fallhöhe groß genug ist, spiele die Lande-Animation ab
 				play_landing_animation()
 			was_in_air = false  # Zurücksetzen der Variable
-
-	# Wandgleiten
-	
-
+			
 	# Bewegung ausführen
 	move_and_slide()
 	
@@ -237,6 +242,9 @@ func die() -> void:
 
 # Angriff ausführen
 func perform_attack() -> void:
+	if is_attacking or is_stunned:
+		return
+		
 	is_attacking = true
 	$PlayerSprite/AttackSprite.flip_h = is_facing_left
 	$PlayerSprite/AttackSprite.play(\"swing\")
@@ -250,7 +258,7 @@ func update_glow_state() -> void:
 	glow_effect.visible = is_glowing
 
 # Importiere diese Zeile in deine `take_damage`-Funktion, um den Partikel-Effekt zu aktivieren
-func take_damage(amount: int) -> void:
+func take_damage(amount: int, hit_source: Vector2) -> void:
 	current_health -= amount
 	show_damage_text(amount, false)  # Zeigt den erlittenen Schaden an
 	flash_damage_color()
@@ -258,7 +266,21 @@ func take_damage(amount: int) -> void:
 	# Partikel-Emitter aktivieren
 	var hit_particles = $PlayerSprite/HitParticles  # Referenz zum CPUParticles2D-Knoten
 	hit_particles.emitting = true  # Partikel einmal emittieren
-	
+
+	# Spieler für kurze Zeit stunnen
+	is_stunned = true
+	stun_timer.start()  # Stun-Timer starten
+
+	# Knockback-Effekt
+	var knockback_direction = (global_position - hit_source).normalized()  # Richtung vom Trefferpunkt weg
+	var knockback_force = knockback_direction * Vector2(200, -50)  # X-Kraft nach hinten, Y-Kraft leicht nach oben
+
+	velocity += knockback_force  # Geschwindigkeit anpassen
+
+	# Langsames Abklingen des Knockbacks für weichen Effekt
+	var tween = get_tree().create_tween()
+	tween.tween_property(self, \"velocity\", Vector2.ZERO, 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
 	if current_health <= 0:
 		current_health = 0
 		die()
@@ -266,6 +288,10 @@ func take_damage(amount: int) -> void:
 	stop_healing()  # Stoppe die Heilung, wenn Schaden erlitten wird
 	damage_timer.start()
 
+
+
+func _on_stun_timer_timeout() -> void:
+	is_stunned = false  # Spieler kann sich wieder bewegen
 
 func stop_healing() -> void:
 	is_healing_active = false
