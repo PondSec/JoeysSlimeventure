@@ -1,4 +1,4 @@
-## Joey's Slimeventure
+# Joey's Slimeventure
 
 **Joey's Slimeventure** ist ein aufregendes Plattformspiel, das mit der **Godot Engine 4.3** entwickelt wurde. In diesem Spiel übernimmt der Spieler die Rolle von **Joey**, einem mutigen Helden, der sich durch verschiedene, herausfordernde Level kämpft, um Feinde und Mini-Bosse zu besiegen. Mit klassischen Plattforming-Mechaniken und einer fesselnden Spielwelt bietet das Spiel eine spaßige und spannende Erfahrung für alle Fans des Genres.
 
@@ -30,6 +30,12 @@ Lade die neueste Version von **Joey's Slimeventure** direkt von der [Releases-Se
 ## 🚀 **Neueste Version**
 
 Die neueste Version von **Joey's Slimeventure** ist auf der [Releases-Seite](https://github.com/JoshuaPondStudios/JoeysSlimeventure/releases/latest) verfügbar. Hier kannst du die ausführbare Datei (EXE) herunterladen und das Spiel direkt starten.
+
+---
+
+## 📊 **Aktivitäts-Statistiken und Insights**
+
+Besuche die [GitHub Insights-Seite](https://github.com/JoshuaPondStudios/JoeysSlimeventure/graphs) für aktuelle Statistiken und Aktivitätsdaten zum Repository, einschließlich Commits, Pull Requests und weiteren Entwicklungsmetriken.
 
 ---
 
