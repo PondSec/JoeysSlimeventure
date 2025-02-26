@@ -4,8 +4,9 @@ const SPEED = 140.0
 const DETECTION_RADIUS = 300.0
 const ATTACK_RANGE = 40.0
 const ATTACK_COOLDOWN = 1.5
-const MIN_DISTANCE = 20.0
+const MIN_DISTANCE = 5.0
 const RESPAWN_COOLDOWN = 5
+const BASE_DETECTION_RADIUS = 150.0  # Kleinerer Radius für nicht-glühenden Spieler
 
 var is_dead := false
 var health := 100
@@ -37,12 +38,13 @@ func _physics_process(delta: float) -> void:
 			apply_stun(0.5)  # Stun für 0.5 Sekunden nach Knockback
 	else:
 		var distance_to_player = global_position.distance_to(player.global_position)
+		var actual_detection_radius = DETECTION_RADIUS if player.is_glowing else BASE_DETECTION_RADIUS
 		
 		if distance_to_player <= ATTACK_RANGE:
 			attack_timer -= delta
 			if attack_timer <= 0.0:
 				attack()
-		elif player and player.is_glowing and distance_to_player <= DETECTION_RADIUS:
+		elif player and distance_to_player <= actual_detection_radius:
 			navigation_agent.target_position = player.global_position
 			var direction = to_local(navigation_agent.get_next_path_position()).normalized()
 			if distance_to_player > MIN_DISTANCE:
@@ -55,6 +57,7 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 	set_animation()
+
 
 func attack() -> void:
 	if player and not is_dead:
@@ -125,8 +128,8 @@ func take_damage(amount: int) -> void:
 func flash_red():
 	var sprite = $Sprite2D
 	var tween = get_tree().create_tween()
-	tween.tween_property(sprite, "modulate", Color(1, 0, 0), 0.1)  # Rote Farbe für 0.1 Sek.
-	tween.tween_property(sprite, "modulate", Color(1, 1, 1), 0.1)  # Zurück zur normalen Farbe
+	tween.tween_property(sprite, "modulate", Color(1, 0, 0), 0.2)  # Rote Farbe für 0.1 Sek.
+	tween.tween_property(sprite, "modulate", Color(1, 1, 1), 0.2)  # Zurück zur normalen Farbe
 
 func apply_knockback():
 	if player:
@@ -137,7 +140,7 @@ func apply_knockback():
 
 		await get_tree().create_timer(0.3).timeout  # Knockback-Dauer
 		is_knocked_back = false
-		apply_stun(0.5)  # Gegner wird nach Knockback für 0.5 Sekunden betäubt
+		apply_stun(0.3)  # Gegner wird nach Knockback für 0.5 Sekunden betäubt
 
 func apply_stun(duration: float) -> void:
 	is_stunned = true

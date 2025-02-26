@@ -81,7 +81,7 @@ func _ready() -> void:
 
 	# Initialisiere den Leuchteffekt (PointLight2D)
 	glow_effect = $PlayerGlow
-	glow_effect.visible = true  # Deaktiviere den Leuchteffekt anfänglich
+	glow_effect.visible = true  # aktiviere den Leuchteffekt anfänglich
 
 	# Setze die Lebensanzeige
 	update_health_bar()
@@ -279,9 +279,17 @@ func _on_damage_timer_timeout() -> void:
 
 # Funktion, um die Farbe des Leuchteffekts bei Schaden zu ändern
 func flash_damage_color() -> void:
-	glow_effect.color = COLOR_DAMAGE
-	await get_tree().create_timer(0.3).timeout  # Warten für 0,3 Sekunden
-	glow_effect.color = COLOR_NORMAL
+	if !glow_effect.visible:
+		glow_effect.visible = true
+		glow_effect.color = COLOR_DAMAGE
+		await get_tree().create_timer(0.3).timeout  # Warten für 0,3 Sekunden
+		glow_effect.color = COLOR_NORMAL
+		glow_effect.visible = false
+		
+	if glow_effect.visible:
+		glow_effect.color = COLOR_DAMAGE
+		await get_tree().create_timer(0.3).timeout  # Warten für 0,3 Sekunden
+		glow_effect.color = COLOR_NORMAL
 
 # Zeigt den Schadens-Text an
 func show_damage_text(amount: int, is_heal: bool) -> void:
@@ -346,7 +354,7 @@ animations = [{
 }]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_jxxud"]
-size = Vector2(521.437, 429.732)
+size = Vector2(369.351, 264.603)
 
 [sub_resource type="Animation" id="Animation_chcy3"]
 length = 0.001
@@ -476,7 +484,8 @@ speed_scale = 2.0
 position = Vector2(-8.10623e-06, 1.38283e-05)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="PlayerSprite/AttackSprite/AttackArea"]
-position = Vector2(-3.77856, 0)
+position = Vector2(-3.05176e-05, 1.52588e-05)
+scale = Vector2(0.8, 0.8)
 shape = SubResource("RectangleShape2D_jxxud")
 
 [node name="HitParticles" type="CPUParticles2D" parent="PlayerSprite"]
