@@ -94,7 +94,7 @@ func _on_attack_animation_finished(anim_name: String) -> void:
 			if randf() < 0.1:
 				random_damage *= 2  # Kritischer Treffer macht doppelten Schaden
 			
-			player.take_damage(random_damage)
+			player.take_damage(random_damage, global_position)
 
 	animation_player.disconnect("animation_finished", Callable(self, "_on_attack_animation_finished"))
 	is_attacking = false

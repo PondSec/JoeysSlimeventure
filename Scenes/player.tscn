@@ -258,7 +258,7 @@ func update_glow_state() -> void:
 	glow_effect.visible = is_glowing
 
 # Importiere diese Zeile in deine `take_damage`-Funktion, um den Partikel-Effekt zu aktivieren
-func take_damage(amount: int) -> void:
+func take_damage(amount: int, hit_source: Vector2) -> void:
 	current_health -= amount
 	show_damage_text(amount, false)  # Zeigt den erlittenen Schaden an
 	flash_damage_color()
@@ -270,13 +270,25 @@ func take_damage(amount: int) -> void:
 	# Spieler für kurze Zeit stunnen
 	is_stunned = true
 	stun_timer.start()  # Stun-Timer starten
-	
+
+	# Knockback-Effekt
+	var knockback_direction = (global_position - hit_source).normalized()  # Richtung vom Trefferpunkt weg
+	var knockback_force = knockback_direction * Vector2(200, -50)  # X-Kraft nach hinten, Y-Kraft leicht nach oben
+
+	velocity += knockback_force  # Geschwindigkeit anpassen
+
+	# Langsames Abklingen des Knockbacks für weichen Effekt
+	var tween = get_tree().create_tween()
+	tween.tween_property(self, \"velocity\", Vector2.ZERO, 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
 	if current_health <= 0:
 		current_health = 0
 		die()
 	update_health_bar()
 	stop_healing()  # Stoppe die Heilung, wenn Schaden erlitten wird
 	damage_timer.start()
+
+
 
 func _on_stun_timer_timeout() -> void:
 	is_stunned = false  # Spieler kann sich wieder bewegen
