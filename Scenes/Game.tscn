@@ -329,7 +329,7 @@ position = Vector2(529, 1455)
 modulate = Color(0, 0, 0, 1)
 self_modulate = Color(0, 0, 0, 1)
 position = Vector2(-14, 10)
-color = Color(0.122252, 0.122252, 0.122252, 1)
+color = Color(0, 0, 0, 1)
 
 [node name="NavigationPath" type="TileMapLayer" parent="."]
 visible = false
