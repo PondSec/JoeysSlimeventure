@@ -4,6 +4,18 @@
 
 ---
 
+## 🔓 **Wichtige Hinweise zur Open-Source-Version**
+
+Diese Version von **Joey's Slimeventure** ist eine **frühe Alpha-Version**, die als **Open-Source-Projekt** entwickelt wird. Die Community kann sich daran beteiligen, Features vorschlagen oder Verbesserungen einbringen.
+
+✅ **Die vollständige, verbesserte Version wird später auf Steam erscheinen.**
+✅ **Falls du mithelfen willst, bist du herzlich willkommen!**
+✅ **Einige Features und Inhalte werden exklusiv in der Steam-Version enthalten sein.**
+
+Falls jemand coole Verbesserungen oder neue Inhalte in der Open-Source-Version erstellt, kann es sein, dass diese in die finale Steam-Version integriert werden. Die Open-Source-Version bleibt aber weiterhin verfügbar, sodass die Community daran weiterarbeiten kann.
+
+---
+
 ## 🕹️ **Features**
 
 - **Verschiedene Level**: Erkunde abwechslungsreiche Umgebungen, von ruhigen Wäldern bis hin zu gefährlichen Lava-Höhlen, und meistere spannende Hindernisse und Herausforderungen.
@@ -52,7 +64,7 @@ Besuche die [GitHub Insights-Seite](https://github.com/JoshuaPondStudios/JoeysSl
 
 ---
 
-## 🐞 **Fehler melden und Vorschläge einreichen**
+## 🛠️ **Fehler melden und Vorschläge einreichen**
 
 Falls du auf Fehler stößt oder Verbesserungsvorschläge hast, eröffne bitte ein Issue im [Issue Tracker](https://github.com/JoshuaPondStudios/JoeysSlimeventure/issues). Dein Feedback ist uns wichtig!
 
@@ -72,7 +84,7 @@ Dieses Projekt ist unter der **MIT-Lizenz** lizenziert. Weitere Details findest 
 
 ---
 
-## 🧰 **Zusätzliche Ressourcen**
+## 🫠 **Zusätzliche Ressourcen**
 
 - **Godot Engine**: [https://godotengine.org](https://godotengine.org)
 - **Godot Dokumentation**: [https://docs.godotengine.org](https://docs.godotengine.org)
@@ -100,3 +112,4 @@ Falls du mithelfen möchtest, sind wir immer auf der Suche nach kreativen Köpfe
 ---
 
 Danke, dass du dich für **Joey's Slimeventure** interessierst. Wir hoffen, dass du viel Spaß beim Spielen hast und freuen uns auf dein Feedback!
+
