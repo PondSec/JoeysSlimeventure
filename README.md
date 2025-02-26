@@ -57,7 +57,7 @@ Dieses Projekt ist unter der **MIT-Lizenz** lizenziert. Weitere Details findest 
 
 - **Godot Engine**: [https://godotengine.org](https://godotengine.org)
 - **Godot Dokumentation**: [https://docs.godotengine.org](https://docs.godotengine.org)
-- **Entwickler-Blog**: Besuche unseren [Entwickler-Blog](https://example.com) (falls vorhanden).
+- **Entwickler-Seite**: Besuche unsere [Entwickler-Seite](https://pondsec.com)
 
 ---
 
