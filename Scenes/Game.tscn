@@ -389,5 +389,5 @@ position = Vector2(2477, 1187)
 
 [node name="PauseMenu" parent="." instance=ExtResource("9_dvqdi")]
 
-[connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_pause_menu_go_to_main_menu"]
 [connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_canvas_layer_go_to_main_menu"]
+[connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_pause_menu_go_to_main_menu"]
