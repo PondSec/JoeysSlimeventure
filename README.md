@@ -27,9 +27,22 @@ Lade die neueste Version von **Joey's Slimeventure** direkt von der [Releases-Se
 
 ---
 
-## 🚀 **Neueste Version**
+## 📁 **Projekt Installation (Godot)**
 
-Die neueste Version von **Joey's Slimeventure** ist auf der [Releases-Seite](https://github.com/JoshuaPondStudios/JoeysSlimeventure/releases/latest) verfügbar. Hier kannst du die ausführbare Datei (EXE) herunterladen und das Spiel direkt starten.
+1. **Voraussetzungen:**
+   - Installiere die [Godot Engine](https://godotengine.org/download) Version 4.3 oder höher.
+
+2. **Projekt öffnen:**
+   - Lade das Repository herunter oder klone es mit Git:
+
+     ```bash
+     git clone https://github.com/JoshuaPondStudios/JoeysSlimeventure.git
+     ```
+
+   - Öffne die `JoeysSlimeventure`-Projektdatei in der Godot Engine.
+
+3. **Projekt ausführen:**
+   - Drücke `F5` oder klicke auf "Play", um das Spiel zu starten.
 
 ---
 
