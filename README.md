@@ -1,4 +1,4 @@
-# Joey's Slimeventure
+Joey's Slimeventure
 
 **Joey's Slimeventure** ist ein aufregendes Plattformspiel, das mit der **Godot Engine 4.3** entwickelt wurde. In diesem Spiel übernimmt der Spieler die Rolle von **Joey**, einem mutigen Helden, der sich durch verschiedene, herausfordernde Level kämpft, um Feinde und Mini-Bosse zu besiegen. Mit klassischen Plattforming-Mechaniken und einer fesselnden Spielwelt bietet das Spiel eine spaßige und spannende Erfahrung für alle Fans des Genres.
 
@@ -17,21 +17,13 @@
 
 ## 🌍 **Installation**
 
-### 1. **Voraussetzungen:**
-Stelle sicher, dass du die [Godot Engine](https://godotengine.org/download) Version 4.3 oder höher installiert hast. Du kannst die Engine kostenlos herunterladen und installieren.
+### 1. **Einfache Installation** (für Windows):
 
-### 2. **Projekt klonen:**
-Lade das Repository herunter oder klone es direkt mit Git:
+Lade die neueste Version von **Joey's Slimeventure** direkt von der [Releases-Seite](https://github.com/JoshuaPondStudios/JoeysSlimeventure/releases/latest) herunter. Auf der Seite findest du die **EXE-Dateien**, die du einfach ausführen kannst, ohne dass du die Godot Engine benötigst.
 
-```bash
-git clone https://github.com/JoshuaPondStudios/JoeysSlimeventure.git
-```
+### 2. **Projekt ausführen:**
 
-### 3. **Projekt öffnen:**
-Öffne die `JoeysSlimeventure`-Projektdatei in der **Godot Engine**.
-
-### 4. **Projekt ausführen:**
-Drücke `F5` oder klicke auf "Play", um das Spiel zu starten.
+- Nachdem du die EXE-Datei heruntergeladen hast, öffne sie einfach und starte das Spiel.
 
 ---
 
