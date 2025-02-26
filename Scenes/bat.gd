@@ -1,7 +1,7 @@
 extends CharacterBody2D
 
 const SPEED = 140.0
-const DETECTION_RADIUS = 300.0
+const DETECTION_RADIUS = 500.0
 const ATTACK_RANGE = 40.0
 const ATTACK_COOLDOWN = 1.5
 const MIN_DISTANCE = 5.0
@@ -9,7 +9,7 @@ const RESPAWN_COOLDOWN = 5
 const BASE_DETECTION_RADIUS = 150.0  # Kleinerer Radius für nicht-glühenden Spieler
 
 var is_dead := false
-var health := 100
+var health := 50
 var is_attacking := false
 var attack_timer := 0.0
 var knockback_velocity := Vector2.ZERO
@@ -205,4 +205,4 @@ func spawn_near_player() -> void:
 	set_deferred("collision_mask", 1)
 	modulate = Color(1, 1, 1, 1)  # Falls sie unsichtbar bleibt
 	is_dead = false
-	health = 100
+	health = 50
