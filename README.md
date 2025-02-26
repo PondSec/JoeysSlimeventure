@@ -1,115 +1,114 @@
 # Joey's Slimeventure
 
-**Joey's Slimeventure** ist ein aufregendes Plattformspiel, das mit der **Godot Engine 4.3** entwickelt wurde. In diesem Spiel übernimmt der Spieler die Rolle von **Joey**, einem mutigen Helden, der sich durch verschiedene, herausfordernde Level kämpft, um Feinde und Mini-Bosse zu besiegen. Mit klassischen Plattforming-Mechaniken und einer fesselnden Spielwelt bietet das Spiel eine spaßige und spannende Erfahrung für alle Fans des Genres.
+**Joey's Slimeventure** is an exciting platformer developed with the **Godot Engine 4.3**. In this game, players take on the role of **Joey**, a brave hero who fights through various challenging levels to defeat enemies and mini-bosses. With classic platforming mechanics and an engaging game world, this game offers a fun and thrilling experience for all fans of the genre.
 
 ---
 
-## 🔓 **Wichtige Hinweise zur Open-Source-Version**
+## 🔓 **Important Notes on the Open-Source Version**
 
-Diese Version von **Joey's Slimeventure** ist eine **frühe Alpha-Version**, die als **Open-Source-Projekt** entwickelt wird. Die Community kann sich daran beteiligen, Features vorschlagen oder Verbesserungen einbringen.
+This version of **Joey's Slimeventure** is an **early alpha version**, developed as an **open-source project**. The community is encouraged to participate, suggest features, and contribute improvements.
 
-✅ **Die vollständige, verbesserte Version wird später auf Steam erscheinen.**
-✅ **Falls du mithelfen willst, bist du herzlich willkommen!**
-✅ **Einige Features und Inhalte werden exklusiv in der Steam-Version enthalten sein.**
+✅ **The full, enhanced version will be released on Steam later.**  
+✅ **If you want to help, you're more than welcome!**  
+✅ **Some features and content will be exclusive to the Steam version.**  
 
-Falls jemand coole Verbesserungen oder neue Inhalte in der Open-Source-Version erstellt, kann es sein, dass diese in die finale Steam-Version integriert werden. Die Open-Source-Version bleibt aber weiterhin verfügbar, sodass die Community daran weiterarbeiten kann.
+If someone creates cool improvements or new content for the open-source version, there’s a chance they might be integrated into the final Steam version. However, the open-source version will remain available so that the community can continue working on it.
 
 ---
 
 ## 🕹️ **Features**
 
-- **Verschiedene Level**: Erkunde abwechslungsreiche Umgebungen, von ruhigen Wäldern bis hin zu gefährlichen Lava-Höhlen, und meistere spannende Hindernisse und Herausforderungen.
-- **Feinde und Mini-Bosse**: Bekämpfe eine Vielzahl von Gegnern mit einzigartigen Fähigkeiten und setze deine Plattforming-Skills ein, um sie zu besiegen.
-- **Plattforming-Mechanik**: Präzise Steuerung und geschickte Sprungmechaniken ermöglichen es dir, herausfordernde Level zu durchqueren und dabei verschiedene Power-ups zu nutzen.
-- **Fähigkeiten-Upgrade-System**: Sammle Erfahrungspunkte und verbessere Joeys Fähigkeiten, um mächtiger zu werden und neue Bereiche zu erreichen.
-- **Dynamische Musik & Sounddesign**: Eine epische Soundtrack-Komposition, die perfekt zur Atmosphäre der einzelnen Level passt.
-- **Geheime Bereiche und Easter Eggs**: Entdecke geheime Level und versteckte Gegenstände für erfahrene Spieler, die alles erkunden wollen.
+- **Various Levels**: Explore diverse environments, from peaceful forests to dangerous lava caves, and overcome exciting obstacles and challenges.  
+- **Enemies and Mini-Bosses**: Fight a variety of enemies with unique abilities and use your platforming skills to defeat them.  
+- **Platforming Mechanics**: Precise controls and skillful jumping mechanics allow you to traverse challenging levels while utilizing different power-ups.  
+- **Ability Upgrade System**: Collect experience points and enhance Joey’s abilities to become stronger and unlock new areas.  
+- **Dynamic Music & Sound Design**: An epic soundtrack composition that perfectly matches the atmosphere of each level.  
+- **Secret Areas and Easter Eggs**: Discover hidden levels and secret items for experienced players who want to explore everything.  
 
 ---
 
 ## 🌍 **Installation**
 
-### 1. **Einfache Installation** (für Windows):
+### 1. **Easy Installation** (for Windows):
 
-Lade die neueste Version von **Joey's Slimeventure** direkt von der [Releases-Seite](https://github.com/JoshuaPondStudios/JoeysSlimeventure/releases/latest) herunter. Auf der Seite findest du die **EXE-Dateien**, die du einfach ausführen kannst, ohne dass du die Godot Engine benötigst.
+Download the latest version of **Joey's Slimeventure** directly from the [Releases Page](https://github.com/JoshuaPondStudios/JoeysSlimeventure/releases/latest). On this page, you'll find **EXE files** that you can simply run without needing the Godot Engine.
 
-### 2. **Projekt ausführen:**
+### 2. **Run the Project:**
 
-- Nachdem du die EXE-Datei heruntergeladen hast, öffne sie einfach und starte das Spiel.
+- After downloading the EXE file, simply open it and start the game.
 
 ---
 
-## 📁 **Projekt Installation (Godot)**
+## 📁 **Project Installation (Godot)**
 
-1. **Voraussetzungen:**
-   - Installiere die [Godot Engine](https://godotengine.org/download) Version 4.3 oder höher.
+1. **Requirements:**  
+   - Install the [Godot Engine](https://godotengine.org/download) version 4.3 or higher.
 
-2. **Projekt öffnen:**
-   - Lade das Repository herunter oder klone es mit Git:
+2. **Open the Project:**  
+   - Download or clone the repository using Git:
 
      ```bash
      git clone https://github.com/JoshuaPondStudios/JoeysSlimeventure.git
      ```
 
-   - Öffne die `JoeysSlimeventure`-Projektdatei in der Godot Engine.
+   - Open the `JoeysSlimeventure` project file in the Godot Engine.
 
-3. **Projekt ausführen:**
-   - Drücke `F5` oder klicke auf "Play", um das Spiel zu starten.
-
----
-
-## 📊 **Aktivitäts-Statistiken und Insights**
-
-Besuche die [GitHub Insights-Seite](https://github.com/JoshuaPondStudios/JoeysSlimeventure/graphs) für aktuelle Statistiken und Aktivitätsdaten zum Repository, einschließlich Commits, Pull Requests und weiteren Entwicklungsmetriken.
+3. **Run the Project:**  
+   - Press `F5` or click "Play" to start the game.
 
 ---
 
-## 🛠️ **Fehler melden und Vorschläge einreichen**
+## 📊 **Activity Statistics and Insights**
 
-Falls du auf Fehler stößt oder Verbesserungsvorschläge hast, eröffne bitte ein Issue im [Issue Tracker](https://github.com/JoshuaPondStudios/JoeysSlimeventure/issues). Dein Feedback ist uns wichtig!
-
----
-
-## 💬 **Mitwirken & Community**
-
-Möchtest du mithelfen oder uns einfach im Entwicklungsprozess unterstützen? Trete unserer **Discord-Community** bei! Diskutiere mit anderen Spielern, gib Feedback, teile deine Gedanken oder hilf uns, das Spiel weiter zu verbessern.
-
-[**Discord-Server beitreten**](https://discord.gg/yCkdZRcmn4)
+Visit the [GitHub Insights Page](https://github.com/JoshuaPondStudios/JoeysSlimeventure/graphs) for up-to-date statistics and activity data about the repository, including commits, pull requests, and other development metrics.
 
 ---
 
-## 📝 **Lizenz**
+## 🛠️ **Report Bugs and Submit Suggestions**
 
-Dieses Projekt ist unter der **MIT-Lizenz** lizenziert. Weitere Details findest du in der [LICENSE](LICENSE)-Datei.
-
----
-
-## 🫠 **Zusätzliche Ressourcen**
-
-- **Godot Engine**: [https://godotengine.org](https://godotengine.org)
-- **Godot Dokumentation**: [https://docs.godotengine.org](https://docs.godotengine.org)
-- **Entwickler-Seite**: Besuche unsere [Entwickler-Seite](https://pondsec.com)
+If you encounter bugs or have suggestions for improvements, please open an issue on the [Issue Tracker](https://github.com/JoshuaPondStudios/JoeysSlimeventure/issues). Your feedback is important to us!
 
 ---
 
-## 📌 **Besondere Hinweise**
+## 💬 **Contribute & Community**
 
-- **Beachte, dass das Spiel noch in der Entwicklung ist.** Es kann gelegentlich zu Fehlern kommen oder Funktionen fehlen. Dein Feedback hilft uns, das Spiel kontinuierlich zu verbessern.
-- **Nimm an unseren regelmäßigen Playtests teil**: Wir veröffentlichen oft Demos und Beta-Versionen für alle, die frühzeitig Feedback geben möchten.
-- **Schau auf unseren sozialen Kanälen vorbei**, um Neuigkeiten, Teaser und exklusive Einblicke in den Entwicklungsprozess zu erhalten!
+Do you want to help or simply support us during the development process? Join our **Discord community**! Discuss with other players, provide feedback, share your thoughts, or help us improve the game.
 
----
-
-## 🤝 **Mitwirken**
-
-Falls du mithelfen möchtest, sind wir immer auf der Suche nach kreativen Köpfen, die in folgenden Bereichen mitarbeiten können:
-
-- **Level-Design**
-- **Grafiken & Animationen**
-- **Sound-Design**
-- **Programmierer für neue Features oder Bugfixes**
+[**Join our Discord Server**](https://discord.gg/yCkdZRcmn4)
 
 ---
 
-Danke, dass du dich für **Joey's Slimeventure** interessierst. Wir hoffen, dass du viel Spaß beim Spielen hast und freuen uns auf dein Feedback!
+## 📝 **License**
 
+This project is licensed under the **MIT License**. For more details, check the [LICENSE](LICENSE) file.
+
+---
+
+## 🫠 **Additional Resources**
+
+- **Godot Engine**: [https://godotengine.org](https://godotengine.org)  
+- **Godot Documentation**: [https://docs.godotengine.org](https://docs.godotengine.org)  
+- **Developer Page**: Visit our [developer page](https://pondsec.com)  
+
+---
+
+## 📌 **Special Notes**
+
+- **Keep in mind that the game is still in development.** There may be occasional bugs or missing features. Your feedback helps us continuously improve the game.  
+- **Join our regular playtests**: We frequently release demos and beta versions for those who want to provide early feedback.  
+- **Follow our social media channels** for news, teasers, and exclusive insights into the development process!  
+
+---
+
+## 🤝 **Contribute**
+
+If you’d like to help, we’re always looking for creative minds to assist in the following areas:
+
+- **Level Design**  
+- **Graphics & Animations**  
+- **Sound Design**  
+- **Programming for new features or bug fixes**  
+
+---
+
+Thank you for your interest in **Joey's Slimeventure**. We hope you have a great time playing and look forward to your feedback!
