@@ -1,4 +1,4 @@
-##Joey's Slimeventure
+## Joey's Slimeventure
 
 **Joey's Slimeventure** ist ein aufregendes Plattformspiel, das mit der **Godot Engine 4.3** entwickelt wurde. In diesem Spiel übernimmt der Spieler die Rolle von **Joey**, einem mutigen Helden, der sich durch verschiedene, herausfordernde Level kämpft, um Feinde und Mini-Bosse zu besiegen. Mit klassischen Plattforming-Mechaniken und einer fesselnden Spielwelt bietet das Spiel eine spaßige und spannende Erfahrung für alle Fans des Genres.
 
