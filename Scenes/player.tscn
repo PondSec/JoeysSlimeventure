@@ -130,9 +130,11 @@ func _process(delta: float) -> void:
 		update_glow_state()
 
 func _physics_process(delta: float) -> void:
+	# Falls gestunned, keine Steuerung erlauben, aber Schwerkraft beibehalten
 	if is_stunned:
-		velocity = Vector2.ZERO  # Spieler kann sich nicht bewegen
-		return  # Beende die Funktion sofort
+		velocity.y += GRAVITY * delta  # Weiter fallen lassen
+		move_and_slide()
+		return  # Beendet die Funktion, sodass keine Eingaben verarbeitet werden
 	
 	if is_landing:
 		return  # Keine Bewegung während der Lande-Animation erlauben
