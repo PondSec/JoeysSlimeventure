@@ -156,11 +156,25 @@ func die():
 	# Warte, bis die Death-Animation zu Ende ist
 	await animation_player.animation_finished  
 	hide()  # Jetzt erst verstecken
+	
+	# 20% Chance, dass die Fledermaus eine Bat Claw droppt
+	if randf() < 1:
+		drop_loot()
+	
 	set_deferred("collision_layer", 0)
 	set_deferred("collision_mask", 0)  
 	# Respawn-Delay
 	await get_tree().create_timer(RESPAWN_COOLDOWN).timeout  
 	spawn_near_player()
+
+func drop_loot():
+	var bat_claw = preload("res://Scenes/Items/bat_claw.tscn").instantiate()
+	bat_claw.global_position = global_position
+	# Zufällige Impulse für realistisches Wegrollen
+	bat_claw.apply_impulse(Vector2(randf_range(-50, 50), -100))  
+	bat_claw.apply_torque_impulse(randf_range(-10, 10))  
+	get_parent().add_child(bat_claw)
+
 
 func is_valid_spawn_position(pos: Vector2) -> bool:
 	var space_state = get_world_2d().direct_space_state
