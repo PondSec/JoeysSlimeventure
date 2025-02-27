@@ -1,0 +1,262 @@
+[gd_scene load_steps=4 format=3 uid="uid://uam0vswv5vfv"]
+
+[ext_resource type="Texture2D" uid="uid://cdlp3ceju7i50" path="res://Assets/Inventory/inventory_background.png" id="1_absfe"]
+[ext_resource type="Texture2D" uid="uid://tpaqjd1x4wg6" path="res://Assets/Inventory/slot.png" id="2_bm834"]
+
+[sub_resource type="GDScript" id="GDScript_mcw6i"]
+resource_name = "inventory_ui"
+script/source = "extends Control
+
+@onready var grid = $NinePatchRect/GridContainer  
+@onready var nine_patch = $NinePatchRect  
+
+# 🛠 Inventar-Einstellungen
+const SLOT_SIZE = Vector2(80, 80)  
+const COLUMNS = 9  
+const ROWS = 4  
+const SLOT_TEXTURE = preload(\"res://Assets/Inventory/slot.png\")  # Hintergrund für leere Slots
+const PADDING = 50  # Abstand um das Inventar herum
+const GRID_OFFSET = Vector2(-15, 10)  # Feinanpassung (minimal weiter links & höher)
+
+func _ready():
+	# **Größe des Grids basierend auf den Slots berechnen**
+	var grid_size = Vector2(COLUMNS * SLOT_SIZE.x, ROWS * SLOT_SIZE.y)
+
+	# **NinePatchRect auf die richtige Größe setzen**
+	nine_patch.custom_minimum_size = grid_size + Vector2(PADDING * 2, PADDING * 2)
+
+	# **NinePatchRect exakt in die Bildschirmmitte setzen**
+	var screen_size = get_viewport_rect().size
+	nine_patch.position = (screen_size / 2) - (nine_patch.custom_minimum_size / 2)
+
+	# **GridContainer mittig setzen + Feinanpassung**
+	grid.columns = COLUMNS
+	grid.custom_minimum_size = grid_size
+	grid.position = (nine_patch.custom_minimum_size / 2) - (grid_size / 2) + GRID_OFFSET  
+
+	# Erstelle die Slots
+	generate_empty_slots()
+
+func generate_empty_slots():
+	# Lösche vorhandene Slots
+	for child in grid.get_children():
+		grid.remove_child(child)
+		child.queue_free()
+
+	# **Füge genau COLUMNS x ROWS Slots hinzu**
+	for i in range(COLUMNS * ROWS):
+		var slot = TextureRect.new()
+		slot.texture = SLOT_TEXTURE
+		slot.custom_minimum_size = SLOT_SIZE
+		slot.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		grid.add_child(slot)
+
+func update_inventory(inventory: Dictionary):
+	# Lösche vorherige Icons, aber behalte die Slots
+	for child in grid.get_children():
+		child.texture = SLOT_TEXTURE  # Setze das Standard-Slot-Bild zurück
+		
+		# Entferne eventuell vorhandene Zahlenlabels
+		for sub_child in child.get_children():
+			child.remove_child(sub_child)
+			sub_child.queue_free()
+
+	# Füge Icons & Anzahl hinzu
+	var index = 0
+	for item_name in inventory.keys():
+		if index < grid.get_child_count():
+			var item_icon = grid.get_child(index) as TextureRect
+			var texture_path = \"res://Assets/Items/\" + item_name + \".png\"
+
+			# Prüfe, ob das Icon existiert
+			if ResourceLoader.exists(texture_path):
+				item_icon.texture = load(texture_path)  
+			else:
+				print(\"WARNUNG: Icon für \" + item_name + \" nicht gefunden!\")  
+				item_icon.modulate = Color(1, 0, 0, 1)  # Roter Platzhalter
+
+			# **Anzahl-Label hinzufügen**
+			var amount_label = Label.new()
+			amount_label.text = str(inventory[item_name])  # Item-Anzahl anzeigen
+			amount_label.add_theme_font_size_override(\"font_size\", 20)
+			amount_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)  # Unten rechts ausrichten
+			amount_label.position -= Vector2(15, 25)  # Leichte Feinanpassung
+			amount_label.modulate = Color(1, 1, 1, 1)  # Weiße Schrift für gute Lesbarkeit
+			item_icon.add_child(amount_label)  # Label zum Icon hinzufügen
+			
+			index += 1
+"
+
+[node name="CanvasLayer" type="CanvasLayer"]
+layer = 10
+
+[node name="Control" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 0
+offset_top = -4.0
+offset_right = 185.0
+offset_bottom = 80.0
+script = SubResource("GDScript_mcw6i")
+
+[node name="NinePatchRect" type="NinePatchRect" parent="Control"]
+layout_mode = 0
+offset_top = -4.0
+offset_right = 184.0
+offset_bottom = 80.0
+texture = ExtResource("1_absfe")
+
+[node name="GridContainer" type="GridContainer" parent="Control/NinePatchRect"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 4.0
+offset_top = 4.0
+offset_right = -4.0
+grow_horizontal = 2
+grow_vertical = 2
+columns = 9
+
+[node name="TextureRect" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect2" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect3" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect4" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect5" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect6" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect7" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect8" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect9" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect10" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect11" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect12" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect13" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect14" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect15" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect16" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect17" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect18" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect19" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect20" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect21" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect22" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect23" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect24" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect25" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect26" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect27" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect28" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect29" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect30" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect31" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect32" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect33" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect34" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect35" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
+
+[node name="TextureRect36" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
+layout_mode = 2
+texture = ExtResource("2_bm834")
