@@ -157,8 +157,8 @@ func die():
 	await animation_player.animation_finished  
 	hide()  # Jetzt erst verstecken
 	
-	# 20% Chance, dass die Fledermaus eine Bat Claw droppt
-	if randf() < 1:
+	# 40% Chance, dass die Fledermaus eine Bat Claw droppt
+	if randf() < 0.4:
 		drop_loot()
 	
 	set_deferred("collision_layer", 0)
