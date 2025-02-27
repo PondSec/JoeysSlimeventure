@@ -49,6 +49,7 @@ var healed_to_full: bool = false  # Flag, ob der Spieler voll geheilt wurde
 var damage_timer: Timer = Timer.new()  # Timer für den Schadensabstand
 var attack_damage: int = 15
 var is_stunned: bool = false  # Spieler kann sich während des Stuns nicht bewegen
+var inventory = {}  # Ein Dictionary für das Inventar
 
 # Referenzen zu Knoten
 var attack_sprite: AnimatedSprite2D
@@ -66,6 +67,9 @@ const COLOR_DAMAGE = Color(1.0, 0.29, 0.29)  # Schadenfarbe (ff4a4a in Hex)
 # Referenz zur Lebensanzeige (ProgressBar)
 @onready var health_bar: TextureProgressBar = $CanvasLayer/TextureProgressBar
 @onready var canvas_layer: CanvasLayer = $CanvasLayer  # Referenz zum CanvasLayer für die Tween-Animationen
+@onready var inventory_ui = preload(\"res://Scenes/inventory_ui.tscn\").instantiate()
+@onready var inventory_control = inventory_ui.get_node(\"Control\")  # Control-Node holen
+var inventory_open = false
 
 var stun_timer: Timer = Timer.new()
 
@@ -109,12 +113,23 @@ func _ready() -> void:
 	stun_timer.wait_time = 0.5  # Spieler ist 0,5 Sekunden gestunned
 	stun_timer.one_shot = true
 	stun_timer.connect(\"timeout\", Callable(self, \"_on_stun_timer_timeout\"))
+	
+	add_child(inventory_ui)
+	inventory_ui.hide()
 
 # Lebensanzeige aktualisieren
 func update_health_bar() -> void:
 	# Setze den Wert der Lebensanzeige basierend auf dem aktuellen Gesundheitswert
 	health_bar.value = current_health
 
+func _input(event):
+	if event.is_action_pressed(\"inventory\"):
+		inventory_open = !inventory_open
+		if inventory_open:
+			inventory_control.update_inventory(inventory)  # Jetzt den richtigen Node ansprechen!
+			inventory_ui.show()
+		else:
+			inventory_ui.hide()
 
 func _process(delta: float) -> void:
 	if is_landing:
@@ -342,6 +357,14 @@ func heal(amount: int) -> void:
 	if current_health > max_health:
 		current_health = max_health  # Stelle sicher, dass max_health nicht überschritten wird
 	update_health_bar()
+
+func add_to_inventory(item_name: String):
+	if inventory.has(item_name):
+		inventory[item_name] += 1  # Erhöhe Anzahl
+	else:
+		inventory[item_name] = 1  # Neues Item hinzufügen
+	
+	print(\"Item aufgenommen:\", item_name, \"Anzahl:\", inventory[item_name])
 "
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_uwm2o"]
