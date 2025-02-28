@@ -158,7 +158,7 @@ func die():
 	hide()  # Jetzt erst verstecken
 	
 	# 40% Chance, dass die Fledermaus eine Bat Claw droppt
-	if randf() < 0.4:
+	if randf() < 1:
 		drop_loot()
 	
 	set_deferred("collision_layer", 0)
