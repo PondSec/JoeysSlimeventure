@@ -9,213 +9,108 @@ script/source = "extends Control
 
 @onready var grid = $NinePatchRect/GridContainer  
 @onready var nine_patch = $NinePatchRect  
+@onready var inventory_ui = $\"..\"  # Falls das Inventar im Parent-Node liegt
 
-# Inventar-Einstellungen
+# 🛠 Inventar-Einstellungen
 const SLOT_SIZE = Vector2(80, 80)  
 const COLUMNS = 9  
 const ROWS = 4  
-const SLOT_TEXTURE = preload(\"res://Assets/Inventory/slot.png\")  
+const SLOT_TEXTURE = preload(\"res://Assets/Inventory/slot.png\")  # Hintergrund für leere Slots
 const PADDING = 50  
 const GRID_OFFSET = Vector2(-15, 10)  
 
-var dragging_item = null
-var original_slot = null
-var dragging_icon = null
-var inventory_data = {}  # Speichert Items nach Slot-Index
-const SAVE_PATH = \"user://inventory_data.json\"  # Speicherpfad für die Datei
-
+var inventory = []  # Inventar als Liste
+var dragging_item = null  # Das gerade gezogene Item (UI-Icon)
+var dragging_from_index = -1  # Index des ursprünglichen Slots
 
 func _ready():
+	# **Inventar-UI in der Mitte des Bildschirms setzen**
 	var grid_size = Vector2(COLUMNS * SLOT_SIZE.x, ROWS * SLOT_SIZE.y)
 	nine_patch.custom_minimum_size = grid_size + Vector2(PADDING * 2, PADDING * 2)
-
 	var screen_size = get_viewport_rect().size
 	nine_patch.position = (screen_size / 2) - (nine_patch.custom_minimum_size / 2)
-
 	grid.columns = COLUMNS
 	grid.custom_minimum_size = grid_size
 	grid.position = (nine_patch.custom_minimum_size / 2) - (grid_size / 2) + GRID_OFFSET  
 
+	# Erstelle die Slots
 	generate_empty_slots()
-	load_inventory()
 
+func _input(event):
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			if event.pressed:
+				start_drag()
+			else:
+				stop_drag()
+
+	if dragging_item:
+		dragging_item.global_position = get_global_mouse_position() - (dragging_item.size / 2)
+
+# --- Startet das Ziehen eines Items ---
+func start_drag():
+		if not inventory_ui.visible:
+		return  # Wenn das Inventar nicht sichtbar ist, brich ab (Spiel nutzt Linksklick für Angriff)
+
+	var mouse_pos = get_global_mouse_position()
+	for i in range(COLUMNS * ROWS):
+		var slot = grid.get_child(i)
+		if slot.get_global_rect().has_point(mouse_pos) and i in inventory:
+			dragging_item = TextureRect.new()
+			dragging_item.texture = slot.texture
+			dragging_item.custom_minimum_size = slot.custom_minimum_size
+			dragging_item.stretch_mode = slot.stretch_mode
+			add_child(dragging_item)
+			dragging_from_index = i
+			return
+
+
+
+# --- Stoppt das Ziehen und setzt das Item in den neuen Slot ---
+func stop_drag():
+	if dragging_item:
+		var mouse_pos = get_global_mouse_position()
+		for i in range(COLUMNS * ROWS):
+			var slot = grid.get_child(i)
+			if slot.get_global_rect().has_point(mouse_pos):
+				swap_items(dragging_from_index, i)
+				break
+
+		dragging_item.queue_free()
+		dragging_item = null
+		dragging_from_index = -1
+
+# --- Tauscht zwei Slots im Inventar ---
+func swap_items(from_index: int, to_index: int):
+	if from_index != to_index:
+		var temp = inventory[from_index]
+		inventory[from_index] = inventory[to_index]
+		inventory[to_index] = temp
+		update_inventory(inventory)
+
+# --- Erstelle die leeren Slots im Grid ---
 func generate_empty_slots():
+	inventory.resize(COLUMNS * ROWS)  # Setzt die Inventargröße fest
 	for child in grid.get_children():
-		grid.remove_child(child)
 		child.queue_free()
-
 	for i in range(COLUMNS * ROWS):
 		var slot = TextureRect.new()
 		slot.texture = SLOT_TEXTURE
 		slot.custom_minimum_size = SLOT_SIZE
 		slot.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		slot.mouse_filter = Control.MOUSE_FILTER_PASS  
-		slot.gui_input.connect(_on_slot_gui_input.bind(slot))  
 		grid.add_child(slot)
 
-func _on_slot_gui_input(event: InputEvent, slot: TextureRect):
-	if event is InputEventMouseButton:
-		if event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-			if slot.texture != SLOT_TEXTURE:
-				dragging_item = slot.texture
-				original_slot = slot
-				
-				# Finde das Label mit der Anzahl der Items
-				var amount_label = null
-				for child in slot.get_children():
-					if child is Label:
-						amount_label = child
-						break
-
-				# Speichere das Label für später
-				var original_amount = amount_label.text if amount_label else \"1\"
-
-				# Entferne das Icon und das Label aus dem Original-Slot
-				slot.texture = SLOT_TEXTURE  
-				if amount_label:
-					slot.remove_child(amount_label)
-
-				# Erstelle ein Drag-Icon
-				dragging_icon = TextureRect.new()
-				dragging_icon.texture = dragging_item
-				dragging_icon.custom_minimum_size = SLOT_SIZE
-				dragging_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-				add_child(dragging_icon)
-
-				# Erstelle das Label für die Anzahl der Items im Drag-Icon
-				var dragging_label = Label.new()
-				dragging_label.text = original_amount
-				dragging_label.add_theme_font_size_override(\"font_size\", 20)
-				dragging_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-				dragging_label.position -= Vector2(15, 25)
-				dragging_label.modulate = Color(1, 1, 1, 1)
-				dragging_icon.add_child(dragging_label)
-
-		elif not event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-			if dragging_item:
-				var new_slot = get_slot_under_mouse()
-				if new_slot and new_slot.texture == SLOT_TEXTURE:
-					new_slot.texture = dragging_item
-					
-					# Füge das Label mit der Anzahl zum neuen Slot hinzu
-					var new_label = Label.new()
-					new_label.text = dragging_icon.get_child(0).text
-					new_label.add_theme_font_size_override(\"font_size\", 20)
-					new_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-					new_label.position -= Vector2(15, 25)
-					new_label.modulate = Color(1, 1, 1, 1)
-					new_slot.add_child(new_label)
-
-				else:
-					original_slot.texture = dragging_item  
-					if dragging_icon.get_child_count() > 0:
-						original_slot.add_child(dragging_icon.get_child(0))  # Label zurücksetzen
-				
-				dragging_item = null
-				original_slot = null
-				if dragging_icon:
-					dragging_icon.queue_free()
-					dragging_icon = null
-	save_inventory()
-
-func get_slot_under_mouse():
-	for slot in grid.get_children():
-		if slot.get_global_rect().has_point(get_global_mouse_position()):
-			return slot
-	return null
-
-func _process(delta):
-	if dragging_icon:
-		dragging_icon.position = get_global_mouse_position() - (SLOT_SIZE / 2)
-
-func update_inventory(inventory: Dictionary):
-	for child in grid.get_children():
-		child.texture = SLOT_TEXTURE  
-		
-		for sub_child in child.get_children():
-			child.remove_child(sub_child)
-			sub_child.queue_free()
-
-	var index = 0
-	for item_name in inventory.keys():
-		if index < grid.get_child_count():
-			var item_icon = grid.get_child(index) as TextureRect
-			var texture_path = \"res://Assets/Items/\" + item_name + \".png\"
-
-			if ResourceLoader.exists(texture_path):
-				item_icon.texture = load(texture_path)  
-			else:
-				print(\"WARNUNG: Icon für \" + item_name + \" nicht gefunden!\")  
-				item_icon.modulate = Color(1, 0, 0, 1)  
-			var amount_label = Label.new()
-			amount_label.text = str(inventory[item_name])  
-			amount_label.add_theme_font_size_override(\"font_size\", 20)
-			amount_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)  
-			amount_label.position -= Vector2(15, 25)  
-			amount_label.modulate = Color(1, 1, 1, 1)  
-			item_icon.add_child(amount_label)  
-			index += 1
-
-func save_inventory():
-	inventory_data.clear()
-	for i in range(grid.get_child_count()):
-		var slot = grid.get_child(i)
-		if slot.texture != SLOT_TEXTURE:
-			var item_name = slot.texture.resource_path.get_file().get_basename()
-			var item_count = 1
-			for child in slot.get_children():
-				if child is Label:
-					item_count = int(child.text)
-					break
-			inventory_data[i] = {\"item\": item_name, \"count\": item_count}
-
-	# Speichere das Dictionary als JSON-Datei
-	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
-	if file:
-		file.store_string(JSON.stringify(inventory_data))
-		file.close()
-
-
-func load_inventory():
-	# Falls eine Datei existiert, lade sie
-	if FileAccess.file_exists(SAVE_PATH):
-		var file = FileAccess.open(SAVE_PATH, FileAccess.READ)
-		if file:
-			var content = file.get_as_text()
-			inventory_data = JSON.parse_string(content) if content else {}
-			file.close()
-
-	# Slots zurücksetzen
-	for i in range(grid.get_child_count()):
-		var slot = grid.get_child(i)
-		slot.texture = SLOT_TEXTURE
-		for child in slot.get_children():
-			slot.remove_child(child)
-			child.queue_free()
-
-	# Items aus dem gespeicherten Inventar wiederherstellen
-	for slot_index in inventory_data.keys():
-		if int(slot_index) < grid.get_child_count():
-			var slot = grid.get_child(int(slot_index))
-			var item_name = inventory_data[slot_index][\"item\"]
-			var item_count = inventory_data[slot_index][\"count\"]
-
-			var texture_path = \"res://Assets/Items/\" + item_name + \".png\"
+# --- Aktualisiert die Slots mit den Items ---
+func update_inventory(new_inventory: Dictionary):
+	inventory = new_inventory  # Speichert das übergebene Inventar
+	for i in range(COLUMNS * ROWS):
+		var slot = grid.get_child(i) as TextureRect
+		if inventory.has(i):
+			var texture_path = \"res://Assets/Items/\" + inventory[i] + \".png\"
 			if ResourceLoader.exists(texture_path):
 				slot.texture = load(texture_path)
-			else:
-				print(\"WARNUNG: Icon für \" + item_name + \" nicht gefunden!\")
-				slot.modulate = Color(1, 0, 0, 1)
-
-			# Anzahl-Label hinzufügen
-			var amount_label = Label.new()
-			amount_label.text = str(item_count)
-			amount_label.add_theme_font_size_override(\"font_size\", 20)
-			amount_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-			amount_label.position -= Vector2(15, 25)
-			amount_label.modulate = Color(1, 1, 1, 1)
-			slot.add_child(amount_label)
-	print(\"Geladenes Inventar: \", inventory_data)
+		else:
+			slot.texture = SLOT_TEXTURE
 "
 
 [node name="CanvasLayer" type="CanvasLayer"]
