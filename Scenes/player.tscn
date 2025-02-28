@@ -1,4 +1,4 @@
-[gd_scene load_steps=25 format=3 uid="uid://b6ublycstdj8n"]
+[gd_scene load_steps=24 format=3 uid="uid://b6ublycstdj8n"]
 
 [ext_resource type="Texture2D" uid="uid://cildswtcj7qrc" path="res://Assets/slime-sprite.png" id="1_4yq4u"]
 [ext_resource type="Texture2D" uid="uid://c771vveh0silu" path="res://Assets/Light/light_white.png" id="1_p71sj"]
@@ -126,9 +126,11 @@ func _input(event):
 	if event.is_action_pressed(\"inventory\"):
 		inventory_open = !inventory_open
 		if inventory_open:
-			inventory_control.update_inventory(inventory)  # Jetzt ohne Fehler!
+			inventory_control.load_inventory()  # Ladet gespeicherte Slots!
+			inventory_control.update_inventory(inventory)  
 			inventory_ui.show()
 		else:
+			inventory_control.save_inventory()  # Speichert beim Schließen!
 			inventory_ui.hide()
 
 
@@ -366,6 +368,10 @@ func add_to_inventory(item_name: String):
 		inventory[item_name] = 1  # Neues Item hinzufügen
 	
 	print(\"Item aufgenommen:\", item_name, \"Anzahl:\", inventory[item_name])
+
+	# Aktualisiere das UI sofort nach Hinzufügen eines Items
+	inventory_control.update_inventory(inventory)  
+	inventory_control.save_inventory()  # Speichert neue Items in Slots
 "
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_uwm2o"]
@@ -494,38 +500,6 @@ _data = {
 "walk": SubResource("Animation_wvi70")
 }
 
-[sub_resource type="GDScript" id="GDScript_xwwxs"]
-resource_name = "inventory"
-script/source = "extends Node
-
-# Ein Dictionary speichert das Inventar (Item-Name -> Anzahl)
-var items: Dictionary = {}
-
-const MAX_STACK_SIZE = 64  # Maximale Stack-Größe
-
-# Item ins Inventar hinzufügen
-func add_item(item_name: String, amount: int = 1):
-	if item_name in items:
-		items[item_name] += amount
-		if items[item_name] > MAX_STACK_SIZE:
-			items[item_name] = MAX_STACK_SIZE  # Maximaler Stack erreicht
-	else:
-		items[item_name] = amount
-	print_inventory()
-
-# Item entfernen (z. B. für Verbrauch oder Nutzung)
-func remove_item(item_name: String, amount: int = 1):
-	if item_name in items:
-		items[item_name] -= amount
-		if items[item_name] <= 0:
-			items.erase(item_name)  # Löscht das Item, wenn 0 erreicht
-	print_inventory()
-
-# Zeigt das Inventar in der Konsole (nur Debug-Zwecke)
-func print_inventory():
-	print(\"Inventar: \", items)
-"
-
 [node name="PlayerModel" type="CharacterBody2D"]
 position = Vector2(291, 687)
 scale = Vector2(0.07, 0.07)
@@ -638,6 +612,3 @@ offset_bottom = 76.0
 nine_patch_stretch = true
 texture_under = ExtResource("12_tc5iy")
 texture_progress = ExtResource("13_d3fsm")
-
-[node name="Inventory" type="Node" parent="."]
-script = SubResource("GDScript_xwwxs")

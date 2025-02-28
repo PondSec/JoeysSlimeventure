@@ -1,7 +1,7 @@
 [gd_scene load_steps=4 format=3 uid="uid://uam0vswv5vfv"]
 
-[ext_resource type="Texture2D" uid="uid://cdlp3ceju7i50" path="res://Assets/Inventory/inventory_background.png" id="1_absfe"]
-[ext_resource type="Texture2D" uid="uid://tpaqjd1x4wg6" path="res://Assets/Inventory/slot.png" id="2_bm834"]
+[ext_resource type="Texture2D" uid="uid://cmq3m2tadhjf7" path="res://Assets/Inventory/background.png" id="1_gdeme"]
+[ext_resource type="Texture2D" uid="uid://b8hkct0g5fkne" path="res://Assets/Inventory/slot.png" id="2_i2lt3"]
 
 [sub_resource type="GDScript" id="GDScript_mcw6i"]
 resource_name = "inventory_ui"
@@ -10,7 +10,6 @@ script/source = "extends Control
 @onready var grid = $NinePatchRect/GridContainer  
 @onready var nine_patch = $NinePatchRect  
 
-# Inventar-Einstellungen
 const SLOT_SIZE = Vector2(80, 80)  
 const COLUMNS = 9  
 const ROWS = 4  
@@ -21,6 +20,7 @@ const GRID_OFFSET = Vector2(-15, 10)
 var dragging_item = null
 var original_slot = null
 var dragging_icon = null
+var saved_inventory = {}  # Speichert Items + Mengen
 
 func _ready():
 	var grid_size = Vector2(COLUMNS * SLOT_SIZE.x, ROWS * SLOT_SIZE.y)
@@ -34,6 +34,7 @@ func _ready():
 	grid.position = (nine_patch.custom_minimum_size / 2) - (grid_size / 2) + GRID_OFFSET  
 
 	generate_empty_slots()
+	load_inventory()
 
 func generate_empty_slots():
 	for child in grid.get_children():
@@ -46,10 +47,10 @@ func generate_empty_slots():
 		slot.custom_minimum_size = SLOT_SIZE
 		slot.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		slot.mouse_filter = Control.MOUSE_FILTER_PASS  
-		slot.gui_input.connect(_on_slot_gui_input.bind(slot))  
+		slot.gui_input.connect(_on_slot_gui_input.bind(slot, i))  
 		grid.add_child(slot)
 
-func _on_slot_gui_input(event: InputEvent, slot: TextureRect):
+func _on_slot_gui_input(event: InputEvent, slot: TextureRect, slot_index: int):
 	if event is InputEventMouseButton:
 		if event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 			if slot.texture != SLOT_TEXTURE:
@@ -57,7 +58,6 @@ func _on_slot_gui_input(event: InputEvent, slot: TextureRect):
 				original_slot = slot
 				slot.texture = SLOT_TEXTURE  
 
-				# Erstelle ein Drag-Icon
 				dragging_icon = TextureRect.new()
 				dragging_icon.texture = dragging_item
 				dragging_icon.custom_minimum_size = SLOT_SIZE
@@ -68,14 +68,20 @@ func _on_slot_gui_input(event: InputEvent, slot: TextureRect):
 			if dragging_item:
 				var new_slot = get_slot_under_mouse()
 				if new_slot and new_slot.texture == SLOT_TEXTURE:
+					var new_slot_index = grid.get_children().find(new_slot)
 					new_slot.texture = dragging_item
+					saved_inventory[new_slot_index] = saved_inventory.get(slot_index, {})
+					saved_inventory.erase(slot_index)  # Altes Item entfernen
+					save_inventory()
 				else:
 					original_slot.texture = dragging_item  
+
 				dragging_item = null
 				original_slot = null
 				if dragging_icon:
 					dragging_icon.queue_free()
 					dragging_icon = null
+				
 
 func get_slot_under_mouse():
 	for slot in grid.get_children():
@@ -88,12 +94,7 @@ func _process(delta):
 		dragging_icon.position = get_global_mouse_position() - (SLOT_SIZE / 2)
 
 func update_inventory(inventory: Dictionary):
-	for child in grid.get_children():
-		child.texture = SLOT_TEXTURE  
-		
-		for sub_child in child.get_children():
-			child.remove_child(sub_child)
-			sub_child.queue_free()
+	#generate_empty_slots()  # Verhindert doppelte Einträge
 
 	var index = 0
 	for item_name in inventory.keys():
@@ -103,17 +104,55 @@ func update_inventory(inventory: Dictionary):
 
 			if ResourceLoader.exists(texture_path):
 				item_icon.texture = load(texture_path)  
+				saved_inventory[index] = {\"name\": item_name, \"amount\": inventory[item_name]}
 			else:
 				print(\"WARNUNG: Icon für \" + item_name + \" nicht gefunden!\")  
 				item_icon.modulate = Color(1, 0, 0, 1)  
-			var amount_label = Label.new()
-			amount_label.text = str(inventory[item_name])  
-			amount_label.add_theme_font_size_override(\"font_size\", 20)
-			amount_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)  
-			amount_label.position -= Vector2(15, 25)  
-			amount_label.modulate = Color(1, 1, 1, 1)  
-			item_icon.add_child(amount_label)  
+
 			index += 1
+
+# Speichert das Inventar in eine JSON-Datei
+func save_inventory():
+	var file = FileAccess.open(\"user://inventory.json\", FileAccess.WRITE)
+	file.store_string(JSON.stringify(saved_inventory))
+	file.close()
+
+# Lädt das Inventar aus der JSON-Datei
+func load_inventory():
+	if not FileAccess.file_exists(\"user://inventory.json\"):
+		return  # Keine gespeicherte Datei
+
+	var file = FileAccess.open(\"user://inventory.json\", FileAccess.READ)
+	var json_string = file.get_as_text()
+	file.close()
+
+	var json = JSON.new()
+	var error = json.parse(json_string)
+	if error == OK:
+		saved_inventory = json.get_data()
+
+		# Setze die gespeicherten Items in die richtigen Slots
+		generate_empty_slots()  # Verhindert doppelte Einträge
+		for slot_index in saved_inventory.keys():
+			if int(slot_index) < grid.get_child_count():
+				var slot = grid.get_child(int(slot_index)) as TextureRect
+				var item_data = saved_inventory[slot_index]
+				var texture_path = \"res://Assets/Items/\" + item_data[\"name\"] + \".png\"
+
+				if ResourceLoader.exists(texture_path):
+					slot.texture = load(texture_path)
+					var amount_label = Label.new()
+					amount_label.text = str(item_data[\"amount\"])
+					amount_label.add_theme_font_size_override(\"font_size\", 20)
+					amount_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+					amount_label.position -= Vector2(15, 25)
+					amount_label.modulate = Color(1, 1, 1, 1)
+					slot.add_child(amount_label)
+
+# Hilfsfunktion zum Ermitteln des Item-Namens aus dem Texture-Pfad
+func get_texture_name(texture: Texture2D) -> String:
+	var path = texture.resource_path
+	return path.get_file().get_basename()  # Entfernt den Ordner und die Dateiendung
 "
 
 [node name="CanvasLayer" type="CanvasLayer"]
@@ -129,10 +168,11 @@ script = SubResource("GDScript_mcw6i")
 
 [node name="NinePatchRect" type="NinePatchRect" parent="Control"]
 layout_mode = 0
-offset_top = -4.0
-offset_right = 184.0
-offset_bottom = 80.0
-texture = ExtResource("1_absfe")
+offset_left = 8.0
+offset_top = -38.0
+offset_right = 210.0
+offset_bottom = 55.0
+texture = ExtResource("1_gdeme")
 
 [node name="GridContainer" type="GridContainer" parent="Control/NinePatchRect"]
 layout_mode = 1
@@ -148,144 +188,144 @@ columns = 9
 
 [node name="TextureRect" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect2" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect3" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect4" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect5" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect6" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect7" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect8" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect9" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect10" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect11" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect12" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect13" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect14" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect15" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect16" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect17" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect18" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect19" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect20" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect21" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect22" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect23" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect24" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect25" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect26" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect27" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect28" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect29" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect30" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect31" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect32" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect33" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect34" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect35" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
 
 [node name="TextureRect36" type="TextureRect" parent="Control/NinePatchRect/GridContainer"]
 layout_mode = 2
-texture = ExtResource("2_bm834")
+texture = ExtResource("2_i2lt3")
