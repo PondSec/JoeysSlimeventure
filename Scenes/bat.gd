@@ -16,6 +16,13 @@ var knockback_velocity := Vector2.ZERO
 var is_knocked_back := false
 var is_stunned := false  # Neue Variable für Stun-Zustand
 
+var loot_table = [
+	{ "scene": preload("res://Scenes/Items/bat_claw.tscn"), "chance": 0.4 },  # 40% Chance
+	{ "scene": preload("res://Scenes/Items/gold_nugget.tscn"), "chance": 0.1 },  # 10% Chance
+	{ "scene": null, "chance": 0.5 }  # 50% Chance, dass nichts dropt
+]
+
+
 @export var player: CharacterBody2D
 @onready var animation_player = $Sprite2D/AnimationPlayer
 @onready var navigation_agent = $NavigationAgent2D
@@ -156,10 +163,8 @@ func die():
 	# Warte, bis die Death-Animation zu Ende ist
 	await animation_player.animation_finished  
 	hide()  # Jetzt erst verstecken
-	
-	# 40% Chance, dass die Fledermaus eine Bat Claw droppt
-	if randf() < 1:
-		drop_loot()
+
+	drop_loot()
 	
 	set_deferred("collision_layer", 0)
 	set_deferred("collision_mask", 0)  
@@ -168,12 +173,22 @@ func die():
 	spawn_near_player()
 
 func drop_loot():
-	var bat_claw = preload("res://Scenes/Items/bat_claw.tscn").instantiate()
-	bat_claw.global_position = global_position
-	# Zufällige Impulse für realistisches Wegrollen
-	bat_claw.apply_impulse(Vector2(randf_range(-50, 50), -100))  
-	bat_claw.apply_torque_impulse(randf_range(-10, 10))  
-	get_parent().add_child(bat_claw)
+	var roll = randf()  # Zufallszahl zwischen 0.0 und 1.0
+	var cumulative_chance = 0.0
+	
+	for item in loot_table:
+		cumulative_chance += item["chance"]
+		if roll < cumulative_chance:
+			if item["scene"] == null:
+				return  # Kein Loot droppt
+			
+			var dropped_item = item["scene"].instantiate()
+			dropped_item.global_position = global_position
+			dropped_item.apply_impulse(Vector2(randf_range(-50, 50), -100))  
+			dropped_item.apply_torque_impulse(randf_range(-10, 10))  
+			get_parent().add_child(dropped_item)
+			return  # Stoppt die Funktion, sobald ein Item gedroppt wurde
+
 
 
 func is_valid_spawn_position(pos: Vector2) -> bool:
