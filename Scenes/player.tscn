@@ -189,7 +189,6 @@ func _physics_process(delta: float) -> void:
 	
 	if is_on_wall() and not is_on_floor():
 		is_wall_sliding = true
-		print(\"onwall\")
 		velocity.y = min(velocity.y, WALL_SLIDE_SPEED)
 		var current_wall_normal = get_wall_normal()
 		if current_wall_normal != last_wall_normal:
@@ -367,22 +366,6 @@ func heal(amount: int) -> void:
 	if current_health > max_health:
 		current_health = max_health  # Stelle sicher, dass max_health nicht überschritten wird
 	update_health_bar()
-
-
-# IF the YT Inventory Dosent work!
-# OWN INVENTORY BELOW
-#func add_to_inventory(item_name: String):
-#	if inventory.has(item_name):
-#		inventory[item_name] += 1  # Erhöhe Anzahl
-#	else:
-#		inventory[item_name] = 1  # Neues Item hinzufügen
-#	
-#	print(\"Item aufgenommen:\", item_name, \"Anzahl:\", inventory[item_name])
-#
-#	# Aktualisiere das UI sofort nach Hinzufügen eines Items
-#	inventory_control.update_inventory(inventory)  
-#	inventory_control.save_inventory()  # Speichert neue Items in Slots
-
 
 func collect(item):
 	inv.Insert(item)
