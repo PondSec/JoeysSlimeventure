@@ -1,6 +1,7 @@
 extends Node2D
 
 @onready var pause_menu = $PauseMenu
+@onready var player = get_node("PlayerModel")
 
 func _input(event):
 	if event.is_action_pressed("Pause"):  # Standardmäßig ESC
