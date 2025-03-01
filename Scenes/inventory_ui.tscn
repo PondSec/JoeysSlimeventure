@@ -68,20 +68,39 @@ func _on_slot_gui_input(event: InputEvent, slot: TextureRect, slot_index: int):
 			if dragging_item:
 				var new_slot = get_slot_under_mouse()
 				if new_slot and new_slot.texture == SLOT_TEXTURE:
-					var new_slot_index = grid.get_children().find(new_slot)
+					var new_slot_index = str(grid.get_children().find(new_slot))  # Immer als String speichern!
+					var old_slot_index = str(slot_index)  # Sicherstellen, dass der alte Index ein String ist!
+
+					# Vor dem Verschieben das alte Item aus dem Inventar entfernen
+					if old_slot_index in saved_inventory:
+						saved_inventory.erase(old_slot_index)  # Altes Item entfernen!
+						print(\"🧹 Altes Item entfernt aus Slot\", old_slot_index)
+
+					# Falls das Ziel-Slot dasselbe Item enthält, Mengen addieren
+					if new_slot_index in saved_inventory:
+						var item_data = saved_inventory[new_slot_index]
+						item_data[\"amount\"] += 1  # Beispiel: Mengen erhöhen, wenn bereits vorhanden
+					else:
+						# Item an die neue Position setzen
+						saved_inventory[new_slot_index] = {\"name\": get_texture_name(dragging_item), \"amount\": 1}
+
+					# Neues Item ins Ziel-Slot setzen
 					new_slot.texture = dragging_item
-					saved_inventory[new_slot_index] = saved_inventory.get(slot_index, {})
-					saved_inventory.erase(slot_index)  # Altes Item entfernen
-					save_inventory()
+					save_inventory()  # Inventar speichern
+					print(\"🔄 Item verschoben: Slot\", old_slot_index, \"➡️ Slot\", new_slot_index)
+					print(\"📦 Inventar nach Verschiebung:\", JSON.stringify(saved_inventory, \"\\t\"))
+
 				else:
+					# Falls kein neuer Slot getroffen wird, Item zurücksetzen
 					original_slot.texture = dragging_item  
 
+				# Reset der Dragging-Variablen
 				dragging_item = null
 				original_slot = null
 				if dragging_icon:
 					dragging_icon.queue_free()
 					dragging_icon = null
-				
+
 
 func get_slot_under_mouse():
 	for slot in grid.get_children():
@@ -113,9 +132,21 @@ func update_inventory(inventory: Dictionary):
 
 # Speichert das Inventar in eine JSON-Datei
 func save_inventory():
-	var file = FileAccess.open(\"user://inventory.json\", FileAccess.WRITE)
-	file.store_string(JSON.stringify(saved_inventory))
-	file.close()
+	var inventory_to_save = {}
+
+	# Durchlaufe das Inventar und entferne leere Slots
+	for key in saved_inventory.keys():
+		if saved_inventory[key][\"amount\"] > 0:  # Nur Items mit einer Menge > 0 speichern
+			inventory_to_save[str(key)] = saved_inventory[key]
+
+	# Vergleiche die aktuellen gespeicherten Daten mit den neuen und speichere nur bei Änderungen
+	if inventory_to_save != saved_inventory:
+		var file = FileAccess.open(\"user://inventory.json\", FileAccess.WRITE)
+		file.store_string(JSON.stringify(inventory_to_save, \"\\t\"))
+		file.close()
+		saved_inventory = inventory_to_save  # Update der gespeicherten Inventardaten
+		print(\"📦 Inventar gespeichert:\", JSON.stringify(inventory_to_save, \"\\t\"))
+
 
 # Lädt das Inventar aus der JSON-Datei
 func load_inventory():
@@ -130,29 +161,43 @@ func load_inventory():
 	var error = json.parse(json_string)
 	if error == OK:
 		saved_inventory = json.get_data()
+		print(\"📂 Lade Inventar:\", saved_inventory)  # 🛠️ Debug-Ausgabe
 
 		# Setze die gespeicherten Items in die richtigen Slots
-		generate_empty_slots()  # Verhindert doppelte Einträge
+		generate_empty_slots()
 		for slot_index in saved_inventory.keys():
 			if int(slot_index) < grid.get_child_count():
 				var slot = grid.get_child(int(slot_index)) as TextureRect
-				var item_data = saved_inventory[slot_index]
-				var texture_path = \"res://Assets/Items/\" + item_data[\"name\"] + \".png\"
+				var item_data = saved_inventory.get(slot_index, {})
 
-				if ResourceLoader.exists(texture_path):
-					slot.texture = load(texture_path)
-					var amount_label = Label.new()
-					amount_label.text = str(item_data[\"amount\"])
-					amount_label.add_theme_font_size_override(\"font_size\", 20)
-					amount_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-					amount_label.position -= Vector2(15, 25)
-					amount_label.modulate = Color(1, 1, 1, 1)
-					slot.add_child(amount_label)
+				# Prüfe, ob item_data ein Dictionary ist und die notwendigen Keys enthält
+				if item_data is Dictionary and \"name\" in item_data:
+					var texture_path = \"res://Assets/Items/\" + item_data[\"name\"] + \".png\"
+
+					if ResourceLoader.exists(texture_path):
+						slot.texture = load(texture_path)
+
+						# Erstelle ein Label für die Item-Menge, falls \"amount\" existiert
+						var amount_label = Label.new()
+						amount_label.text = str(item_data.get(\"amount\", 1))  # Standardwert 1
+						amount_label.add_theme_font_size_override(\"font_size\", 20)
+						amount_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+						amount_label.position -= Vector2(15, 25)
+						amount_label.modulate = Color(1, 1, 1, 1)
+						slot.add_child(amount_label)
+					else:
+						print(\"WARNUNG: Icon für \" + item_data[\"name\"] + \" nicht gefunden!\")
+
 
 # Hilfsfunktion zum Ermitteln des Item-Namens aus dem Texture-Pfad
 func get_texture_name(texture: Texture2D) -> String:
 	var path = texture.resource_path
 	return path.get_file().get_basename()  # Entfernt den Ordner und die Dateiendung
+
+func remove_item_from_slot(slot_index: String):
+	if saved_inventory.has(slot_index):
+		saved_inventory.erase(slot_index)
+		print(\"🧹 Altes Item entfernt aus Slot\", slot_index)
 "
 
 [node name="CanvasLayer" type="CanvasLayer"]
