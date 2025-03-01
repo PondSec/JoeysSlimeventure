@@ -5,12 +5,11 @@ extends Control
 
 var is_open = false
 var dragging_item = null
-var dragging_sprite = null  # Eine separate Variable für das Sprite2D
+var dragging_sprite = null
 var dragging_slot_index = -1
-var detected_slot_index = -1  # Diese Variable speichert das aktuelle Slot, auf das geklickt wurde
+var detected_slot_index = -1
 
-# Skalierungsfaktor
-var dragging_item_scale = 0.5  # Reduziert die Größe des gezogenen Items
+var dragging_item_scale = 0.5  # Skalierungsfaktor
 
 func _ready() -> void:
 	inv.update.connect(update_slots)
@@ -20,7 +19,19 @@ func _ready() -> void:
 func update_slots():
 	for i in range(min(inv.slots.size(), slots.size())):
 		var slot = slots[i]
-		slot.update(inv.slots[i])
+		var item_texture = slot.get_node("ItemTexture") if slot.has_node("ItemTexture") else null
+		
+		# Falls das Item gezogen wird, verstecke das Bild nur im ursprünglichen Slot
+		if i == dragging_slot_index and dragging_item:
+			if item_texture:
+				item_texture.visible = false
+		else:
+			if item_texture:
+				item_texture.visible = inv.slots[i].item != null
+		
+		# Verhindere doppelte Anzeige des Items während des Draggens
+		if i != dragging_slot_index:
+			slot.update(inv.slots[i])
 
 func _process(delta: float) -> void:
 	if Input.is_action_just_pressed("inventory"):
@@ -30,25 +41,17 @@ func _process(delta: float) -> void:
 			open()
 
 	if dragging_item:
-		# Update the position of the dragged item
-		var mouse_pos = get_local_mouse_position()  # Mausposition relativ zum UI-Container
-		var dragging_item_size = dragging_sprite.texture.get_size()  # Hole die Texturgröße des Sprites
-		var scaled_size = dragging_item_size * dragging_item_scale  # Berechnete skalierte Größe des Items
+		dragging_item.position = get_global_mouse_position()
 
-		# Berechnung des exakten Versatzes, um das Sprite zu zentrieren
-		var offset = scaled_size / 2  # Berechneter Versatz, um das Sprite zu zentrieren
-
-		# Positioniere das Sprite exakt unter der Maus (keinen weiteren Versatz)
-		dragging_sprite.position = mouse_pos - offset  # Verschiebe das Sprite relativ zur Mausposition
-
-	if Input.is_action_just_pressed("Attack"):  # Linksklick erkannt
+	if Input.is_action_just_pressed("Attack"):
 		if !dragging_item:
-			detected_slot_index = get_slot_index_under_mouse()  # Hole das Slot unter der Maus
-			_on_slot_pressed(detected_slot_index)  # Beginne mit dem Ziehen des Items
-	if Input.is_action_just_released("Attack"):  # Linksklick losgelassen
+			detected_slot_index = get_slot_index_under_mouse()
+			_on_slot_pressed(detected_slot_index)
+
+	if Input.is_action_just_released("Attack"):
 		if dragging_item:
-			detected_slot_index = get_slot_index_under_mouse()  # Hole das Slot unter der Maus
-			_on_slot_released(detected_slot_index)  # Setze das Item in das neue Slot
+			detected_slot_index = get_slot_index_under_mouse()
+			_on_slot_released(detected_slot_index)
 
 func open():
 	visible = true
@@ -58,41 +61,60 @@ func close():
 	visible = false
 	is_open = false
 
-# Mouse click detection for dragging items
 func _on_slot_pressed(slot_index: int):
-	if slot_index != -1:  # Stelle sicher, dass der Slot existiert
+	if slot_index != -1:
 		var slot = inv.slots[slot_index]
 		if slot.item:
 			dragging_item = create_dragging_item(slot.item)
-			dragging_sprite = dragging_item.get_child(0)  # Holen wir das Sprite2D
-			dragging_sprite.scale = Vector2(dragging_item_scale, dragging_item_scale)  # Skalieren des Sprites
+			dragging_sprite = dragging_item.get_child(0)
+
+			# Skaliere das Item für die Mausdarstellung
+			if dragging_sprite.texture:
+				var texture_size = dragging_sprite.texture.get_size()
+				dragging_sprite.scale = Vector2(64.0 / texture_size.x, 64.0 / texture_size.y)
+
 			dragging_slot_index = slot_index
+
+			# Verstecke das Item im ursprünglichen Slot
+			var item_texture = slots[slot_index].get_node("ItemTexture") if slots[slot_index].has_node("ItemTexture") else null
+			if item_texture:
+				item_texture.visible = false
+
 			update_slots()
 
-# Mouse release detection to drop item into a new slot
 func _on_slot_released(slot_index: int):
-	if dragging_item and slot_index != -1:
-		var target_slot = inv.slots[slot_index]
-		if dragging_slot_index != slot_index:
+	if dragging_item:
+		if slot_index != -1 and dragging_slot_index != slot_index:
 			inv.swap_slots(dragging_slot_index, slot_index)
-		dragging_item.queue_free()  # Entferne das visuelle Element des gezogenen Items
+
+		dragging_item.queue_free()
 		dragging_item = null
-		dragging_sprite = null  # Entferne das Sprite2D
+		dragging_sprite = null
 		dragging_slot_index = -1
+
 		update_slots()
 
-# Create a visual representation of the dragged item
 func create_dragging_item(item: InvItem) -> Control:
 	var drag_item = Control.new()
 	var sprite = Sprite2D.new()
 	sprite.texture = item.texture
+
+	if sprite.texture:
+		var texture_size = sprite.texture.get_size()
+		sprite.scale = Vector2(64.0 / texture_size.x, 64.0 / texture_size.y)
+
 	drag_item.add_child(sprite)
-	add_child(drag_item)
+
+	var ui_parent = self.get_parent()
+	if ui_parent:
+		ui_parent.add_child(drag_item)
+
+	drag_item.position = get_global_mouse_position()
+
 	return drag_item
 
-# Hole das Slot unter der Maus
 func get_slot_index_under_mouse() -> int:
 	for i in range(slots.size()):
 		if slots[i].get_global_rect().has_point(get_global_mouse_position()):
 			return i
-	return -1  # Rückgabe -1, wenn kein Slot unter der Maus ist
+	return -1
