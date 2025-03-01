@@ -5,6 +5,7 @@ extends Panel
 var slot_index = -1
 
 func update(slot: InvSlot):
+	print("🔄 Aktualisiere Slot:", slot_index)
 	if !slot.item:
 		item_visual.visible = false
 		amount_text.visible = false

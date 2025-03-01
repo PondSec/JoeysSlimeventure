@@ -11,32 +11,22 @@ var detected_slot_index = -1
 
 var dragging_item_scale = 0.5  # Skalierungsfaktor
 
+# Speicherpfad
+var save_path = "user://inventory.save"
+
 func _ready() -> void:
 	inv.update.connect(update_slots)
 	update_slots()
 	close()
 
-func update_slots():
-	for i in range(min(inv.slots.size(), slots.size())):
-		var slot = slots[i]
-		var item_texture = slot.get_node("ItemTexture") if slot.has_node("ItemTexture") else null
-		
-		# Falls das Item gezogen wird, verstecke das Bild nur im ursprünglichen Slot
-		if i == dragging_slot_index and dragging_item:
-			if item_texture:
-				item_texture.visible = false
-		else:
-			if item_texture:
-				item_texture.visible = inv.slots[i].item != null
-		
-		# Verhindere doppelte Anzeige des Items während des Draggens
-		if i != dragging_slot_index:
-			slot.update(inv.slots[i])
+	# Lade das Inventar, wenn die UI bereit ist
+	inv.load_inventory(save_path)
 
 func _process(delta: float) -> void:
 	if Input.is_action_just_pressed("inventory"):
 		if is_open:
 			close()
+			inv.save_inventory(save_path)  # Speichere das Inventar beim Schließen
 		else:
 			open()
 
@@ -60,6 +50,27 @@ func open():
 func close():
 	visible = false
 	is_open = false
+
+func update_slots():
+	print("🔄 update_slots() wurde aufgerufen!")  # Debug-Check
+
+	for i in range(min(inv.slots.size(), slots.size())):
+		var slot = slots[i]
+		var item_texture = slot.get_node("ItemTexture") if slot.has_node("ItemTexture") else null
+
+		# Falls das Item gezogen wird, verstecke das Bild nur im ursprünglichen Slot
+		if i == dragging_slot_index and dragging_item:
+			if item_texture:
+				item_texture.visible = false
+		else:
+			if item_texture:
+				item_texture.visible = inv.slots[i].item != null
+
+		# Verhindere doppelte Anzeige des Items während des Draggens
+		if i != dragging_slot_index:
+			slot.update(inv.slots[i])
+
+	print("✅ Slots aktualisiert!")
 
 func _on_slot_pressed(slot_index: int):
 	if slot_index != -1:
