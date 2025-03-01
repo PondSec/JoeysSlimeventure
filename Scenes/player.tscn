@@ -1,6 +1,7 @@
-[gd_scene load_steps=24 format=3 uid="uid://b6ublycstdj8n"]
+[gd_scene load_steps=26 format=3 uid="uid://b6ublycstdj8n"]
 
 [ext_resource type="Texture2D" uid="uid://cildswtcj7qrc" path="res://Assets/slime-sprite.png" id="1_4yq4u"]
+[ext_resource type="Resource" uid="uid://0rntjh2xt5s5" path="res://InventorySystem/playerinv.tres" id="1_e7ml4"]
 [ext_resource type="Texture2D" uid="uid://c771vveh0silu" path="res://Assets/Light/light_white.png" id="1_p71sj"]
 [ext_resource type="Texture2D" uid="uid://quh4mac3hef1" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame0.png" id="3_ubp3h"]
 [ext_resource type="Texture2D" uid="uid://cjb4nq6aeftnv" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame1.png" id="4_6hcqa"]
@@ -13,6 +14,7 @@
 [ext_resource type="Script" path="res://Scenes/canvas_layer.gd" id="11_4apbi"]
 [ext_resource type="Texture2D" uid="uid://bhpr6uxcspd17" path="res://Assets/GUI/Healthbar/off.png" id="12_tc5iy"]
 [ext_resource type="Texture2D" uid="uid://dg4h8q8vjxyh" path="res://Assets/GUI/Healthbar/over.png" id="13_d3fsm"]
+[ext_resource type="PackedScene" uid="uid://b0a5ssuwf6jb5" path="res://InventorySystem/inv_ui.tscn" id="15_qbc48"]
 
 [sub_resource type="GDScript" id="GDScript_381hh"]
 resource_name = "Player"
@@ -67,9 +69,11 @@ const COLOR_DAMAGE = Color(1.0, 0.29, 0.29)  # Schadenfarbe (ff4a4a in Hex)
 # Referenz zur Lebensanzeige (ProgressBar)
 @onready var health_bar: TextureProgressBar = $CanvasLayer/TextureProgressBar
 @onready var canvas_layer: CanvasLayer = $CanvasLayer  # Referenz zum CanvasLayer für die Tween-Animationen
-@onready var inventory_ui = preload(\"res://Scenes/inventory_ui.tscn\").instantiate()
-@onready var inventory_control = inventory_ui.get_node(\"Control\")  # Control-Node holen
-var inventory_open = false
+#@onready var inventory_ui = preload(\"res://Scenes/inventory_ui.tscn\").instantiate()
+#@onready var inventory_control = inventory_ui.get_node(\"Control\")  # Control-Node holen
+#var inventory_open = false
+
+@export var inv: Inv
 
 var stun_timer: Timer = Timer.new()
 
@@ -114,24 +118,25 @@ func _ready() -> void:
 	stun_timer.one_shot = true
 	stun_timer.connect(\"timeout\", Callable(self, \"_on_stun_timer_timeout\"))
 	
-	add_child(inventory_ui)
-	inventory_ui.hide()
+#	add_child(inventory_ui)
+#	inventory_ui.hide()
 
 # Lebensanzeige aktualisieren
 func update_health_bar() -> void:
 	# Setze den Wert der Lebensanzeige basierend auf dem aktuellen Gesundheitswert
 	health_bar.value = current_health
 
-func _input(event):
-	if event.is_action_pressed(\"inventory\"):
-		inventory_open = !inventory_open
-		if inventory_open:
-			inventory_control.load_inventory()  # Ladet gespeicherte Slots!
-			inventory_control.update_inventory(inventory)  
-			inventory_ui.show()
-		else:
-			inventory_control.save_inventory()  # Speichert beim Schließen!
-			inventory_ui.hide()
+#OWN INVENTORY BELOW!
+#func _input(event):
+#	if event.is_action_pressed(\"inventory\"):
+#		inventory_open = !inventory_open
+#		if inventory_open:
+#			inventory_control.load_inventory()  # Ladet gespeicherte Slots!
+#			inventory_control.update_inventory(inventory)  
+#			inventory_ui.show()
+#		else:
+#			inventory_control.save_inventory()  # Speichert beim Schließen!
+#			inventory_ui.hide()
 
 
 func _process(delta: float) -> void:
@@ -361,17 +366,24 @@ func heal(amount: int) -> void:
 		current_health = max_health  # Stelle sicher, dass max_health nicht überschritten wird
 	update_health_bar()
 
-func add_to_inventory(item_name: String):
-	if inventory.has(item_name):
-		inventory[item_name] += 1  # Erhöhe Anzahl
-	else:
-		inventory[item_name] = 1  # Neues Item hinzufügen
-	
-	print(\"Item aufgenommen:\", item_name, \"Anzahl:\", inventory[item_name])
 
-	# Aktualisiere das UI sofort nach Hinzufügen eines Items
-	inventory_control.update_inventory(inventory)  
-	inventory_control.save_inventory()  # Speichert neue Items in Slots
+# IF the YT Inventory Dosent work!
+# OWN INVENTORY BELOW
+#func add_to_inventory(item_name: String):
+#	if inventory.has(item_name):
+#		inventory[item_name] += 1  # Erhöhe Anzahl
+#	else:
+#		inventory[item_name] = 1  # Neues Item hinzufügen
+#	
+#	print(\"Item aufgenommen:\", item_name, \"Anzahl:\", inventory[item_name])
+#
+#	# Aktualisiere das UI sofort nach Hinzufügen eines Items
+#	inventory_control.update_inventory(inventory)  
+#	inventory_control.save_inventory()  # Speichert neue Items in Slots
+
+
+func collect(item):
+	inv.Insert(item)
 "
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_uwm2o"]
@@ -505,6 +517,7 @@ position = Vector2(291, 687)
 scale = Vector2(0.07, 0.07)
 collision_mask = 3
 script = SubResource("GDScript_381hh")
+inv = ExtResource("1_e7ml4")
 
 [node name="ColisionArea" type="CollisionShape2D" parent="."]
 position = Vector2(0.000167847, 0.00012207)
@@ -612,3 +625,17 @@ offset_bottom = 76.0
 nine_patch_stretch = true
 texture_under = ExtResource("12_tc5iy")
 texture_progress = ExtResource("13_d3fsm")
+
+[node name="InvUI" parent="CanvasLayer" instance=ExtResource("15_qbc48")]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -623.0
+offset_top = -293.0
+offset_right = -415.0
+offset_bottom = -195.0
+grow_horizontal = 2
+grow_vertical = 2
+scale = Vector2(6, 6)
