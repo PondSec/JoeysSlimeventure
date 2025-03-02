@@ -17,9 +17,11 @@ var is_knocked_back := false
 var is_stunned := false  # Neue Variable für Stun-Zustand
 
 var loot_table = [
-	{ "scene": preload("res://Scenes/Items/bat_claw.tscn"), "chance": 0.4 },  # 40% Chance
-	{ "scene": preload("res://Scenes/Items/gold_nugget.tscn"), "chance": 0.1 },  # 10% Chance
-	{ "scene": null, "chance": 0.5 }  # 50% Chance, dass nichts dropt
+	{ "scene": preload("res://Scenes/Items/bat_claw.tscn"), "chance": 0.2 },  # 20% Chance
+	{ "scene": preload("res://Scenes/Items/copper_nugget.tscn"), "chance": 0.25 },  # 25% Chance
+	{ "scene": preload("res://Scenes/Items/iron_nugget.tscn"), "chance": 0.1 },  # 10% Chance
+	{ "scene": preload("res://Scenes/Items/gold_nugget.tscn"), "chance": 0.04 },  # 4% Chance
+	{ "scene": null, "chance": 0.32 }  # 50% Chance, dass nichts dropt
 ]
 
 
@@ -33,8 +35,10 @@ func _ready() -> void:
 	add_to_group("enemies")
 
 func _physics_process(delta: float) -> void:
-	if is_dead or is_stunned:
+	if is_dead or is_stunned or player == null or player.current_health <= 0:
 		velocity = Vector2.ZERO
+		is_attacking = false
+		set_animation()  # Fledermaus bleibt im Idle-Zustand, wenn der Spieler tot ist.
 		return
 
 	if is_knocked_back:
@@ -51,7 +55,7 @@ func _physics_process(delta: float) -> void:
 			attack_timer -= delta
 			if attack_timer <= 0.0:
 				attack()
-		elif player and distance_to_player <= actual_detection_radius:
+		elif distance_to_player <= actual_detection_radius:
 			navigation_agent.target_position = player.global_position
 			var direction = to_local(navigation_agent.get_next_path_position()).normalized()
 			if distance_to_player > MIN_DISTANCE:
@@ -64,7 +68,6 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 	set_animation()
-
 
 func attack() -> void:
 	if player and not is_dead:
@@ -141,7 +144,7 @@ func flash_red():
 func apply_knockback():
 	if player:
 		var direction = (global_position - player.global_position).normalized()
-		var knockback_strength = 300
+		var knockback_strength = 350
 		knockback_velocity = direction * knockback_strength
 		is_knocked_back = true
 

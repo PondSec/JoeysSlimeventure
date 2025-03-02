@@ -29,21 +29,31 @@ func save_inventory(file_path: String) -> void:
 
 # Lädt das Inventar aus einer Datei
 func load_inventory(file_path: String) -> void:
-	var file = FileAccess.open(file_path, FileAccess.READ)  # Benutze FileAccess statt File
+	if not FileAccess.file_exists(file_path):
+		print("Datei existiert nicht, Inventar wird nicht geladen.")
+		return  # Verhindert das Laden von nicht vorhandenen Daten
+
+	var file = FileAccess.open(file_path, FileAccess.READ)
 	if file:
 		var data = file.get_var()
 		file.close()
-		
+
+		if data == null or not data is Array:  # Überprüfung, ob `data` gültig ist
+			print("Fehler: Inventardatei enthält ungültige Daten.")
+			return
+
 		# Löscht bestehende Slots und lädt neue
 		for slot in slots:
 			slot.item = null
 			slot.amount = 0
+
 		for i in range(min(len(data), slots.size())):
 			var slot_data = data[i]
 			if slot_data["item_name"] != "":
-				var item = load_item(slot_data["item_name"])  # Methode zum Laden von Items anhand des Namens
+				var item = load_item(slot_data["item_name"])
 				slots[i].item = item
 				slots[i].amount = slot_data["amount"]
+
 		update.emit()
 		print("Inventar geladen von: %s" % file_path)
 	else:
