@@ -1,4 +1,4 @@
-[gd_scene load_steps=26 format=3 uid="uid://b6ublycstdj8n"]
+[gd_scene load_steps=27 format=3 uid="uid://b6ublycstdj8n"]
 
 [ext_resource type="Texture2D" uid="uid://cildswtcj7qrc" path="res://Assets/slime-sprite.png" id="1_4yq4u"]
 [ext_resource type="Resource" uid="uid://0rntjh2xt5s5" path="res://InventorySystem/playerinv.tres" id="1_e7ml4"]
@@ -15,6 +15,7 @@
 [ext_resource type="Texture2D" uid="uid://bhpr6uxcspd17" path="res://Assets/GUI/Healthbar/off.png" id="12_tc5iy"]
 [ext_resource type="Texture2D" uid="uid://dg4h8q8vjxyh" path="res://Assets/GUI/Healthbar/over.png" id="13_d3fsm"]
 [ext_resource type="PackedScene" uid="uid://b0a5ssuwf6jb5" path="res://InventorySystem/inv_ui.tscn" id="15_qbc48"]
+[ext_resource type="PackedScene" uid="uid://0hg2cyfd6vle" path="res://Scenes/gameover.tscn" id="16_g18uv"]
 
 [sub_resource type="GDScript" id="GDScript_381hh"]
 resource_name = "Player"
@@ -52,6 +53,11 @@ var damage_timer: Timer = Timer.new()  # Timer für den Schadensabstand
 var attack_damage: int = 15
 var is_stunned: bool = false  # Spieler kann sich während des Stuns nicht bewegen
 var inventory = {}  # Ein Dictionary für das Inventar
+var dropped_items = []  # Liste für persistente Speicherung
+
+# Konstanten für den Fall-Schaden
+const FALL_DAMAGE_THRESHOLD = 1580  # Y-Position, ab der Schaden verursacht wird
+const FALL_DAMAGE = 30  # Schaden, der beim Fallen verursacht wird
 
 # Referenzen zu Knoten
 var attack_sprite: AnimatedSprite2D
@@ -69,36 +75,25 @@ const COLOR_DAMAGE = Color(1.0, 0.29, 0.29)  # Schadenfarbe (ff4a4a in Hex)
 # Referenz zur Lebensanzeige (ProgressBar)
 @onready var health_bar: TextureProgressBar = $CanvasLayer/TextureProgressBar
 @onready var canvas_layer: CanvasLayer = $CanvasLayer  # Referenz zum CanvasLayer für die Tween-Animationen
-#@onready var inventory_ui = preload(\"res://Scenes/inventory_ui.tscn\").instantiate()
-#@onready var inventory_control = inventory_ui.get_node(\"Control\")  # Control-Node holen
-#var inventory_open = false
-
+@onready var death_screen: Control = get_node(\"CanvasLayer/GameOver\")
 @export var inv: Inv
 
 var stun_timer: Timer = Timer.new()
 var save_load = preload(\"res://SaveLoad.gd\").new()
 
 func _ready() -> void:
-	load_game()
+	glow_effect = $PlayerGlow
 	# Initialisiere Angriffsknoten
 	attack_sprite = $PlayerSprite/AttackSprite
 	attack_area = $PlayerSprite/AttackSprite/AttackArea
-
 	# Deaktiviere das Angriffskollisionsgebiet anfänglich
 	attack_area.monitoring = false
 	attack_area.connect(\"body_entered\", Callable(self, \"_on_attack_area_body_entered\"))
-
-	# Spieler zur \"players\" Gruppe hinzufügen
+	
+	death_screen.visible = false
+	
 	add_to_group(\"players\")
-
-	# Initialisiere den Leuchteffekt (PointLight2D)
-	glow_effect = $PlayerGlow
-	glow_effect.visible = true  # aktiviere den Leuchteffekt anfänglich
-
-	# Setze die Lebensanzeige
 	update_health_bar()
-
-	# Deaktiviere das Schadens-Label zunächst
 	damage_label.visible = false
 	
 	# Füge den Heil-Timer als Kind hinzu und starte ihn
@@ -119,27 +114,13 @@ func _ready() -> void:
 	stun_timer.wait_time = 0.5  # Spieler ist 0,5 Sekunden gestunned
 	stun_timer.one_shot = true
 	stun_timer.connect(\"timeout\", Callable(self, \"_on_stun_timer_timeout\"))
-	
-#	add_child(inventory_ui)
-#	inventory_ui.hide()
+	load_game()
+	load_dropped_items()
 
 # Lebensanzeige aktualisieren
 func update_health_bar() -> void:
 	# Setze den Wert der Lebensanzeige basierend auf dem aktuellen Gesundheitswert
 	health_bar.value = current_health
-
-#OWN INVENTORY BELOW!
-#func _input(event):
-#	if event.is_action_pressed(\"inventory\"):
-#		inventory_open = !inventory_open
-#		if inventory_open:
-#			inventory_control.load_inventory()  # Ladet gespeicherte Slots!
-#			inventory_control.update_inventory(inventory)  
-#			inventory_ui.show()
-#		else:
-#			inventory_control.save_inventory()  # Speichert beim Schließen!
-#			inventory_ui.hide()
-
 
 func _process(delta: float) -> void:
 	if is_landing:
@@ -173,6 +154,13 @@ func _physics_process(delta: float) -> void:
 
 		was_in_air = true
 		velocity.y += GRAVITY * delta
+		
+		# Berechne die Fallhöhe
+		fall_distance = fall_start_y - global_position.y
+		
+		# Füge Schaden hinzu, wenn der Spieler unter den Fall-Schaden-Schwellenwert fällt
+		if global_position.y > FALL_DAMAGE_THRESHOLD:
+			take_damage(FALL_DAMAGE, global_position)  # Schaden anwenden, wenn der Spieler fällt
 
 		# Berechne die Fallhöhe
 		fall_distance = fall_start_y - global_position.y
@@ -259,10 +247,98 @@ func _on_attack_area_body_entered(body) -> void:
 	if body.is_in_group(\"enemies\"):
 		body.take_damage(attack_damage)
 
-# Funktion, um den Spieler sterben zu lassen
 func die() -> void:
 	print(\"Der Spieler ist gestorben!\")
-	queue_free()
+	# Kollisionsabfrage deaktivieren, damit Items nicht aufgesammelt werden
+	$ColisionArea.set_deferred(\"disabled\", true) 
+	# Inventar droppen
+	drop_inventory_items()
+	save_game()
+	# Spieler unsichtbar machen
+	var save_file = FileAccess.open(\"user://inventory.save\", FileAccess.WRITE)
+	if FileAccess.file_exists(\"user://inventory.save\"):
+		DirAccess.remove_absolute(\"user://inventory.save\")
+		print(\"❌ Inventory-Datei gelöscht – Items werden nicht erneut geladen!\")
+	
+	self.visible = false  
+	# Prozesse stoppen
+	set_process(false)
+	set_physics_process(false)
+
+	# Death Screen anzeigen
+	death_screen.show_death_screen()
+	
+func drop_inventory_items() -> void:
+	if not inv or inv.slots.size() == 0:
+		return
+
+	for slot in inv.slots:
+		if slot.item and slot.amount > 0:
+			for i in range(slot.amount): 
+				var item_scene = load(\"res://Scenes/Items/\" + slot.item.name + \".tscn\")
+				var dropped_item = item_scene.instantiate()
+				dropped_item.global_position = global_position  
+				get_tree().current_scene.add_child(dropped_item)
+				
+				# Speichern der Position und des Item-Namens
+				dropped_items.append({
+					\"name\": slot.item.name,
+					\"position\": dropped_item.global_position
+				})
+		
+		slot.item = null
+		slot.amount = 0
+
+	inv.update.emit()
+	save_dropped_items()  # Speichere die Items
+
+
+func save_dropped_items():
+	var save_file = FileAccess.open(\"user://dropped_items.save\", FileAccess.WRITE)
+	
+	var formatted_data = []
+	for item in dropped_items:
+		formatted_data.append({
+			\"name\": item[\"name\"],
+			\"position\": [item[\"position\"].x, item[\"position\"].y]  # Speichern als Array
+		})
+	
+	save_file.store_string(JSON.stringify(formatted_data))
+	save_file.close()
+
+func load_dropped_items():
+	print(\"Lade gespeicherte Items...\")  # Debugging
+
+	if not FileAccess.file_exists(\"user://dropped_items.save\"):
+		print(\"Keine gespeicherte Datei gefunden!\")
+		return
+
+	var save_file = FileAccess.open(\"user://dropped_items.save\", FileAccess.READ)
+	var json_data = save_file.get_as_text()
+	save_file.close()
+
+	var parsed_data = JSON.parse_string(json_data)
+	if parsed_data is Array:
+		for item_data in parsed_data:
+			var item_scene = load(\"res://Scenes/Items/\" + item_data[\"name\"] + \".tscn\")
+			var dropped_item = item_scene.instantiate()
+
+			# Position setzen und zufälligen Offset hinzufügen
+			dropped_item.global_position = Vector2(item_data[\"position\"][0], item_data[\"position\"][1])
+			var random_offset = Vector2(randf_range(-10, 10), randf_range(-10, 10))
+			dropped_item.global_position += random_offset
+
+			# Sichtbarkeit setzen und Item zur Szene hinzufügen
+			dropped_item.visible = true
+			get_tree().current_scene.add_child(dropped_item)
+
+			# Leichte Verzögerung, um Lag zu vermeiden
+			await get_tree().create_timer(0.02).timeout
+
+	# ✅ Nach dem Laden die Speicherdatei löschen, damit Items nicht erneut gespawnt werden
+	if FileAccess.file_exists(\"user://dropped_items.save\"):
+		DirAccess.remove_absolute(\"user://dropped_items.save\")
+		print(\"❌ Drop-Datei gelöscht – Items werden nicht erneut geladen!\")
 
 # Angriff ausführen
 func perform_attack() -> void:
@@ -375,7 +451,7 @@ func save_game():
 
 func load_game():
 	save_load.load_game(self)
-	
+
 func _exit_tree():
 	save_game()  # Speichert das Spiel, wenn das Spiel beendet wird
 "
@@ -633,3 +709,5 @@ offset_bottom = -195.0
 grow_horizontal = 2
 grow_vertical = 2
 scale = Vector2(6, 6)
+
+[node name="GameOver" parent="CanvasLayer" instance=ExtResource("16_g18uv")]

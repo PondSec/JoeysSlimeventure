@@ -8,7 +8,7 @@ resource_name = "bat_claw"
 script/source = "extends RigidBody2D
 
 @export var lifetime: float = 10.0  # Das Item verschwindet nach 10 Sekunden
-@export var item: InvItem
+@export var item: InvItem  # Das tatsächliche Item-Objekt
 var player = null
 
 func _ready():
@@ -17,8 +17,7 @@ func _ready():
 
 func _on_area_2d_body_entered(body: Node2D) -> void:
 	if body.is_in_group(\"players\"):  # Prüfen, ob der Spieler das Item berührt
-		#body.add_to_inventory(\"bat_claw\")  # Item dem Inventar hinzufügen
-		body.collect(item)
+		body.collect(item)  # Item dem Inventar hinzufügen
 		queue_free()  # Item aus der Welt entfernen
 "
 
@@ -27,7 +26,7 @@ radius = 4.0
 height = 10.0
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_038e2"]
-size = Vector2(8, 8)
+size = Vector2(12, 12)
 
 [node name="gold_nugget" type="RigidBody2D"]
 script = SubResource("GDScript_8jn70")
@@ -43,6 +42,7 @@ texture = ExtResource("2_nlgsm")
 [node name="Area2D" type="Area2D" parent="."]
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Area2D"]
+scale = Vector2(1.04, 1)
 shape = SubResource("RectangleShape2D_038e2")
 
 [connection signal="body_entered" from="Area2D" to="." method="_on_area_2d_body_entered"]

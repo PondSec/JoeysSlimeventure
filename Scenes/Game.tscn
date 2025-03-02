@@ -1,4 +1,4 @@
-[gd_scene load_steps=22 format=4 uid="uid://cmdh8rpdo8fb2"]
+[gd_scene load_steps=21 format=4 uid="uid://cmdh8rpdo8fb2"]
 
 [ext_resource type="Texture2D" uid="uid://82opar247kat" path="res://Assets/Tiles/platformertiles.png" id="1_lx4yj"]
 [ext_resource type="Script" path="res://Scenes/game.gd" id="1_wyx84"]
@@ -7,7 +7,6 @@
 [ext_resource type="Texture2D" uid="uid://h245qfth6gf5" path="res://Assets/itch.io/Tilevania.png" id="3_khj2t"]
 [ext_resource type="Texture2D" uid="uid://cimvb1apxwlty" path="res://Assets/block.png" id="3_xdlxs"]
 [ext_resource type="PackedScene" uid="uid://b6ublycstdj8n" path="res://Scenes/player.tscn" id="5_26h23"]
-[ext_resource type="PackedScene" uid="uid://0hg2cyfd6vle" path="res://Scenes/gameover.tscn" id="6_80tl2"]
 [ext_resource type="PackedScene" uid="uid://dqykudmd26o2q" path="res://Scenes/bat.tscn" id="6_u4atw"]
 [ext_resource type="AudioStream" uid="uid://pj50q64fos0k" path="res://Assets/Sounds/little-slimex27s-adventure-151007.mp3" id="7_ua7os"]
 [ext_resource type="PackedScene" uid="uid://btd70wfyuwmhw" path="res://Scenes/PauseMenu.tscn" id="9_dvqdi"]
@@ -345,9 +344,6 @@ layer_0/tile_data = PackedInt32Array(2097152, 327681, 0, 2097153, 65537, 0, 2097
 
 [node name="PlayerModel" parent="." instance=ExtResource("5_26h23")]
 position = Vector2(271, 769)
-
-[node name="GameOverScreen" parent="." instance=ExtResource("6_80tl2")]
-visible = false
 
 [node name="Bat" parent="." node_paths=PackedStringArray("player") instance=ExtResource("6_u4atw")]
 position = Vector2(975, 1440)
