@@ -1,0 +1,47 @@
+[gd_scene load_steps=6 format=3 uid="uid://b5ymy2ys7wjbd"]
+
+[ext_resource type="Resource" uid="uid://ctvdsarma58a3" path="res://InventorySystem/items/copper_nugget.tres" id="1_s2457"]
+[ext_resource type="Texture2D" uid="uid://ci3cq22skb2io" path="res://Assets/Items/copper_nugget.png" id="2_4dqvs"]
+
+[sub_resource type="GDScript" id="GDScript_8jn70"]
+resource_name = "bat_claw"
+script/source = "extends RigidBody2D
+
+@export var lifetime: float = 10.0  # Das Item verschwindet nach 10 Sekunden
+@export var item: InvItem  # Das tatsächliche Item-Objekt
+var player = null
+
+func _ready():
+	await get_tree().create_timer(lifetime).timeout
+	queue_free()
+
+func _on_area_2d_body_entered(body: Node2D) -> void:
+	if body.is_in_group(\"players\"):  # Prüfen, ob der Spieler das Item berührt
+		body.collect(item)  # Item dem Inventar hinzufügen
+		queue_free()  # Item aus der Welt entfernen
+"
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_8qekl"]
+radius = 4.0
+height = 10.0
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_038e2"]
+size = Vector2(12, 12)
+
+[node name="copper_nugget" type="RigidBody2D"]
+script = SubResource("GDScript_8jn70")
+item = ExtResource("1_s2457")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CapsuleShape2D_8qekl")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("2_4dqvs")
+
+[node name="Area2D" type="Area2D" parent="."]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Area2D"]
+shape = SubResource("RectangleShape2D_038e2")
+
+[connection signal="body_entered" from="Area2D" to="." method="_on_area_2d_body_entered"]
