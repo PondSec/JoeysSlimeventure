@@ -14,8 +14,8 @@ script = ExtResource("1_px203")
 
 [node name="NinePatchRect" type="NinePatchRect" parent="."]
 layout_mode = 0
-offset_right = 208.0
-offset_bottom = 98.0
+offset_right = 164.0
+offset_bottom = 79.0
 texture = ExtResource("2_1yy2w")
 patch_margin_left = 4
 patch_margin_top = 4
@@ -35,6 +35,8 @@ offset_right = 42.0
 offset_bottom = 31.0
 grow_horizontal = 2
 grow_vertical = 2
+theme_override_constants/h_separation = -1
+theme_override_constants/v_separation = -1
 columns = 9
 
 [node name="Slot" parent="NinePatchRect/GridContainer" instance=ExtResource("3_3kb3x")]

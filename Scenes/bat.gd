@@ -7,7 +7,9 @@ const ATTACK_COOLDOWN = 1.5
 const MIN_DISTANCE = 5.0
 const RESPAWN_COOLDOWN = 5
 const BASE_DETECTION_RADIUS = 150.0  # Kleinerer Radius für nicht-glühenden Spieler
+const NAVIGATION_UPDATE_INTERVAL = 1  # Alle 0.5 Sekunden aktualisieren
 
+var navigation_update_timer = 0.0  # Timer für die Navigation
 var is_dead := false
 var health := 50
 var is_attacking := false
@@ -29,6 +31,7 @@ var loot_table = [
 @onready var animation_player = $Sprite2D/AnimationPlayer
 @onready var navigation_agent = $NavigationAgent2D
 @onready var camera: Camera2D = $Camera2D  # Kamera für Effekte
+@onready var visibility_notifier = $VisibleOnScreen
 
 func _ready() -> void:
 	randomize()
@@ -38,15 +41,15 @@ func _physics_process(delta: float) -> void:
 	if is_dead or is_stunned or player == null or player.current_health <= 0:
 		velocity = Vector2.ZERO
 		is_attacking = false
-		set_animation()  # Fledermaus bleibt im Idle-Zustand, wenn der Spieler tot ist.
+		set_animation()
 		return
 
 	if is_knocked_back:
 		velocity = knockback_velocity
-		knockback_velocity *= 0.9  # Knockback langsam abschwächen
+		knockback_velocity *= 0.9
 		if knockback_velocity.length() < 10:
 			is_knocked_back = false
-			apply_stun(0.5)  # Stun für 0.5 Sekunden nach Knockback
+			apply_stun(0.5)
 	else:
 		var distance_to_player = global_position.distance_to(player.global_position)
 		var actual_detection_radius = DETECTION_RADIUS if player.is_glowing else BASE_DETECTION_RADIUS
@@ -56,7 +59,12 @@ func _physics_process(delta: float) -> void:
 			if attack_timer <= 0.0:
 				attack()
 		elif distance_to_player <= actual_detection_radius:
-			navigation_agent.target_position = player.global_position
+			# Aktualisiere Navigation nur alle NAVIGATION_UPDATE_INTERVAL Sekunden
+			navigation_update_timer -= delta
+			if navigation_update_timer <= 0:
+				navigation_agent.target_position = player.global_position
+				navigation_update_timer = NAVIGATION_UPDATE_INTERVAL  # Timer zurücksetzen
+			
 			var direction = to_local(navigation_agent.get_next_path_position()).normalized()
 			if distance_to_player > MIN_DISTANCE:
 				velocity = direction * SPEED
