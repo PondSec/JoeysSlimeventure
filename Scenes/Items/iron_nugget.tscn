@@ -7,7 +7,7 @@
 resource_name = "bat_claw"
 script/source = "extends RigidBody2D
 
-@export var lifetime: float = 10.0  # Das Item verschwindet nach 10 Sekunden
+@export var lifetime: float = 120.0  # Das Item verschwindet nach 10 Sekunden
 @export var item: InvItem  # Das tatsächliche Item-Objekt
 var player = null
 
