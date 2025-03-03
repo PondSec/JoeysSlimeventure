@@ -8,7 +8,6 @@ var dragging_item = null
 var dragging_sprite = null
 var dragging_slot_index = -1
 var detected_slot_index = -1
-
 var dragging_item_scale = 0.5  # Skalierungsfaktor
 
 # Speicherpfad
@@ -145,7 +144,7 @@ func _on_slot_released(slot_index: int):
 		update_slots()
 
 		# Stelle sicher, dass das Item im Quell-Slot wieder angezeigt wird, wenn es abgelegt wurde
-		var source_slot_ui = slots[dragging_slot_index].get_node("ItemTexture") if slots[dragging_slot_index].has_node("ItemTexture") else null
+		var source_slot_ui = slots[dragging_slot_index].get_node("CenterContainer/Panel/ItemDisplay") if slots[dragging_slot_index].has_node("ItemTexture") else null
 		if source_slot_ui:
 			source_slot_ui.visible = true  # Stelle das ItemTexture im Quell-Slot wieder her
 
@@ -185,7 +184,7 @@ func _on_right_click(slot_index: int):
 
 				# Aktualisiere UI sofort
 				# Manuell das ItemTexture des Quell-Slots ausblenden
-				var source_slot_ui = slots[dragging_slot_index].get_node("ItemTexture") if slots[dragging_slot_index].has_node("ItemTexture") else null
+				var source_slot_ui = slots[dragging_slot_index].get_node("CenterContainer/Panel/ItemDisplay") if slots[dragging_slot_index].has_node("ItemTexture") else null
 				if source_slot_ui:
 					source_slot_ui.visible = false
 

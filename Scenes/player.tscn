@@ -696,18 +696,18 @@ nine_patch_stretch = true
 texture_under = ExtResource("12_tc5iy")
 texture_progress = ExtResource("13_d3fsm")
 
+[node name="GameOver" parent="CanvasLayer" instance=ExtResource("16_g18uv")]
+
 [node name="InvUI" parent="CanvasLayer" instance=ExtResource("15_qbc48")]
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -623.0
-offset_top = -293.0
-offset_right = -415.0
-offset_bottom = -195.0
+offset_left = -477.0
+offset_top = -268.0
+offset_right = -269.0
+offset_bottom = -170.0
 grow_horizontal = 2
 grow_vertical = 2
 scale = Vector2(6, 6)
-
-[node name="GameOver" parent="CanvasLayer" instance=ExtResource("16_g18uv")]
