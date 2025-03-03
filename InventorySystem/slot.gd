@@ -4,17 +4,21 @@ extends Panel
 @onready var amount_text: Label = $CenterContainer/Panel/Label
 var slot_index = -1
 
-func update(slot: InvSlot):
-	if !slot.item:
-		item_visual.visible = false
-		amount_text.visible = false
-	else:
-		item_visual.visible = true
-		item_visual.texture = slot.item.texture
-		if slot.amount > 1:
-			amount_text.visible = true
-		amount_text.text = str(slot.amount)
+func update(slot_data: InvSlot) -> void:
+	var item_display = get_node("CenterContainer/Panel/ItemDisplay") if has_node("CenterContainer/Panel/ItemDisplay") else null
+	var label = get_node("CenterContainer/Panel/Label") if has_node("CenterContainer/Panel/Label") else null
 
+	if item_display:
+		item_display.visible = slot_data.item != null
+		if slot_data.item:
+			item_display.texture = slot_data.item.texture
+
+	if label:
+		label.visible = slot_data.item != null
+		if slot_data.amount > 1:
+			label.text = str(slot_data.amount)
+		else:
+			label.text = ""
 # Handling mouse events for drag
 func _on_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
