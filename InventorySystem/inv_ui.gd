@@ -79,6 +79,8 @@ func update_slots():
 			slot.update(inv.slots[i])
 			
 func _on_slot_pressed(slot_index: int):
+	if !is_open:  # Prüfe, ob das Inventar geschlossen ist
+		return
 	if slot_index != -1:
 		var slot = inv.slots[slot_index]
 		if slot.item:
@@ -113,6 +115,8 @@ func _on_slot_pressed(slot_index: int):
 			update_slots()  # Stelle sicher, dass das Inventar UI sofort aktualisiert wird
 			
 func _on_slot_released(slot_index: int):
+	if !is_open:  # Prüfe, ob das Inventar geschlossen ist
+		return
 	if dragging_item:
 		if slot_index != -1:
 			# Wenn der Slot unter der Maus existiert, lege das Item dort ab
