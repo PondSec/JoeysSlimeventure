@@ -65,28 +65,25 @@ func load_item(item_name: String) -> InvItem:
 	var item = load("res://InventorySystem/items/" + item_name + ".tres")  # Angenommener Pfad zu den Items
 	return item
 
-# Einfügen eines Items in das Inventar
 func Insert(item: InvItem):
-	# Suche nach einem Slot mit dem gleichen Item und einer Menge von weniger als 64
 	var itemslots = slots.filter(func(slot): return slot.item == item and slot.amount < 64)
 	if !itemslots.is_empty():
-		# Füge das Item zu einem Slot hinzu, der weniger als 64 Items enthält
 		var slot = itemslots[0]
-		var amount_to_add = min(64 - slot.amount, 1)  # Hinzufügen von 1 Item, solange der Slot noch Platz hat
+		var amount_to_add = min(64 - slot.amount, 1)
 		slot.amount += amount_to_add
 		print("Item hinzugefügt zu Slot mit weniger als 64 Items.")
 	else:
-		# Wenn kein passender Slot gefunden wurde, suche nach einem leeren Slot
 		var emptyslots = slots.filter(func(slot): return slot.item == null)
 		if !emptyslots.is_empty():
 			var empty_slot = emptyslots[0]
 			empty_slot.item = item
-			empty_slot.amount = 1  # Setze die Menge des neuen Items auf 1
+			empty_slot.amount = 1
 			print("Item wurde in einen leeren Slot eingefügt.")
 		else:
-			print("Es gibt keinen Platz für dieses Item.")
+			print("Kein Platz für dieses Item.")
 
-	update.emit()
+	update.emit()  # Signal senden
+	save_inventory("user://inventory.save") 
 
 # Tauschen von zwei Slots
 func swap_slots(index1: int, index2: int):

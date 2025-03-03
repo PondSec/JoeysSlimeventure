@@ -1,13 +1,13 @@
 [gd_scene load_steps=6 format=3 uid="uid://cxi12jiy26sux"]
 
 [ext_resource type="Resource" uid="uid://bn5g1pesjtq6k" path="res://InventorySystem/items/bat_claw.tres" id="1_1qh3n"]
-[ext_resource type="Texture2D" uid="uid://bmyq4jlsprysu" path="res://Assets/Items/Mob Drops/Bat/bat_claw.png" id="1_traeb"]
+[ext_resource type="Texture2D" uid="uid://deh5b2tl5etl3" path="res://Assets/Items/bat_claw.png" id="2_bpwlx"]
 
 [sub_resource type="GDScript" id="GDScript_8jn70"]
 resource_name = "bat_claw"
 script/source = "extends RigidBody2D
 
-@export var lifetime: float = 10.0  # Das Item verschwindet nach 10 Sekunden
+@export var lifetime: float = 120.0  # Das Item verschwindet nach 10 Sekunden
 @export var item: InvItem  # Das tatsächliche Item-Objekt
 var player = null
 
@@ -22,7 +22,7 @@ func _on_area_2d_body_entered(body: Node2D) -> void:
 "
 
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_8qekl"]
-radius = 4.0
+radius = 5.0
 height = 14.0
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_038e2"]
@@ -36,8 +36,8 @@ item = ExtResource("1_1qh3n")
 shape = SubResource("CapsuleShape2D_8qekl")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
-scale = Vector2(0.5, 0.5)
-texture = ExtResource("1_traeb")
+scale = Vector2(0.6, 0.6)
+texture = ExtResource("2_bpwlx")
 
 [node name="Area2D" type="Area2D" parent="."]
 

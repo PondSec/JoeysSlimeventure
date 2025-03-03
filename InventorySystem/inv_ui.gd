@@ -8,7 +8,6 @@ var dragging_item = null
 var dragging_sprite = null
 var dragging_slot_index = -1
 var detected_slot_index = -1
-
 var dragging_item_scale = 0.5  # Skalierungsfaktor
 
 # Speicherpfad
@@ -60,6 +59,25 @@ func open():
 func close():
 	visible = false
 	is_open = false
+	
+	# Wenn ein Item gezogen wird, lege es zurück in den ursprünglichen Slot
+	if dragging_item:
+		var source_slot = inv.slots[dragging_slot_index]
+		if source_slot:
+			# Zeige das ursprüngliche Item wieder im Slot
+			var item_display = slots[dragging_slot_index].get_node("CenterContainer/Panel/ItemDisplay") if slots[dragging_slot_index].has_node("CenterContainer/Panel/ItemDisplay") else null
+			if item_display:
+				item_display.visible = true
+
+		# Entferne das gezogene Item und setze die Variablen zurück
+		dragging_item.queue_free()
+		dragging_item = null
+		dragging_sprite = null
+		dragging_slot_index = -1
+		
+		# Aktualisiere die Slots, um die Sichtbarkeit sicherzustellen
+		update_slots()
+
 
 func update_slots():
 	for i in range(min(inv.slots.size(), slots.size())):
@@ -80,6 +98,8 @@ func update_slots():
 			slot.update(inv.slots[i])
 			
 func _on_slot_pressed(slot_index: int):
+	if !is_open:  # Prüfe, ob das Inventar geschlossen ist
+		return
 	if slot_index != -1:
 		var slot = inv.slots[slot_index]
 		if slot.item:
@@ -114,6 +134,8 @@ func _on_slot_pressed(slot_index: int):
 			update_slots()  # Stelle sicher, dass das Inventar UI sofort aktualisiert wird
 			
 func _on_slot_released(slot_index: int):
+	if !is_open:  # Prüfe, ob das Inventar geschlossen ist
+		return
 	if dragging_item:
 		if slot_index != -1:
 			# Wenn der Slot unter der Maus existiert, lege das Item dort ab
@@ -145,7 +167,7 @@ func _on_slot_released(slot_index: int):
 		update_slots()
 
 		# Stelle sicher, dass das Item im Quell-Slot wieder angezeigt wird, wenn es abgelegt wurde
-		var source_slot_ui = slots[dragging_slot_index].get_node("ItemTexture") if slots[dragging_slot_index].has_node("ItemTexture") else null
+		var source_slot_ui = slots[dragging_slot_index].get_node("CenterContainer/Panel/ItemDisplay") if slots[dragging_slot_index].has_node("ItemTexture") else null
 		if source_slot_ui:
 			source_slot_ui.visible = true  # Stelle das ItemTexture im Quell-Slot wieder her
 
@@ -185,7 +207,7 @@ func _on_right_click(slot_index: int):
 
 				# Aktualisiere UI sofort
 				# Manuell das ItemTexture des Quell-Slots ausblenden
-				var source_slot_ui = slots[dragging_slot_index].get_node("ItemTexture") if slots[dragging_slot_index].has_node("ItemTexture") else null
+				var source_slot_ui = slots[dragging_slot_index].get_node("CenterContainer/Panel/ItemDisplay") if slots[dragging_slot_index].has_node("ItemTexture") else null
 				if source_slot_ui:
 					source_slot_ui.visible = false
 

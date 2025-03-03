@@ -15,6 +15,7 @@ grow_vertical = 2
 script = ExtResource("1_wp1rg")
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
+visible = false
 scale = Vector2(5, 5)
 transform = Transform2D(5, 0, 0, 5, 0, 0)
 
