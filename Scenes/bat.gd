@@ -19,19 +19,20 @@ var is_knocked_back := false
 var is_stunned := false  # Neue Variable für Stun-Zustand
 
 var loot_table = [
-	{ "scene": preload("res://Scenes/Items/bat_claw.tscn"), "chance": 0.2 },  # 20% Chance
-	{ "scene": preload("res://Scenes/Items/copper_nugget.tscn"), "chance": 0.25 },  # 25% Chance
-	{ "scene": preload("res://Scenes/Items/iron_nugget.tscn"), "chance": 0.1 },  # 10% Chance
-	{ "scene": preload("res://Scenes/Items/gold_nugget.tscn"), "chance": 0.04 },  # 4% Chance
-	{ "scene": null, "chance": 0.32 }  # 50% Chance, dass nichts dropt
+	{ "scene": preload("res://Scenes/Items/bat_claw.tscn"), "chance": 0.12 },  # 12% Chance (seltener)
+	{ "scene": preload("res://Scenes/Items/copper_nugget.tscn"), "chance": 0.22 },  # 22% Chance (häufiger)
+	{ "scene": preload("res://Scenes/Items/iron_nugget.tscn"), "chance": 0.08 },  # 8% Chance (seltener)
+	{ "scene": preload("res://Scenes/Items/gold_nugget.tscn"), "chance": 0.02 },  # 2% Chance (deutlich seltener)
+	{ "scene": null, "chance": 0.54 }  # 54% Chance, dass nichts droppt (erschwert Loot-Farming)
 ]
+
 
 
 @export var player: CharacterBody2D
 @onready var animation_player = $Sprite2D/AnimationPlayer
 @onready var navigation_agent = $NavigationAgent2D
 @onready var camera: Camera2D = $Camera2D  # Kamera für Effekte
-@onready var visibility_notifier = $VisibleOnScreen
+@onready var visibility_notifier = $VisibleOnScreena
 
 func _ready() -> void:
 	randomize()
@@ -200,16 +201,22 @@ func drop_loot():
 			get_parent().add_child(dropped_item)
 			return  # Stoppt die Funktion, sobald ein Item gedroppt wurde
 
-
-
 func is_valid_spawn_position(pos: Vector2) -> bool:
-	var space_state = get_world_2d().direct_space_state
-	var query = PhysicsPointQueryParameters2D.new()
-	query.position = pos
-	query.collision_mask = 1  # Stelle sicher, dass nur Wände überprüft werden
+	# Setze die Zielposition für den NavigationAgent2D
+	navigation_agent.target_position = pos
 
-	var result = space_state.intersect_point(query)
-	return result.is_empty()  # Wenn leer, dann ist die Position frei
+	# Warte auf die Berechnung des Pfads
+	await get_tree().process_frame 
+
+	# Prüfe, ob der Agent die Position erreichen kann
+	var next_path_pos = navigation_agent.get_next_path_position()
+
+	# Wenn der nächste Path-Punkt sehr nah an der gewünschten Position ist, ist es gültig
+	if pos.distance_to(next_path_pos) < 5.0:
+		return true
+	
+	return false
+
 
 func spawn_near_player() -> void:
 	if not player:
@@ -219,14 +226,14 @@ func spawn_near_player() -> void:
 	var valid_position_found = false
 	var new_position = global_position  # Fallback
 
-	for i in range(10):
+	for i in range(10):  # 10 Versuche für eine gültige Position
 		var random_offset = Vector2(
-			randf_range(-DETECTION_RADIUS, DETECTION_RADIUS),
-			randf_range(-DETECTION_RADIUS, DETECTION_RADIUS)
+			randf_range(-200, 200),
+			randf_range(-200, 200)
 		)
 		var candidate_position = player.global_position + random_offset
 
-		if candidate_position.distance_to(player.global_position) >= MIN_DISTANCE and is_valid_spawn_position(candidate_position):
+		if candidate_position.distance_to(player.global_position) >= MIN_DISTANCE and await is_valid_spawn_position(candidate_position):
 			new_position = candidate_position
 			valid_position_found = true
 			break
@@ -245,4 +252,4 @@ func spawn_near_player() -> void:
 	set_deferred("collision_mask", 1)
 	modulate = Color(1, 1, 1, 1)  # Falls sie unsichtbar bleibt
 	is_dead = false
-	health = 50
+	health = 50 

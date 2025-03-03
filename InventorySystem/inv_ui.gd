@@ -59,6 +59,25 @@ func open():
 func close():
 	visible = false
 	is_open = false
+	
+	# Wenn ein Item gezogen wird, lege es zurück in den ursprünglichen Slot
+	if dragging_item:
+		var source_slot = inv.slots[dragging_slot_index]
+		if source_slot:
+			# Zeige das ursprüngliche Item wieder im Slot
+			var item_display = slots[dragging_slot_index].get_node("CenterContainer/Panel/ItemDisplay") if slots[dragging_slot_index].has_node("CenterContainer/Panel/ItemDisplay") else null
+			if item_display:
+				item_display.visible = true
+
+		# Entferne das gezogene Item und setze die Variablen zurück
+		dragging_item.queue_free()
+		dragging_item = null
+		dragging_sprite = null
+		dragging_slot_index = -1
+		
+		# Aktualisiere die Slots, um die Sichtbarkeit sicherzustellen
+		update_slots()
+
 
 func update_slots():
 	for i in range(min(inv.slots.size(), slots.size())):
