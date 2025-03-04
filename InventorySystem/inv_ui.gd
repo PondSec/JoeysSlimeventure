@@ -16,10 +16,9 @@ var save_path = "user://inventory.save"
 func _ready() -> void:
 	inv.update.connect(update_slots)
 	update_slots()
-	close()
-
-	# Lade das Inventar, wenn die UI bereit ist
 	inv.load_inventory(save_path)
+	close()
+	
 
 func _process(delta: float) -> void:
 	if Input.is_action_just_pressed("inventory"):
@@ -28,7 +27,6 @@ func _process(delta: float) -> void:
 			inv.save_inventory(save_path)  # Speichere das Inventar beim Schließen
 		else:
 			open()
-
 	# Nur wenn ein Item "gezogen" wird, folge der Maus
 	if dragging_item:
 		dragging_item.position = get_global_mouse_position()
@@ -54,11 +52,13 @@ func _process(delta: float) -> void:
 func open():
 	visible = true
 	is_open = true
+	update_slots()
 
 # Schließe das Inventar
 func close():
 	visible = false
 	is_open = false
+	update_slots()
 	
 	# Wenn ein Item gezogen wird, lege es zurück in den ursprünglichen Slot
 	if dragging_item:
