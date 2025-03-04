@@ -57,6 +57,7 @@ var attack_damage: int = 15
 var is_stunned: bool = false  # Spieler kann sich während des Stuns nicht bewegen
 var inventory = {}  # Ein Dictionary für das Inventar
 var dropped_items = []  # Liste für persistente Speicherung
+var selected_hotbar_index: int = 0  # Standardmäßig der erste Slot
 
 # Konstanten für den Fall-Schaden
 const FALL_DAMAGE_THRESHOLD = 1580  # Y-Position, ab der Schaden verursacht wird
@@ -139,6 +140,9 @@ func _process(delta: float) -> void:
 	if Input.is_action_just_pressed(\"Glow\"):
 		is_glowing = !is_glowing
 		update_glow_state()
+
+	if Input.is_action_just_pressed(\"drop_item\"):  
+		drop_hotbar_item()
 
 func _physics_process(delta: float) -> void:
 	# Falls gestunned, keine Steuerung erlauben, aber Schwerkraft beibehalten
@@ -452,6 +456,59 @@ func load_game():
 
 func _exit_tree():
 	save_game()  # Speichert das Spiel, wenn das Spiel beendet wird
+
+func drop_hotbar_item():
+	# Stelle sicher, dass ein Hotbar-Slot aktiv ist
+	if selected_hotbar_index < 0 or selected_hotbar_index > 8:
+		return
+	
+	# Berechne den tatsächlichen Inventar-Slot
+	var inv_index = inv.slots.size() - 9 + selected_hotbar_index  
+	var slot = inv.slots[inv_index]
+
+	# Überprüfen, ob ein Item im Slot vorhanden ist
+	if slot.item and slot.amount > 0:
+		print(\"Dropping:\", slot.item.name)  # Debugging-Info
+
+		# Item in die Welt spawnen
+		var item_scene = load(\"res://Scenes/Items/\" + slot.item.name + \".tscn\")
+		var dropped_item = item_scene.instantiate()
+
+		# Stelle sicher, dass das Item eine RigidBody2D ist
+		if dropped_item is RigidBody2D:
+			# Spieler-Blickrichtung berechnen (Wurf-Richtung)
+			var direction = (get_global_mouse_position() - global_position).normalized()
+
+			# Setze die Startposition etwas vor den Spieler
+			var drop_offset = direction * 25  # Item etwas nach vorne setzen
+			dropped_item.global_position = global_position + drop_offset
+
+			# **Hier kommt der Wurf-Impuls!**
+			var throw_force = direction * 400 + Vector2(0, -200)  # Starke Wurfkraft + Auftrieb
+			dropped_item.apply_central_impulse(throw_force)
+
+			# **Drehung für realistisches Fliegen**
+			dropped_item.angular_velocity = randf_range(-8, 8)  
+
+		# Item zur Szene hinzufügen
+		get_tree().current_scene.add_child(dropped_item)
+
+		# Ein Item entfernen, nicht den ganzen Stack
+		slot.amount -= 1
+		if slot.amount == 0:
+			slot.item = null  # Slot leeren
+
+		inv.update.emit()  # UI sofort aktualisieren
+
+func get_selected_hotbar_index() -> int:
+	# Falls du eine Variable hast, die den aktiven Hotbar-Slot speichert:
+	return selected_hotbar_index  
+
+func _input(event):
+	if event is InputEventKey and event.pressed:
+		if event.keycode >= KEY_1 and event.keycode <= KEY_9:
+			selected_hotbar_index = event.keycode - KEY_1  # 1 = Index 0, 2 = Index 1, etc.
+			print(\"Hotbar Slot gewechselt zu:\", selected_hotbar_index)  # Debugging
 "
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_uwm2o"]
