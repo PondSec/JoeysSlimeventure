@@ -1,4 +1,4 @@
-[gd_scene load_steps=20 format=4 uid="uid://cmdh8rpdo8fb2"]
+[gd_scene load_steps=30 format=4 uid="uid://cmdh8rpdo8fb2"]
 
 [ext_resource type="Texture2D" uid="uid://82opar247kat" path="res://Assets/Tiles/platformertiles.png" id="1_lx4yj"]
 [ext_resource type="Script" path="res://Scenes/game.gd" id="1_wyx84"]
@@ -240,6 +240,36 @@ texture = ExtResource("3_xdlxs")
 navigation_layer_0/layers = 1
 sources/0 = SubResource("TileSetAtlasSource_5uy8r")
 
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_xt0t6"]
+size = Vector2(171, 279)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_t7snr"]
+size = Vector2(575.5, 161)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_phwsh"]
+size = Vector2(423, 166.5)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_k4ke2"]
+size = Vector2(111, 331)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_yd5pl"]
+size = Vector2(111, 176.5)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_kob5s"]
+size = Vector2(391, 78)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_8e2l1"]
+size = Vector2(142, 175)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_bvrpd"]
+size = Vector2(708, 157.5)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_xffbt"]
+size = Vector2(306, 128)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_3u848"]
+size = Vector2(182, 139.25)
+
 [node name="Game" type="Node2D"]
 script = ExtResource("1_wyx84")
 
@@ -379,5 +409,68 @@ position = Vector2(2477, 1187)
 [node name="PauseMenu" parent="." instance=ExtResource("9_dvqdi")]
 visible = false
 
-[connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_pause_menu_go_to_main_menu"]
+[node name="SpawnZones(Bat)" type="Node2D" parent="."]
+
+[node name="Area2D" type="Area2D" parent="SpawnZones(Bat)"]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="SpawnZones(Bat)/Area2D"]
+position = Vector2(113.5, 705)
+shape = SubResource("RectangleShape2D_xt0t6")
+
+[node name="Area2D2" type="Area2D" parent="SpawnZones(Bat)"]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="SpawnZones(Bat)/Area2D2"]
+position = Vector2(1344.25, 619.5)
+shape = SubResource("RectangleShape2D_t7snr")
+
+[node name="Area2D3" type="Area2D" parent="SpawnZones(Bat)"]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="SpawnZones(Bat)/Area2D3"]
+position = Vector2(1270.5, 869.75)
+shape = SubResource("RectangleShape2D_phwsh")
+
+[node name="Area2D4" type="Area2D" parent="SpawnZones(Bat)"]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="SpawnZones(Bat)/Area2D4"]
+position = Vector2(559.5, 1302.5)
+shape = SubResource("RectangleShape2D_k4ke2")
+
+[node name="Area2D5" type="Area2D" parent="SpawnZones(Bat)"]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="SpawnZones(Bat)/Area2D5"]
+position = Vector2(786.5, 1227.25)
+shape = SubResource("RectangleShape2D_yd5pl")
+
+[node name="Area2D6" type="Area2D" parent="SpawnZones(Bat)"]
+position = Vector2(423, 1224.5)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="SpawnZones(Bat)/Area2D6"]
+position = Vector2(890.5, 208.5)
+shape = SubResource("RectangleShape2D_kob5s")
+
+[node name="Area2D7" type="Area2D" parent="SpawnZones(Bat)"]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="SpawnZones(Bat)/Area2D7"]
+position = Vector2(423, 1224.5)
+shape = SubResource("RectangleShape2D_8e2l1")
+
+[node name="Area2D8" type="Area2D" parent="SpawnZones(Bat)"]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="SpawnZones(Bat)/Area2D8"]
+position = Vector2(2345, 1256.75)
+shape = SubResource("RectangleShape2D_bvrpd")
+
+[node name="Area2D9" type="Area2D" parent="SpawnZones(Bat)"]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="SpawnZones(Bat)/Area2D9"]
+position = Vector2(641, 635)
+shape = SubResource("RectangleShape2D_xffbt")
+
+[node name="Area2D10" type="Area2D" parent="SpawnZones(Bat)"]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="SpawnZones(Bat)/Area2D10"]
+position = Vector2(312, 928.375)
+shape = SubResource("RectangleShape2D_3u848")
+
 [connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_canvas_layer_go_to_main_menu"]
+[connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_pause_menu_go_to_main_menu"]

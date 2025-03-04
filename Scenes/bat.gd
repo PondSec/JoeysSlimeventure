@@ -7,16 +7,18 @@ const ATTACK_COOLDOWN = 1.5
 const MIN_DISTANCE = 5.0
 const RESPAWN_COOLDOWN = 5
 const BASE_DETECTION_RADIUS = 150.0  # Kleinerer Radius für nicht-glühenden Spieler
-const NAVIGATION_UPDATE_INTERVAL = 1  # Alle 0.5 Sekunden aktualisieren
+const NAVIGATION_UPDATE_INTERVAL = 0.5  # Alle 0.5 Sekunden aktualisieren
 
 var navigation_update_timer = 0.0  # Timer für die Navigation
 var is_dead := false
-var health := 50
+var bat_health := 50
 var is_attacking := false
 var attack_timer := 0.0
 var knockback_velocity := Vector2.ZERO
 var is_knocked_back := false
 var is_stunned := false  # Neue Variable für Stun-Zustand
+var bat_position: Vector2 = Vector2.ZERO  # Standardwert setzen
+var save_load = preload("res://SaveLoad.gd").new()
 
 var loot_table = [
 	{ "scene": preload("res://Scenes/Items/bat_claw.tscn"), "chance": 0.12 },  # 12% Chance (seltener)
@@ -29,6 +31,7 @@ var loot_table = [
 
 
 @export var player: CharacterBody2D
+@export var spawn_zone_container: Node2D
 @onready var animation_player = $Sprite2D/AnimationPlayer
 @onready var navigation_agent = $NavigationAgent2D
 @onready var camera: Camera2D = $Camera2D  # Kamera für Effekte
@@ -37,6 +40,8 @@ var loot_table = [
 func _ready() -> void:
 	randomize()
 	add_to_group("enemies")
+	add_to_group("bats")
+	bat_position = global_position
 
 func _physics_process(delta: float) -> void:
 	if is_dead or is_stunned or player == null or player.current_health <= 0:
@@ -137,11 +142,11 @@ func take_damage(amount: int) -> void:
 	if is_dead:
 		return
 
-	health -= amount
+	bat_health -= amount
 	flash_red()  # Blink-Effekt hinzufügen
 	apply_knockback()  # Rückstoß hinzufügen
 
-	if health <= 0:
+	if bat_health <= 0:
 		die()
 
 func flash_red():
@@ -201,55 +206,50 @@ func drop_loot():
 			get_parent().add_child(dropped_item)
 			return  # Stoppt die Funktion, sobald ein Item gedroppt wurde
 
-func is_valid_spawn_position(pos: Vector2) -> bool:
-	# Setze die Zielposition für den NavigationAgent2D
-	navigation_agent.target_position = pos
+func get_random_spawn_position() -> Vector2:
+	if not spawn_zone_container or spawn_zone_container.get_child_count() == 0:
+		print("FEHLER: Keine gültigen Spawn-Zonen gefunden!")
+		return global_position  # Fallback auf aktuelle Position
 
-	# Warte auf die Berechnung des Pfads
-	await get_tree().process_frame 
-
-	# Prüfe, ob der Agent die Position erreichen kann
-	var next_path_pos = navigation_agent.get_next_path_position()
-
-	# Wenn der nächste Path-Punkt sehr nah an der gewünschten Position ist, ist es gültig
-	if pos.distance_to(next_path_pos) < 5.0:
-		return true
+	var spawn_areas = spawn_zone_container.get_children().filter(func(node): return node is Area2D)
 	
-	return false
+	if spawn_areas.is_empty():
+		print("FEHLER: Keine Area2D-Zonen gefunden!")
+		return global_position
 
+	var selected_area = spawn_areas[randi() % spawn_areas.size()]
+	var shape = selected_area.get_node_or_null("CollisionShape2D")
+
+	if shape and shape.shape is RectangleShape2D:
+		var rect = shape.shape.extents * 2  # Volle Größe des Rechtecks
+		var top_left = selected_area.global_position - shape.shape.extents
+		var random_pos = top_left + Vector2(randf_range(0, rect.x), randf_range(0, rect.y))
+		return random_pos
+	
+	elif shape and shape.shape is CircleShape2D:
+		var radius = shape.shape.radius
+		var angle = randf_range(0, TAU)
+		var distance = sqrt(randf()) * radius  # Gleichmäßige Verteilung im Kreis
+		return selected_area.global_position + Vector2(cos(angle), sin(angle)) * distance
+
+	print("WARNUNG: Area2D hat keine gültige CollisionShape2D!")
+	return global_position  # Fallback
 
 func spawn_near_player() -> void:
 	if not player:
 		print("FEHLER: Kein Spieler gefunden!")
 		return
 
-	var valid_position_found = false
-	var new_position = global_position  # Fallback
+	var new_position = get_random_spawn_position()
 
-	for i in range(10):  # 10 Versuche für eine gültige Position
-		var random_offset = Vector2(
-			randf_range(-200, 200),
-			randf_range(-200, 200)
-		)
-		var candidate_position = player.global_position + random_offset
+	# Debugging
+	print("Fledermaus spawnt bei:", new_position)
 
-		if candidate_position.distance_to(player.global_position) >= MIN_DISTANCE and await is_valid_spawn_position(candidate_position):
-			new_position = candidate_position
-			valid_position_found = true
-			break
-
-	if not valid_position_found:
-		print("WARNUNG: Keine ideale Spawn-Position gefunden, Respawn abgebrochen.")
-		return  # Fledermaus wird nicht gespawnt, wenn keine gültige Position gefunden wird
-
-	# Debugging: Zeige, wo die Fledermaus gespawnt wird
-	print("Fledermaus respawned bei:", new_position)
-
-	# Stelle sicher, dass die Fledermaus sichtbar und aktiv ist
+	# Setze die Position und aktiviere die Fledermaus
 	global_position = new_position
 	show()
 	set_deferred("collision_layer", 1)
 	set_deferred("collision_mask", 1)
-	modulate = Color(1, 1, 1, 1)  # Falls sie unsichtbar bleibt
+	modulate = Color(1, 1, 1, 1)
 	is_dead = false
-	health = 50 
+	bat_health = 50
