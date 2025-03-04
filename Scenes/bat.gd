@@ -25,7 +25,8 @@ var loot_table = [
 	{ "scene": preload("res://Scenes/Items/copper_nugget.tscn"), "chance": 0.22 },  # 22% Chance (häufiger)
 	{ "scene": preload("res://Scenes/Items/iron_nugget.tscn"), "chance": 0.08 },  # 8% Chance (seltener)
 	{ "scene": preload("res://Scenes/Items/gold_nugget.tscn"), "chance": 0.02 },  # 2% Chance (deutlich seltener)
-	{ "scene": null, "chance": 0.54 }  # 54% Chance, dass nichts droppt (erschwert Loot-Farming)
+	{ "scene": preload("res://Scenes/Items/bat_artefact.tscn"), "chance": 0.005}, #0.5% Chance (extrem selten)
+	{ "scene": null, "chance": 0.535 }  # 54% Chance, dass nichts droppt (erschwert Loot-Farming)
 ]
 
 
