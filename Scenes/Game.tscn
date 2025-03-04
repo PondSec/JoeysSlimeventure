@@ -472,5 +472,5 @@ shape = SubResource("RectangleShape2D_xffbt")
 position = Vector2(312, 928.375)
 shape = SubResource("RectangleShape2D_3u848")
 
-[connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_canvas_layer_go_to_main_menu"]
 [connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_pause_menu_go_to_main_menu"]
+[connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_canvas_layer_go_to_main_menu"]
