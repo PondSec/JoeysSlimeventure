@@ -18,7 +18,7 @@
 [ext_resource type="PackedScene" uid="uid://0hg2cyfd6vle" path="res://Scenes/gameover.tscn" id="16_g18uv"]
 [ext_resource type="Script" path="res://InventorySystem/hot_bar.gd" id="17_1u0f7"]
 [ext_resource type="Texture2D" uid="uid://dyvglc0y8q8y7" path="res://Assets/Inventory/hotbar.png" id="18_4ugw6"]
-[ext_resource type="PackedScene" uid="uid://bdyxh0ed3s8nu" path="res://InventorySystem/slot.tscn" id="19_bypqy"]
+[ext_resource type="PackedScene" uid="uid://de82c5pup452l" path="res://InventorySystem/slot_hotbar.tscn" id="19_jqgo5"]
 
 [sub_resource type="GDScript" id="GDScript_381hh"]
 resource_name = "Player"
@@ -783,6 +783,7 @@ grow_vertical = 2
 scale = Vector2(6, 6)
 
 [node name="HotBar" type="Control" parent="CanvasLayer"]
+modulate = Color(1, 1, 1, 0.717647)
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 3
 anchors_preset = 0
@@ -816,31 +817,31 @@ grow_vertical = 2
 theme_override_constants/h_separation = -1
 columns = 9
 
-[node name="Slot" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_bypqy")]
+[node name="Slot_hotbar" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
 layout_mode = 2
 
-[node name="Slot2" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_bypqy")]
+[node name="Slot_hotbar2" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
 layout_mode = 2
 
-[node name="Slot3" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_bypqy")]
+[node name="Slot_hotbar3" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
 layout_mode = 2
 
-[node name="Slot4" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_bypqy")]
+[node name="Slot_hotbar4" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
 layout_mode = 2
 
-[node name="Slot5" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_bypqy")]
+[node name="Slot_hotbar5" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
 layout_mode = 2
 
-[node name="Slot6" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_bypqy")]
+[node name="Slot_hotbar6" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
 layout_mode = 2
 
-[node name="Slot7" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_bypqy")]
+[node name="Slot_hotbar7" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
 layout_mode = 2
 
-[node name="Slot8" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_bypqy")]
+[node name="Slot_hotbar8" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
 layout_mode = 2
 
-[node name="Slot9" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_bypqy")]
+[node name="Slot_hotbar9" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
 layout_mode = 2
 
 [node name="HealthLabel" type="Label" parent="CanvasLayer"]

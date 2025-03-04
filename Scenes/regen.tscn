@@ -1,0 +1,18 @@
+[gd_scene load_steps=2 format=3 uid="uid://disgia1i7s8cf"]
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_x6tcs"]
+particle_flag_disable_z = true
+emission_shape = 3
+emission_box_extents = Vector3(400, 0, 0)
+angle_min = 1.07288e-05
+angle_max = 1.07288e-05
+spread = 0.0
+gravity = Vector3(0, 50, 0)
+color = Color(0, 0.745098, 1, 0.768627)
+
+[node name="Regen" type="Node2D"]
+
+[node name="Regen" type="GPUParticles2D" parent="."]
+amount = 5000
+process_material = SubResource("ParticleProcessMaterial_x6tcs")
+lifetime = 10.0
