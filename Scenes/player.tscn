@@ -116,6 +116,8 @@ func _ready() -> void:
 	stun_timer.connect(\"timeout\", Callable(self, \"_on_stun_timer_timeout\"))
 	load_game()
 	load_dropped_items()
+	update_health_bar()
+	damage_timer.start()
 
 # Lebensanzeige aktualisieren
 func update_health_bar() -> void:
@@ -215,9 +217,9 @@ func _on_heal_timer_timeout() -> void:
 	# Nur heilen, wenn Heilung aktiv ist und der Spieler nicht voll geheilt ist
 	if is_healing_active and current_health < max_health:
 		var missing_health = max_health - current_health
-		var heal_amount = ceil(missing_health * 0.1)  # 10% des fehlenden Lebens
+		var heal_amount = max(5, ceil(missing_health * 0.15))  # Mindestens 5 HP oder 15 % des fehlenden Lebens
+		heal_amount = min(heal_amount, 25)  # Maximal 25 HP pro Tick
 		heal(heal_amount)
-
 
 func play_landing_animation() -> void:
 	is_landing = true
@@ -344,7 +346,8 @@ func load_dropped_items():
 func perform_attack() -> void:
 	if is_attacking or is_stunned:
 		return
-		
+	
+	stop_healing()
 	is_attacking = true
 	$PlayerSprite/AttackSprite.flip_h = is_facing_left
 	$PlayerSprite/AttackSprite.play(\"swing\")
@@ -352,6 +355,7 @@ func perform_attack() -> void:
 	await get_tree().create_timer(0.5).timeout
 	is_attacking = false
 	attack_area.monitoring = false
+	damage_timer.start()
 
 # Leuchteffekt aktualisieren
 func update_glow_state() -> void:
@@ -360,35 +364,24 @@ func update_glow_state() -> void:
 # Importiere diese Zeile in deine `take_damage`-Funktion, um den Partikel-Effekt zu aktivieren
 func take_damage(amount: int, hit_source: Vector2) -> void:
 	current_health -= amount
-	show_damage_text(amount, false)  # Zeigt den erlittenen Schaden an
+	show_damage_text(amount, false)  
 	flash_damage_color()
-	
-	# Partikel-Emitter aktivieren
-	var hit_particles = $PlayerSprite/HitParticles  # Referenz zum CPUParticles2D-Knoten
-	hit_particles.emitting = true  # Partikel einmal emittieren
 
-	# Spieler für kurze Zeit stunnen
+	# Knockback und Stun wie bisher
 	is_stunned = true
-	stun_timer.start()  # Stun-Timer starten
+	stun_timer.start()  
 
-	# Knockback-Effekt
-	var knockback_direction = (global_position - hit_source).normalized()  # Richtung vom Trefferpunkt weg
-	var knockback_force = knockback_direction * Vector2(200, -50)  # X-Kraft nach hinten, Y-Kraft leicht nach oben
+	# Setze Heilung zurück und verlängere Verzögerung
+	stop_healing()
+	damage_timer.wait_time = 3.0  # Erhöhe Verzögerung vor Heilung
+	damage_timer.start()
 
-	velocity += knockback_force  # Geschwindigkeit anpassen
-
-	# Langsames Abklingen des Knockbacks für weichen Effekt
-	var tween = get_tree().create_tween()
-	tween.tween_property(self, \"velocity\", Vector2.ZERO, 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-
+	# Falls der Spieler stirbt
 	if current_health <= 0:
 		current_health = 0
 		die()
+	
 	update_health_bar()
-	stop_healing()  # Stoppe die Heilung, wenn Schaden erlitten wird
-	damage_timer.start()
-
-
 
 func _on_stun_timer_timeout() -> void:
 	is_stunned = false  # Spieler kann sich wieder bewegen
@@ -447,10 +440,12 @@ func collect(item):
 	inv.Insert(item)
 
 func save_game():
-	save_load.save_game(self)
+	var bats = get_tree().get_nodes_in_group(\"bats\")  # 🦇 Alle Fledermäuse holen
+	save_load.save_game(self, bats)  # Spieler & Fledermäuse speichern
 
 func load_game():
-	save_load.load_game(self)
+	var bat_scene = preload(\"res://Scenes/bat.tscn\")  # 🦇 Vorlage für Fle	dermäuse
+	save_load.load_game(self, bat_scene)  # Spieler & Fledermäuse laden
 
 func _exit_tree():
 	save_game()  # Speichert das Spiel, wenn das Spiel beendet wird
