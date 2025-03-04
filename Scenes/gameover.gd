@@ -31,7 +31,7 @@ func _on_RestartButton_pressed():
 	if player:
 		player.set_process(true)  # Prozess wieder aktivieren
 		player.set_physics_process(true)  # Physikprozess wieder aktivieren
-		player.global_position = Vector2(271, 768)  # Position zurücksetzen
+		player.global_position = Vector2(271, 770)  # Position zurücksetzen
 		player.current_health = 100  # Leben auf 100 setzen
 		if player.has_method("update_health_bar"):  # Falls der Spieler eine Lebensanzeige hat
 			player.update_health_bar()
