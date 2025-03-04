@@ -1,4 +1,4 @@
-[gd_scene load_steps=27 format=3 uid="uid://b6ublycstdj8n"]
+[gd_scene load_steps=30 format=3 uid="uid://b6ublycstdj8n"]
 
 [ext_resource type="Texture2D" uid="uid://cildswtcj7qrc" path="res://Assets/slime-sprite.png" id="1_4yq4u"]
 [ext_resource type="Resource" uid="uid://0rntjh2xt5s5" path="res://InventorySystem/playerinv.tres" id="1_e7ml4"]
@@ -16,6 +16,9 @@
 [ext_resource type="Texture2D" uid="uid://dg4h8q8vjxyh" path="res://Assets/GUI/Healthbar/over.png" id="13_d3fsm"]
 [ext_resource type="PackedScene" uid="uid://b0a5ssuwf6jb5" path="res://InventorySystem/inv_ui.tscn" id="15_qbc48"]
 [ext_resource type="PackedScene" uid="uid://0hg2cyfd6vle" path="res://Scenes/gameover.tscn" id="16_g18uv"]
+[ext_resource type="Script" path="res://InventorySystem/hot_bar.gd" id="17_1u0f7"]
+[ext_resource type="Texture2D" uid="uid://dyvglc0y8q8y7" path="res://Assets/Inventory/hotbar.png" id="18_4ugw6"]
+[ext_resource type="PackedScene" uid="uid://bdyxh0ed3s8nu" path="res://InventorySystem/slot.tscn" id="19_bypqy"]
 
 [sub_resource type="GDScript" id="GDScript_381hh"]
 resource_name = "Player"
@@ -706,3 +709,64 @@ offset_bottom = -170.0
 grow_horizontal = 2
 grow_vertical = 2
 scale = Vector2(6, 6)
+
+[node name="HotBar" type="Control" parent="CanvasLayer"]
+custom_minimum_size = Vector2(40, 40)
+layout_mode = 3
+anchors_preset = 0
+offset_left = 665.0
+offset_top = 517.0
+offset_right = 705.0
+offset_bottom = 557.0
+scale = Vector2(4, 4)
+script = ExtResource("17_1u0f7")
+
+[node name="NinePatchRect2" type="NinePatchRect" parent="CanvasLayer/HotBar"]
+layout_mode = 0
+offset_top = 90.0
+offset_right = 164.0
+offset_bottom = 118.0
+texture = ExtResource("18_4ugw6")
+
+[node name="HotBarSlots" type="GridContainer" parent="CanvasLayer/HotBar/NinePatchRect2"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -77.0
+offset_top = -9.0
+offset_right = 77.0
+offset_bottom = 9.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/h_separation = -1
+columns = 9
+
+[node name="Slot" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_bypqy")]
+layout_mode = 2
+
+[node name="Slot2" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_bypqy")]
+layout_mode = 2
+
+[node name="Slot3" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_bypqy")]
+layout_mode = 2
+
+[node name="Slot4" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_bypqy")]
+layout_mode = 2
+
+[node name="Slot5" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_bypqy")]
+layout_mode = 2
+
+[node name="Slot6" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_bypqy")]
+layout_mode = 2
+
+[node name="Slot7" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_bypqy")]
+layout_mode = 2
+
+[node name="Slot8" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_bypqy")]
+layout_mode = 2
+
+[node name="Slot9" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_bypqy")]
+layout_mode = 2
