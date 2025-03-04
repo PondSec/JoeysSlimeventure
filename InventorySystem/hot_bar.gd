@@ -40,9 +40,10 @@ func highlight_selected_slot():
 		hotbar_slots[i].modulate = Color(1, 1, 1, 1) if i == selected_slot_index else Color(0.7, 0.7, 0.7, 1)
 
 func use_item(hotbar_index):
-	var inv_index = inv.slots.size() - 9 + hotbar_index  # Zugehöriger Inventarslot
+	# Berechnung des richtigen Inventar-Slots
+	var inv_index = inv.slots.size() - 9 + hotbar_index  
 	var slot = inv.slots[inv_index]
 
 	if slot.item:
 		print("Benutze", slot.item.name)
-		# Hier eigene Logik für die Item-Nutzung einfügen (Essen, Trinken, Waffe, etc.)
+		# Hier deine Item-Nutzung hinzufügen (z. B. Trinken, Waffen etc.)
