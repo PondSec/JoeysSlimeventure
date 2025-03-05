@@ -65,4 +65,4 @@ shadow_enabled = true
 shadow_filter = 1
 shadow_filter_smooth = 64.0
 texture = ExtResource("2_sr0ye")
-texture_scale = 4.77
+texture_scale = 5.0

@@ -6,7 +6,7 @@
 [ext_resource type="PackedScene" uid="uid://de82c5pup452l" path="res://InventorySystem/slot_hotbar.tscn" id="4_6xbyo"]
 
 [node name="InvUI" type="Control"]
-modulate = Color(1, 1, 1, 0.717647)
+modulate = Color(1, 1, 1, 0.937255)
 custom_minimum_size = Vector2(208, 98)
 layout_mode = 3
 anchors_preset = 0
