@@ -139,6 +139,7 @@ func update_health_bonus():
 func update_health_bar() -> void:
 	# Setze den Wert der Lebensanzeige basierend auf dem aktuellen Gesundheitswert
 	health_bar.value = current_health
+	health_bar.max_value = max_health
 
 func _process(delta: float) -> void:
 	if is_landing:
@@ -667,12 +668,13 @@ shape = SubResource("RectangleShape2D_uwm2o")
 
 [node name="PlayerGlow" type="PointLight2D" parent="."]
 position = Vector2(0.000183105, 0)
-color = Color(0.623529, 1, 0.580392, 1)
+color = Color(0.56466, 1, 0.517037, 1)
+energy = 0.9
 shadow_enabled = true
 shadow_filter = 1
 shadow_filter_smooth = 64.0
 texture = ExtResource("1_p71sj")
-texture_scale = 3.9
+texture_scale = 2.5
 
 [node name="PlayerSprite" type="Sprite2D" parent="."]
 position = Vector2(0.000183105, -71.4286)
