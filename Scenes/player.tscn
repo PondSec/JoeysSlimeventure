@@ -127,13 +127,15 @@ func _ready() -> void:
 	inv.update.connect(update_health_bonus)
 
 func update_health_bonus():
-	var bonus = 0.0
+	var bonus = 1.0  # Startwert für Multiplikation
+
 	for slot in inv.slots:
-		if slot.item:
-			bonus += slot.item.health_bonus
-	
-	max_health = base_max_health * (1.0 + bonus)  # Max HP mit Bonus
-	current_health = min(current_health, max_health)  # Falls Heilung nötig
+		if slot.item and slot.amount > 0:  # Falls der Slot gültig ist und Items enthält
+			bonus += slot.item.health_bonus * slot.amount  # Multipliziere mit Stack-Anzahl
+
+	max_health = base_max_health * bonus
+	current_health = min(current_health, max_health)
+
 
 # Lebensanzeige aktualisieren
 func update_health_bar() -> void:
