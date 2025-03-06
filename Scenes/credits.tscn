@@ -85,7 +85,8 @@ theme_override_fonts/font = ExtResource("1_sgjby")
 theme_override_font_sizes/font_size = 25
 text = "Programmed by:
 
-Joshua Pond"
+Joshua Pond
+Jannis Döring"
 horizontal_alignment = 1
 vertical_alignment = 1
 

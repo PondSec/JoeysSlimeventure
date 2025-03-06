@@ -2,6 +2,7 @@ extends Control
 
 @onready var inv: Inv = preload("res://InventorySystem/playerinv.tres")
 @onready var slots: Array = $NinePatchRect/GridContainer.get_children()
+@onready var spind_ui = $SpindUI
 
 var is_open = false
 var dragging_item = null
@@ -9,6 +10,7 @@ var dragging_sprite = null
 var dragging_slot_index = -1
 var detected_slot_index = -1
 var dragging_item_scale = 0.5  # Skalierungsfaktor
+
 
 # Speicherpfad
 var save_path = "user://inventory.save"

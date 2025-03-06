@@ -18,7 +18,7 @@
 [ext_resource type="PackedScene" uid="uid://0hg2cyfd6vle" path="res://Scenes/gameover.tscn" id="16_g18uv"]
 [ext_resource type="Script" path="res://InventorySystem/hot_bar.gd" id="17_1u0f7"]
 [ext_resource type="Texture2D" uid="uid://dyvglc0y8q8y7" path="res://Assets/Inventory/hotbar.png" id="18_4ugw6"]
-[ext_resource type="PackedScene" uid="uid://bdyxh0ed3s8nu" path="res://InventorySystem/slot.tscn" id="19_bypqy"]
+[ext_resource type="PackedScene" uid="uid://de82c5pup452l" path="res://InventorySystem/slot_hotbar.tscn" id="19_jqgo5"]
 
 [sub_resource type="GDScript" id="GDScript_381hh"]
 resource_name = "Player"
@@ -127,18 +127,21 @@ func _ready() -> void:
 	inv.update.connect(update_health_bonus)
 
 func update_health_bonus():
-	var bonus = 0.0
+	var bonus = 1.0  # Startwert für Multiplikation
+
 	for slot in inv.slots:
-		if slot.item:
-			bonus += slot.item.health_bonus
-	
-	max_health = base_max_health * (1.0 + bonus)  # Max HP mit Bonus
-	current_health = min(current_health, max_health)  # Falls Heilung nötig
+		if slot.item and slot.amount > 0:  # Falls der Slot gültig ist und Items enthält
+			bonus += slot.item.health_bonus * slot.amount  # Multipliziere mit Stack-Anzahl
+
+	max_health = base_max_health * bonus
+	current_health = min(current_health, max_health)
+
 
 # Lebensanzeige aktualisieren
 func update_health_bar() -> void:
 	# Setze den Wert der Lebensanzeige basierend auf dem aktuellen Gesundheitswert
 	health_bar.value = current_health
+	health_bar.max_value = max_health
 
 func _process(delta: float) -> void:
 	if is_landing:
@@ -667,12 +670,13 @@ shape = SubResource("RectangleShape2D_uwm2o")
 
 [node name="PlayerGlow" type="PointLight2D" parent="."]
 position = Vector2(0.000183105, 0)
-color = Color(0.623529, 1, 0.580392, 1)
+color = Color(0.56466, 1, 0.517037, 1)
+energy = 0.9
 shadow_enabled = true
 shadow_filter = 1
 shadow_filter_smooth = 64.0
 texture = ExtResource("1_p71sj")
-texture_scale = 3.9
+texture_scale = 2.5
 
 [node name="PlayerSprite" type="Sprite2D" parent="."]
 position = Vector2(0.000183105, -71.4286)
@@ -783,6 +787,7 @@ grow_vertical = 2
 scale = Vector2(6, 6)
 
 [node name="HotBar" type="Control" parent="CanvasLayer"]
+modulate = Color(1, 1, 1, 0.717647)
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 3
 anchors_preset = 0
@@ -816,31 +821,31 @@ grow_vertical = 2
 theme_override_constants/h_separation = -1
 columns = 9
 
-[node name="Slot" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_bypqy")]
+[node name="Slot_hotbar" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
 layout_mode = 2
 
-[node name="Slot2" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_bypqy")]
+[node name="Slot_hotbar2" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
 layout_mode = 2
 
-[node name="Slot3" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_bypqy")]
+[node name="Slot_hotbar3" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
 layout_mode = 2
 
-[node name="Slot4" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_bypqy")]
+[node name="Slot_hotbar4" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
 layout_mode = 2
 
-[node name="Slot5" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_bypqy")]
+[node name="Slot_hotbar5" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
 layout_mode = 2
 
-[node name="Slot6" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_bypqy")]
+[node name="Slot_hotbar6" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
 layout_mode = 2
 
-[node name="Slot7" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_bypqy")]
+[node name="Slot_hotbar7" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
 layout_mode = 2
 
-[node name="Slot8" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_bypqy")]
+[node name="Slot_hotbar8" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
 layout_mode = 2
 
-[node name="Slot9" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_bypqy")]
+[node name="Slot_hotbar9" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
 layout_mode = 2
 
 [node name="HealthLabel" type="Label" parent="CanvasLayer"]

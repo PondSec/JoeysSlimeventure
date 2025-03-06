@@ -7,4 +7,4 @@
 script = ExtResource("1_4tvji")
 name = "bat_artefact"
 texture = ExtResource("2_6oehd")
-health_bonus = 0.15
+health_bonus = 0.25

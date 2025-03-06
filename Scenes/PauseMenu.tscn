@@ -20,7 +20,7 @@ layout_mode = 2
 offset_left = 800.0
 offset_top = 400.0
 offset_right = 1200.0
-offset_bottom = 607.0
+offset_bottom = 609.0
 
 [node name="ContinueButton" type="TextureButton" parent="ColorRect/VBoxContainer"]
 layout_mode = 2
