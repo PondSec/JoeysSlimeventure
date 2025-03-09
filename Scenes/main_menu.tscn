@@ -20,13 +20,23 @@
 resource_name = "menu"
 script/source = "extends Control
 
-const CONFIG_PATH = \"user://settings.cfg\"  # Speicherort für die Einstellungen
-
+const CONFIG_PATH = \"user://settings.cfg\"
 var config := ConfigFile.new()
+@onready var api_script = preload(\"res://Scenes/api.tscn\").instantiate()  # Verwende 'instantiate()' statt 'instance()'
 
+# Called when the node enters the scene tree for the first time.
 func _ready() -> void:
 	$BackgroundSprite/AnimationPlayer.play(\"loop\")  
 	load_settings()  # Lade die gespeicherten Einstellungen
+	
+	# Füge das API-Skript zur aktuellen Szene hinzu
+	add_child(api_script)
+
+	# Wenn du möchtest, dass der API-Aufruf direkt beim Start des Hauptmenüs getriggert wird, kannst du hier den API-Aufruf starten.
+	api_script.send_request()
+
+	# Eventuell hier auch deine anderen Logiken für das Hauptmenü, wie z.B. das Laden von UI-Elementen
+	print(\"Hauptmenü geladen, API-Daten werden abgerufen.\")
 
 # LÄDT die gespeicherten Einstellungen
 func load_settings() -> void:
@@ -59,6 +69,7 @@ func set_resolution(index: int) -> void:
 	if index >= 0 and index < resolutions.size():
 		DisplayServer.window_set_size(resolutions[index])
 
+# Beispielhafte Button-Handler, die Szenenwechsel durchführen
 func _on_credits_button_pressed() -> void:
 	change_scene(\"res://Scenes/credits.tscn\")
 
