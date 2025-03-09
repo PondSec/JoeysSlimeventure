@@ -1,4 +1,4 @@
-[gd_scene load_steps=17 format=3 uid="uid://lud4ledapwml"]
+[gd_scene load_steps=20 format=3 uid="uid://lud4ledapwml"]
 
 [ext_resource type="Texture2D" uid="uid://4myegyrrm76e" path="res://Assets/MainMenu/background_sprite.png" id="1_v1qke"]
 [ext_resource type="AudioStream" uid="uid://d23kx57arto1m" path="res://Assets/Sounds/8-bit-retro-game-music-233964.mp3" id="2_duyn5"]
@@ -6,7 +6,10 @@
 [ext_resource type="Texture2D" uid="uid://cbto82p5b3me0" path="res://Assets/MainMenu/title.png" id="3_s41hg"]
 [ext_resource type="Texture2D" uid="uid://b404nielt6nu6" path="res://Assets/GUI/PlayButton/button1_pressed.png" id="4_70y1n"]
 [ext_resource type="Texture2D" uid="uid://cqynbv42p0c7b" path="res://Assets/GUI/PlayButton/button1_hover.png" id="5_2ihhd"]
+[ext_resource type="Texture2D" uid="uid://ga7u1xit84wp" path="res://Assets/GUI/Restart Button/button1.png" id="6_bk722"]
+[ext_resource type="Texture2D" uid="uid://dt8cjsgcha48f" path="res://Assets/GUI/Restart Button/button1_pressed.png" id="7_cpb3f"]
 [ext_resource type="Texture2D" uid="uid://di548v6ushf2g" path="res://Assets/GUI/QuitButton/button1.png" id="7_frrdd"]
+[ext_resource type="Texture2D" uid="uid://b16qb2h34n5qk" path="res://Assets/GUI/Restart Button/button1_hover.png" id="8_0u6j0"]
 [ext_resource type="Texture2D" uid="uid://cbul8tkeg6rsb" path="res://Assets/GUI/QuitButton/button1_pressed.png" id="8_fuqek"]
 [ext_resource type="Texture2D" uid="uid://ccpn3momywxaq" path="res://Assets/GUI/QuitButton/button1_hover.png" id="9_4dl0d"]
 [ext_resource type="Texture2D" uid="uid://byh2v56ttt30u" path="res://Assets/GUI/CreditsButton/button1.png" id="9_oyvpb"]
@@ -17,51 +20,70 @@
 resource_name = "menu"
 script/source = "extends Control
 
-# Called when the node enters the scene tree for the first time.
-func _ready() -> void:
-	$BackgroundSprite/AnimationPlayer.play(\"loop\")
-	pass
+const CONFIG_PATH = \"user://settings.cfg\"  # Speicherort für die Einstellungen
 
+var config := ConfigFile.new()
+
+func _ready() -> void:
+	$BackgroundSprite/AnimationPlayer.play(\"loop\")  
+	load_settings()  # Lade die gespeicherten Einstellungen
+
+# LÄDT die gespeicherten Einstellungen
+func load_settings() -> void:
+	if config.load(CONFIG_PATH) != OK:
+		return  # Datei existiert nicht -> Standardwerte bleiben
+	
+	# Volume laden
+	var volume = config.get_value(\"audio\", \"volume\", 0.0)
+	AudioServer.set_bus_volume_db(0, volume)
+	
+	# Mute-Status laden
+	var mute = config.get_value(\"audio\", \"mute\", false)
+	AudioServer.set_bus_mute(0, mute)
+	
+	# Auflösung laden
+	var resolution_index = config.get_value(\"graphics\", \"resolution\", 2)
+	set_resolution(resolution_index)
+
+# Anwenden der gespeicherten Auflösung
+func set_resolution(index: int) -> void:
+	var resolutions = [
+		Vector2i(3840, 2160),
+		Vector2i(2560, 1440),
+		Vector2i(1920, 1080),
+		Vector2i(1600, 900),
+		Vector2i(1366, 768),
+		Vector2i(1280, 720)
+	]
+	
+	if index >= 0 and index < resolutions.size():
+		DisplayServer.window_set_size(resolutions[index])
 
 func _on_credits_button_pressed() -> void:
-	# Lade die \"Game\"-Szene als PackedScene
-	var credit_scene = load(\"res://Scenes/credits.tscn\")  # Hier wird die Kreditszene geladen
-
-	# Überprüfe, ob die Szene erfolgreich geladen wurde
-	if credit_scene == null:
-		print(\"Fehler: Die Szene konnte nicht geladen werden.\")
-		return  # Beende die Funktion, wenn die Szene nicht geladen werden konnte
-
-	# Entferne die Hauptmenüszene aus dem Szenenbaum
-	var current_scene = get_tree().current_scene  # Aktuelle Szene holen
-	if current_scene != null:
-		current_scene.queue_free()  # Entfernt die aktuelle Szene sicher aus dem Baum
-
-	# Instanziiere und füge die Kreditszene hinzu
-	var scene_instance = credit_scene.instantiate()
-	get_tree().root.add_child(scene_instance)
-	get_tree().current_scene = scene_instance  # Setze die neue Szene als aktuelle Szene
-
+	change_scene(\"res://Scenes/credits.tscn\")
 
 func _on_play_button_pressed() -> void:
-	# Lade die \"Game\"-Szene als PackedScene
-	var game_scene = load(\"res://Scenes/Game.tscn\")  # Hier wird die Szene geladen
-	
-	# Überprüfe, ob die Szene erfolgreich geladen wurde
-	if game_scene == null:
-		print(\"Fehler: Die Szene konnte nicht geladen werden.\")
-		return  # Beende die Funktion, wenn die Szene nicht geladen werden konnte
-	
-	# Instanziiere die Szene
-	var scene_instance = game_scene.instantiate()  # Instanziiere die Szene
-	get_tree().current_scene.queue_free()  # Entlade die alte Szene
-
-	# Setze die neue Szene
-	get_tree().root.add_child(scene_instance)  # Füge die instanzierte Szene zur Root-Node hinzu
-
+	change_scene(\"res://Scenes/Game.tscn\")
 
 func _on_quit_button_pressed() -> void:
 	get_tree().quit()
+
+func _on_settings_button_pressed() -> void:
+	change_scene(\"res://Scenes/settings.tscn\")
+
+# Hilfsfunktion zum Wechseln der Szene
+func change_scene(scene_path: String) -> void:
+	var new_scene = load(scene_path)
+	if new_scene == null:
+		print(\"Fehler: Szene konnte nicht geladen werden.\")
+		return
+
+	var scene_instance = new_scene.instantiate()
+	if get_tree().current_scene:
+		get_tree().current_scene.queue_free()
+
+	get_tree().root.add_child(scene_instance)
+	get_tree().current_scene = scene_instance
 "
 
 [sub_resource type="Animation" id="Animation_jnf7q"]
@@ -138,7 +160,7 @@ position = Vector2(200, 580)
 [node name="MarginContainer" type="MarginContainer" parent="Buttons"]
 custom_minimum_size = Vector2(0, -100)
 offset_right = 400.0
-offset_bottom = 150.0
+offset_bottom = 386.0
 
 [node name="VBoxContainer" type="VBoxContainer" parent="Buttons/MarginContainer"]
 custom_minimum_size = Vector2(400, 300)
@@ -153,6 +175,24 @@ texture_normal = ExtResource("3_4bm64")
 texture_pressed = ExtResource("5_2ihhd")
 texture_hover = ExtResource("4_70y1n")
 stretch_mode = 0
+
+[node name="SettingsButton" type="TextureButton" parent="Buttons/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+action_mode = 0
+texture_normal = ExtResource("6_bk722")
+texture_pressed = ExtResource("7_cpb3f")
+texture_hover = ExtResource("8_0u6j0")
+stretch_mode = 0
+
+[node name="Label" type="Label" parent="Buttons/MarginContainer/VBoxContainer/SettingsButton"]
+layout_mode = 0
+offset_left = 110.0
+offset_top = 2.0
+offset_right = 511.0
+offset_bottom = 96.0
+scale = Vector2(3, 3)
+text = "Settings"
 
 [node name="CreditsButton" type="TextureButton" parent="Buttons/MarginContainer/VBoxContainer"]
 layout_mode = 2
@@ -184,9 +224,10 @@ offset_left = 1827.0
 offset_top = 1038.0
 offset_right = 1436.16
 offset_bottom = 722.144
-text = "v0.0.1.6"
+text = "v0.0.2.2"
 
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/PlayButton" to="." method="_on_play_button_pressed"]
+[connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/SettingsButton" to="." method="_on_settings_button_pressed"]
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/CreditsButton" to="." method="_on_credits_button_pressed"]
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/CreditsButton" to="." method="_on_texture_button_pressed"]
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/QuitButton" to="." method="_on_quit_button_pressed"]

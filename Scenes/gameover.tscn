@@ -1,8 +1,9 @@
-[gd_scene load_steps=3 format=3 uid="uid://0hg2cyfd6vle"]
+[gd_scene load_steps=5 format=3 uid="uid://0hg2cyfd6vle"]
 
-[ext_resource type="Script" path="res://Scenes/button.gd" id="1_vferj"]
-
-[sub_resource type="ButtonGroup" id="ButtonGroup_4dtyp"]
+[ext_resource type="Script" path="res://Scenes/gameover.gd" id="1_wp1rg"]
+[ext_resource type="Texture2D" uid="uid://ga7u1xit84wp" path="res://Assets/GUI/Restart Button/button1.png" id="2_uwop4"]
+[ext_resource type="Texture2D" uid="uid://dt8cjsgcha48f" path="res://Assets/GUI/Restart Button/button1_pressed.png" id="3_in0sn"]
+[ext_resource type="Texture2D" uid="uid://b16qb2h34n5qk" path="res://Assets/GUI/Restart Button/button1_hover.png" id="4_bnl8j"]
 
 [node name="Control" type="Control"]
 layout_mode = 3
@@ -11,24 +12,36 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+script = ExtResource("1_wp1rg")
 
-[node name="Label" type="Label" parent="."]
-layout_mode = 0
-offset_left = 431.0
-offset_top = 222.0
-offset_right = 1169.0
-offset_bottom = 340.0
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+visible = false
+scale = Vector2(5, 5)
+transform = Transform2D(5, 0, 0, 5, 0, 0)
+
+[node name="Label" type="Label" parent="CanvasLayer"]
+offset_left = 153.0
+offset_top = 65.0
+offset_right = 240.0
+offset_bottom = 88.0
 text = "Game Over"
 
-[node name="Button" type="Button" parent="Label"]
+[node name="TextureButton" type="TextureButton" parent="CanvasLayer/Label"]
 layout_mode = 0
-offset_left = -1.0
-offset_top = 36.0
-offset_right = 89.0
-offset_bottom = 44.0
-toggle_mode = true
-action_mode = 0
-button_group = SubResource("ButtonGroup_4dtyp")
-text = "Restart
-"
-script = ExtResource("1_vferj")
+offset_left = -2.0
+offset_top = 38.2
+offset_right = 44.0
+offset_bottom = 52.2
+scale = Vector2(2, 2)
+texture_normal = ExtResource("2_uwop4")
+texture_pressed = ExtResource("3_in0sn")
+texture_hover = ExtResource("4_bnl8j")
+
+[node name="Label" type="Label" parent="CanvasLayer/Label/TextureButton"]
+layout_mode = 0
+offset_left = 9.7
+offset_top = -0.5
+offset_right = 66.7
+offset_bottom = 22.5
+scale = Vector2(0.5, 0.5)
+text = "Restart"

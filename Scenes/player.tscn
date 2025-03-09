@@ -1,6 +1,7 @@
-[gd_scene load_steps=24 format=3 uid="uid://b6ublycstdj8n"]
+[gd_scene load_steps=30 format=3 uid="uid://b6ublycstdj8n"]
 
 [ext_resource type="Texture2D" uid="uid://cildswtcj7qrc" path="res://Assets/slime-sprite.png" id="1_4yq4u"]
+[ext_resource type="Resource" uid="uid://0rntjh2xt5s5" path="res://InventorySystem/playerinv.tres" id="1_e7ml4"]
 [ext_resource type="Texture2D" uid="uid://c771vveh0silu" path="res://Assets/Light/light_white.png" id="1_p71sj"]
 [ext_resource type="Texture2D" uid="uid://quh4mac3hef1" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame0.png" id="3_ubp3h"]
 [ext_resource type="Texture2D" uid="uid://cjb4nq6aeftnv" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame1.png" id="4_6hcqa"]
@@ -13,6 +14,11 @@
 [ext_resource type="Script" path="res://Scenes/canvas_layer.gd" id="11_4apbi"]
 [ext_resource type="Texture2D" uid="uid://bhpr6uxcspd17" path="res://Assets/GUI/Healthbar/off.png" id="12_tc5iy"]
 [ext_resource type="Texture2D" uid="uid://dg4h8q8vjxyh" path="res://Assets/GUI/Healthbar/over.png" id="13_d3fsm"]
+[ext_resource type="PackedScene" uid="uid://b0a5ssuwf6jb5" path="res://InventorySystem/inv_ui.tscn" id="15_qbc48"]
+[ext_resource type="PackedScene" uid="uid://0hg2cyfd6vle" path="res://Scenes/gameover.tscn" id="16_g18uv"]
+[ext_resource type="Script" path="res://InventorySystem/hot_bar.gd" id="17_1u0f7"]
+[ext_resource type="Texture2D" uid="uid://dyvglc0y8q8y7" path="res://Assets/Inventory/hotbar.png" id="18_4ugw6"]
+[ext_resource type="PackedScene" uid="uid://de82c5pup452l" path="res://InventorySystem/slot_hotbar.tscn" id="19_jqgo5"]
 
 [sub_resource type="GDScript" id="GDScript_381hh"]
 resource_name = "Player"
@@ -42,13 +48,20 @@ var fall_distance := 10.0  # Berechnete Fallhöhe
 var heal_rate: float = 15.0  # Anfangsheilrate
 var min_heal_rate: float = 1  # Mindestheilrate, die nie unterschritten werden soll
 var heal_decay: float = 0.7  # Heilrate sinkt um diesen Betrag nach jeder Heilung
-var heal_interval: float = 1.5  # Intervall, in dem der Spieler geheilt wird (in Sekunden)
+var heal_interval: float = 2  # Intervall, in dem der Spieler geheilt wird (in Sekunden)
 var heal_timer: Timer = Timer.new()  # Timer für regelmäßige Heilung
 var is_healing_active: bool = false  # Flag, ob Heilung aktiv ist
 var healed_to_full: bool = false  # Flag, ob der Spieler voll geheilt wurde
 var damage_timer: Timer = Timer.new()  # Timer für den Schadensabstand
 var attack_damage: int = 15
 var is_stunned: bool = false  # Spieler kann sich während des Stuns nicht bewegen
+var inventory = {}  # Ein Dictionary für das Inventar
+var dropped_items = []  # Liste für persistente Speicherung
+var selected_hotbar_index: int = 0  # Standardmäßig der erste Slot
+
+# Konstanten für den Fall-Schaden
+const FALL_DAMAGE_THRESHOLD = 1580  # Y-Position, ab der Schaden verursacht wird
+const FALL_DAMAGE = 30  # Schaden, der beim Fallen verursacht wird
 
 # Referenzen zu Knoten
 var attack_sprite: AnimatedSprite2D
@@ -59,6 +72,7 @@ var glow_effect: PointLight2D
 # Variablen für das Lebenssystem
 var max_health: int = 100
 var current_health: int = 100
+var base_max_health = 100
 # Definiert die Originalfarbe und die Farbe, die bei Schaden angezeigt werden soll
 const COLOR_NORMAL = Color(0.62, 1.0, 0.58)  # Originalfarbe (9fff94 in Hex)
 const COLOR_DAMAGE = Color(1.0, 0.29, 0.29)  # Schadenfarbe (ff4a4a in Hex)
@@ -66,29 +80,26 @@ const COLOR_DAMAGE = Color(1.0, 0.29, 0.29)  # Schadenfarbe (ff4a4a in Hex)
 # Referenz zur Lebensanzeige (ProgressBar)
 @onready var health_bar: TextureProgressBar = $CanvasLayer/TextureProgressBar
 @onready var canvas_layer: CanvasLayer = $CanvasLayer  # Referenz zum CanvasLayer für die Tween-Animationen
+@onready var death_screen: Control = get_node(\"CanvasLayer/GameOver\")
+@export var inv: Inv
+@onready var health_label = $CanvasLayer/HealthLabel
 
 var stun_timer: Timer = Timer.new()
+var save_load = preload(\"res://SaveLoad.gd\").new()
 
 func _ready() -> void:
+	glow_effect = $PlayerGlow
 	# Initialisiere Angriffsknoten
 	attack_sprite = $PlayerSprite/AttackSprite
 	attack_area = $PlayerSprite/AttackSprite/AttackArea
-
 	# Deaktiviere das Angriffskollisionsgebiet anfänglich
 	attack_area.monitoring = false
 	attack_area.connect(\"body_entered\", Callable(self, \"_on_attack_area_body_entered\"))
-
-	# Spieler zur \"players\" Gruppe hinzufügen
+	
+	death_screen.visible = false
+	
 	add_to_group(\"players\")
-
-	# Initialisiere den Leuchteffekt (PointLight2D)
-	glow_effect = $PlayerGlow
-	glow_effect.visible = true  # aktiviere den Leuchteffekt anfänglich
-
-	# Setze die Lebensanzeige
 	update_health_bar()
-
-	# Deaktiviere das Schadens-Label zunächst
 	damage_label.visible = false
 	
 	# Füge den Heil-Timer als Kind hinzu und starte ihn
@@ -106,15 +117,31 @@ func _ready() -> void:
 	
 	# Stun-Timer initialisieren
 	add_child(stun_timer)
-	stun_timer.wait_time = 1  # Spieler ist 0,5 Sekunden gestunned
+	stun_timer.wait_time = 0.5  # Spieler ist 0,5 Sekunden gestunned
 	stun_timer.one_shot = true
 	stun_timer.connect(\"timeout\", Callable(self, \"_on_stun_timer_timeout\"))
+	load_game()
+	load_dropped_items()
+	update_health_bar()
+	damage_timer.start()
+	inv.update.connect(update_health_bonus)
+
+func update_health_bonus():
+	var bonus = 1.0  # Startwert für Multiplikation
+
+	for slot in inv.slots:
+		if slot.item and slot.amount > 0:  # Falls der Slot gültig ist und Items enthält
+			bonus += slot.item.health_bonus * slot.amount  # Multipliziere mit Stack-Anzahl
+
+	max_health = base_max_health * bonus
+	current_health = min(current_health, max_health)
+
 
 # Lebensanzeige aktualisieren
 func update_health_bar() -> void:
 	# Setze den Wert der Lebensanzeige basierend auf dem aktuellen Gesundheitswert
 	health_bar.value = current_health
-
+	health_bar.max_value = max_health
 
 func _process(delta: float) -> void:
 	if is_landing:
@@ -128,6 +155,12 @@ func _process(delta: float) -> void:
 	if Input.is_action_just_pressed(\"Glow\"):
 		is_glowing = !is_glowing
 		update_glow_state()
+
+	if Input.is_action_just_pressed(\"drop_item\"):  
+		drop_hotbar_item()
+		
+	if health_label:
+		health_label.text = \"HP: \" + str(current_health)  # Zeigt die HP an
 
 func _physics_process(delta: float) -> void:
 	# Falls gestunned, keine Steuerung erlauben, aber Schwerkraft beibehalten
@@ -148,6 +181,13 @@ func _physics_process(delta: float) -> void:
 
 		was_in_air = true
 		velocity.y += GRAVITY * delta
+		
+		# Berechne die Fallhöhe
+		fall_distance = fall_start_y - global_position.y
+		
+		# Füge Schaden hinzu, wenn der Spieler unter den Fall-Schaden-Schwellenwert fällt
+		if global_position.y > FALL_DAMAGE_THRESHOLD:
+			take_damage(FALL_DAMAGE, global_position)  # Schaden anwenden, wenn der Spieler fällt
 
 		# Berechne die Fallhöhe
 		fall_distance = fall_start_y - global_position.y
@@ -164,7 +204,6 @@ func _physics_process(delta: float) -> void:
 	
 	if is_on_wall() and not is_on_floor():
 		is_wall_sliding = true
-		print(\"onwall\")
 		velocity.y = min(velocity.y, WALL_SLIDE_SPEED)
 		var current_wall_normal = get_wall_normal()
 		if current_wall_normal != last_wall_normal:
@@ -203,9 +242,9 @@ func _on_heal_timer_timeout() -> void:
 	# Nur heilen, wenn Heilung aktiv ist und der Spieler nicht voll geheilt ist
 	if is_healing_active and current_health < max_health:
 		var missing_health = max_health - current_health
-		var heal_amount = ceil(missing_health * 0.1)  # 10% des fehlenden Lebens
+		var heal_amount = max(5, ceil(missing_health * 0.15))  # Mindestens 5 HP oder 15 % des fehlenden Lebens
+		heal_amount = min(heal_amount, 25)  # Maximal 25 HP pro Tick
 		heal(heal_amount)
-
 
 func play_landing_animation() -> void:
 	is_landing = true
@@ -235,16 +274,105 @@ func _on_attack_area_body_entered(body) -> void:
 	if body.is_in_group(\"enemies\"):
 		body.take_damage(attack_damage)
 
-# Funktion, um den Spieler sterben zu lassen
 func die() -> void:
 	print(\"Der Spieler ist gestorben!\")
-	queue_free()
+	# Kollisionsabfrage deaktivieren, damit Items nicht aufgesammelt werden
+	$ColisionArea.set_deferred(\"disabled\", true) 
+	# Inventar droppen
+	drop_inventory_items()
+	save_game()
+	# Spieler unsichtbar machen
+	var save_file = FileAccess.open(\"user://inventory.save\", FileAccess.WRITE)
+	if FileAccess.file_exists(\"user://inventory.save\"):
+		DirAccess.remove_absolute(\"user://inventory.save\")
+		print(\"❌ Inventory-Datei gelöscht – Items werden nicht erneut geladen!\")
+	
+	self.visible = false  
+	# Prozesse stoppen
+	set_process(false)
+	set_physics_process(false)
+
+	# Death Screen anzeigen
+	death_screen.show_death_screen()
+	
+func drop_inventory_items() -> void:
+	if not inv or inv.slots.size() == 0:
+		return
+
+	for slot in inv.slots:
+		if slot.item and slot.amount > 0:
+			for i in range(slot.amount): 
+				var item_scene = load(\"res://Scenes/Items/\" + slot.item.name + \".tscn\")
+				var dropped_item = item_scene.instantiate()
+				dropped_item.global_position = global_position  
+				get_tree().current_scene.add_child(dropped_item)
+				
+				# Speichern der Position und des Item-Namens
+				dropped_items.append({
+					\"name\": slot.item.name,
+					\"position\": dropped_item.global_position
+				})
+		
+		slot.item = null
+		slot.amount = 0
+
+	inv.update.emit()
+	save_dropped_items()  # Speichere die Items
+
+
+func save_dropped_items():
+	var save_file = FileAccess.open(\"user://dropped_items.save\", FileAccess.WRITE)
+	
+	var formatted_data = []
+	for item in dropped_items:
+		formatted_data.append({
+			\"name\": item[\"name\"],
+			\"position\": [item[\"position\"].x, item[\"position\"].y]  # Speichern als Array
+		})
+	
+	save_file.store_string(JSON.stringify(formatted_data))
+	save_file.close()
+
+func load_dropped_items():
+	print(\"Lade gespeicherte Items...\")  # Debugging
+
+	if not FileAccess.file_exists(\"user://dropped_items.save\"):
+		print(\"Keine gespeicherte Datei gefunden!\")
+		return
+
+	var save_file = FileAccess.open(\"user://dropped_items.save\", FileAccess.READ)
+	var json_data = save_file.get_as_text()
+	save_file.close()
+
+	var parsed_data = JSON.parse_string(json_data)
+	if parsed_data is Array:
+		for item_data in parsed_data:
+			var item_scene = load(\"res://Scenes/Items/\" + item_data[\"name\"] + \".tscn\")
+			var dropped_item = item_scene.instantiate()
+
+			# Position setzen und zufälligen Offset hinzufügen
+			dropped_item.global_position = Vector2(item_data[\"position\"][0], item_data[\"position\"][1])
+			var random_offset = Vector2(randf_range(-10, 10), randf_range(-10, 10))
+			dropped_item.global_position += random_offset
+
+			# Sichtbarkeit setzen und Item zur Szene hinzufügen
+			dropped_item.visible = true
+			get_tree().current_scene.add_child(dropped_item)
+
+			# Leichte Verzögerung, um Lag zu vermeiden
+			await get_tree().create_timer(0.02).timeout
+
+	# ✅ Nach dem Laden die Speicherdatei löschen, damit Items nicht erneut gespawnt werden
+	if FileAccess.file_exists(\"user://dropped_items.save\"):
+		DirAccess.remove_absolute(\"user://dropped_items.save\")
+		print(\"❌ Drop-Datei gelöscht – Items werden nicht erneut geladen!\")
 
 # Angriff ausführen
 func perform_attack() -> void:
 	if is_attacking or is_stunned:
 		return
-		
+	
+	stop_healing()
 	is_attacking = true
 	$PlayerSprite/AttackSprite.flip_h = is_facing_left
 	$PlayerSprite/AttackSprite.play(\"swing\")
@@ -252,6 +380,7 @@ func perform_attack() -> void:
 	await get_tree().create_timer(0.5).timeout
 	is_attacking = false
 	attack_area.monitoring = false
+	damage_timer.start()
 
 # Leuchteffekt aktualisieren
 func update_glow_state() -> void:
@@ -260,35 +389,24 @@ func update_glow_state() -> void:
 # Importiere diese Zeile in deine `take_damage`-Funktion, um den Partikel-Effekt zu aktivieren
 func take_damage(amount: int, hit_source: Vector2) -> void:
 	current_health -= amount
-	show_damage_text(amount, false)  # Zeigt den erlittenen Schaden an
+	show_damage_text(amount, false)  
 	flash_damage_color()
-	
-	# Partikel-Emitter aktivieren
-	var hit_particles = $PlayerSprite/HitParticles  # Referenz zum CPUParticles2D-Knoten
-	hit_particles.emitting = true  # Partikel einmal emittieren
 
-	# Spieler für kurze Zeit stunnen
+	# Knockback und Stun wie bisher
 	is_stunned = true
-	stun_timer.start()  # Stun-Timer starten
+	stun_timer.start()  
 
-	# Knockback-Effekt
-	var knockback_direction = (global_position - hit_source).normalized()  # Richtung vom Trefferpunkt weg
-	var knockback_force = knockback_direction * Vector2(200, -50)  # X-Kraft nach hinten, Y-Kraft leicht nach oben
+	# Setze Heilung zurück und verlängere Verzögerung
+	stop_healing()
+	damage_timer.wait_time = 3.0  # Erhöhe Verzögerung vor Heilung
+	damage_timer.start()
 
-	velocity += knockback_force  # Geschwindigkeit anpassen
-
-	# Langsames Abklingen des Knockbacks für weichen Effekt
-	var tween = get_tree().create_tween()
-	tween.tween_property(self, \"velocity\", Vector2.ZERO, 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-
+	# Falls der Spieler stirbt
 	if current_health <= 0:
 		current_health = 0
 		die()
+	
 	update_health_bar()
-	stop_healing()  # Stoppe die Heilung, wenn Schaden erlitten wird
-	damage_timer.start()
-
-
 
 func _on_stun_timer_timeout() -> void:
 	is_stunned = false  # Spieler kann sich wieder bewegen
@@ -342,6 +460,73 @@ func heal(amount: int) -> void:
 	if current_health > max_health:
 		current_health = max_health  # Stelle sicher, dass max_health nicht überschritten wird
 	update_health_bar()
+
+func collect(item):
+	inv.Insert(item)
+
+func save_game():
+	var bats = get_tree().get_nodes_in_group(\"bats\")  # 🦇 Alle Fledermäuse holen
+	save_load.save_game(self, bats)  # Spieler & Fledermäuse speichern
+
+func load_game():
+	var bat_scene = preload(\"res://Scenes/bat.tscn\")  # 🦇 Vorlage für Fle	dermäuse
+	save_load.load_game(self, bat_scene)  # Spieler & Fledermäuse laden
+
+func _exit_tree():
+	save_game()  # Speichert das Spiel, wenn das Spiel beendet wird
+
+func drop_hotbar_item():
+	# Stelle sicher, dass ein Hotbar-Slot aktiv ist
+	if selected_hotbar_index < 0 or selected_hotbar_index > 8:
+		return
+	
+	# Berechne den tatsächlichen Inventar-Slot
+	var inv_index = inv.slots.size() - 9 + selected_hotbar_index  
+	var slot = inv.slots[inv_index]
+
+	# Überprüfen, ob ein Item im Slot vorhanden ist
+	if slot.item and slot.amount > 0:
+		print(\"Dropping:\", slot.item.name)  # Debugging-Info
+
+		# Item in die Welt spawnen
+		var item_scene = load(\"res://Scenes/Items/\" + slot.item.name + \".tscn\")
+		var dropped_item = item_scene.instantiate()
+
+		# Stelle sicher, dass das Item eine RigidBody2D ist
+		if dropped_item is RigidBody2D:
+			# Spieler-Blickrichtung berechnen (Wurf-Richtung)
+			var direction = (get_global_mouse_position() - global_position).normalized()
+
+			# Setze die Startposition etwas vor den Spieler
+			var drop_offset = direction * 25  # Item etwas nach vorne setzen
+			dropped_item.global_position = global_position + drop_offset
+
+			# **Hier kommt der Wurf-Impuls!**
+			var throw_force = direction * 400 + Vector2(0, -200)  # Starke Wurfkraft + Auftrieb
+			dropped_item.apply_central_impulse(throw_force)
+
+			# **Drehung für realistisches Fliegen**
+			dropped_item.angular_velocity = randf_range(-8, 8)  
+
+		# Item zur Szene hinzufügen
+		get_tree().current_scene.add_child(dropped_item)
+
+		# Ein Item entfernen, nicht den ganzen Stack
+		slot.amount -= 1
+		if slot.amount == 0:
+			slot.item = null  # Slot leeren
+
+		inv.update.emit()  # UI sofort aktualisieren
+
+func get_selected_hotbar_index() -> int:
+	# Falls du eine Variable hast, die den aktiven Hotbar-Slot speichert:
+	return selected_hotbar_index  
+
+func _input(event):
+	if event is InputEventKey and event.pressed:
+		if event.keycode >= KEY_1 and event.keycode <= KEY_9:
+			selected_hotbar_index = event.keycode - KEY_1  # 1 = Index 0, 2 = Index 1, etc.
+			print(\"Hotbar Slot gewechselt zu:\", selected_hotbar_index)  # Debugging
 "
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_uwm2o"]
@@ -475,6 +660,7 @@ position = Vector2(291, 687)
 scale = Vector2(0.07, 0.07)
 collision_mask = 3
 script = SubResource("GDScript_381hh")
+inv = ExtResource("1_e7ml4")
 
 [node name="ColisionArea" type="CollisionShape2D" parent="."]
 position = Vector2(0.000167847, 0.00012207)
@@ -484,12 +670,13 @@ shape = SubResource("RectangleShape2D_uwm2o")
 
 [node name="PlayerGlow" type="PointLight2D" parent="."]
 position = Vector2(0.000183105, 0)
-color = Color(0.623529, 1, 0.580392, 1)
+color = Color(0.56466, 1, 0.517037, 1)
+energy = 0.9
 shadow_enabled = true
 shadow_filter = 1
 shadow_filter_smooth = 64.0
 texture = ExtResource("1_p71sj")
-texture_scale = 3.9
+texture_scale = 2.5
 
 [node name="PlayerSprite" type="Sprite2D" parent="."]
 position = Vector2(0.000183105, -71.4286)
@@ -582,3 +769,88 @@ offset_bottom = 76.0
 nine_patch_stretch = true
 texture_under = ExtResource("12_tc5iy")
 texture_progress = ExtResource("13_d3fsm")
+
+[node name="GameOver" parent="CanvasLayer" instance=ExtResource("16_g18uv")]
+
+[node name="InvUI" parent="CanvasLayer" instance=ExtResource("15_qbc48")]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -477.0
+offset_top = -268.0
+offset_right = -269.0
+offset_bottom = -170.0
+grow_horizontal = 2
+grow_vertical = 2
+scale = Vector2(6, 6)
+
+[node name="HotBar" type="Control" parent="CanvasLayer"]
+modulate = Color(1, 1, 1, 0.717647)
+custom_minimum_size = Vector2(40, 40)
+layout_mode = 3
+anchors_preset = 0
+offset_left = 665.0
+offset_top = 517.0
+offset_right = 705.0
+offset_bottom = 557.0
+scale = Vector2(4, 4)
+script = ExtResource("17_1u0f7")
+
+[node name="NinePatchRect2" type="NinePatchRect" parent="CanvasLayer/HotBar"]
+layout_mode = 0
+offset_top = 90.0
+offset_right = 164.0
+offset_bottom = 118.0
+texture = ExtResource("18_4ugw6")
+
+[node name="HotBarSlots" type="GridContainer" parent="CanvasLayer/HotBar/NinePatchRect2"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -77.0
+offset_top = -9.0
+offset_right = 77.0
+offset_bottom = 9.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/h_separation = -1
+columns = 9
+
+[node name="Slot_hotbar" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
+layout_mode = 2
+
+[node name="Slot_hotbar2" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
+layout_mode = 2
+
+[node name="Slot_hotbar3" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
+layout_mode = 2
+
+[node name="Slot_hotbar4" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
+layout_mode = 2
+
+[node name="Slot_hotbar5" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
+layout_mode = 2
+
+[node name="Slot_hotbar6" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
+layout_mode = 2
+
+[node name="Slot_hotbar7" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
+layout_mode = 2
+
+[node name="Slot_hotbar8" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
+layout_mode = 2
+
+[node name="Slot_hotbar9" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
+layout_mode = 2
+
+[node name="HealthLabel" type="Label" parent="CanvasLayer"]
+offset_left = 39.0
+offset_top = 20.0
+offset_right = 169.0
+offset_bottom = 43.0
+text = "HP: 0000"
