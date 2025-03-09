@@ -11,3 +11,4 @@ class_name GameData
 @export var attack_damage: int
 @export var heal_rate: float
 @export var fall_distance: float
+@export var player_id: String
