@@ -16,7 +16,7 @@ If someone creates cool improvements or new content for the open-source version,
 
 ---
 
-## 🕹️ **Features**
+## ✨ **Features**
 
 - **Various Levels**: Explore diverse environments, from peaceful forests to dangerous lava caves, and overcome exciting obstacles and challenges.  
 - **Enemies and Mini-Bosses**: Fight a variety of enemies with unique abilities and use your platforming skills to defeat them.  
@@ -24,6 +24,25 @@ If someone creates cool improvements or new content for the open-source version,
 - **Ability Upgrade System**: Collect experience points and enhance Joey’s abilities to become stronger and unlock new areas.  
 - **Dynamic Music & Sound Design**: An epic soundtrack composition that perfectly matches the atmosphere of each level.  
 - **Secret Areas and Easter Eggs**: Discover hidden levels and secret items for experienced players who want to explore everything.  
+
+---
+
+## 🕹️ **Steuerung**
+
+- **Bewegen**: W / A / S / D  
+- **Springen**: Leertaste  
+- **Angriff**: Linksklick  
+- **Leuchten**: F  
+- **Inventar**: I  
+- **Pausenmenü**: ESC  
+
+---
+
+## 📖 **Game Wiki**
+
+For additional details, guides, and community contributions, check out the official **Joey's Slimeventure Wiki**:
+
+[**Joey's Slimeventure Wiki**](https://github.com/JoshuaPondStudios/JoeysSlimeventure/wiki)
 
 ---
 
