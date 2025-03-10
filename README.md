@@ -29,12 +29,20 @@ If someone creates cool improvements or new content for the open-source version,
 
 ## 🕹️ **Steuerung**
 
-- **Bewegen**: W / A / S / D
-- **Springen**: Leertaste
-- **Angriff**: Linksklick
-- **Leuchten**: F
-- **Inventar**: I
-- **Pausenmenü**: ESC
+- **Bewegen**: W / A / S / D  
+- **Springen**: Leertaste  
+- **Angriff**: Linksklick  
+- **Leuchten**: F  
+- **Inventar**: I  
+- **Pausenmenü**: ESC  
+
+---
+
+## 📖 **Game Wiki**
+
+For additional details, guides, and community contributions, check out the official **Joey's Slimeventure Wiki**:
+
+[**Joey's Slimeventure Wiki**](https://github.com/JoshuaPondStudios/JoeysSlimeventure/wiki)
 
 ---
 

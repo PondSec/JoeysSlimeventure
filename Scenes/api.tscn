@@ -1,0 +1,10 @@
+[gd_scene load_steps=3 format=3 uid="uid://k32hx7k88gui"]
+
+[ext_resource type="Script" path="res://API.gd" id="1_ayobp"]
+[ext_resource type="Resource" uid="uid://0rntjh2xt5s5" path="res://InventorySystem/playerinv.tres" id="2_hq1b6"]
+
+[node name="Node2D" type="Node2D"]
+script = ExtResource("1_ayobp")
+inventory = ExtResource("2_hq1b6")
+
+[node name="HTTPRequest" type="HTTPRequest" parent="."]

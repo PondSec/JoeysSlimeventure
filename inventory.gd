@@ -67,6 +67,7 @@ func load_item(item_name: String) -> InvItem:
 
 func Insert(item: InvItem):
 	var itemslots = slots.filter(func(slot): return slot.item == item and slot.amount < 64)
+	print("Itemslots: ", itemslots.size())  # Debugging-Log für verfügbare Itemslots
 	if !itemslots.is_empty():
 		var slot = itemslots[0]
 		var amount_to_add = min(64 - slot.amount, 1)
@@ -74,6 +75,7 @@ func Insert(item: InvItem):
 		print("Item hinzugefügt zu Slot mit weniger als 64 Items.")
 	else:
 		var emptyslots = slots.filter(func(slot): return slot.item == null)
+		print("Empty Slots: ", emptyslots.size())  # Debugging-Log für leere Slots
 		if !emptyslots.is_empty():
 			var empty_slot = emptyslots[0]
 			empty_slot.item = item
@@ -81,6 +83,7 @@ func Insert(item: InvItem):
 			print("Item wurde in einen leeren Slot eingefügt.")
 		else:
 			print("Kein Platz für dieses Item.")
+
 
 	update.emit()  # Signal senden
 	save_inventory("user://inventory.save") 
