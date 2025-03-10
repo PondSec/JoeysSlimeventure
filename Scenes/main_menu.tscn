@@ -20,13 +20,18 @@
 resource_name = "menu"
 script/source = "extends Control
 
-const CONFIG_PATH = \"user://settings.cfg\"  # Speicherort für die Einstellungen
-
+const CONFIG_PATH = \"user://settings.cfg\"
 var config := ConfigFile.new()
+  # Verwende 'instantiate()' statt 'instance()'
 
+# Called when the node enters the scene tree for the first time.
 func _ready() -> void:
 	$BackgroundSprite/AnimationPlayer.play(\"loop\")  
 	load_settings()  # Lade die gespeicherten Einstellungen
+
+
+	# Eventuell hier auch deine anderen Logiken für das Hauptmenü, wie z.B. das Laden von UI-Elementen
+	print(\"Hauptmenü geladen, API-Daten werden abgerufen.\")
 
 # LÄDT die gespeicherten Einstellungen
 func load_settings() -> void:
@@ -59,6 +64,7 @@ func set_resolution(index: int) -> void:
 	if index >= 0 and index < resolutions.size():
 		DisplayServer.window_set_size(resolutions[index])
 
+# Beispielhafte Button-Handler, die Szenenwechsel durchführen
 func _on_credits_button_pressed() -> void:
 	change_scene(\"res://Scenes/credits.tscn\")
 

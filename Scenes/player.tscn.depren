@@ -86,7 +86,6 @@ var url = \"http://192.168.10.6:5598\"
 @onready var death_screen: Control = get_node(\"CanvasLayer/GameOver\")
 @export var inv: Inv
 @onready var health_label = $CanvasLayer/HealthLabel
-@onready var api_script = preload(\"res://Scenes/api.tscn\").instantiate()
 
 var stun_timer: Timer = Timer.new()
 var save_load = preload(\"res://SaveLoad.gd\").new()
@@ -129,13 +128,6 @@ func _ready() -> void:
 	update_health_bar()
 	damage_timer.start()
 	inv.update.connect(update_health_bonus)
-	
-		
-	# Füge das API-Skript zur aktuellen Szene hinzu
-	add_child(api_script)
-
-	# Wenn du möchtest, dass der API-Aufruf direkt beim Start des Hauptmenüs getriggert wird, kannst du hier den API-Aufruf starten.
-	api_script.send_request()
 	
 func update_health_bonus():
 	var bonus = 1.0  # Startwert für Multiplikation

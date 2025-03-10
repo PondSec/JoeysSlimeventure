@@ -1,7 +1,7 @@
 [gd_scene load_steps=30 format=3 uid="uid://b6ublycstdj8n"]
 
 [ext_resource type="Texture2D" uid="uid://cildswtcj7qrc" path="res://Assets/slime-sprite.png" id="1_4yq4u"]
-[ext_resource type="Resource" uid="uid://0rntjh2xt5s5" path="res://InventorySystem/playerinv.tres" id="1_e7ml4"]
+[ext_resource type="Resource" uid="uid://0rntjh2xt5s5" path="res://playerinv.tres" id="1_e7ml4"]
 [ext_resource type="Texture2D" uid="uid://c771vveh0silu" path="res://Assets/Light/light_white.png" id="1_p71sj"]
 [ext_resource type="Texture2D" uid="uid://quh4mac3hef1" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame0.png" id="3_ubp3h"]
 [ext_resource type="Texture2D" uid="uid://cjb4nq6aeftnv" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame1.png" id="4_6hcqa"]
@@ -86,7 +86,6 @@ var url = \"http://192.168.10.6:5598\"
 @onready var death_screen: Control = get_node(\"CanvasLayer/GameOver\")
 @export var inv: Inv
 @onready var health_label = $CanvasLayer/HealthLabel
-@onready var api_script = preload(\"res://Scenes/api.tscn\").instantiate()
 
 var stun_timer: Timer = Timer.new()
 var save_load = preload(\"res://SaveLoad.gd\").new()
@@ -129,13 +128,6 @@ func _ready() -> void:
 	update_health_bar()
 	damage_timer.start()
 	inv.update.connect(update_health_bonus)
-	
-		
-	# Füge das API-Skript zur aktuellen Szene hinzu
-	add_child(api_script)
-
-	# Wenn du möchtest, dass der API-Aufruf direkt beim Start des Hauptmenüs getriggert wird, kannst du hier den API-Aufruf starten.
-	api_script.send_request()
 	
 func update_health_bonus():
 	var bonus = 1.0  # Startwert für Multiplikation

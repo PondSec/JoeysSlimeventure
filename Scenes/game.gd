@@ -14,8 +14,8 @@ var tutorial_steps = [
 	{"text": "Greif mit links Klick an", "input": "Attack"},
 	{"text": "Drücke F, um leuchten aus zu machen", "input": "Glow"},
 	{"text": "Drücke F, um leuchten an zu machen", "input": "Glow"},
-	{"text": "Öffne das Inventar mit I", "input": "inventory"},
-	{"text": "Schließe das Inventar mit I", "input": "inventory"}
+	{"text": "Öffne das Inventar mit E", "input": "inventory"},
+	{"text": "Schließe das Inventar mit E", "input": "inventory"}
 ]
 var current_step = 0
 
