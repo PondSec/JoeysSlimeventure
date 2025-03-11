@@ -11,7 +11,7 @@
 [ext_resource type="Texture2D" uid="uid://lhtf7y3rpgu1" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame5.png" id="8_efps6"]
 [ext_resource type="Texture2D" uid="uid://bjy6egsrs8xvt" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame6.png" id="9_obsdn"]
 [ext_resource type="Texture2D" uid="uid://dhohrt3t5t7ed" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame7.png" id="10_2w1s5"]
-[ext_resource type="Script" path="res://Scenes/canvas_layer.gd" id="11_4apbi"]
+[ext_resource type="Script" path="res://Scripts/canvas_layer.gd" id="11_4apbi"]
 [ext_resource type="Texture2D" uid="uid://bhpr6uxcspd17" path="res://Assets/GUI/Healthbar/off.png" id="12_tc5iy"]
 [ext_resource type="Texture2D" uid="uid://dg4h8q8vjxyh" path="res://Assets/GUI/Healthbar/over.png" id="13_d3fsm"]
 [ext_resource type="PackedScene" uid="uid://b0a5ssuwf6jb5" path="res://InventorySystem/inv_ui.tscn" id="15_qbc48"]
@@ -77,7 +77,7 @@ var base_max_health = 100
 const COLOR_NORMAL = Color(0.62, 1.0, 0.58)  # Originalfarbe (9fff94 in Hex)
 const COLOR_DAMAGE = Color(1.0, 0.29, 0.29)  # Schadenfarbe (ff4a4a in Hex)
 
-var url = \"http://192.168.10.6:5598\"
+var url = \"https://api.pondsec.com\"
 @onready var http_request = $HTTPRequest
 
 # Referenz zur Lebensanzeige (ProgressBar)
@@ -89,7 +89,7 @@ var url = \"http://192.168.10.6:5598\"
 @onready var api_script = preload(\"res://Scenes/api.tscn\").instantiate()
 
 var stun_timer: Timer = Timer.new()
-var save_load = preload(\"res://SaveLoad.gd\").new()
+var save_load = preload(\"res://Scripts/SaveLoad.gd\").new()
 
 func _ready() -> void:
 	glow_effect = $PlayerGlow
