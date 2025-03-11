@@ -1,8 +1,8 @@
 [gd_scene load_steps=33 format=4 uid="uid://cmdh8rpdo8fb2"]
 
 [ext_resource type="Texture2D" uid="uid://82opar247kat" path="res://Assets/Tiles/platformertiles.png" id="1_lx4yj"]
-[ext_resource type="Script" path="res://Scenes/game.gd" id="1_wyx84"]
-[ext_resource type="PackedScene" uid="uid://dr87ofv8fdkve" path="res://moon.tscn" id="3_8txav"]
+[ext_resource type="Script" path="res://Scripts/game.gd" id="1_wyx84"]
+[ext_resource type="PackedScene" uid="uid://dr87ofv8fdkve" path="res://Scenes/moon.tscn" id="3_8txav"]
 [ext_resource type="PackedScene" uid="uid://ccep15ieo6o6o" path="res://Scenes/torch.tscn" id="3_d07bp"]
 [ext_resource type="Texture2D" uid="uid://h245qfth6gf5" path="res://Assets/itch.io/Tilevania.png" id="3_khj2t"]
 [ext_resource type="Texture2D" uid="uid://cimvb1apxwlty" path="res://Assets/block.png" id="3_xdlxs"]

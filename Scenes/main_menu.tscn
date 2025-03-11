@@ -221,19 +221,8 @@ position = Vector2(203, -146)
 scale = Vector2(0.5, 0.5)
 texture = ExtResource("3_s41hg")
 
-[node name="Version" type="Label" parent="."]
-layout_mode = 1
-anchors_preset = -1
-anchor_right = 0.267
-anchor_bottom = 0.336
-offset_left = 1827.0
-offset_top = 1038.0
-offset_right = 1436.16
-offset_bottom = 722.144
-text = "v0.0.2.3"
-
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/PlayButton" to="." method="_on_play_button_pressed"]
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/SettingsButton" to="." method="_on_settings_button_pressed"]
-[connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/CreditsButton" to="." method="_on_texture_button_pressed"]
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/CreditsButton" to="." method="_on_credits_button_pressed"]
+[connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/CreditsButton" to="." method="_on_texture_button_pressed"]
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/QuitButton" to="." method="_on_quit_button_pressed"]
