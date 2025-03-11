@@ -1,6 +1,6 @@
 [gd_scene load_steps=13 format=3 uid="uid://dqykudmd26o2q"]
 
-[ext_resource type="Script" path="res://Scenes/bat.gd" id="1_fveqw"]
+[ext_resource type="Script" path="res://Scripts/bat.gd" id="1_fveqw"]
 [ext_resource type="Texture2D" uid="uid://dmh4k0yq2bjpa" path="res://Assets/Bat/Standard/BatStandard_Sheet.png" id="2_kikkf"]
 
 [sub_resource type="Animation" id="Animation_wxra7"]

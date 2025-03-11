@@ -18,7 +18,7 @@ var knockback_velocity := Vector2.ZERO
 var is_knocked_back := false
 var is_stunned := false  # Neue Variable für Stun-Zustand
 var bat_position: Vector2 = Vector2.ZERO  # Standardwert setzen
-var save_load = preload("res://SaveLoad.gd").new()
+var save_load = preload("res://Scripts/SaveLoad.gd").new()
 
 var loot_table = [
 	{ "scene": preload("res://Scenes/Items/bat_claw.tscn"), "chance": 0.12 },  # 12% Chance (seltener)

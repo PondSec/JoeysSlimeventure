@@ -1,6 +1,6 @@
 [gd_scene load_steps=3 format=3 uid="uid://d0pkm7hasr2k0"]
 
-[ext_resource type="Script" path="res://spind_ui.gd" id="1_4lstw"]
+[ext_resource type="Script" path="res://Scripts/spind_ui.gd" id="1_4lstw"]
 [ext_resource type="Texture2D" uid="uid://cildswtcj7qrc" path="res://Assets/slime-sprite.png" id="2_vf263"]
 
 [node name="SpindUI" type="CanvasLayer"]

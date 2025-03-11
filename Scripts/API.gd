@@ -1,6 +1,6 @@
 extends Node2D
 
-var url = "http://api.pondsec.com"
+var url = "https://api.pondsec.com"
 @onready var http_request = $HTTPRequest
 @export var inv: Inv  # Referenz zum Inventar des Spielers
 @onready var player: CharacterBody2D  # Referenz auf den Spieler (ändere dies je nach Struktur)
