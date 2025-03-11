@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://dr87ofv8fdkve"]
+
+[ext_resource type="Texture2D" uid="uid://bfhvfvveasr1l" path="res://Assets/Light/torch_light.png" id="1_b1ety"]
+
+[node name="MoonLight" type="Node2D"]
+
+[node name="PointLight2D" type="PointLight2D" parent="."]
+texture = ExtResource("1_b1ety")

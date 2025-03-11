@@ -1,7 +1,7 @@
 [gd_scene load_steps=7 format=3 uid="uid://ccep15ieo6o6o"]
 
 [ext_resource type="Texture2D" uid="uid://dexg2cvhympay" path="res://Assets/Light/torch.png" id="1_p3o0k"]
-[ext_resource type="Script" path="res://Scenes/torch.gd" id="2_5d5xy"]
+[ext_resource type="Script" path="res://Scripts/torch.gd" id="2_5d5xy"]
 [ext_resource type="Texture2D" uid="uid://c771vveh0silu" path="res://Assets/Light/light_white.png" id="2_sr0ye"]
 
 [sub_resource type="Animation" id="Animation_d6o2g"]
