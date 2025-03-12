@@ -33,7 +33,7 @@ If someone creates cool improvements or new content for the open-source version,
 - **Springen**: Leertaste  
 - **Angriff**: Linksklick  
 - **Leuchten**: F  
-- **Inventar**: I  
+- **Inventar**: E  
 - **Pausenmenü**: ESC  
 
 ---
