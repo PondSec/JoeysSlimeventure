@@ -21,6 +21,7 @@ resource_name = "menu"
 script/source = "extends Control
 
 const CONFIG_PATH = \"user://settings.cfg\"
+const PLAYER_ID_PATH = \"user://player_id.save\"
 var config := ConfigFile.new()
   # Verwende 'instantiate()' statt 'instance()'
 
@@ -28,10 +29,22 @@ var config := ConfigFile.new()
 func _ready() -> void:
 	$BackgroundSprite/AnimationPlayer.play(\"loop\")  
 	load_settings()  # Lade die gespeicherten Einstellungen
-
-
-	# Eventuell hier auch deine anderen Logiken für das Hauptmenü, wie z.B. das Laden von UI-Elementen
-	print(\"Hauptmenü geladen, API-Daten werden abgerufen.\")
+	set_uuid_label()
+	
+func set_uuid_label() -> void:
+	var player_id = \"\"
+	if FileAccess.file_exists(PLAYER_ID_PATH):
+		var file = FileAccess.open(PLAYER_ID_PATH, FileAccess.READ)
+		if file:
+			player_id = file.get_line().replace(\"{\", \"\").replace(\"}\", \"\")  # Entfernt geschweifte Klammern
+			file.close()
+		else:
+			print(\"❌ Fehler beim Laden der Spieler-ID.\")
+	else:
+		print(\"❌ Keine Spieler-ID gefunden.\")
+	
+	# UUID in das Label schreiben mit \"UUID: \" davor
+	$UUID.text = \"UUID: \" + player_id
 
 # LÄDT die gespeicherten Einstellungen
 func load_settings() -> void:
@@ -220,6 +233,14 @@ stretch_mode = 0
 position = Vector2(203, -146)
 scale = Vector2(0.5, 0.5)
 texture = ExtResource("3_s41hg")
+
+[node name="UUID" type="Label" parent="."]
+layout_mode = 0
+offset_left = 28.0
+offset_top = 1040.0
+offset_right = 1006.0
+offset_bottom = 1095.0
+text = "020394329432894732847847284823"
 
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/PlayButton" to="." method="_on_play_button_pressed"]
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/SettingsButton" to="." method="_on_settings_button_pressed"]
