@@ -1,6 +1,6 @@
 extends Node2D
 
-var url = "https://api.pondsec.com"
+var url = "http://api.joeysslimeventure.com/items"  # Geänderte URL
 @onready var http_request = $HTTPRequest
 @export var inv: Inv  # Referenz zum Inventar des Spielers
 @onready var player: CharacterBody2D  # Referenz auf den Spieler (ändere dies je nach Struktur)
@@ -23,8 +23,6 @@ func _ready() -> void:
 	send_request()
 
 func send_request():
-	var headers = ["Content-Type: application/json"]
-	
 	# UUID aus der Datei laden
 	var player_id = ""
 	if FileAccess.file_exists(PLAYER_ID_PATH):
@@ -35,13 +33,11 @@ func send_request():
 		else:
 			print("❌ Fehler beim Laden der Spieler-ID.")
 	
-	var json_body = {"player_id": player_id}
+	# Füge die player_id als Query-Parameter zur URL hinzu
+	var request_url = url + "?player_id=" + player_id
 	
-	# JSON-Body in einen String umwandeln
-	var json_string = JSON.stringify(json_body)
-	
-	# Sende die Anfrage an den Server mit der UUID als Parameter
-	http_request.request(url, headers, HTTPClient.METHOD_GET, json_string)
+	# Sende die GET-Anfrage ohne Body
+	http_request.request(request_url)
 
 func _on_request_completed(results, response_code, headers, body):
 	if response_code != 200:
