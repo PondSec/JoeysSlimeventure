@@ -21,15 +21,13 @@ var bat_position: Vector2 = Vector2.ZERO  # Standardwert setzen
 var save_load = preload("res://Scripts/SaveLoad.gd").new()
 
 var loot_table = [
-	{ "scene": preload("res://Scenes/Items/bat_claw.tscn"), "chance": 0.12 },  # 12% Chance (seltener)
-	{ "scene": preload("res://Scenes/Items/copper_nugget.tscn"), "chance": 0.22 },  # 22% Chance (häufiger)
-	{ "scene": preload("res://Scenes/Items/iron_nugget.tscn"), "chance": 0.08 },  # 8% Chance (seltener)
-	{ "scene": preload("res://Scenes/Items/gold_nugget.tscn"), "chance": 0.02 },  # 2% Chance (deutlich seltener)
-	{ "scene": preload("res://Scenes/Items/bat_artefact.tscn"), "chance": 0.01}, #1% Chance (extrem selten)
-	{ "scene": null, "chance": 0.54 }  # 54% Chance, dass nichts droppt (erschwert Loot-Farming)
+	{ "scene": preload("res://Scenes/Items/bat_claw.tscn"), "chance": 0.08 },  # 8% (weniger häufig)
+	{ "scene": preload("res://Scenes/Items/copper_nugget.tscn"), "chance": 0.15 },  # 15% (weniger häufig)
+	{ "scene": preload("res://Scenes/Items/iron_nugget.tscn"), "chance": 0.05 },  # 5% (selten)
+	{ "scene": preload("res://Scenes/Items/gold_nugget.tscn"), "chance": 0.01 },  # 1% (sehr selten)
+	{ "scene": preload("res://Scenes/Items/bat_artefact.tscn"), "chance": 0.005 }, # 0.5% (extrem selten)
+	{ "scene": null, "chance": 0.70 }  # 70% Chance, dass nichts droppt (erschwert Farming)
 ]
-
-
 
 @export var player: CharacterBody2D
 @export var spawn_zone_container: Node2D
