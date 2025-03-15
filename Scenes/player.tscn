@@ -1,4 +1,4 @@
-[gd_scene load_steps=30 format=3 uid="uid://b6ublycstdj8n"]
+[gd_scene load_steps=32 format=3 uid="uid://b6ublycstdj8n"]
 
 [ext_resource type="Texture2D" uid="uid://cildswtcj7qrc" path="res://Assets/slime-sprite.png" id="1_4yq4u"]
 [ext_resource type="Resource" uid="uid://0rntjh2xt5s5" path="res://InventorySystem/playerinv.tres" id="1_e7ml4"]
@@ -12,6 +12,7 @@
 [ext_resource type="Texture2D" uid="uid://bjy6egsrs8xvt" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame6.png" id="9_obsdn"]
 [ext_resource type="Texture2D" uid="uid://dhohrt3t5t7ed" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame7.png" id="10_2w1s5"]
 [ext_resource type="Script" path="res://Scripts/canvas_layer.gd" id="11_4apbi"]
+[ext_resource type="Script" path="res://Scenes/camera_2d.gd" id="12_4e8m4"]
 [ext_resource type="Texture2D" uid="uid://bhpr6uxcspd17" path="res://Assets/GUI/Healthbar/off.png" id="12_tc5iy"]
 [ext_resource type="Texture2D" uid="uid://dg4h8q8vjxyh" path="res://Assets/GUI/Healthbar/over.png" id="13_d3fsm"]
 [ext_resource type="PackedScene" uid="uid://b0a5ssuwf6jb5" path="res://InventorySystem/inv_ui.tscn" id="15_qbc48"]
@@ -19,6 +20,7 @@
 [ext_resource type="Script" path="res://InventorySystem/hot_bar.gd" id="17_1u0f7"]
 [ext_resource type="Texture2D" uid="uid://dyvglc0y8q8y7" path="res://Assets/Inventory/hotbar.png" id="18_4ugw6"]
 [ext_resource type="PackedScene" uid="uid://de82c5pup452l" path="res://InventorySystem/slot_hotbar.tscn" id="19_jqgo5"]
+[ext_resource type="Script" path="res://Scenes/color_rect.gd" id="21_objw7"]
 
 [sub_resource type="GDScript" id="GDScript_381hh"]
 resource_name = "Player"
@@ -279,6 +281,9 @@ func is_in_air() -> bool:
 func _on_attack_area_body_entered(body) -> void:
 	if body.is_in_group(\"enemies\"):
 		body.take_damage(attack_damage)
+		$FlashEffect.flash()
+		$Camera2D.shake(3.0, 0.2)
+		
 
 func die() -> void:
 	print(\"Der Spieler ist gestorben!\")
@@ -542,25 +547,25 @@ size = Vector2(255, 386.667)
 [sub_resource type="SpriteFrames" id="SpriteFrames_sgnk3"]
 animations = [{
 "frames": [{
-"duration": 1.0,
+"duration": 1.5,
 "texture": ExtResource("3_ubp3h")
 }, {
-"duration": 1.0,
+"duration": 1.5,
 "texture": ExtResource("4_6hcqa")
 }, {
-"duration": 1.0,
+"duration": 1.5,
 "texture": ExtResource("5_eo1jl")
 }, {
-"duration": 1.0,
+"duration": 1.5,
 "texture": ExtResource("6_whfsg")
 }, {
-"duration": 1.0,
+"duration": 1.5,
 "texture": ExtResource("7_ojgk2")
 }, {
-"duration": 1.0,
+"duration": 1.5,
 "texture": ExtResource("8_efps6")
 }, {
-"duration": 1.0,
+"duration": 1.5,
 "texture": ExtResource("9_obsdn")
 }, {
 "duration": 1.0,
@@ -568,7 +573,7 @@ animations = [{
 }],
 "loop": false,
 "name": &"swing",
-"speed": 30.0
+"speed": 60.0
 }]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_jxxud"]
@@ -693,7 +698,7 @@ vframes = 3
 
 [node name="AttackSprite" type="AnimatedSprite2D" parent="PlayerSprite"]
 position = Vector2(-0.000110626, 71.4288)
-scale = Vector2(1.89038, 1.79514)
+scale = Vector2(2.1, 1.994)
 sprite_frames = SubResource("SpriteFrames_sgnk3")
 animation = &"swing"
 frame = 7
@@ -757,6 +762,7 @@ limit_smoothed = true
 position_smoothing_enabled = true
 editor_draw_limits = true
 editor_draw_drag_margin = true
+script = ExtResource("12_4e8m4")
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
 script = ExtResource("11_4apbi")
@@ -863,3 +869,16 @@ offset_bottom = 43.0
 text = "HP: 0000"
 
 [node name="HTTPRequest" type="HTTPRequest" parent="."]
+
+[node name="FlashEffect" type="ColorRect" parent="."]
+visible = false
+offset_left = -4743.0
+offset_top = -9657.0
+offset_right = 23129.0
+offset_bottom = 5700.0
+script = ExtResource("21_objw7")
+
+[node name="PointLight2D" type="PointLight2D" parent="FlashEffect"]
+position = Vector2(4914.43, 9485.57)
+texture = ExtResource("1_p71sj")
+texture_scale = 9.56
