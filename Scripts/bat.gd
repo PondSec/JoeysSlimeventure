@@ -163,7 +163,7 @@ func apply_knockback():
 
 		await get_tree().create_timer(0.3).timeout  # Knockback-Dauer
 		is_knocked_back = false
-		apply_stun(0.3)  # Gegner wird nach Knockback für 0.5 Sekunden betäubt
+		apply_stun(0.5)  # Gegner wird nach Knockback für 0.5 Sekunden betäubt
 
 func apply_stun(duration: float) -> void:
 	is_stunned = true
