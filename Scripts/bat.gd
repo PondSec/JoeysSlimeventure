@@ -2,7 +2,7 @@ extends CharacterBody2D
 
 const SPEED = 140.0
 const DETECTION_RADIUS = 300.0
-const ATTACK_RANGE = 40.0
+const ATTACK_RANGE = 35.0
 const ATTACK_COOLDOWN = 1.5
 const MIN_DISTANCE = 5.0
 const RESPAWN_COOLDOWN = 5
@@ -51,10 +51,10 @@ func _physics_process(delta: float) -> void:
 
 	if is_knocked_back:
 		velocity = knockback_velocity
-		knockback_velocity *= 0.9
+		knockback_velocity *= 1
 		if knockback_velocity.length() < 10:
 			is_knocked_back = false
-			apply_stun(0.5)
+			apply_stun(0.7)
 	else:
 		var distance_to_player = global_position.distance_to(player.global_position)
 		var actual_detection_radius = DETECTION_RADIUS if player.is_glowing else BASE_DETECTION_RADIUS
