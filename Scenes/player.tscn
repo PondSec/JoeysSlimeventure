@@ -61,6 +61,16 @@ var inventory = {}  # Ein Dictionary für das Inventar
 var dropped_items = []  # Liste für persistente Speicherung
 var selected_hotbar_index: int = 0  # Standardmäßig der erste Slot
 
+# Dash-Variablen
+const DASH_SPEED = 400.0
+const DASH_DURATION = 0.2
+const DASH_COOLDOWN = 3.0
+var is_dashing := false
+var can_dash := true
+var dash_direction := Vector2.ZERO
+var dash_timer: Timer = Timer.new()
+var dash_cooldown_timer: Timer = Timer.new()
+
 # Konstanten für den Fall-Schaden
 const FALL_DAMAGE_THRESHOLD = 1580  # Y-Position, ab der Schaden verursacht wird
 const FALL_DAMAGE = 30  # Schaden, der beim Fallen verursacht wird
@@ -79,7 +89,7 @@ var base_max_health = 100
 const COLOR_NORMAL = Color(0.62, 1.0, 0.58)  # Originalfarbe (9fff94 in Hex)
 const COLOR_DAMAGE = Color(1.0, 0.29, 0.29)  # Schadenfarbe (ff4a4a in Hex)
 
-var url = \"https://api.pondsec.com\"
+var url = \"https://api.joeysslimeventure.com\"
 @onready var http_request = $HTTPRequest
 
 # Referenz zur Lebensanzeige (ProgressBar)
@@ -133,6 +143,18 @@ func _ready() -> void:
 	inv.update.connect(update_health_bonus)
 	add_child(api_script)
 	api_script.send_request()
+	
+	# Dash-Timer initialisieren
+	add_child(dash_timer)
+	dash_timer.one_shot = true
+	dash_timer.wait_time = DASH_DURATION
+	dash_timer.connect(\"timeout\", Callable(self, \"_on_dash_timer_timeout\"))
+
+	# Dash-Cooldown-Timer initialisieren
+	add_child(dash_cooldown_timer)
+	dash_cooldown_timer.one_shot = true
+	dash_cooldown_timer.wait_time = DASH_COOLDOWN
+	dash_cooldown_timer.connect(\"timeout\", Callable(self, \"_on_dash_cooldown_timer_timeout\"))
 	
 func update_health_bonus():
 	var bonus = 1.0  # Startwert für Multiplikation
@@ -242,9 +264,81 @@ func _physics_process(delta: float) -> void:
 		is_facing_left = direction.x < 0
 	else:
 		velocity.x = move_toward(velocity.x, 0, SPEED)
+	
+	if Input.is_action_just_pressed(\"dash_left\") and can_dash:
+		dash(Vector2.LEFT)
+	elif Input.is_action_just_pressed(\"dash_right\") and can_dash:
+		dash(Vector2.RIGHT)
+	elif Input.is_action_just_pressed(\"dash_up\") and can_dash:
+		dash(Vector2.UP)
 
+	if is_dashing:
+		velocity = dash_direction * DASH_SPEED
+		move_and_slide()
+		return
+	
 	# Animationen setzen
 	set_animation()
+
+func dash(direction: Vector2) -> void:
+	if is_dashing or not can_dash:
+		return
+
+	is_dashing = true
+	can_dash = false
+	dash_direction = direction
+
+	# Starte den Dash-Timer
+	dash_timer.start()
+
+	# Ändere den Sprite zu player_dash.png
+	$PlayerSprite.texture = preload(\"res://Assets/player_dash.png\")
+
+	# Kamera-Shake-Effekt
+	$Camera2D.shake(0.5, 0.2)
+
+	# Warte, bis der Dash-Timer abgelaufen ist
+	await dash_timer.timeout
+
+	# Setze den Sprite zurück zur normalen Textur
+	$PlayerSprite.texture = preload(\"res://Assets/slime-sprite.png\")
+
+	# Setze den Zustand zurück
+	dash_cooldown_timer.start()
+	await dash_cooldown_timer.timeout
+	is_dashing = false
+	can_dash = true
+
+func _create_afterimages_during_dash() -> void:
+	if is_dashing:
+		create_afterimage()
+		# Erstelle einen neuen Timer für das nächste Nachbild
+		var afterimage_timer = get_tree().create_timer(0.05)
+		afterimage_timer.timeout.connect(_create_afterimages_during_dash)
+
+
+func _on_dash_timer_timeout() -> void:
+	is_dashing = false
+	velocity = Vector2.ZERO
+	dash_cooldown_timer.start()
+
+func _on_dash_cooldown_timer_timeout() -> void:
+	can_dash = true
+
+func create_afterimage() -> void:
+	var afterimage = Sprite2D.new()
+	afterimage.texture = $PlayerSprite.texture
+	afterimage.global_position = global_position
+	afterimage.flip_h = $PlayerSprite.flip_h
+	afterimage.modulate = Color(0.5, 0.5, 1, 0.5)  # Blauer Schimmer
+	afterimage.scale = Vector2(0.1, 0.1)  # Etwas kleiner
+	afterimage.rotation = randf_range(-0.1, 0.1)  # Leichte Rotation
+	
+	get_parent().add_child(afterimage)
+	
+	var tween = create_tween()
+	tween.tween_property(afterimage, \"modulate:a\", 0.0, 0.5)
+	tween.tween_callback(afterimage.queue_free)
 
 func _on_heal_timer_timeout() -> void:
 	# Nur heilen, wenn Heilung aktiv ist und der Spieler nicht voll geheilt ist
