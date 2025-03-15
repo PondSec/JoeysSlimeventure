@@ -1,4 +1,4 @@
-[gd_scene load_steps=32 format=3 uid="uid://b6ublycstdj8n"]
+[gd_scene load_steps=31 format=3 uid="uid://b6ublycstdj8n"]
 
 [ext_resource type="Texture2D" uid="uid://cildswtcj7qrc" path="res://Assets/slime-sprite.png" id="1_4yq4u"]
 [ext_resource type="Resource" uid="uid://0rntjh2xt5s5" path="res://InventorySystem/playerinv.tres" id="1_e7ml4"]
@@ -20,7 +20,6 @@
 [ext_resource type="Script" path="res://InventorySystem/hot_bar.gd" id="17_1u0f7"]
 [ext_resource type="Texture2D" uid="uid://dyvglc0y8q8y7" path="res://Assets/Inventory/hotbar.png" id="18_4ugw6"]
 [ext_resource type="PackedScene" uid="uid://de82c5pup452l" path="res://InventorySystem/slot_hotbar.tscn" id="19_jqgo5"]
-[ext_resource type="Script" path="res://Scenes/color_rect.gd" id="21_objw7"]
 
 [sub_resource type="GDScript" id="GDScript_381hh"]
 resource_name = "Player"
@@ -375,7 +374,6 @@ func is_in_air() -> bool:
 func _on_attack_area_body_entered(body) -> void:
 	if body.is_in_group(\"enemies\"):
 		body.take_damage(attack_damage)
-		$FlashEffect.flash()
 		$Camera2D.shake(3.0, 0.2)
 		
 
@@ -878,6 +876,10 @@ texture_under = ExtResource("12_tc5iy")
 texture_progress = ExtResource("13_d3fsm")
 
 [node name="GameOver" parent="CanvasLayer" instance=ExtResource("16_g18uv")]
+offset_left = 2.0
+offset_top = -13.0
+offset_right = 2.0
+offset_bottom = -13.0
 
 [node name="InvUI" parent="CanvasLayer" instance=ExtResource("15_qbc48")]
 anchors_preset = 8
@@ -963,16 +965,3 @@ offset_bottom = 43.0
 text = "HP: 0000"
 
 [node name="HTTPRequest" type="HTTPRequest" parent="."]
-
-[node name="FlashEffect" type="ColorRect" parent="."]
-visible = false
-offset_left = -4743.0
-offset_top = -9657.0
-offset_right = 23129.0
-offset_bottom = 5700.0
-script = ExtResource("21_objw7")
-
-[node name="PointLight2D" type="PointLight2D" parent="FlashEffect"]
-position = Vector2(4914.43, 9485.57)
-texture = ExtResource("1_p71sj")
-texture_scale = 9.56

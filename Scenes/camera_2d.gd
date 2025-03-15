@@ -3,6 +3,9 @@ extends Camera2D
 var shake_intensity: float = 0.0
 var shake_duration: float = 0.0
 
+func _ready() -> void:
+	add_to_group("main_camera")
+
 func _process(delta: float) -> void:
 	if shake_duration > 0:
 		shake_duration -= delta

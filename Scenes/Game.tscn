@@ -1,4 +1,4 @@
-[gd_scene load_steps=33 format=4 uid="uid://cmdh8rpdo8fb2"]
+[gd_scene load_steps=34 format=4 uid="uid://cmdh8rpdo8fb2"]
 
 [ext_resource type="Texture2D" uid="uid://82opar247kat" path="res://Assets/Tiles/platformertiles.png" id="1_lx4yj"]
 [ext_resource type="Script" path="res://Scripts/game.gd" id="1_wyx84"]
@@ -13,6 +13,7 @@
 [ext_resource type="PackedScene" uid="uid://btd70wfyuwmhw" path="res://Scenes/PauseMenu.tscn" id="9_dvqdi"]
 [ext_resource type="Texture2D" uid="uid://cr61tmhecyo04" path="res://Assets/jump_left.png" id="11_ctkaa"]
 [ext_resource type="Texture2D" uid="uid://5d5bkg2pl08v" path="res://Assets/jump_right.png" id="12_1fuev"]
+[ext_resource type="PackedScene" uid="uid://i7wdghs3brrd" path="res://Scenes/stone_golem.tscn" id="14_yuvaw"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_83pvq"]
 texture = ExtResource("1_lx4yj")
@@ -526,5 +527,8 @@ vertical_alignment = 1
 
 [node name="HTTPRequest" type="HTTPRequest" parent="."]
 
-[connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_pause_menu_go_to_main_menu"]
+[node name="StoneGolem" parent="." instance=ExtResource("14_yuvaw")]
+position = Vector2(1405, 1426)
+
 [connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_canvas_layer_go_to_main_menu"]
+[connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_pause_menu_go_to_main_menu"]
