@@ -1,0 +1,109 @@
+[gd_scene load_steps=10 format=3 uid="uid://i7wdghs3brrd"]
+
+[ext_resource type="Texture2D" uid="uid://1kymi15h68c3" path="res://Assets/Stone_Golem/stone_golem_sheet.png" id="1_57c15"]
+[ext_resource type="Script" path="res://Scenes/stone_golem.gd" id="1_innic"]
+
+[sub_resource type="Animation" id="Animation_ihhpm"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [0]
+}
+
+[sub_resource type="Animation" id="Animation_ou1ql"]
+resource_name = "attack"
+length = 0.2
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.2),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [5, 9]
+}
+
+[sub_resource type="Animation" id="Animation_m1c55"]
+resource_name = "idle"
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [10, 12]
+}
+
+[sub_resource type="Animation" id="Animation_dmr0l"]
+resource_name = "walk"
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [0, 4]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_gwacr"]
+_data = {
+"RESET": SubResource("Animation_ihhpm"),
+"attack": SubResource("Animation_ou1ql"),
+"idle": SubResource("Animation_m1c55"),
+"walk": SubResource("Animation_dmr0l")
+}
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_c1dq0"]
+size = Vector2(60, 56)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_8fdcm"]
+size = Vector2(126, 38.6667)
+
+[node name="StoneGolem" type="CharacterBody2D" node_paths=PackedStringArray("spawn_zone_container")]
+script = ExtResource("1_innic")
+spawn_zone_container = NodePath("Collision")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("1_57c15")
+hframes = 13
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="Sprite2D"]
+libraries = {
+"": SubResource("AnimationLibrary_gwacr")
+}
+
+[node name="Collision" type="CollisionShape2D" parent="."]
+position = Vector2(1, 1)
+shape = SubResource("RectangleShape2D_c1dq0")
+
+[node name="AttackArea" type="Area2D" parent="."]
+
+[node name="Body" type="CollisionShape2D" parent="AttackArea"]
+position = Vector2(2.5, 2)
+scale = Vector2(1.5, 1.5)
+shape = SubResource("RectangleShape2D_8fdcm")
+
+[node name="NavigationAgent2D" type="NavigationAgent2D" parent="."]
+
+[node name="Timer" type="Timer" parent="NavigationAgent2D"]
+wait_time = 0.1
+autostart = true

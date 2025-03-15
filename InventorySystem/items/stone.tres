@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="InvItem" load_steps=3 format=3 uid="uid://c4ou2bi3c5ey2"]
+
+[ext_resource type="Script" path="res://InventorySystem/inventory_item.gd" id="1_uwt14"]
+[ext_resource type="Texture2D" uid="uid://cbor7vk02po" path="res://Assets/Items/Mob Drops/StoneGolem/stone.png" id="2_jd41o"]
+
+[resource]
+script = ExtResource("1_uwt14")
+name = "stone"
+texture = ExtResource("2_jd41o")
+health_bonus = 0.0
