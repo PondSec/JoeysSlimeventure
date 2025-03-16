@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3 uid="uid://i7wdghs3brrd"]
+[gd_scene load_steps=12 format=3 uid="uid://i7wdghs3brrd"]
 
 [ext_resource type="Script" path="res://Scenes/stone_golem.gd" id="1_innic"]
 [ext_resource type="Texture2D" uid="uid://bmiirj5a8xro0" path="res://Assets/Stone_Golem/stone_golem_sheet_packed.png" id="2_w2hxi"]
@@ -34,6 +34,22 @@ tracks/0/keys = {
 "values": [5, 9]
 }
 
+[sub_resource type="Animation" id="Animation_j4b5v"]
+resource_name = "death"
+length = 0.6
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.6),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [10, 14]
+}
+
 [sub_resource type="Animation" id="Animation_m1c55"]
 resource_name = "idle"
 tracks/0/type = "value"
@@ -64,9 +80,9 @@ tracks/0/keys = {
 "values": [0, 4]
 }
 
-[sub_resource type="Animation" id="Animation_j4b5v"]
-resource_name = "death"
-length = 0.6
+[sub_resource type="Animation" id="Animation_t7478"]
+resource_name = "stone_mantle"
+length = 0.3
 tracks/0/type = "value"
 tracks/0/imported = false
 tracks/0/enabled = true
@@ -74,10 +90,10 @@ tracks/0/path = NodePath(".:frame")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.6),
+"times": PackedFloat32Array(0, 0.3),
 "transitions": PackedFloat32Array(1, 1),
 "update": 0,
-"values": [10, 14]
+"values": [15, 20]
 }
 
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_gwacr"]
@@ -86,6 +102,7 @@ _data = {
 "attack": SubResource("Animation_ou1ql"),
 "death": SubResource("Animation_j4b5v"),
 "idle": SubResource("Animation_m1c55"),
+"stone_mantle": SubResource("Animation_t7478"),
 "walk": SubResource("Animation_dmr0l")
 }
 
@@ -101,8 +118,8 @@ spawn_zone_container = NodePath("Collision")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture = ExtResource("2_w2hxi")
-hframes = 4
-vframes = 4
+hframes = 5
+vframes = 5
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="Sprite2D"]
 libraries = {
