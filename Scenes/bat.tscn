@@ -111,7 +111,7 @@ tracks/0/keys = {
 "times": PackedFloat32Array(0, 1),
 "transitions": PackedFloat32Array(1, 1),
 "update": 0,
-"values": [23, 27]
+"values": [22, 22]
 }
 
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_ojm6m"]
@@ -129,7 +129,7 @@ _data = {
 radius = 6.14636
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_chl00"]
-size = Vector2(10.0833, 10.25)
+size = Vector2(6.37498, 5.79167)
 
 [node name="Bat" type="CharacterBody2D"]
 scale = Vector2(1.5, 1.5)
@@ -150,11 +150,11 @@ speed_scale = 2.0
 [node name="AttackArea" type="Area2D" parent="."]
 
 [node name="Body" type="CollisionShape2D" parent="AttackArea"]
-position = Vector2(0.666667, -0.666667)
+position = Vector2(0, -8.66667)
 shape = SubResource("CircleShape2D_p57rr")
 
 [node name="Collision" type="CollisionShape2D" parent="."]
-position = Vector2(0.666667, -0.666667)
+position = Vector2(0, -6)
 shape = SubResource("RectangleShape2D_chl00")
 
 [node name="NavigationAgent2D" type="NavigationAgent2D" parent="."]
