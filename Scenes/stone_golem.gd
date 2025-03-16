@@ -59,7 +59,7 @@ func find_player() -> void:
 		print("Warnung: Kein Spieler gefunden! Stelle sicher, dass der Spieler in der Gruppe 'player' ist.")
 
 func _physics_process(delta: float) -> void:
-	if is_dead or is_stunned or player == null or player.current_health <= 0:
+	if is_dead or player == null or player.current_health <= 0:
 		velocity = Vector2.ZERO
 		is_attacking = false
 		set_animation()
@@ -69,7 +69,7 @@ func _physics_process(delta: float) -> void:
 	if not is_on_floor():
 		velocity.y += GRAVITY * delta
 
-	if is_knocked_back:
+	if is_knocked_back and not is_attacking:  # Nur Knockback anwenden, wenn der Golem nicht angreift
 		velocity = knockback_velocity
 		knockback_velocity *= 1
 		if knockback_velocity.length() < 10:
@@ -164,7 +164,9 @@ func take_damage(amount: int) -> void:
 
 	golem_health -= amount
 	flash_red()  # Blink-Effekt hinzufügen
-	apply_knockback()  # Rückstoß hinzufügen
+
+	if not is_attacking:  # Nur Knockback anwenden, wenn der Golem nicht angreift
+		apply_knockback()
 
 	if golem_health <= 0:
 		die()
@@ -176,15 +178,15 @@ func flash_red():
 	tween.tween_property(sprite, "modulate", Color(1, 1, 1), 0.2)  # Zurück zur normalen Farbe
 
 func apply_knockback():
-	if player:
+	if player and not is_attacking:  # Nur Knockback anwenden, wenn der Golem nicht angreift
 		var direction = (global_position - player.global_position).normalized()
-		var knockback_strength = 50
+		var knockback_strength = 5
 		knockback_velocity = direction * knockback_strength
 		is_knocked_back = true
 
 		await get_tree().create_timer(0.3).timeout  # Knockback-Dauer
 		is_knocked_back = false
-		apply_stun(0.5)  # Gegner wird nach Knockback für 0.5 Sekunden betäubt
+		apply_stun(0.3)  # Gegner wird nach Knockback für 0.5 Sekunden betäubt
 
 func apply_stun(duration: float) -> void:
 	is_stunned = true
