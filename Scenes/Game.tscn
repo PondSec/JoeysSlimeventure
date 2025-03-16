@@ -530,5 +530,5 @@ vertical_alignment = 1
 [node name="StoneGolem" parent="." instance=ExtResource("14_yuvaw")]
 position = Vector2(1405, 1426)
 
-[connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_canvas_layer_go_to_main_menu"]
 [connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_pause_menu_go_to_main_menu"]
+[connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_canvas_layer_go_to_main_menu"]
