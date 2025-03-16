@@ -21,6 +21,7 @@ var is_knocked_back := false
 var is_stunned := false  # Neue Variable für Stun-Zustand
 var golem_position: Vector2 = Vector2.ZERO  # Standardwert setzen
 var save_load = preload("res://Scripts/SaveLoad.gd").new()
+var is_immune = false
 
 var loot_table = [
 	{ "scene": preload("res://Scenes/Items/stone.tscn"), "chance": 0.2 },  # 20% (weniger häufig)
@@ -69,7 +70,7 @@ func _physics_process(delta: float) -> void:
 	if not is_on_floor():
 		velocity.y += GRAVITY * delta
 
-	if is_knocked_back and not is_attacking:  # Nur Knockback anwenden, wenn der Golem nicht angreift
+	if is_knocked_back and not is_attacking:
 		velocity = knockback_velocity
 		knockback_velocity *= 1
 		if knockback_velocity.length() < 10:
@@ -78,29 +79,52 @@ func _physics_process(delta: float) -> void:
 	else:
 		var distance_to_player = global_position.distance_to(player.global_position)
 		var actual_detection_radius = DETECTION_RADIUS if player.is_glowing else BASE_DETECTION_RADIUS
-		
+
 		if distance_to_player <= ATTACK_RANGE:
 			attack_timer -= delta
 			if attack_timer <= 0.0:
 				attack()
 		elif distance_to_player <= actual_detection_radius:
-			# Aktualisiere Navigation nur alle NAVIGATION_UPDATE_INTERVAL Sekunden
 			navigation_update_timer -= delta
 			if navigation_update_timer <= 0:
 				navigation_agent.target_position = player.global_position
-				navigation_update_timer = NAVIGATION_UPDATE_INTERVAL  # Timer zurücksetzen
-			
+				navigation_update_timer = NAVIGATION_UPDATE_INTERVAL
+
 			var direction = to_local(navigation_agent.get_next_path_position()).normalized()
 			if distance_to_player > MIN_DISTANCE:
-				velocity.x = direction.x * SPEED  # Nur horizontale Bewegung
+				velocity.x = direction.x * SPEED
 			else:
 				velocity.x = 0
+				decide_ability()  # Zufällige Fähigkeit ausführen
 		else:
 			velocity.x = 0
 			is_attacking = false
 
 	move_and_slide()
 	set_animation()
+
+func activate_stone_mantle():
+	is_immune = true
+	animation_player.play("stone_mantle")
+	await get_tree().create_timer(3.0).timeout  # Dauer der Immunität
+	is_immune = false
+	animation_player.play("idle")
+
+func decide_ability():
+	var ability = randi() % 3
+	match ability:
+		0:
+			spit_rock()
+		1:
+			activate_stone_mantle()
+		2:
+			attack()
+
+func spit_rock():
+	var rock = preload("res://Scenes/Items/stone.tscn").instantiate()
+	rock.global_position = global_position
+	rock.direction = (player.global_position - global_position).normalized()
+	get_parent().add_child(rock)
 
 func attack() -> void:
 	if player and not is_dead:
