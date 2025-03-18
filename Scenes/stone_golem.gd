@@ -18,14 +18,15 @@ var is_attacking := false
 var attack_timer := 0.0
 var knockback_velocity := Vector2.ZERO
 var is_knocked_back := false
-var is_stunned := false  # Neue Variable für Stun-Zustand
 var golem_position: Vector2 = Vector2.ZERO  # Standardwert setzen
 var save_load = preload("res://Scripts/SaveLoad.gd").new()
 var is_immune = false
+var is_stone_mantle_active := false  # Neue Variable, um den Zustand des Steinmantels zu verfolgen
+var stone_mantle_cooldown := 15.0  # Cooldown für den Steinmantel in Sekunden
+var stone_mantle_cooldown_timer := 0.0  # Timer für den Cooldown
 
 var loot_table = [
-	{ "scene": preload("res://Scenes/Items/stone.tscn"), "chance": 0.2 },  # 20% (weniger häufig)
-	{ "scene": preload("res://Scenes/Items/copper_nugget.tscn"), "chance": 0.15 },  # 15% (weniger häufig)
+	{ "scene": preload("res://Scenes/Items/golem_heart.tscn"), "chance": 0.02 },  # 2% (weniger häufig)
 	{ "scene": preload("res://Scenes/Items/iron_nugget.tscn"), "chance": 0.05 },  # 5% (selten)
 	{ "scene": preload("res://Scenes/Items/gold_nugget.tscn"), "chance": 0.01 },  # 1% (sehr selten)
 	#{ "scene": preload("res://Scenes/Items/golem_core.tscn"), "chance": 0.005 }, # 0.5% (extrem selten)
@@ -36,8 +37,6 @@ var player: CharacterBody2D  # Spieler-Referenz
 @export var spawn_zone_container: Node2D
 @onready var animation_player = $Sprite2D/AnimationPlayer
 @onready var navigation_agent = $NavigationAgent2D
-#@onready var camera: Camera2D = $Camera2D  # Kamera für Effekte
-#@export var camera: Camera2D
 @onready var visibility_notifier = $VisibleOnScreena
 var camera: Camera2D
 
@@ -60,6 +59,10 @@ func find_player() -> void:
 		print("Warnung: Kein Spieler gefunden! Stelle sicher, dass der Spieler in der Gruppe 'player' ist.")
 
 func _physics_process(delta: float) -> void:
+	# Cooldown-Timer für den Steinmantel aktualisieren
+	if stone_mantle_cooldown_timer > 0:
+		stone_mantle_cooldown_timer -= delta
+
 	if is_dead or player == null or player.current_health <= 0:
 		velocity = Vector2.ZERO
 		is_attacking = false
@@ -70,12 +73,19 @@ func _physics_process(delta: float) -> void:
 	if not is_on_floor():
 		velocity.y += GRAVITY * delta
 
+	# Wenn der Steinmantel aktiv ist, keine Bewegungen oder Angriffe ausführen
+	if is_stone_mantle_active:
+		velocity = Vector2.ZERO  # Golem unbeweglich machen
+		set_animation()
+		move_and_slide()
+		return  # Beende die Funktion, um weitere Logik zu überspringen
+
+	# Normale Bewegungs- und Angriffslogik
 	if is_knocked_back and not is_attacking:
 		velocity = knockback_velocity
 		knockback_velocity *= 1
 		if knockback_velocity.length() < 10:
 			is_knocked_back = false
-			apply_stun(0.7)
 	else:
 		var distance_to_player = global_position.distance_to(player.global_position)
 		var actual_detection_radius = DETECTION_RADIUS if player.is_glowing else BASE_DETECTION_RADIUS
@@ -104,26 +114,49 @@ func _physics_process(delta: float) -> void:
 	set_animation()
 
 func activate_stone_mantle():
+	if is_stone_mantle_active or stone_mantle_cooldown_timer > 0:
+		return
+
+	print("Steinmantel aktiviert")
+	is_stone_mantle_active = true
 	is_immune = true
+
+	# Animation einmal abspielen und auf dem letzten Frame halten
 	animation_player.play("stone_mantle")
-	await get_tree().create_timer(3.0).timeout  # Dauer der Immunität
+	await animation_player.animation_finished  # Warte, bis die Animation fertig ist
+	animation_player.stop()  # Stoppe die Animation
+	animation_player.seek(animation_player.current_animation_length, true)  # Gehe zum letzten Frame
+
+	# Warte 3 Sekunden, bis der Steinmantel endet
+	await get_tree().create_timer(5.0).timeout
+
+	# Steinmantel deaktivieren
+	print("Steinmantel deaktiviert")
+	is_stone_mantle_active = false
 	is_immune = false
-	animation_player.play("idle")
+	animation_player.play("idle")  # Zurück zur Idle-Animation
 
 func decide_ability():
-	var ability = randi() % 3
+	var ability = randi() % 5  # Erhöhe die Anzahl der Möglichkeiten auf 4
 	match ability:
-		0:
+		0,1 :  # 25% Chance, einen Stein zu werfen
 			spit_rock()
-		1:
-			activate_stone_mantle()
-		2:
+		2:  # 25% Chance, den Steinmantel zu aktivieren
+			if not is_stone_mantle_active or stone_mantle_cooldown_timer <= 0:
+				activate_stone_mantle()
+		3, 4:  # 50% Chance, anzugreifen
 			attack()
 
 func spit_rock():
 	var rock = preload("res://Scenes/Items/stone.tscn").instantiate()
 	rock.global_position = global_position
-	rock.direction = (player.global_position - global_position).normalized()
+
+	# Richtung berechnen
+	var direction = (player.global_position - global_position).normalized()
+
+	# Impuls auf den Stein anwenden
+	rock.apply_impulse(direction * 100)  # Multipliziere mit einer Geschwindigkeit (z. B. 100)
+
 	get_parent().add_child(rock)
 
 func attack() -> void:
@@ -140,7 +173,7 @@ func attack() -> void:
 
 func perform_critical_hit() -> void:
 	activate_slow_motion(0.3, 0.5)
-	camera.shake(10.0, 0.4)  # Intensitdät und Dauer anpassen
+	camera.shake(10.0, 0.4)  # Intensität und Dauer anpassen
 
 func activate_slow_motion(duration: float, scale: float) -> void:
 	Engine.time_scale = scale
@@ -172,6 +205,11 @@ func set_animation() -> void:
 	if is_dead:
 		return
 
+	# Wenn der Steinmantel aktiv ist, keine andere Animation abspielen
+	if is_stone_mantle_active:
+		return  # Die Animation bleibt auf dem letzten Frame stehen
+
+	# Normale Animationen
 	if velocity.x != 0:
 		$Sprite2D.scale.x = -1 if velocity.x < 0 else 1
 
@@ -183,9 +221,11 @@ func set_animation() -> void:
 		animation_player.play("idle")
 
 func take_damage(amount: int) -> void:
-	if is_dead:
-		return
-
+	if is_dead or is_stone_mantle_active:
+		return  # Kein Schaden, wenn der Golem tot ist oder der Steinmantel aktiv ist
+		
+	decide_ability()
+	# Normaler Schaden, wenn der Steinmantel nicht aktiviert wurde
 	golem_health -= amount
 	flash_red()  # Blink-Effekt hinzufügen
 
@@ -210,14 +250,6 @@ func apply_knockback():
 
 		await get_tree().create_timer(0.3).timeout  # Knockback-Dauer
 		is_knocked_back = false
-		apply_stun(0.3)  # Gegner wird nach Knockback für 0.5 Sekunden betäubt
-
-func apply_stun(duration: float) -> void:
-	is_stunned = true
-	animation_player.play("stunned")  # Falls eine Stun-Animation existiert
-	await get_tree().create_timer(duration).timeout
-	is_stunned = false
-	set_animation()  # Stellt sicher, dass nach dem Stun die richtige Animation läuft
 
 func die():
 	is_dead = true
