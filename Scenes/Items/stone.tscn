@@ -1,24 +1,26 @@
-[gd_scene load_steps=6 format=3 uid="uid://c5gf7gixygiky"]
+[gd_scene load_steps=5 format=3 uid="uid://cw8d016txcyrb"]
 
-[ext_resource type="Resource" uid="uid://c4ou2bi3c5ey2" path="res://InventorySystem/items/stone.tres" id="1_hfuc6"]
 [ext_resource type="Texture2D" uid="uid://cbor7vk02po" path="res://Assets/Items/Mob Drops/StoneGolem/stone.png" id="2_rl3fj"]
 
 [sub_resource type="GDScript" id="GDScript_8jn70"]
 resource_name = "bat_claw"
 script/source = "extends RigidBody2D
 
-@export var lifetime: float = 120.0  # Das Item verschwindet nach 10 Sekunden
-@export var item: InvItem  # Das tatsächliche Item-Objekt
+@export var lifetime: float = 3.0  # Das Item verschwindet nach 120 Sekunden
+@export var damage: int = 25  # Schaden, den der Stein verursacht
 var player = null
 
 func _ready():
+	# Timer für die Lebensdauer des Steins
 	await get_tree().create_timer(lifetime).timeout
 	queue_free()
 
 func _on_area_2d_body_entered(body: Node2D) -> void:
-	if body.is_in_group(\"players\"):  # Prüfen, ob der Spieler das Item berührt
-		body.collect(item)  # Item dem Inventar hinzufügen
-		queue_free()  # Item aus der Welt entfernen
+	if body.is_in_group(\"players\"):  # Prüfen, ob der Spieler den Stein berührt
+		var hit_source = global_position  # Position des Steins als Ursprung des Schadens
+		body.take_damage(damage, hit_source)
+		print(\"Spieler wurde getroffen und hat Schaden erhalten!\")
+		queue_free()
 "
 
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_8qekl"]
@@ -30,7 +32,6 @@ size = Vector2(9.61539, 10)
 
 [node name="stone" type="RigidBody2D"]
 script = SubResource("GDScript_8jn70")
-item = ExtResource("1_hfuc6")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("CapsuleShape2D_8qekl")

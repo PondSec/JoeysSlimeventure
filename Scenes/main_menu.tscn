@@ -244,6 +244,6 @@ text = "020394329432894732847847284823"
 
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/PlayButton" to="." method="_on_play_button_pressed"]
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/SettingsButton" to="." method="_on_settings_button_pressed"]
-[connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/CreditsButton" to="." method="_on_texture_button_pressed"]
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/CreditsButton" to="." method="_on_credits_button_pressed"]
+[connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/CreditsButton" to="." method="_on_texture_button_pressed"]
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/QuitButton" to="." method="_on_quit_button_pressed"]
