@@ -65,6 +65,21 @@ tracks/0/keys = {
 "values": [9, 10]
 }
 
+[sub_resource type="Animation" id="Animation_t7478"]
+resource_name = "stone_mantle"
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.166667, 1),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 0,
+"values": [22, 17, 22]
+}
+
 [sub_resource type="Animation" id="Animation_dmr0l"]
 resource_name = "walk"
 tracks/0/type = "value"
@@ -78,22 +93,6 @@ tracks/0/keys = {
 "transitions": PackedFloat32Array(1, 1),
 "update": 0,
 "values": [0, 4]
-}
-
-[sub_resource type="Animation" id="Animation_t7478"]
-resource_name = "stone_mantle"
-length = 0.3
-tracks/0/type = "value"
-tracks/0/imported = false
-tracks/0/enabled = true
-tracks/0/path = NodePath(".:frame")
-tracks/0/interp = 1
-tracks/0/loop_wrap = true
-tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.3),
-"transitions": PackedFloat32Array(1, 1),
-"update": 0,
-"values": [15, 20]
 }
 
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_gwacr"]
@@ -110,7 +109,7 @@ _data = {
 size = Vector2(60, 56)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_8fdcm"]
-size = Vector2(126, 38.6667)
+size = Vector2(126, 20.6667)
 
 [node name="StoneGolem" type="CharacterBody2D" node_paths=PackedStringArray("spawn_zone_container")]
 script = ExtResource("1_innic")
@@ -133,7 +132,7 @@ shape = SubResource("RectangleShape2D_c1dq0")
 [node name="AttackArea" type="Area2D" parent="."]
 
 [node name="Body" type="CollisionShape2D" parent="AttackArea"]
-position = Vector2(2.5, 2)
+position = Vector2(2.5, 15.5)
 scale = Vector2(1.5, 1.5)
 shape = SubResource("RectangleShape2D_8fdcm")
 
