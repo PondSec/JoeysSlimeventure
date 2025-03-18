@@ -6,8 +6,8 @@
 resource_name = "bat_claw"
 script/source = "extends RigidBody2D
 
-@export var lifetime: float = 3.0  # Das Item verschwindet nach 120 Sekunden
-@export var damage: int = 25  # Schaden, den der Stein verursacht
+@export var lifetime: float = 2.0  # Das Item verschwindet nach 120 Sekunden
+@export var damage: int = 15  # Schaden, den der Stein verursacht
 var player = null
 
 func _ready():
