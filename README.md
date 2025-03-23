@@ -93,7 +93,7 @@ If you encounter bugs or have suggestions for improvements, please open an issue
 
 Do you want to help or simply support us during the development process? Join our **Discord community**! Discuss with other players, provide feedback, share your thoughts, or help us improve the game.
 
-[**Join our Discord Server**](https://discord.gg/yCkdZRcmn4)
+[**Join our Discord Server**](https://discord.gg/warNZJhXFc)
 
 ---
 
