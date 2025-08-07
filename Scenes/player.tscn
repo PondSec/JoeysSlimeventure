@@ -26,8 +26,8 @@ resource_name = "Player"
 script/source = "extends CharacterBody2D
 
 # Bewegungseinstellungen
-const WALK_SPEED = 220.0
-const RUN_SPEED = 320.0
+const WALK_SPEED = 140.0
+const RUN_SPEED = 220.0
 const ACCELERATION = 1800.0
 const DECELERATION = 2400.0
 const AIR_ACCELERATION = 1200.0  # Vorher vielleicht 900.0
@@ -41,8 +41,9 @@ const SHORT_JUMP_MULTIPLIER = 0.6  # Für kürzere Sprünge bei losgelassener Ta
 const JUMP_CUT_MULTIPLIER = 0.4    # Für sofortige Sprungabbremsung
 
 # Wall-Jump und Slide
-const WALL_JUMP_VELOCITY_X = 300.0
-const WALL_JUMP_VELOCITY_Y = -400.0
+const WALL_JUMP_VELOCITY_X = -300.0  # Stärkerer horizontaler Impuls
+const WALL_JUMP_VELOCITY_Y = -400.0  # Etwas geringere vertikale Geschwindigkeit
+const WALL_JUMP_PUSH_AWAY = 200.0  # Zusätzlicher Abstoß-Effekt
 const WALL_SLIDE_SPEED = 50.0
 const WALL_STICK_TIME = 0.15       # Zeit, in der man sich noch vom Wand abstoßen kann
 
@@ -298,10 +299,22 @@ func handle_wall_mechanics(delta):
 		# Wandsprung ausführen
 		if Input.is_action_just_pressed(\"up\") and can_wall_jump:
 			var wall_normal = get_wall_normal()
+			
+			# 1. Vertikaler Sprung (nach oben)
 			velocity.y = WALL_JUMP_VELOCITY_Y
-			if wall_normal.x != 0:
-				velocity.x = -wall_normal.x * WALL_JUMP_VELOCITY_X
+			
+			# 2. Horizontaler Impuls (WEG von der Wand!)
+			velocity.x = -wall_normal.x * WALL_JUMP_VELOCITY_X
+			
+			# 3. Optional: Kleiner zusätzlicher \"Push\" für mehr Kontrolle
+			position.x += -wall_normal.x * 5
+			
 			can_wall_jump = false
+			$Camera2D.shake(0.1, 5)
+			
+			# Wenn der Spieler während des Wall-Jumps eine Richtungstaste drückt, setze x-Velocity auf 0
+			if Input.is_action_pressed(\"left\") or Input.is_action_pressed(\"right\"):
+				velocity.x = 0
 	else:
 		is_wall_sliding = false
 		if is_on_floor():
@@ -947,8 +960,8 @@ limit_left = -14
 limit_top = 500
 limit_right = 3450
 limit_bottom = 1545
-limit_smoothed = true
 position_smoothing_enabled = true
+position_smoothing_speed = 6.0
 editor_draw_limits = true
 editor_draw_drag_margin = true
 script = ExtResource("12_4e8m4")

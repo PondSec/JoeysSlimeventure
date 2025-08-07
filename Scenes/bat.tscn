@@ -112,10 +112,10 @@ _data = {
 }
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_p57rr"]
-radius = 6.14636
+radius = 10.0222
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_chl00"]
-size = Vector2(6.37498, 5.79167)
+size = Vector2(12, 8.22917)
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_50dnf"]
 radius = 78.6695
@@ -143,7 +143,7 @@ position = Vector2(0, -8.66667)
 shape = SubResource("CircleShape2D_p57rr")
 
 [node name="Collision" type="CollisionShape2D" parent="."]
-position = Vector2(0, -6)
+position = Vector2(0, -7.21875)
 shape = SubResource("RectangleShape2D_chl00")
 
 [node name="NavigationAgent2D" type="NavigationAgent2D" parent="."]

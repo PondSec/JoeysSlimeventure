@@ -150,16 +150,8 @@ autostart = true
 [node name="CollisionShape2D" type="CollisionShape2D" parent="DetectionArea"]
 shape = SubResource("CircleShape2D_4em5g")
 
-[node name="AlertMaker" type="Label" parent="."]
+[node name="NotificationLabel" type="Label" parent="."]
 offset_left = -2.0
 offset_top = -56.0
 offset_right = 38.0
 offset_bottom = -33.0
-text = "!"
-
-[node name="QuestionMaker" type="Label" parent="."]
-offset_left = -3.0
-offset_top = -56.0
-offset_right = 37.0
-offset_bottom = -33.0
-text = "?"
