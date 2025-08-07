@@ -1,226 +1,476 @@
 extends CharacterBody2D
 
+# Einstellungen
 const SPEED = 140.0
 const DETECTION_RADIUS = 300.0
 const ATTACK_RANGE = 35.0
 const ATTACK_COOLDOWN = 1.5
 const MIN_DISTANCE = 5.0
 const RESPAWN_COOLDOWN = 5
-const BASE_DETECTION_RADIUS = 150.0  # Kleinerer Radius für nicht-glühenden Spieler
-const NAVIGATION_UPDATE_INTERVAL = 0.5  # Alle 0.5 Sekunden aktualisieren
+const BASE_DETECTION_RADIUS = 150.0
+const NAVIGATION_UPDATE_INTERVAL = 0.5
+const CRITICAL_HIT_CHANCE = 0.15
+const DODGE_CHANCE = 0.25
+const MAX_HEALTH = 50
 
-var navigation_update_timer = 0.0  # Timer für die Navigation
+# Variablen
+var navigation_update_timer = 0.0
 var is_dead := false
-var bat_health := 50
+var bat_health := MAX_HEALTH
 var is_attacking := false
 var attack_timer := 0.0
 var knockback_velocity := Vector2.ZERO
 var is_knocked_back := false
-var is_stunned := false  # Neue Variable für Stun-Zustand
-var bat_position: Vector2 = Vector2.ZERO  # Standardwert setzen
-var save_load = preload("res://Scripts/SaveLoad.gd").new()
+var is_stunned := false
+var is_dodging := false
+var last_dodge_time := 0.0
+var bat_position: Vector2 = Vector2.ZERO
+var player_last_seen_position: Vector2 = Vector2.ZERO
+var time_since_last_seen := 0.0
+var patrol_points := []
+var current_patrol_index := 0
 
-var loot_table = [
-	{ "scene": preload("res://Scenes/Items/bat_claw.tscn"), "chance": 0.08 },  # 8% (weniger häufig)
-	{ "scene": preload("res://Scenes/Items/copper_nugget.tscn"), "chance": 0.15 },  # 15% (weniger häufig)
-	{ "scene": preload("res://Scenes/Items/iron_nugget.tscn"), "chance": 0.05 },  # 5% (selten)
-	{ "scene": preload("res://Scenes/Items/gold_nugget.tscn"), "chance": 0.01 },  # 1% (sehr selten)
-	{ "scene": preload("res://Scenes/Items/bat_artefact.tscn"), "chance": 0.005 }, # 0.5% (extrem selten)
-	{ "scene": null, "chance": 0.70 }  # 70% Chance, dass nichts droppt (erschwert Farming)
-]
+# Einstellungen
+const PATROL_CHANCE = 0.6  # 30% Chance zu patrouillieren, wenn der Spieler nicht in Sicht ist
+const PATROL_DURATION = 10.0  # Wie lange patrouilliert wird
+const IDLE_DURATION = 2.0  # Wie lange sie ruhig bleibt
+
+# Variablen
+var is_patrolling := false
+var patrol_timer := 0.0
+var idle_timer := 0.0
+var current_state = "idle"  # Kann "idle", "patrol" oder "chase" sein
 
 @export var player: CharacterBody2D
 @export var spawn_zone_container: Node2D
 @onready var animation_player = $Sprite2D/AnimationPlayer
 @onready var navigation_agent = $NavigationAgent2D
-@onready var camera: Camera2D = $Camera2D  # Kamera für Effekte
-@onready var visibility_notifier = $VisibleOnScreena
+@onready var hit_particles = $HitParticles
+@onready var death_particles = $DeathParticles
+@onready var sound_player = $SoundPlayer
+@onready var health_bar = $HealthBar
+@onready var detection_area = $DetectionArea
+@onready var alert_icon = $AlertIcon
+@onready var sprite = $Sprite2D
+
+# Sound-Effekte
+var attack_sound = preload("res://Assets/Sounds/Bat_idle1.ogg")
+var death_sound = preload("res://Assets/Sounds/Bat_death.ogg")
+var hurt_sound = preload("res://Assets/Sounds/Bat_hurt2.ogg.mp3")
+var dodge_sound = preload("res://Assets/Sounds/Bat_takeoff.ogg")
+
+# Loot-Tabelle
+var loot_table = [
+	{ "scene": preload("res://Scenes/Items/bat_claw.tscn"), "chance": 0.08 },
+	{ "scene": preload("res://Scenes/Items/copper_nugget.tscn"), "chance": 0.15 },
+	{ "scene": preload("res://Scenes/Items/iron_nugget.tscn"), "chance": 0.05 },
+	{ "scene": preload("res://Scenes/Items/gold_nugget.tscn"), "chance": 0.01 },
+	{ "scene": preload("res://Scenes/Items/bat_artefact.tscn"), "chance": 0.005 },
+	{ "scene": null, "chance": 0.70 }
+]
 
 func _ready() -> void:
 	randomize()
 	add_to_group("enemies")
 	add_to_group("bats")
 	bat_position = global_position
+	health_bar.visible = false
+	alert_icon.visible = false
+	alert_icon.text = "!"  # Stelle sicher, dass das Symbol ein ! ist
+	generate_patrol_points()
+	
+	# Verbinde Area-Signale
+	detection_area.body_entered.connect(_on_player_detected)
+	detection_area.body_exited.connect(_on_player_lost)
+	
+	# AudioStreamPlayer dynamisch erstellen
+	sound_player = AudioStreamPlayer.new()
+	sound_player.name = "SoundPlayer"  # Optional: Name für Debugging
+	add_child(sound_player)  # WICHTIG: Node hinzufügen
 
 func _physics_process(delta: float) -> void:
-	if is_dead or is_stunned or player == null or player.current_health <= 0:
+	if is_dead or player == null:
+		return
+	
+	update_health_bar()
+	
+	if is_stunned or player.current_health <= 0:
 		velocity = Vector2.ZERO
 		is_attacking = false
 		set_animation()
 		return
-
+	
 	if is_knocked_back:
-		velocity = knockback_velocity
-		knockback_velocity *= 1
-		if knockback_velocity.length() < 10:
-			is_knocked_back = false
-			apply_stun(0.7)
+		handle_knockback(delta)
 	else:
-		var distance_to_player = global_position.distance_to(player.global_position)
-		var actual_detection_radius = DETECTION_RADIUS if player.is_glowing else BASE_DETECTION_RADIUS
-		
-		if distance_to_player <= ATTACK_RANGE:
-			attack_timer -= delta
-			if attack_timer <= 0.0:
-				attack()
-		elif distance_to_player <= actual_detection_radius:
-			# Aktualisiere Navigation nur alle NAVIGATION_UPDATE_INTERVAL Sekunden
-			navigation_update_timer -= delta
-			if navigation_update_timer <= 0:
-				navigation_agent.target_position = player.global_position
-				navigation_update_timer = NAVIGATION_UPDATE_INTERVAL  # Timer zurücksetzen
-			
-			var direction = to_local(navigation_agent.get_next_path_position()).normalized()
-			if distance_to_player > MIN_DISTANCE:
-				velocity = direction * SPEED
-			else:
-				velocity = Vector2.ZERO
-		else:
-			velocity = Vector2.ZERO
-			is_attacking = false
-
+		handle_state_machine(delta)  # Ersetzt handle_movement
+	
 	move_and_slide()
 	set_animation()
 
+func handle_state_machine(delta: float) -> void:
+	var distance_to_player = global_position.distance_to(player.global_position)
+	var actual_detection_radius = DETECTION_RADIUS if player.is_glowing else BASE_DETECTION_RADIUS
+	
+	# Nur verfolgen, wenn der Spieler im Detektionsradius ist
+	if distance_to_player <= actual_detection_radius:
+		current_state = "chase"
+		player_last_seen_position = player.global_position
+		time_since_last_seen = 0
+	elif current_state == "chase":
+		time_since_last_seen += delta
+		# Nach 2 Sekunden ohne Sichtkontakt aufhören zu verfolgen
+		if time_since_last_seen > 2.0:
+			decide_next_state()
+	
+	# Zustandsausführung
+	match current_state:
+		"chase":
+			# Nur verfolgen, wenn der Spieler noch im Radius ist
+			if distance_to_player <= actual_detection_radius:
+				handle_chase(delta, distance_to_player)
+			else:
+				velocity = Vector2.ZERO
+				decide_next_state()
+		"patrol":
+			handle_patrol_state(delta)
+		"idle":
+			handle_idle_state(delta)
+
+func decide_next_state() -> void:
+	if randf() < PATROL_CHANCE:
+		current_state = "patrol"
+		patrol_timer = PATROL_DURATION
+		# Neue zufällige Patrouillenpunkte generieren
+		generate_patrol_points()
+		current_patrol_index = 0
+	else:
+		current_state = "idle"
+		idle_timer = IDLE_DURATION
+
+func handle_patrol_state(delta: float) -> void:
+	patrol_timer -= delta
+	if patrol_timer <= 0:
+		decide_next_state()
+		return
+	
+	# Zum nächsten Patrouillenpunkt bewegen
+	if patrol_points.size() > 0:
+		if global_position.distance_to(patrol_points[current_patrol_index]) < 10:
+			current_patrol_index = (current_patrol_index + 1) % patrol_points.size()
+		
+		navigation_agent.target_position = patrol_points[current_patrol_index]
+		var direction = to_local(navigation_agent.get_next_path_position()).normalized()
+		velocity = direction * SPEED * 0.6  # Langsamere Geschwindigkeit beim Patrouillieren
+
+func handle_idle_state(delta: float) -> void:
+	idle_timer -= delta
+	if idle_timer <= 0:
+		decide_next_state()
+		return
+	
+	velocity = Vector2.ZERO  # Still stehen
+
+func handle_knockback(delta: float) -> void:
+	velocity = knockback_velocity
+	knockback_velocity = knockback_velocity.lerp(Vector2.ZERO, delta * 5)
+	if knockback_velocity.length() < 10:
+		is_knocked_back = false
+		apply_stun(0.7)
+
+func handle_movement(delta: float) -> void:
+	var distance_to_player = global_position.distance_to(player.global_position)
+	var actual_detection_radius = DETECTION_RADIUS if player.is_glowing else BASE_DETECTION_RADIUS
+	
+	if distance_to_player <= ATTACK_RANGE:
+		handle_attack(delta)
+	elif distance_to_player <= actual_detection_radius:
+		handle_chase(delta, distance_to_player)
+	else:
+		handle_patrol(delta)
+
+func handle_attack(delta: float) -> void:
+	attack_timer -= delta
+	if attack_timer <= 0.0 and not is_dodging:
+		attack()
+	else:
+		# Ausweichmanöver
+		if randf() < DODGE_CHANCE and Time.get_ticks_msec() - last_dodge_time > 3000:
+			dodge()
+
+func handle_chase(delta: float, distance: float) -> void:
+	var actual_detection_radius = DETECTION_RADIUS if player.is_glowing else BASE_DETECTION_RADIUS
+	
+	# Nicht weiter verfolgen, wenn der Spieler außerhalb des Radius ist
+	if distance > actual_detection_radius * 1.2:  # 20% Puffer
+		velocity = Vector2.ZERO
+		decide_next_state()
+		return
+	
+	navigation_update_timer -= delta
+	if navigation_update_timer <= 0:
+		navigation_agent.target_position = player.global_position
+		navigation_update_timer = NAVIGATION_UPDATE_INTERVAL
+		player_last_seen_position = player.global_position
+		time_since_last_seen = 0
+	
+	var direction = to_local(navigation_agent.get_next_path_position()).normalized()
+	if distance > MIN_DISTANCE:
+		velocity = direction * SPEED
+	else:
+		velocity = Vector2.ZERO
+
+func handle_patrol(delta: float) -> void:
+	time_since_last_seen += delta
+	if time_since_last_seen > 3.0 and patrol_points.size() > 0:
+		# Patrouillieren
+		if global_position.distance_to(patrol_points[current_patrol_index]) < 10:
+			current_patrol_index = (current_patrol_index + 1) % patrol_points.size()
+		
+		navigation_agent.target_position = patrol_points[current_patrol_index]
+		var direction = to_local(navigation_agent.get_next_path_position()).normalized()
+		velocity = direction * SPEED * 0.6  # Langsamere Geschwindigkeit beim Patrouillieren
+	else:
+		# Zum letzten gesehenen Ort gehen
+		if player_last_seen_position != Vector2.ZERO:
+			navigation_agent.target_position = player_last_seen_position
+			var direction = to_local(navigation_agent.get_next_path_position()).normalized()
+			velocity = direction * SPEED * 0.8
+			if global_position.distance_to(player_last_seen_position) < 10:
+				player_last_seen_position = Vector2.ZERO
+
+func generate_patrol_points() -> void:
+	patrol_points.clear()
+	for i in range(3):  # 3 Punkte generieren
+		var angle = randf_range(0, 2 * PI)  # Zufällige Richtung
+		var distance = randf_range(50, 150)  # Zufällige Entfernung
+		patrol_points.append(global_position + Vector2(cos(angle), sin(angle)) * distance)
+
 func attack() -> void:
 	if player and not is_dead:
-		var is_critical = randf() < 0.1  # 10% Chance für einen kritischen Treffer
+		var is_critical = randf() < CRITICAL_HIT_CHANCE
+		
 		if is_critical:
 			perform_critical_hit()
-
+		else:
+			sound_player.stream = attack_sound
+			sound_player.play()
+		
 		animation_player.play("attack")
 		attack_timer = ATTACK_COOLDOWN
 		is_attacking = true
 		animation_player.connect("animation_finished", Callable(self, "_on_attack_animation_finished"))
 
+func dodge() -> void:
+	is_dodging = true
+	last_dodge_time = Time.get_ticks_msec()
+	sound_player.stream = dodge_sound
+	sound_player.play()
+	
+	var dodge_direction = Vector2.RIGHT if randi() % 2 == 0 else Vector2.LEFT
+	dodge_direction = dodge_direction.rotated(randf_range(-PI/4, PI/4))
+	knockback_velocity = dodge_direction * 200
+	is_knocked_back = true
+	
+	var dodge_tween = create_tween()
+	dodge_tween.tween_property(sprite, "modulate:a", 0.5, 0.1)
+	dodge_tween.tween_property(sprite, "modulate:a", 1.0, 0.1)
+	
+	await get_tree().create_timer(0.4).timeout
+	is_dodging = false
+
 func perform_critical_hit() -> void:
-	activate_slow_motion(0.3, 0.5)
-	screen_shake(0.5, 30.0)
-
-func activate_slow_motion(duration: float, scale: float) -> void:
-	Engine.time_scale = scale
-	await get_tree().create_timer(duration).timeout
-	Engine.time_scale = 1.0
-
-func screen_shake(duration: float, intensity: float) -> void:
-	var tween = get_tree().create_tween()
-	for i in range(int(duration * 10)):
-		var random_offset = Vector2(randi_range(-intensity, intensity), randi_range(-intensity, intensity))
-		tween.tween_property(camera, "offset", random_offset, 0.05)
-		tween.tween_property(camera, "offset", Vector2.ZERO, 0.05)
+	sound_player.stream = attack_sound
+	sound_player.pitch_scale = 1.5
+	sound_player.play()
+	
+	# Slow-Motion Effekt
+	Engine.time_scale = 0.3
+	get_tree().create_timer(0.5).timeout.connect(func(): Engine.time_scale = 1.0)
+	
+	# Screen Shake
+	var shake_intensity = 15.0
+	var camera = get_viewport().get_camera_2d()
+	if camera and camera.has_method("shake"):
+		camera.shake(0.5, shake_intensity)
+	
+	# Blitz-Effekt
+	var flash_tween = create_tween()
 
 func _on_attack_animation_finished(anim_name: String) -> void:
 	if anim_name == "attack" and player:
 		var distance_to_player = global_position.distance_to(player.global_position)
 		if distance_to_player <= ATTACK_RANGE:
 			var random_damage = int(randf_range(7.0, 17.0))
-			if randf() < 0.1:
-				random_damage *= 2  # Kritischer Treffer macht doppelten Schaden
+			if randf() < CRITICAL_HIT_CHANCE:
+				random_damage *= 2
+				show_damage_number(random_damage, true)
+			else:
+				show_damage_number(random_damage)
 			
 			player.take_damage(random_damage, global_position)
-
+	
 	animation_player.disconnect("animation_finished", Callable(self, "_on_attack_animation_finished"))
 	is_attacking = false
-	set_animation()  # Stelle sicher, dass die Animation aktualisiert wird
+	set_animation()
+
+func show_damage_number(amount: int, is_critical: bool = false) -> void:
+	# Erstelle einen neuen Label-Node
+	var damage_label = Label.new()
+	
+	# Text und Formatierung
+	damage_label.text = str(amount)
+	damage_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	damage_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	
+	# Schriftgröße und Farbe anpassen
+	var font = damage_label.get_theme_default_font()
+	damage_label.add_theme_font_size_override("font_size", 20 if is_critical else 16)
+	damage_label.add_theme_color_override("font_color", Color.RED if is_critical else Color.WHITE)
+	
+	# Positioniere den Label über dem Gegner
+	damage_label.position = global_position + Vector2(randf_range(-10, 10), -20)
+	get_parent().add_child(damage_label)
+	
+	# Animation: Nach oben schweben lassen und ausblenden
+	var tween = create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(damage_label, "position:y", damage_label.position.y - 30, 0.5)
+	tween.tween_property(damage_label, "modulate:a", 0.0, 0.5)
+	
+	# Optional: Skalierung für kritische Treffer
+	if is_critical:
+		damage_label.scale = Vector2(1.2, 1.2)
+		tween.tween_property(damage_label, "scale", Vector2(1.5, 1.5), 0.3).from_current()
+		tween.tween_property(damage_label, "scale", Vector2(0.8, 0.8), 0.2).set_delay(0.3)
+	
+	# Label nach der Animation entfernen
+	await tween.finished
+	damage_label.queue_free()
 
 func set_animation() -> void:
 	if is_dead:
 		return
-
+	
 	if velocity.x != 0:
-		$Sprite2D.scale.x = -1 if velocity.x < 0 else 1
-
+		sprite.scale.x = -1 if velocity.x < 0 else 1
+	
 	if is_attacking:
 		animation_player.play("attack")
-	elif velocity.length() > 0:
+	elif is_stunned:
+		animation_player.play("stunned")
+	elif is_dodging:
+		animation_player.play("dodge")
+	elif current_state == "chase" and velocity.length() > 0:
 		animation_player.play("flying")
+	elif current_state == "patrol" and velocity.length() > 0:
+		animation_player.play("idle")  # Brauchst du eine langsamere Fluganimation
 	else:
 		animation_player.play("idle")
 
 func take_damage(amount: int) -> void:
-	if is_dead:
+	if is_dead or is_dodging:
 		return
-
-	bat_health -= amount
-	flash_red()  # Blink-Effekt hinzufügen
-	apply_knockback()  # Rückstoß hinzufügen
-
+	
+	# Schadensreduktion basierend auf der Entfernung
+	var distance_factor = clamp(global_position.distance_to(player.global_position) / 100.0, 0.5, 1.0)
+	var final_damage = ceil(amount * distance_factor)
+	
+	bat_health -= final_damage
+	show_damage_number(final_damage)
+	
+	sound_player.stream = hurt_sound
+	sound_player.pitch_scale = randf_range(0.9, 1.1)
+	sound_player.play()
+	flash_red()
+	apply_knockback()
+	
 	if bat_health <= 0:
 		die()
+	else:
+		health_bar.visible = true
+		get_tree().create_timer(2.0).timeout.connect(func(): health_bar.visible = false)
 
-func flash_red():
-	var sprite = $Sprite2D
-	var tween = get_tree().create_tween()
-	tween.tween_property(sprite, "modulate", Color(1, 0, 0), 0.2)  # Rote Farbe für 0.1 Sek.
-	tween.tween_property(sprite, "modulate", Color(1, 1, 1), 0.2)  # Zurück zur normalen Farbe
+func flash_red() -> void:
+	var flash_tween = create_tween()
+	flash_tween.tween_property(sprite, "modulate", Color(1, 0.3, 0.3), 0.1)
+	flash_tween.tween_property(sprite, "modulate", Color.WHITE, 0.2)
 
-func apply_knockback():
+func apply_knockback() -> void:
 	if player:
 		var direction = (global_position - player.global_position).normalized()
 		var knockback_strength = 350
 		knockback_velocity = direction * knockback_strength
 		is_knocked_back = true
 
-		await get_tree().create_timer(0.3).timeout  # Knockback-Dauer
+		await get_tree().create_timer(0.3).timeout
 		is_knocked_back = false
-		apply_stun(0.5)  # Gegner wird nach Knockback für 0.5 Sekunden betäubt
+		apply_stun(0.5)
 
 func apply_stun(duration: float) -> void:
 	is_stunned = true
-	animation_player.play("stunned")  # Falls eine Stun-Animation existiert
 	await get_tree().create_timer(duration).timeout
 	is_stunned = false
-	set_animation()  # Stellt sicher, dass nach dem Stun die richtige Animation läuft
+	set_animation()
 
-func die():
+func die() -> void:
 	is_dead = true
 	animation_player.play("death")
-	velocity = Vector2.ZERO
-	# Warte, bis die Death-Animation zu Ende ist
-	await animation_player.animation_finished  
-	hide()  # Jetzt erst verstecken
-
-	drop_loot()
+	sound_player.stream = death_sound
+	sound_player.play()
 	
-	set_deferred("collision_layer", 0)
-	set_deferred("collision_mask", 0)  
-	# Respawn-Delay
-	await get_tree().create_timer(RESPAWN_COOLDOWN).timeout  
-	spawn_near_player()
+	set_collision_layer_value(1, false)
+	set_collision_mask_value(1, false)
+	
+	await animation_player.animation_finished
+	hide()
+	
+	drop_loot()
+	await get_tree().create_timer(RESPAWN_COOLDOWN).timeout
+	respawn()
 
-func drop_loot():
-	var roll = randf()  # Zufallszahl zwischen 0.0 und 1.0
+func drop_loot() -> void:
+	var roll = randf()
 	var cumulative_chance = 0.0
 	
 	for item in loot_table:
 		cumulative_chance += item["chance"]
 		if roll < cumulative_chance:
 			if item["scene"] == null:
-				return  # Kein Loot droppt
+				return
 			
 			var dropped_item = item["scene"].instantiate()
 			dropped_item.global_position = global_position
-			dropped_item.apply_impulse(Vector2(randf_range(-50, 50), -100))  
-			dropped_item.apply_torque_impulse(randf_range(-10, 10))  
+			dropped_item.apply_impulse(Vector2(randf_range(-50, 50), -100))
+			dropped_item.apply_torque_impulse(randf_range(-10, 10))
 			get_parent().add_child(dropped_item)
-			return  # Stoppt die Funktion, sobald ein Item gedroppt wurde
+			return
+
+func respawn() -> void:
+	bat_health = MAX_HEALTH
+	is_dead = false
+	is_stunned = false
+	is_knocked_back = false
+	global_position = get_random_spawn_position()
+	show()
+	set_collision_layer_value(1, true)
+	set_collision_mask_value(1, true)
+	health_bar.visible = false
 
 func get_random_spawn_position() -> Vector2:
 	if not spawn_zone_container or spawn_zone_container.get_child_count() == 0:
-		print("FEHLER: Keine gültigen Spawn-Zonen gefunden!")
-		return global_position  # Fallback auf aktuelle Position
-
+		return global_position
+	
 	var spawn_areas = spawn_zone_container.get_children().filter(func(node): return node is Area2D)
 	
 	if spawn_areas.is_empty():
-		print("FEHLER: Keine Area2D-Zonen gefunden!")
 		return global_position
 
 	var selected_area = spawn_areas[randi() % spawn_areas.size()]
 	var shape = selected_area.get_node_or_null("CollisionShape2D")
 
 	if shape and shape.shape is RectangleShape2D:
-		var rect = shape.shape.extents * 2  # Volle Größe des Rechtecks
+		var rect = shape.shape.extents * 2
 		var top_left = selected_area.global_position - shape.shape.extents
 		var random_pos = top_left + Vector2(randf_range(0, rect.x), randf_range(0, rect.y))
 		return random_pos
@@ -228,27 +478,40 @@ func get_random_spawn_position() -> Vector2:
 	elif shape and shape.shape is CircleShape2D:
 		var radius = shape.shape.radius
 		var angle = randf_range(0, TAU)
-		var distance = sqrt(randf()) * radius  # Gleichmäßige Verteilung im Kreis
+		var distance = sqrt(randf()) * radius
 		return selected_area.global_position + Vector2(cos(angle), sin(angle)) * distance
 
-	print("WARNUNG: Area2D hat keine gültige CollisionShape2D!")
-	return global_position  # Fallback
+	return global_position
 
-func spawn_near_player() -> void:
-	if not player:
-		print("FEHLER: Kein Spieler gefunden!")
-		return
+func update_health_bar() -> void:
+	health_bar.value = bat_health
+	health_bar.max_value = MAX_HEALTH
+	health_bar.position = position + Vector2(0, -40)
 
-	var new_position = get_random_spawn_position()
+func _on_player_detected(body: Node2D) -> void:
+	if body == player:
+		alert_icon.text = "!"
+		alert_icon.visible = true
+		var alert_tween = create_tween()
+		alert_tween.tween_property(alert_icon, "scale", Vector2(1.5, 1.5), 0.2)
+		alert_tween.tween_property(alert_icon, "scale", Vector2(1.0, 1.0), 0.1)
+		# Nach 1 Sekunde unsichtbar machen
+		await get_tree().create_timer(1.0).timeout
+		if alert_icon.text == "!":  # Nur ausblenden, wenn es noch ein "!" ist
+			alert_icon.visible = false
 
-	# Debugging
-	print("Fledermaus spawnt bei:", new_position)
-
-	# Setze die Position und aktiviere die Fledermaus
-	global_position = new_position
-	show()
-	set_deferred("collision_layer", 1)
-	set_deferred("collision_mask", 1)
-	modulate = Color(1, 1, 1, 1)
-	is_dead = false
-	bat_health = 50
+func _on_player_lost(body: Node2D) -> void:
+	if body == player:
+		# Ändere das Icon zu einem Fragezeichen
+		alert_icon.text = "?"
+		alert_icon.visible = true
+		
+		# Animation für das Fragezeichen
+		var alert_tween = create_tween()
+		alert_tween.tween_property(alert_icon, "scale", Vector2(1.5, 1.5), 0.2)
+		alert_tween.tween_property(alert_icon, "scale", Vector2(1.0, 1.0), 0.1)
+		
+		# Nach 0.5 Sekunden unsichtbar machen
+		await get_tree().create_timer(0.5).timeout
+		alert_icon.visible = false
+		alert_icon.text = "!"  # Zurück zum Ausrufezeichen für das nächste Mal
