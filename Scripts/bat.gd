@@ -5,7 +5,7 @@ const SPEED = 140.0
 const DETECTION_RADIUS = 300.0
 const ATTACK_RANGE = 35.0
 const ATTACK_COOLDOWN = 1.5
-const MIN_DISTANCE = 5.0
+const MIN_DISTANCE = 10.0
 const RESPAWN_COOLDOWN = 5
 const BASE_DETECTION_RADIUS = 150.0
 const NAVIGATION_UPDATE_INTERVAL = 0.5
@@ -29,17 +29,18 @@ var player_last_seen_position: Vector2 = Vector2.ZERO
 var time_since_last_seen := 0.0
 var patrol_points := []
 var current_patrol_index := 0
+var should_attack := false
 
 # Einstellungen
-const PATROL_CHANCE = 0.6  # 30% Chance zu patrouillieren, wenn der Spieler nicht in Sicht ist
-const PATROL_DURATION = 10.0  # Wie lange patrouilliert wird
-const IDLE_DURATION = 2.0  # Wie lange sie ruhig bleibt
+const PATROL_CHANCE = 0.9  # 30% Chance zu patrouillieren, wenn der Spieler nicht in Sicht ist
+const PATROL_DURATION = 20.0  # Wie lange patrouilliert wird
+const IDLE_DURATION = 0.1  # Wie lange sie ruhig bleibt
 
 # Variablen
 var is_patrolling := false
 var patrol_timer := 0.0
 var idle_timer := 0.0
-var current_state = "idle"  # Kann "idle", "patrol" oder "chase" sein
+var current_state = "patrol"  # Kann "idle", "patrol" oder "chase" sein
 
 @export var player: CharacterBody2D
 @export var spawn_zone_container: Node2D
@@ -89,9 +90,24 @@ func _ready() -> void:
 	add_child(sound_player)  # WICHTIG: Node hinzufügen
 
 func _physics_process(delta: float) -> void:
+	var can_attack_now = can_attack()
+	if can_attack_now:
+		if attack_timer <= 0.0:
+			handle_attack(delta)  # Execute attack immediately when in range
+			attack_timer = ATTACK_COOLDOWN  # Reset cooldown
+		else:
+			attack_timer -= delta  # Count down cooldown
+	else:
+		attack_timer = 0.0  # Reset timer when not in attack range
 	if is_dead or player == null:
 		return
+		should_attack = can_attack()  # Zustand speichern
 	
+	if should_attack:
+		attack_timer -= delta
+		if attack_timer <= 0.0:
+			attack()
+			
 	update_health_bar()
 	
 	if is_stunned or player.current_health <= 0:
@@ -190,15 +206,21 @@ func handle_movement(delta: float) -> void:
 		handle_patrol(delta)
 
 func handle_attack(delta: float) -> void:
-	attack_timer -= delta
-	if attack_timer <= 0.0 and not is_dodging:
-		attack()
-	else:
-		# Ausweichmanöver
-		if randf() < DODGE_CHANCE and Time.get_ticks_msec() - last_dodge_time > 3000:
-			dodge()
+	if can_attack():  # Neue Hilfsfunktion
+		attack_timer -= delta
+		if attack_timer <= 0.0:
+			attack()
+
+func can_attack() -> bool:
+	return (player != null 
+			and not is_dead 
+			and not is_stunned 
+			and not is_dodging 
+			and global_position.distance_to(player.global_position) <= ATTACK_RANGE)
 
 func handle_chase(delta: float, distance: float) -> void:
+	if should_attack:
+		return
 	var actual_detection_radius = DETECTION_RADIUS if player.is_glowing else BASE_DETECTION_RADIUS
 	
 	# Nicht weiter verfolgen, wenn der Spieler außerhalb des Radius ist
@@ -216,9 +238,10 @@ func handle_chase(delta: float, distance: float) -> void:
 	
 	var direction = to_local(navigation_agent.get_next_path_position()).normalized()
 	if distance > MIN_DISTANCE:
-		velocity = direction * SPEED
+		var target_velocity = direction * SPEED
+		velocity = velocity.lerp(target_velocity, delta * 10)  # Glättung hier
 	else:
-		velocity = Vector2.ZERO
+		velocity = velocity.lerp(Vector2.ZERO, delta * 10)  # Auch beim Stoppen glätten
 
 func handle_patrol(delta: float) -> void:
 	time_since_last_seen += delta
@@ -229,7 +252,8 @@ func handle_patrol(delta: float) -> void:
 		
 		navigation_agent.target_position = patrol_points[current_patrol_index]
 		var direction = to_local(navigation_agent.get_next_path_position()).normalized()
-		velocity = direction * SPEED * 0.6  # Langsamere Geschwindigkeit beim Patrouillieren
+		var target_velocity = direction * SPEED * 0.6
+		velocity = velocity.lerp(target_velocity, delta * 10)  # Glättung hier
 	else:
 		# Zum letzten gesehenen Ort gehen
 		if player_last_seen_position != Vector2.ZERO:
@@ -257,9 +281,10 @@ func attack() -> void:
 			sound_player.play()
 		
 		animation_player.play("attack")
-		attack_timer = ATTACK_COOLDOWN
+		attack_timer = ATTACK_COOLDOWN  # Wird hier zurückgesetzt
 		is_attacking = true
 		animation_player.connect("animation_finished", Callable(self, "_on_attack_animation_finished"))
+		print("Attack Timer: ", attack_timer, " | Dodging: ", is_dodging)
 
 func dodge() -> void:
 	is_dodging = true
@@ -352,7 +377,8 @@ func set_animation() -> void:
 	if is_dead:
 		return
 	
-	if velocity.x != 0:
+	var flip_threshold = 5.0  # Mindestgeschwindigkeit, bevor geflippt wird
+	if abs(velocity.x) > flip_threshold:
 		sprite.scale.x = -1 if velocity.x < 0 else 1
 	
 	if is_attacking:
@@ -364,7 +390,7 @@ func set_animation() -> void:
 	elif current_state == "chase" and velocity.length() > 0:
 		animation_player.play("flying")
 	elif current_state == "patrol" and velocity.length() > 0:
-		animation_player.play("idle")  # Brauchst du eine langsamere Fluganimation
+		animation_player.play("idle")
 	else:
 		animation_player.play("idle")
 
