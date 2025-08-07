@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="InvItem" load_steps=3 format=3 uid="uid://bqvnja0rbm78g"]
 
-[ext_resource type="Script" path="res://InventorySystem/inventory_item.gd" id="1_4tvji"]
+[ext_resource type="Script" uid="uid://bf3a2juv1orwt" path="res://InventorySystem/inventory_item.gd" id="1_4tvji"]
 [ext_resource type="Texture2D" uid="uid://c4w4j8chjygkk" path="res://Assets/Items/bat_artefact.png" id="2_6oehd"]
 
 [resource]

@@ -1,6 +1,6 @@
-[gd_scene load_steps=12 format=3 uid="uid://i7wdghs3brrd"]
+[gd_scene load_steps=13 format=3 uid="uid://i7wdghs3brrd"]
 
-[ext_resource type="Script" path="res://Scenes/stone_golem.gd" id="1_innic"]
+[ext_resource type="Script" uid="uid://dkev2yyxb8832" path="res://Scenes/stone_golem.gd" id="1_innic"]
 [ext_resource type="Texture2D" uid="uid://bmiirj5a8xro0" path="res://Assets/Stone_Golem/stone_golem_sheet_packed.png" id="2_w2hxi"]
 
 [sub_resource type="Animation" id="Animation_ihhpm"]
@@ -97,12 +97,12 @@ tracks/0/keys = {
 
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_gwacr"]
 _data = {
-"RESET": SubResource("Animation_ihhpm"),
-"attack": SubResource("Animation_ou1ql"),
-"death": SubResource("Animation_j4b5v"),
-"idle": SubResource("Animation_m1c55"),
-"stone_mantle": SubResource("Animation_t7478"),
-"walk": SubResource("Animation_dmr0l")
+&"RESET": SubResource("Animation_ihhpm"),
+&"attack": SubResource("Animation_ou1ql"),
+&"death": SubResource("Animation_j4b5v"),
+&"idle": SubResource("Animation_m1c55"),
+&"stone_mantle": SubResource("Animation_t7478"),
+&"walk": SubResource("Animation_dmr0l")
 }
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_c1dq0"]
@@ -110,6 +110,9 @@ size = Vector2(60, 56)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_8fdcm"]
 size = Vector2(126, 20.6667)
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_4em5g"]
+radius = 41.4849
 
 [node name="StoneGolem" type="CharacterBody2D" node_paths=PackedStringArray("spawn_zone_container")]
 script = ExtResource("1_innic")
@@ -122,7 +125,7 @@ vframes = 5
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="Sprite2D"]
 libraries = {
-"": SubResource("AnimationLibrary_gwacr")
+&"": SubResource("AnimationLibrary_gwacr")
 }
 
 [node name="Collision" type="CollisionShape2D" parent="."]
@@ -141,3 +144,22 @@ shape = SubResource("RectangleShape2D_8fdcm")
 [node name="Timer" type="Timer" parent="NavigationAgent2D"]
 wait_time = 0.1
 autostart = true
+
+[node name="DetectionArea" type="Area2D" parent="."]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="DetectionArea"]
+shape = SubResource("CircleShape2D_4em5g")
+
+[node name="AlertMaker" type="Label" parent="."]
+offset_left = -2.0
+offset_top = -56.0
+offset_right = 38.0
+offset_bottom = -33.0
+text = "!"
+
+[node name="QuestionMaker" type="Label" parent="."]
+offset_left = -3.0
+offset_top = -56.0
+offset_right = 37.0
+offset_bottom = -33.0
+text = "?"

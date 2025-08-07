@@ -1,9 +1,10 @@
 [gd_resource type="Resource" script_class="InvItem" load_steps=3 format=3 uid="uid://dnydbhi6bgqay"]
 
-[ext_resource type="Script" path="res://InventorySystem/inventory_item.gd" id="1_4pyk4"]
+[ext_resource type="Script" uid="uid://bf3a2juv1orwt" path="res://InventorySystem/inventory_item.gd" id="1_4pyk4"]
 [ext_resource type="Texture2D" uid="uid://dnivcmfxerc80" path="res://Assets/Items/iron_nugget.png" id="2_osvqn"]
 
 [resource]
 script = ExtResource("1_4pyk4")
 name = "iron_nugget"
 texture = ExtResource("2_osvqn")
+health_bonus = 0.0
