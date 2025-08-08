@@ -7,12 +7,14 @@ const DETECTION_RADIUS = 300.0
 const ATTACK_RANGE = 35.0
 const ATTACK_COOLDOWN = 1.5
 const MIN_DISTANCE = 10.0
-const RESPAWN_COOLDOWN = 5
+const RESPAWN_COOLDOWN = 10
 const BASE_DETECTION_RADIUS = 150.0
 const NAVIGATION_UPDATE_INTERVAL = 0.5
 const CRITICAL_HIT_CHANCE = 0.15
 const DODGE_CHANCE = 0.25
 const MAX_HEALTH = 50
+const ACCELERATION = 8.0
+const DECELERATION = 10.0
 
 # Variablen
 var navigation_update_timer = 0.0
@@ -49,6 +51,8 @@ var is_patrolling := false
 var patrol_timer := 0.0
 var idle_timer := 0.0
 var current_state = "patrol"  # Kann "idle", "patrol" oder "chase" sein
+
+
 
 @export var player: CharacterBody2D
 @export var spawn_zone_container: Node2D
@@ -174,13 +178,17 @@ func handle_state_machine(delta: float) -> void:
 func decide_next_state() -> void:
 	if randf() < PATROL_CHANCE:
 		current_state = "patrol"
-		patrol_timer = PATROL_DURATION
-		# Neue zufällige Patrouillenpunkte generieren
+		patrol_timer = randf_range(PATROL_DURATION * 0.7, PATROL_DURATION * 1.3)  # Variation
 		generate_patrol_points()
 		current_patrol_index = 0
+		
+		# Manchmal zuerst kurz ruhig bleiben
+		if randf() < 0.4:
+			current_state = "idle"
+			idle_timer = randf_range(0.5, 1.5)
 	else:
 		current_state = "idle"
-		idle_timer = IDLE_DURATION
+		idle_timer = randf_range(IDLE_DURATION * 0.5, IDLE_DURATION * 2)  # Mehr Variation
 
 func handle_patrol_state(delta: float) -> void:
 	patrol_timer -= delta
@@ -188,22 +196,49 @@ func handle_patrol_state(delta: float) -> void:
 		decide_next_state()
 		return
 	
-	# Zum nächsten Patrouillenpunkt bewegen
 	if patrol_points.size() > 0:
-		if global_position.distance_to(patrol_points[current_patrol_index]) < 10:
-			current_patrol_index = (current_patrol_index + 1) % patrol_points.size()
+		var target_point = patrol_points[current_patrol_index]
+		var distance_to_target = global_position.distance_to(target_point)
 		
-		navigation_agent.target_position = patrol_points[current_patrol_index]
-		var direction = to_local(navigation_agent.get_next_path_position()).normalized()
-		velocity = direction * current_speed * 0.6  # Langsamere Geschwindigkeit beim Patrouillieren
+		# Punkt erreicht oder fast erreicht
+		if distance_to_target < 15:
+			# Kurze Pause machen (30% Chance)
+			if randf() < 0.3 and idle_timer <= 0:
+				idle_timer = randf_range(0.3, 1.0)
+				return
+			
+			# Zum nächsten Punkt wechseln
+			current_patrol_index = (current_patrol_index + 1) % patrol_points.size()
+			target_point = patrol_points[current_patrol_index]
+		
+		# Geschwindigkeit natürlich variieren
+		var speed_variation = SPEED * randf_range(0.7, 1.3) * 0.6
+		
+		# Sanftere Bewegungen mit Navigation
+		navigation_agent.target_position = target_point
+		var next_path_pos = navigation_agent.get_next_path_position()
+		var direction = (next_path_pos - global_position).normalized()
+		
+		# Flüssigere Beschleunigung/Verlangsamung
+		var target_velocity = direction * speed_variation
+		velocity = velocity.lerp(target_velocity, delta * 5)
+		
+		# Manchmal kleine Kursabweichungen
+		if randf() < 0.02:
+			velocity = velocity.rotated(randf_range(-0.2, 0.2))
 
 func handle_idle_state(delta: float) -> void:
 	idle_timer -= delta
+	
+	# Sanfte zufällige Bewegungen im Idle
+	if randf() < 0.05:
+		velocity = Vector2(randf_range(-10, 10), randf_range(-10, 10))
+	else:
+		velocity = velocity.lerp(Vector2.ZERO, delta * 3)
+	
 	if idle_timer <= 0:
 		decide_next_state()
 		return
-	
-	velocity = Vector2.ZERO  # Still stehen
 
 func handle_knockback(delta: float) -> void:
 	velocity = knockback_velocity
@@ -283,10 +318,29 @@ func handle_patrol(delta: float) -> void:
 
 func generate_patrol_points() -> void:
 	patrol_points.clear()
-	for i in range(3):  # 3 Punkte generieren
-		var angle = randf_range(0, 2 * PI)  # Zufällige Richtung
-		var distance = randf_range(50, 150)  # Zufällige Entfernung
-		patrol_points.append(global_position + Vector2(cos(angle), sin(angle)) * distance)
+	var center = global_position
+	var radius = randf_range(80, 180)  # Zufälliger Radius
+	
+	# Erstelle 3-5 Punkte in einer unregelmäßigen "Rundreise"
+	var point_count = randi() % 3 + 3  # 3-5 Punkte
+	for i in range(point_count):
+		# Winkel mit zufälliger Variation
+		var angle = (TAU / point_count) * i + randf_range(-0.3, 0.3)
+		# Leichte Unregelmäßigkeit im Radius
+		var point_radius = radius * randf_range(0.8, 1.2)
+		var point = center + Vector2(cos(angle), sin(angle)) * point_radius
+		
+		# Stelle sicher, dass der Punkt nicht zu nah an anderen ist
+		if patrol_points.size() > 0:
+			while point.distance_to(patrol_points[-1]) < 50:
+				angle += 0.2
+				point = center + Vector2(cos(angle), sin(angle)) * point_radius
+		
+		patrol_points.append(point)
+	
+	# Manchmal einen zufälligen zusätzlichen Punkt hinzufügen
+	if randf() < 0.3:
+		patrol_points.append(center + Vector2.RIGHT.rotated(randf() * TAU) * randf_range(50, 120))
 
 func attack() -> void:
 	if player and not is_dead:
@@ -358,38 +412,66 @@ func _on_attack_animation_finished(anim_name: String) -> void:
 	set_animation()
 
 func show_damage_number(amount: int, is_critical: bool = false) -> void:
-	# Erstelle einen neuen Label-Node
-	var damage_label = Label.new()
+	var damage_text = str(amount)
 	
-	# Text und Formatierung
-	damage_label.text = str(amount)
-	damage_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	damage_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	# Erstelle einen RichTextLabel mit angepasster Größe
+	var damage_label = RichTextLabel.new()
+	damage_label.bbcode_enabled = true
+	damage_label.fit_content = true
+	damage_label.scroll_active = false
 	
-	# Schriftgröße und Farbe anpassen
-	var font = damage_label.get_theme_default_font()
-	damage_label.add_theme_font_size_override("font_size", 20 if is_critical else 16)
-	damage_label.add_theme_color_override("font_color", Color.RED if is_critical else Color.WHITE)
+	# BBCode mit kleinerer Schriftgröße (font_size=16 für normal, 20 für kritisch)
+	if is_critical:
+		damage_label.text = "[center][font_size=16][shake rate=30.0 level=15][tornado radius=5.0 freq=2.0][color=#FF2222]%s[/color][/tornado][/shake][/font_size][/center]" % damage_text
+	else:
+		damage_label.text = "[center][font_size=10][wave amp=10.0 freq=3.0][color=#FFFFFF]%s[/color][/wave][/font_size][/center]" % damage_text
 	
-	# Positioniere den Label über dem Gegner
-	damage_label.position = global_position + Vector2(randf_range(-10, 10), -20)
+	# Positionierung
+	var x_offset = randf_range(-25, 25)
+	damage_label.position = global_position + Vector2(x_offset, -40)
+	damage_label.size = Vector2(40, 20)  # Kleineres Label
+	
 	get_parent().add_child(damage_label)
 	
-	# Animation: Nach oben schweben lassen und ausblenden
-	var tween = create_tween()
-	tween.set_parallel(true)
-	tween.tween_property(damage_label, "position:y", damage_label.position.y - 30, 0.5)
-	tween.tween_property(damage_label, "modulate:a", 0.0, 0.5)
+	# Tween-Animation mit kleineren Skalierungen
+	var tween = create_tween().set_parallel(true)
+	tween.set_trans(Tween.TRANS_BACK)
+	tween.set_ease(Tween.EASE_OUT)
 	
-	# Optional: Skalierung für kritische Treffer
+	var jump_height = -60 if is_critical else -40  # Geringere Sprunghöhe
+	var jump_distance = x_offset * 1.5
+	var jump_duration = 0.9 if is_critical else 0.7
+	
+	tween.tween_property(damage_label, "position:y", damage_label.position.y + jump_height, jump_duration)
+	tween.tween_property(damage_label, "position:x", damage_label.position.x + jump_distance, jump_duration)
+	
+	# Kamera-Shake für kritische Treffer (unverändert)
 	if is_critical:
-		damage_label.scale = Vector2(1.2, 1.2)
-		tween.tween_property(damage_label, "scale", Vector2(1.5, 1.5), 0.3).from_current()
-		tween.tween_property(damage_label, "scale", Vector2(0.8, 0.8), 0.2).set_delay(0.3)
+		var camera = get_viewport().get_camera_2d()
+		if camera and camera.has_method("shake"):
+			camera.shake(0.5, 25)
 	
-	# Label nach der Animation entfernen
+	# Kleinere Skalierungseffekte
+	if is_critical:
+		damage_label.scale = Vector2(0.5, 0.5)
+		tween.tween_property(damage_label, "scale", Vector2(1.2, 1.2), 0.2)
+		tween.chain().tween_property(damage_label, "scale", Vector2(1.0, 1.0), 0.3)
+	else:
+		damage_label.scale = Vector2(0.6, 0.6)
+		tween.tween_property(damage_label, "scale", Vector2(1.0, 1.0), 0.2)
+		tween.chain().tween_property(damage_label, "scale", Vector2(0.8, 0.8), 0.3)
+	
+	# Ausblenden
+	tween.tween_property(damage_label, "modulate:a", 0.0, 0.6).set_delay(0.4)
+
 	await tween.finished
 	damage_label.queue_free()
+	
+	# Hitstop (unverändert)
+	if is_critical:
+		Engine.time_scale = 0.1
+		await get_tree().create_timer(0.1).timeout
+		Engine.time_scale = 1.0
 
 func set_animation() -> void:
 	if is_dead:
