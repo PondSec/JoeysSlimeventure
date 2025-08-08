@@ -37,6 +37,9 @@ const DECELERATION = 2400.0
 const AIR_ACCELERATION = 1200.0  # Vorher vielleicht 900.0
 const AIR_DECELERATION = 800.0   # Vorher vielleicht 600.0
 
+var base_crit_chance: float = 0.15  # 15% base crit chance
+var crit_damage_multiplier: float = 1.5  # 50% extra damage on crit
+
 # Sprung- und Gravitationseinstellungen
 const GRAVITY = 1200.0
 const MAX_FALL_SPEED = 800.0
@@ -515,7 +518,14 @@ func is_in_air() -> bool:
 # Angriffskollisionsbehandlung
 func _on_attack_area_body_entered(body) -> void:
 	if body.is_in_group(\"enemies\"):
-		body.take_damage(attack_damage)
+		# Calculate damage and check for crit
+		var is_crit = randf() < base_crit_chance
+		var damage = attack_damage
+		var knockback_direction = (body.global_position - global_position).normalized()
+		
+		# Let the enemy handle the damage calculation and crit determination
+		body.take_damage(damage, knockback_direction, is_crit)
+		
 		$Camera2D.shake(3.0, 0.2)
 		
 
@@ -616,7 +626,7 @@ func load_dropped_items():
 func perform_attack() -> void:
 	if is_attacking or is_stunned:
 		return
-	
+		
 	stop_healing()
 	is_attacking = true
 	$PlayerSprite/AttackSprite.flip_h = is_facing_left
