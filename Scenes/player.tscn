@@ -1,4 +1,4 @@
-[gd_scene load_steps=31 format=3 uid="uid://b6ublycstdj8n"]
+[gd_scene load_steps=35 format=3 uid="uid://b6ublycstdj8n"]
 
 [ext_resource type="Texture2D" uid="uid://cildswtcj7qrc" path="res://Assets/slime-sprite.png" id="1_4yq4u"]
 [ext_resource type="Resource" uid="uid://0rntjh2xt5s5" path="res://InventorySystem/playerinv.tres" id="1_e7ml4"]
@@ -11,37 +11,74 @@
 [ext_resource type="Texture2D" uid="uid://lhtf7y3rpgu1" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame5.png" id="8_efps6"]
 [ext_resource type="Texture2D" uid="uid://bjy6egsrs8xvt" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame6.png" id="9_obsdn"]
 [ext_resource type="Texture2D" uid="uid://dhohrt3t5t7ed" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame7.png" id="10_2w1s5"]
-[ext_resource type="Script" path="res://Scripts/canvas_layer.gd" id="11_4apbi"]
-[ext_resource type="Script" path="res://Scenes/camera_2d.gd" id="12_4e8m4"]
+[ext_resource type="Script" uid="uid://mnec0uydyntw" path="res://Scripts/canvas_layer.gd" id="11_4apbi"]
+[ext_resource type="Script" uid="uid://cx3dqkch8yx6d" path="res://Scenes/camera_2d.gd" id="12_4e8m4"]
 [ext_resource type="Texture2D" uid="uid://bhpr6uxcspd17" path="res://Assets/GUI/Healthbar/off.png" id="12_tc5iy"]
 [ext_resource type="Texture2D" uid="uid://dg4h8q8vjxyh" path="res://Assets/GUI/Healthbar/over.png" id="13_d3fsm"]
 [ext_resource type="PackedScene" uid="uid://b0a5ssuwf6jb5" path="res://InventorySystem/inv_ui.tscn" id="15_qbc48"]
 [ext_resource type="PackedScene" uid="uid://0hg2cyfd6vle" path="res://Scenes/gameover.tscn" id="16_g18uv"]
-[ext_resource type="Script" path="res://InventorySystem/hot_bar.gd" id="17_1u0f7"]
+[ext_resource type="Script" uid="uid://c4mfr2cmctuup" path="res://InventorySystem/hot_bar.gd" id="17_1u0f7"]
 [ext_resource type="Texture2D" uid="uid://dyvglc0y8q8y7" path="res://Assets/Inventory/hotbar.png" id="18_4ugw6"]
 [ext_resource type="PackedScene" uid="uid://de82c5pup452l" path="res://InventorySystem/slot_hotbar.tscn" id="19_jqgo5"]
+[ext_resource type="AudioStream" uid="uid://bnffjxa1rkeuy" path="res://Assets/Sounds/hit.mp3" id="21_bi64h"]
+[ext_resource type="AudioStream" uid="uid://b5coygrv7ui68" path="res://Assets/Sounds/jump_slime.mp3" id="22_2ijsl"]
+[ext_resource type="AudioStream" uid="uid://c14lbto0tykos" path="res://Assets/Sounds/land.mp3" id="23_p1odr"]
+[ext_resource type="AudioStream" uid="uid://c4t47qbmuxikx" path="res://Assets/Sounds/walk.mp3" id="24_2ijsl"]
 
 [sub_resource type="GDScript" id="GDScript_381hh"]
 resource_name = "Player"
 script/source = "extends CharacterBody2D
 
-# Konstanten für Bewegung und Sprung
-const SPEED = 220.0
-const GRAVITY = 1200.0
-const JUMP_VELOCITY = -430.0
-const WALL_JUMP_VELOCITY_X = 300.0
-const WALL_JUMP_VELOCITY_Y = -400.0
-const WALL_SLIDE_SPEED = 50.0
-const MIN_FALL_HEIGHT = 10.0  # Mindesthöhe, ab der die Lande-Animation abgespielt wird
+# Bewegungseinstellungen
+const WALK_SPEED = 140.0
+const RUN_SPEED = 220.0
+const ACCELERATION = 1800.0
+const DECELERATION = 2400.0
+const AIR_ACCELERATION = 1200.0  # Vorher vielleicht 900.0
+const AIR_DECELERATION = 800.0   # Vorher vielleicht 600.0
 
-# Variablen für Bewegung und Status
+# Sprung- und Gravitationseinstellungen
+const GRAVITY = 1200.0
+const MAX_FALL_SPEED = 800.0
+const JUMP_VELOCITY = -430.0
+const SHORT_JUMP_MULTIPLIER = 0.6  # Für kürzere Sprünge bei losgelassener Taste
+const JUMP_CUT_MULTIPLIER = 0.4    # Für sofortige Sprungabbremsung
+
+# Wall-Jump und Slide
+const WALL_JUMP_VELOCITY_X = -300.0  # Stärkerer horizontaler Impuls
+const WALL_JUMP_VELOCITY_Y = -400.0  # Etwas geringere vertikale Geschwindigkeit
+const WALL_JUMP_PUSH_AWAY = 200.0  # Zusätzlicher Abstoß-Effekt
+const WALL_SLIDE_SPEED = 50.0
+const WALL_STICK_TIME = 0.15       # Zeit, in der man sich noch vom Wand abstoßen kann
+
+# Dash-Einstellungen
+const DASH_SPEED = 600.0
+const DASH_DURATION = 0.15
+const DASH_COOLDOWN = 1.0
+const DASH_INVULNERABILITY_TIME = 0.2
+
+# Bewegung und Status
+var current_speed = WALK_SPEED
 var direction := Vector2.ZERO
 var is_wall_sliding := false
 var can_wall_jump := true
 var last_wall_normal := Vector2.ZERO
+var wall_stick_timer := 0.0
+var coyote_time := 0.0
+var jump_buffer_time := 0.0
+var is_dashing := false
+var can_dash := true
+var dash_direction := Vector2.ZERO
+var is_facing_left := false
+var was_on_floor := true
+
+# Konstanten für Bewegung und Sprung
+const SPEED = 220.0
+const MIN_FALL_HEIGHT = 10.0  # Mindesthöhe, ab der die Lande-Animation abgespielt wird
+
+# Variablen für Bewegung und Status
 var is_glowing := true
 var is_attacking := false  # Angriffszustand
-var is_facing_left := false  # Blickrichtung des Spielers
 var was_in_air := false  # Variable, um zu überprüfen, ob der Spieler gerade in der Luft war
 var is_landing := false  # Variable, um die Landeanimation zu verfolgen
 var fall_start_y := 0.0  # Y-Position, bei der der Spieler zu fallen begann
@@ -60,15 +97,9 @@ var inventory = {}  # Ein Dictionary für das Inventar
 var dropped_items = []  # Liste für persistente Speicherung
 var selected_hotbar_index: int = 0  # Standardmäßig der erste Slot
 
-# Dash-Variablen
-const DASH_SPEED = 400.0
-const DASH_DURATION = 0.2
-const DASH_COOLDOWN = 3.0
-var is_dashing := false
-var can_dash := true
-var dash_direction := Vector2.ZERO
-var dash_timer: Timer = Timer.new()
-var dash_cooldown_timer: Timer = Timer.new()
+# Timer Nodes
+var dash_timer: Timer
+var dash_cooldown_timer: Timer
 
 # Konstanten für den Fall-Schaden
 const FALL_DAMAGE_THRESHOLD = 1580  # Y-Position, ab der Schaden verursacht wird
@@ -88,6 +119,17 @@ var base_max_health = 100
 const COLOR_NORMAL = Color(0.62, 1.0, 0.58)  # Originalfarbe (9fff94 in Hex)
 const COLOR_DAMAGE = Color(1.0, 0.29, 0.29)  # Schadenfarbe (ff4a4a in Hex)
 
+var attack_cooldown := 0.1  # Cooldown zwischen Angriffen
+var last_attack_time := 0.0
+var attack_combo_count := 0
+const MAX_COMBO = 3
+var combo_reset_timer := 0.0
+const COMBO_RESET_TIME := 1.0
+
+var wall_jump_buffer = 0.0
+const WALL_JUMP_BUFFER_TIME = 0.1
+const WALL_JUMP_FORGIVENESS = 0.15
+
 var url = \"https://api.joeysslimeventure.com\"
 @onready var http_request = $HTTPRequest
 
@@ -99,6 +141,11 @@ var url = \"https://api.joeysslimeventure.com\"
 @onready var health_label = $CanvasLayer/HealthLabel
 @onready var api_script = preload(\"res://Scenes/api.tscn\").instantiate()
 
+var is_walking := false
+const WALK_STEP_INTERVAL := 0.2
+var last_sound_time = 0.0
+var sound_cooldown = 0.2
+
 var stun_timer: Timer = Timer.new()
 var save_load = preload(\"res://Scripts/SaveLoad.gd\").new()
 
@@ -107,6 +154,7 @@ func _ready() -> void:
 	# Initialisiere Angriffsknoten
 	attack_sprite = $PlayerSprite/AttackSprite
 	attack_area = $PlayerSprite/AttackSprite/AttackArea
+	
 	# Deaktiviere das Angriffskollisionsgebiet anfänglich
 	attack_area.monitoring = false
 	attack_area.connect(\"body_entered\", Callable(self, \"_on_attack_area_body_entered\"))
@@ -114,6 +162,8 @@ func _ready() -> void:
 	death_screen.visible = false
 	
 	add_to_group(\"players\")
+	glow_effect.set(\"custom_range\", 300.0)
+	glow_effect.add_to_group(\"lights\")
 	update_health_bar()
 	damage_label.visible = false
 	
@@ -143,17 +193,19 @@ func _ready() -> void:
 	add_child(api_script)
 	api_script.send_request()
 	
-	# Dash-Timer initialisieren
-	add_child(dash_timer)
+
+	# Timer für Dash initialisieren
+	dash_timer = Timer.new()
 	dash_timer.one_shot = true
 	dash_timer.wait_time = DASH_DURATION
 	dash_timer.connect(\"timeout\", Callable(self, \"_on_dash_timer_timeout\"))
-
-	# Dash-Cooldown-Timer initialisieren
-	add_child(dash_cooldown_timer)
+	add_child(dash_timer)
+	
+	dash_cooldown_timer = Timer.new()
 	dash_cooldown_timer.one_shot = true
 	dash_cooldown_timer.wait_time = DASH_COOLDOWN
 	dash_cooldown_timer.connect(\"timeout\", Callable(self, \"_on_dash_cooldown_timer_timeout\"))
+	add_child(dash_cooldown_timer)
 	
 func update_health_bonus():
 	var bonus = 1.0  # Startwert für Multiplikation
@@ -192,121 +244,220 @@ func _process(delta: float) -> void:
 		health_label.text = \"HP: \" + str(current_health)  # Zeigt die HP an
 
 func _physics_process(delta: float) -> void:
-	# Falls gestunned, keine Steuerung erlauben, aber Schwerkraft beibehalten
-	if is_stunned:
-		velocity.y += GRAVITY * delta  # Weiter fallen lassen
-		move_and_slide()
-		return  # Beendet die Funktion, sodass keine Eingaben verarbeitet werden
+	# Bewegungseingaben verarbeiten
+	handle_input()
 	
-	if is_landing:
-		return  # Keine Bewegung während der Lande-Animation erlauben
+	# Spezielle Bewegungszustände
+	handle_dash()
+	handle_jump_mechanics(delta)
+	handle_wall_mechanics(delta)
 	
-	# Schwerkraft anwenden, wenn nicht auf dem Boden
-	if not is_on_floor():
-		if not was_in_air:
-			# Speichere die Fallstartposition, wenn der Spieler gerade zu fallen beginnt
-			fall_start_y = global_position.y
-			fall_distance = 0.0  # Zurücksetzen der Fallhöhe
-
-		was_in_air = true
-		velocity.y += GRAVITY * delta
-		
-		# Berechne die Fallhöhe
-		fall_distance = fall_start_y - global_position.y
-		
-		# Füge Schaden hinzu, wenn der Spieler unter den Fall-Schaden-Schwellenwert fällt
-		if global_position.y > FALL_DAMAGE_THRESHOLD:
-			take_damage(FALL_DAMAGE, global_position)  # Schaden anwenden, wenn der Spieler fällt
-
-		# Berechne die Fallhöhe
-		fall_distance = fall_start_y - global_position.y
-	else:
-		if was_in_air:
-			# Wenn der Spieler den Boden berührt hat und eine ausreichende Fallhöhe erreicht wurde
-			if fall_distance >= MIN_FALL_HEIGHT and velocity.y > 0:  # Nur wenn der Spieler fällt
-				# Wenn die Fallhöhe groß genug ist, spiele die Lande-Animation ab
-				play_landing_animation()
-			was_in_air = false  # Zurücksetzen der Variable
-			
+	# Schwerkraft anwenden
+	apply_gravity(delta)
+	
 	# Bewegung ausführen
 	move_and_slide()
 	
+	# Animationen aktualisieren
+	update_animations()
+
+func handle_input():
+	# Laufen/Rennen
+	if Input.is_action_pressed(\"sprint\"):
+		current_speed = RUN_SPEED
+	else:
+		current_speed = WALK_SPEED
+	
+	# Richtungseingabe
+	direction.x = Input.get_axis(\"left\", \"right\")
+	
+	# Blickrichtung aktualisieren
+	if direction.x != 0:
+		is_facing_left = direction.x < 0
+
+func apply_gravity(delta):
+	if not is_on_floor():
+		velocity.y += GRAVITY * delta
+		velocity.y = min(velocity.y, MAX_FALL_SPEED)
+
+func handle_jump_mechanics(delta):
+	# Coyote Time (Sprung nach Verlassen der Plattform)
+	if is_on_floor():
+		coyote_time = 0.1
+	else:
+		coyote_time -= delta
+	
+	# Jump Buffer (Sprung vor dem Landen)
+	if Input.is_action_just_pressed(\"up\"):
+		jump_buffer_time = 0.1
+	else:
+		jump_buffer_time -= delta
+	
+	if (coyote_time > 0 and jump_buffer_time > 0) or (is_on_floor() and Input.is_action_just_pressed(\"up\")):
+		velocity.y = JUMP_VELOCITY
+		coyote_time = 0
+		jump_buffer_time = 0
+		$JumpSound.pitch_scale = randf_range(1.3, 1.75)  # Leichte Tonhöhen-Variation
+		$JumpSound.play()
+	
+	# Kurzer Sprung (wenn Taste losgelassen)
+	if Input.is_action_just_released(\"up\") and velocity.y < JUMP_VELOCITY * SHORT_JUMP_MULTIPLIER:
+		velocity.y = JUMP_VELOCITY * SHORT_JUMP_MULTIPLIER
+	
+	# Sofortige Sprungabbremsung
+	if Input.is_action_just_pressed(\"down\") and velocity.y < 0:
+		velocity.y *= JUMP_CUT_MULTIPLIER
+
+func handle_wall_mechanics(delta):
+	# Wandsprung
 	if is_on_wall() and not is_on_floor():
 		is_wall_sliding = true
 		velocity.y = min(velocity.y, WALL_SLIDE_SPEED)
+		wall_stick_timer = WALL_STICK_TIME
+		
 		var current_wall_normal = get_wall_normal()
 		if current_wall_normal != last_wall_normal:
 			can_wall_jump = true
 			last_wall_normal = current_wall_normal
+		
+		# Wandsprung ausführen
+		if Input.is_action_just_pressed(\"up\") and can_wall_jump:
+			var wall_normal = get_wall_normal()
+			
+			# 1. Vertikaler Sprung (nach oben)
+			velocity.y = WALL_JUMP_VELOCITY_Y
+			
+			# 2. Horizontaler Impuls (WEG von der Wand!)
+			velocity.x = -wall_normal.x * WALL_JUMP_VELOCITY_X
+			
+			# 3. Optional: Kleiner zusätzlicher \"Push\" für mehr Kontrolle
+			position.x += -wall_normal.x * 5
+			
+			can_wall_jump = false
+			$Camera2D.shake(0.1, 5)
+			
+			# Wenn der Spieler während des Wall-Jumps eine Richtungstaste drückt, setze x-Velocity auf 0
+			if Input.is_action_pressed(\"left\") or Input.is_action_pressed(\"right\"):
+				velocity.x = 0
 	else:
 		is_wall_sliding = false
 		if is_on_floor():
 			can_wall_jump = true
+		
+		if wall_stick_timer > 0:
+			wall_stick_timer -= delta
 
-	# Wandsprung
-	if Input.is_action_just_pressed(\"up\"):
-		if is_on_floor():
-			velocity.y = JUMP_VELOCITY
-		elif is_wall_sliding and can_wall_jump:
-			var wall_normal = get_wall_normal()
-			velocity.y = WALL_JUMP_VELOCITY_Y
-			if wall_normal.x != 0:
-				velocity.x = -wall_normal.x * WALL_JUMP_VELOCITY_X
-			can_wall_jump = false
-			# Setze die Fallhöhe zurück, wenn ein Wandsprung ausgeführt wird
-			fall_start_y = global_position.y
-
-	# Horizontale Bewegung
-	direction.x = Input.get_axis(\"left\", \"right\")
-	if direction.x != 0:
-		velocity.x = direction.x * SPEED
-		is_facing_left = direction.x < 0
-	else:
-		velocity.x = move_toward(velocity.x, 0, SPEED)
-	
+func handle_dash():
 	if Input.is_action_just_pressed(\"dash_left\") and can_dash:
 		dash(Vector2.LEFT)
 	elif Input.is_action_just_pressed(\"dash_right\") and can_dash:
 		dash(Vector2.RIGHT)
 	elif Input.is_action_just_pressed(\"dash_up\") and can_dash:
 		dash(Vector2.UP)
-
+	
 	if is_dashing:
 		velocity = dash_direction * DASH_SPEED
 		move_and_slide()
 		return
 	
-	# Animationen setzen
-	set_animation()
+	# Horizontale Bewegung mit unterschiedlicher Beschleunigung in Luft/Boden
+	var target_speed = direction.x * current_speed
+	var acceleration = ACCELERATION if is_on_floor() else AIR_ACCELERATION
+	var deceleration = DECELERATION if is_on_floor() else AIR_DECELERATION
+	
+	if direction.x != 0:
+		velocity.x = move_toward(velocity.x, target_speed, acceleration * get_physics_process_delta_time())
+	else:
+		velocity.x = move_toward(velocity.x, 0, deceleration * get_physics_process_delta_time())
 
-func dash(direction: Vector2) -> void:
+func dash(dir: Vector2):
 	if is_dashing or not can_dash:
 		return
-
+	
 	is_dashing = true
 	can_dash = false
-	dash_direction = direction
-
-	# Starte den Dash-Timer
+	dash_direction = dir.normalized()
+	
+	# Effekte
+	$Camera2D.shake(0.3, 15)
+	
+	# Timer starten
 	dash_timer.start()
+	
+	# Nachbilder erstellen
+	create_afterimages()
 
-	# Ändere den Sprite zu player_dash.png
-	$PlayerSprite.texture = preload(\"res://Assets/player_dash.png\")
-
-	# Kamera-Shake-Effekt
-	$Camera2D.shake(0.5, 0.2)
-
-	# Warte, bis der Dash-Timer abgelaufen ist
-	await dash_timer.timeout
-
-	# Setze den Sprite zurück zur normalen Textur
-	$PlayerSprite.texture = preload(\"res://Assets/slime-sprite.png\")
-
-	# Setze den Zustand zurück
-	dash_cooldown_timer.start()
-	await dash_cooldown_timer.timeout
+func _on_dash_timer_timeout():
 	is_dashing = false
+	dash_cooldown_timer.start()
+
+func _on_dash_cooldown_timer_timeout():
 	can_dash = true
+
+func create_afterimages():
+	for i in range(3):
+		var afterimage = Sprite2D.new()
+		afterimage.texture = $PlayerSprite.texture
+		afterimage.global_position = global_position
+		afterimage.flip_h = $PlayerSprite.flip_h
+		afterimage.modulate = Color(1, 1, 1, 0.5)  # Halbtransparent
+		afterimage.z_index = -1  # Hinter dem Haupt-Sprite
+		
+		# Leicht zufällige Skalierung für dynamischeren Effekt
+		afterimage.scale = Vector2.ONE * randf_range(0.9, 1.1)
+		
+		get_parent().add_child(afterimage)
+		
+		# Tween für das Ausblenden
+		var tween = create_tween()
+		tween.tween_property(afterimage, \"modulate:a\", 0.0, 0.2)
+		tween.parallel().tween_property(afterimage, \"scale\", Vector2.ONE * 1.2, 0.2)
+		tween.tween_callback(afterimage.queue_free)
+		
+		await get_tree().create_timer(DASH_DURATION / 3.0).timeout
+
+func update_animations():
+	if is_dashing:
+		$AnimationPlayer.play(\"dash\")
+		return
+	
+	if is_wall_sliding:
+		$AnimationPlayer.play(\"wall_slide\")
+		$PlayerSprite.flip_h = last_wall_normal.x > 0
+	elif not is_on_floor():
+		if velocity.y < 0:
+			$AnimationPlayer.play(\"jump_up\")
+		else:
+			$AnimationPlayer.play(\"jump_down\")
+	else:
+		if abs(velocity.x) > 10:
+			$AnimationPlayer.play(\"run\" if current_speed == RUN_SPEED else \"walk\")
+			$PlayerSprite.flip_h = velocity.x < 0
+		else:
+			$AnimationPlayer.play(\"idle\")
+			
+		# Walk-Sound steuern
+	if is_on_floor() and abs(velocity.x) > 10.0 and direction.x != 0:
+		if not $WalkSound.playing and (Time.get_ticks_msec() / 1000.0 - last_sound_time) >= sound_cooldown:
+			play_walk_sound()
+	else:
+		$WalkSound.stop()
+
+func play_walk_sound():
+	var speed_factor = clamp(abs(velocity.x) / 300.0, 0.2, 1.0)
+	$WalkSound.volume_db = lerp(-10, 0, speed_factor)
+	$WalkSound.pitch_scale = randf_range(0.6, 1.28)
+	$WalkSound.play()
+	last_sound_time = Time.get_ticks_usec() / 1_000_000.0  # Präziser
+	
+# Verbesserte Kollisionserkennung
+func _on_floor_entered():
+	$LandingParticles.emitting = true
+	$LandSound.play()
+
+func _on_wall_entered():
+	$WallSlideParticles.emitting = true
+	$WallSlideSound.play()
 
 func _create_afterimages_during_dash() -> void:
 	if is_dashing:
@@ -314,15 +465,6 @@ func _create_afterimages_during_dash() -> void:
 		# Erstelle einen neuen Timer für das nächste Nachbild
 		var afterimage_timer = get_tree().create_timer(0.05)
 		afterimage_timer.timeout.connect(_create_afterimages_during_dash)
-
-
-func _on_dash_timer_timeout() -> void:
-	is_dashing = false
-	velocity = Vector2.ZERO
-	dash_cooldown_timer.start()
-
-func _on_dash_cooldown_timer_timeout() -> void:
-	can_dash = true
 
 func create_afterimage() -> void:
 	var afterimage = Sprite2D.new()
@@ -492,8 +634,13 @@ func update_glow_state() -> void:
 # Importiere diese Zeile in deine `take_damage`-Funktion, um den Partikel-Effekt zu aktivieren
 func take_damage(amount: int, hit_source: Vector2) -> void:
 	current_health -= amount
-	show_damage_text(amount, false)  
+	show_damage_text(amount, false)
 	flash_damage_color()
+	
+	# Sound mit zufälliger Variation
+	$HitSound.pitch_scale = randf_range(1.5, 2)  # Großer Pitch-Bereich für dramatische Effekte
+	$HitSound.volume_db = randf_range(-10, -5)       # Lautstärke leicht variieren
+	$HitSound.play()
 
 	# Knockback und Stun wie bisher
 	is_stunned = true
@@ -634,7 +781,7 @@ func _input(event):
 "
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_uwm2o"]
-size = Vector2(255, 386.667)
+size = Vector2(242.855, 386.667)
 
 [sub_resource type="SpriteFrames" id="SpriteFrames_sgnk3"]
 animations = [{
@@ -752,11 +899,11 @@ tracks/0/keys = {
 
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_1fd5i"]
 _data = {
-"RESET": SubResource("Animation_chcy3"),
-"idle": SubResource("Animation_uuvvo"),
-"jump": SubResource("Animation_smtgq"),
-"landing": SubResource("Animation_28ebo"),
-"walk": SubResource("Animation_wvi70")
+&"RESET": SubResource("Animation_chcy3"),
+&"idle": SubResource("Animation_uuvvo"),
+&"jump": SubResource("Animation_smtgq"),
+&"landing": SubResource("Animation_28ebo"),
+&"walk": SubResource("Animation_wvi70")
 }
 
 [node name="PlayerModel" type="CharacterBody2D"]
@@ -767,14 +914,14 @@ script = SubResource("GDScript_381hh")
 inv = ExtResource("1_e7ml4")
 
 [node name="ColisionArea" type="CollisionShape2D" parent="."]
-position = Vector2(0.000167847, 0.00012207)
+position = Vector2(0, 7.14551)
 rotation = 1.5708
 scale = Vector2(0.999999, 0.999999)
 shape = SubResource("RectangleShape2D_uwm2o")
 
 [node name="PlayerGlow" type="PointLight2D" parent="."]
 position = Vector2(0.000183105, 0)
-color = Color(0.56466, 1, 0.517037, 1)
+color = Color(0.586285, 1, 0.540279, 1)
 energy = 0.9
 shadow_enabled = true
 shadow_filter = 1
@@ -801,7 +948,6 @@ speed_scale = 2.0
 position = Vector2(-8.10623e-06, 1.38283e-05)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="PlayerSprite/AttackSprite/AttackArea"]
-position = Vector2(-3.05176e-05, 1.52588e-05)
 scale = Vector2(0.8, 0.8)
 shape = SubResource("RectangleShape2D_jxxud")
 
@@ -839,7 +985,7 @@ metadata/_edit_use_anchors_ = true
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="."]
 libraries = {
-"": SubResource("AnimationLibrary_1fd5i")
+&"": SubResource("AnimationLibrary_1fd5i")
 }
 
 [node name="Camera2D" type="Camera2D" parent="."]
@@ -850,8 +996,8 @@ limit_left = -14
 limit_top = 500
 limit_right = 3450
 limit_bottom = 1545
-limit_smoothed = true
 position_smoothing_enabled = true
+position_smoothing_speed = 6.0
 editor_draw_limits = true
 editor_draw_drag_margin = true
 script = ExtResource("12_4e8m4")
@@ -965,3 +1111,15 @@ offset_bottom = 43.0
 text = "HP: 0000"
 
 [node name="HTTPRequest" type="HTTPRequest" parent="."]
+
+[node name="HitSound" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("21_bi64h")
+
+[node name="JumpSound" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("22_2ijsl")
+
+[node name="LandSound" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("23_p1odr")
+
+[node name="WalkSound" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("24_2ijsl")
