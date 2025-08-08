@@ -115,13 +115,6 @@ var base_max_health = 100
 const COLOR_NORMAL = Color(0.62, 1.0, 0.58)  # Originalfarbe (9fff94 in Hex)
 const COLOR_DAMAGE = Color(1.0, 0.29, 0.29)  # Schadenfarbe (ff4a4a in Hex)
 
-var attack_cooldown := 0.3  # Cooldown zwischen Angriffen
-var last_attack_time := 0.0
-var attack_combo_count := 0
-const MAX_COMBO = 3
-var combo_reset_timer := 0.0
-const COMBO_RESET_TIME := 1.0
-
 var url = \"https://api.joeysslimeventure.com\"
 @onready var http_request = $HTTPRequest
 
@@ -141,6 +134,10 @@ func _ready() -> void:
 	# Initialisiere Angriffsknoten
 	attack_sprite = $PlayerSprite/AttackSprite
 	attack_area = $PlayerSprite/AttackSprite/AttackArea
+	
+    var shader_material = ShaderMaterial.new()
+    shader_material.shader = preload(\"res://player_glow.shader\")
+    $PlayerSprite.material = shader_material
 	
 	# Deaktiviere das Angriffskollisionsgebiet anfänglich
 	attack_area.monitoring = false
@@ -609,6 +606,12 @@ func perform_attack() -> void:
 # Leuchteffekt aktualisieren
 func update_glow_state() -> void:
 	glow_effect.visible = is_glowing
+	if is_glowing:
+		$PlayerSprite.material.set_shader_parameter(\"glow_intensity\", 1.5)
+		$PlayerSprite.material.set_shader_parameter(\"glow_blur\", 3.0)
+		$PlayerSprite.material.set_shader_parameter(\"flare_strength\", 0.5)
+	else:
+		$PlayerSprite.material.set_shader_parameter(\"glow_intensity\", 0.0), 0.0)
 
 # Importiere diese Zeile in deine `take_damage`-Funktion, um den Partikel-Effekt zu aktivieren
 func take_damage(amount: int, hit_source: Vector2) -> void:
@@ -755,7 +758,7 @@ func _input(event):
 "
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_uwm2o"]
-size = Vector2(242.855, 386.667)
+size = Vector2(255, 386.667)
 
 [sub_resource type="SpriteFrames" id="SpriteFrames_sgnk3"]
 animations = [{
@@ -888,7 +891,7 @@ script = SubResource("GDScript_381hh")
 inv = ExtResource("1_e7ml4")
 
 [node name="ColisionArea" type="CollisionShape2D" parent="."]
-position = Vector2(0, 7.14551)
+position = Vector2(0.000167847, 0.00012207)
 rotation = 1.5708
 scale = Vector2(0.999999, 0.999999)
 shape = SubResource("RectangleShape2D_uwm2o")
