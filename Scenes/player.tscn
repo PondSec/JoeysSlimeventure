@@ -11,13 +11,13 @@
 [ext_resource type="Texture2D" uid="uid://lhtf7y3rpgu1" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame5.png" id="8_efps6"]
 [ext_resource type="Texture2D" uid="uid://bjy6egsrs8xvt" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame6.png" id="9_obsdn"]
 [ext_resource type="Texture2D" uid="uid://dhohrt3t5t7ed" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame7.png" id="10_2w1s5"]
-[ext_resource type="Script" uid="uid://wmgn6s51jccc" path="res://Scripts/canvas_layer.gd" id="11_4apbi"]
-[ext_resource type="Script" uid="uid://c3oqdyj4vao0i" path="res://Scenes/camera_2d.gd" id="12_4e8m4"]
+[ext_resource type="Script" uid="uid://mnec0uydyntw" path="res://Scripts/canvas_layer.gd" id="11_4apbi"]
+[ext_resource type="Script" uid="uid://cx3dqkch8yx6d" path="res://Scenes/camera_2d.gd" id="12_4e8m4"]
 [ext_resource type="Texture2D" uid="uid://bhpr6uxcspd17" path="res://Assets/GUI/Healthbar/off.png" id="12_tc5iy"]
 [ext_resource type="Texture2D" uid="uid://dg4h8q8vjxyh" path="res://Assets/GUI/Healthbar/over.png" id="13_d3fsm"]
 [ext_resource type="PackedScene" uid="uid://b0a5ssuwf6jb5" path="res://InventorySystem/inv_ui.tscn" id="15_qbc48"]
 [ext_resource type="PackedScene" uid="uid://0hg2cyfd6vle" path="res://Scenes/gameover.tscn" id="16_g18uv"]
-[ext_resource type="Script" uid="uid://dex4687q6bchm" path="res://InventorySystem/hot_bar.gd" id="17_1u0f7"]
+[ext_resource type="Script" uid="uid://c4mfr2cmctuup" path="res://InventorySystem/hot_bar.gd" id="17_1u0f7"]
 [ext_resource type="Texture2D" uid="uid://dyvglc0y8q8y7" path="res://Assets/Inventory/hotbar.png" id="18_4ugw6"]
 [ext_resource type="PackedScene" uid="uid://de82c5pup452l" path="res://InventorySystem/slot_hotbar.tscn" id="19_jqgo5"]
 
@@ -141,6 +141,8 @@ func _ready() -> void:
 	death_screen.visible = false
 	
 	add_to_group(\"players\")
+	glow_effect.set(\"custom_range\", 300.0)
+	glow_effect.add_to_group(\"lights\")
 	update_health_bar()
 	damage_label.visible = false
 	
