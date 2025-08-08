@@ -123,6 +123,7 @@ var combo_reset_timer := 0.0
 const COMBO_RESET_TIME := 1.0
 
 var wall_jump_buffer = 0.0
+var wall_leave_timer = 0.0
 const WALL_JUMP_BUFFER_TIME = 0.1
 const WALL_JUMP_FORGIVENESS = 0.15
 
@@ -299,7 +300,13 @@ func handle_jump_mechanics(delta):
 		velocity.y *= JUMP_CUT_MULTIPLIER
 
 func handle_wall_mechanics(delta):
-	# Wandsprung
+	# Input Buffer
+	if Input.is_action_just_pressed(\"up\"):
+		wall_jump_buffer = WALL_JUMP_BUFFER_TIME
+	else:
+		wall_jump_buffer = max(0.0, wall_jump_buffer - delta)
+	
+	# Wandmechanik
 	if is_on_wall() and not is_on_floor():
 		is_wall_sliding = true
 		velocity.y = min(velocity.y, WALL_SLIDE_SPEED)
@@ -309,26 +316,22 @@ func handle_wall_mechanics(delta):
 		if current_wall_normal != last_wall_normal:
 			can_wall_jump = true
 			last_wall_normal = current_wall_normal
+			wall_leave_timer = WALL_JUMP_FORGIVENESS  # Neue Variable
 		
-		# Wandsprung ausführen
-		if Input.is_action_just_pressed(\"up\") and can_wall_jump:
+		# Wandsprung mit Buffer und Forgiveness
+		if (wall_jump_buffer > 0 or Input.is_action_just_pressed(\"up\")) and (can_wall_jump or wall_leave_timer > 0):
 			var wall_normal = get_wall_normal()
-			
-			# 1. Vertikaler Sprung (nach oben)
 			velocity.y = WALL_JUMP_VELOCITY_Y
-			
-			# 2. Horizontaler Impuls (WEG von der Wand!)
 			velocity.x = -wall_normal.x * WALL_JUMP_VELOCITY_X
 			
-			# 3. Optional: Kleiner zusätzlicher \"Push\" für mehr Kontrolle
-			position.x += -wall_normal.x * 5
+			# Sanftere Bewegungskontrolle
+			var input_dir = Input.get_axis(\"left\", \"right\")
+			if input_dir != 0:
+				velocity.x = lerp(velocity.x, input_dir * WALL_JUMP_VELOCITY_X, 0.7)
 			
 			can_wall_jump = false
+			wall_jump_buffer = 0.0
 			$Camera2D.shake(0.1, 5)
-			
-			# Wenn der Spieler während des Wall-Jumps eine Richtungstaste drückt, setze x-Velocity auf 0
-			if Input.is_action_pressed(\"left\") or Input.is_action_pressed(\"right\"):
-				velocity.x = 0
 	else:
 		is_wall_sliding = false
 		if is_on_floor():
@@ -336,6 +339,10 @@ func handle_wall_mechanics(delta):
 		
 		if wall_stick_timer > 0:
 			wall_stick_timer -= delta
+		
+		# Forgiveness Timer
+		if wall_leave_timer > 0:
+			wall_leave_timer -= delta
 
 func handle_dash():
 	if Input.is_action_just_pressed(\"dash_left\") and can_dash:

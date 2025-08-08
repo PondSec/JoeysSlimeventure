@@ -381,10 +381,6 @@ func perform_critical_hit() -> void:
 	sound_player.pitch_scale = 1.5
 	sound_player.play()
 	
-	# Slow-Motion Effekt
-	Engine.time_scale = 0.3
-	get_tree().create_timer(0.5).timeout.connect(func(): Engine.time_scale = 1.0)
-	
 	# Screen Shake
 	var shake_intensity = 15.0
 	var camera = get_viewport().get_camera_2d()
