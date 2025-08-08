@@ -27,6 +27,10 @@ window/size/mode=3
 window/size/borderless=true
 window/stretch/mode="viewport"
 
+[global_group]
+
+lights=""
+
 [importer_defaults]
 
 texture={

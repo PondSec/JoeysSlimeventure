@@ -2,6 +2,7 @@ extends CharacterBody2D
 
 # Einstellungen
 const SPEED = 140.0
+const FAST_SPEED = 220.0
 const DETECTION_RADIUS = 300.0
 const ATTACK_RANGE = 35.0
 const ATTACK_COOLDOWN = 1.5
@@ -60,6 +61,7 @@ var current_state = "patrol"  # Kann "idle", "patrol" oder "chase" sein
 @onready var detection_area = $DetectionArea
 @onready var alert_icon = $AlertIcon
 @onready var sprite = $Sprite2D
+@export var current_speed := SPEED  # Standardwert ist SPEED
 
 # Sound-Effekte
 var attack_sound = preload("res://Assets/Sounds/Bat_idle1.ogg")
@@ -120,6 +122,7 @@ func _physics_process(delta: float) -> void:
 			attack()
 			
 	update_health_bar()
+	update_stealth()
 	
 	if is_stunned or player.current_health <= 0:
 		velocity = Vector2.ZERO
@@ -192,7 +195,7 @@ func handle_patrol_state(delta: float) -> void:
 		
 		navigation_agent.target_position = patrol_points[current_patrol_index]
 		var direction = to_local(navigation_agent.get_next_path_position()).normalized()
-		velocity = direction * SPEED * 0.6  # Langsamere Geschwindigkeit beim Patrouillieren
+		velocity = direction * current_speed * 0.6  # Langsamere Geschwindigkeit beim Patrouillieren
 
 func handle_idle_state(delta: float) -> void:
 	idle_timer -= delta
@@ -587,6 +590,7 @@ func spawn_new_bat() -> void:
 	new_bat.player = player
 	new_bat.spawn_zone_container = spawn_zone_container
 	
+	new_bat.current_speed = FAST_SPEED
 	# Position relativ zur aktuellen Fledermaus setzen
 	new_bat.was_called = true
 	var spawn_offset = Vector2(randf_range(-50, 50), randf_range(-50, 50))
@@ -608,3 +612,36 @@ func show_call_icon() -> void:
 	await get_tree().create_timer(1.0).timeout
 	alert_icon.visible = false
 	alert_icon.text = "!"  # Zurück zum normalen Alert-Icon
+
+
+func update_stealth():
+	var light_influence = get_light_influence_at_position(global_position)
+	# Smooth transition between transparency levels
+	# Fully visible (1.0) when in bright light, semi-transparent (0.2) in darkness
+	modulate.a = lerp(0.2, 1.0, light_influence)
+
+func get_light_influence_at_position(pos: Vector2) -> float:
+	var total_light = 0.0
+	var max_light_influence = 0.0
+	
+	# Check all light sources in the scene
+	for light in get_tree().get_nodes_in_group("lights"):
+		if light.is_visible_in_tree() and light.enabled:  # Use 'enabled' instead of 'is_on'
+			var distance = pos.distance_to(light.global_position)
+			# Get light radius - different methods for different light types
+			var light_radius = 0.0
+			if light is PointLight2D:
+				light_radius = light.texture_scale * light.texture.get_size().length() / 2.0
+			elif light.has_method("get_radius"):  # Fallback for custom light types
+				light_radius = light.get_radius()
+			
+			if distance <= light_radius:
+				# Smooth light falloff using inverse square law
+				var normalized_distance = distance / light_radius
+				var falloff = 1.0 / (1.0 + 10.0 * normalized_distance * normalized_distance)
+				total_light += light.energy * falloff
+				max_light_influence = max(max_light_influence, light.energy)
+	
+	if max_light_influence > 0:
+		return clamp(total_light / max_light_influence, 0.0, 1.0)
+	return 0.0  # No light influence

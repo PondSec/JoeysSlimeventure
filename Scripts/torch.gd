@@ -2,6 +2,8 @@ extends Sprite2D
 
 var flicker_timer: float = 0.0  # Timer für das Flackern
 var flicker_interval: float = 0.02 + randf_range(0.0, 0.08)  # Kleineres Intervall für stärkeres Flackern
+@onready var light = $Light
+
 
 # Variablen für das Flackern
 var base_energy: float = 1.0  # Grundenergie des Lichts
@@ -28,3 +30,6 @@ func _process(delta: float) -> void:
 
 	# Animationen der Fackeln abspielen
 	$TorchAnimation.play("torch")
+
+func _ready() -> void:
+	light.add_to_group("lights")
