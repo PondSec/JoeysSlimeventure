@@ -1,4 +1,4 @@
-[gd_scene load_steps=31 format=3 uid="uid://b6ublycstdj8n"]
+[gd_scene load_steps=35 format=3 uid="uid://b6ublycstdj8n"]
 
 [ext_resource type="Texture2D" uid="uid://cildswtcj7qrc" path="res://Assets/slime-sprite.png" id="1_4yq4u"]
 [ext_resource type="Resource" uid="uid://0rntjh2xt5s5" path="res://InventorySystem/playerinv.tres" id="1_e7ml4"]
@@ -20,6 +20,10 @@
 [ext_resource type="Script" uid="uid://c4mfr2cmctuup" path="res://InventorySystem/hot_bar.gd" id="17_1u0f7"]
 [ext_resource type="Texture2D" uid="uid://dyvglc0y8q8y7" path="res://Assets/Inventory/hotbar.png" id="18_4ugw6"]
 [ext_resource type="PackedScene" uid="uid://de82c5pup452l" path="res://InventorySystem/slot_hotbar.tscn" id="19_jqgo5"]
+[ext_resource type="AudioStream" uid="uid://bnffjxa1rkeuy" path="res://Assets/Sounds/hit.mp3" id="21_bi64h"]
+[ext_resource type="AudioStream" uid="uid://b5coygrv7ui68" path="res://Assets/Sounds/jump_slime.mp3" id="22_2ijsl"]
+[ext_resource type="AudioStream" uid="uid://c14lbto0tykos" path="res://Assets/Sounds/land.mp3" id="23_p1odr"]
+[ext_resource type="AudioStream" uid="uid://c4t47qbmuxikx" path="res://Assets/Sounds/walk.mp3" id="24_2ijsl"]
 
 [sub_resource type="GDScript" id="GDScript_381hh"]
 resource_name = "Player"
@@ -136,6 +140,11 @@ var url = \"https://api.joeysslimeventure.com\"
 @export var inv: Inv
 @onready var health_label = $CanvasLayer/HealthLabel
 @onready var api_script = preload(\"res://Scenes/api.tscn\").instantiate()
+
+var is_walking := false
+const WALK_STEP_INTERVAL := 0.3
+var last_sound_time = 0.0
+var sound_cooldown = 0.3
 
 var stun_timer: Timer = Timer.new()
 var save_load = preload(\"res://Scripts/SaveLoad.gd\").new()
@@ -284,11 +293,12 @@ func handle_jump_mechanics(delta):
 	else:
 		jump_buffer_time -= delta
 	
-	# Normaler Sprung
 	if (coyote_time > 0 and jump_buffer_time > 0) or (is_on_floor() and Input.is_action_just_pressed(\"up\")):
 		velocity.y = JUMP_VELOCITY
 		coyote_time = 0
 		jump_buffer_time = 0
+		$JumpSound.pitch_scale = randf_range(1.3, 1.55)  # Leichte Tonhöhen-Variation
+		$JumpSound.play()
 	
 	# Kurzer Sprung (wenn Taste losgelassen)
 	if Input.is_action_just_released(\"up\") and velocity.y < JUMP_VELOCITY * SHORT_JUMP_MULTIPLIER:
@@ -425,20 +435,29 @@ func update_animations():
 			$PlayerSprite.flip_h = velocity.x < 0
 		else:
 			$AnimationPlayer.play(\"idle\")
+			
+		# Walk-Sound steuern
+	if is_on_floor() and abs(velocity.x) > 10.0 and direction.x != 0:
+		if not $WalkSound.playing and (Time.get_ticks_msec() / 1000.0 - last_sound_time) >= sound_cooldown:
+			play_walk_sound()
+	else:
+		$WalkSound.stop()
 
+func play_walk_sound():
+	var speed_factor = clamp(abs(velocity.x) / 300.0, 0.2, 1.0)
+	$WalkSound.volume_db = lerp(-10, -8, speed_factor)
+	$WalkSound.pitch_scale = randf_range(0.8, 1.28)
+	$WalkSound.play()
+	last_sound_time = Time.get_ticks_usec() / 1_000_000.0  # Präziser
+	
 # Verbesserte Kollisionserkennung
 func _on_floor_entered():
 	$LandingParticles.emitting = true
-	$LandingSound.play()
-	
-	if abs(velocity.y) > 300:
-		$Camera2D.shake(0.2, 10, 0.1)
+	$LandSound.play()
 
 func _on_wall_entered():
 	$WallSlideParticles.emitting = true
 	$WallSlideSound.play()
-
-
 
 func _create_afterimages_during_dash() -> void:
 	if is_dashing:
@@ -446,8 +465,6 @@ func _create_afterimages_during_dash() -> void:
 		# Erstelle einen neuen Timer für das nächste Nachbild
 		var afterimage_timer = get_tree().create_timer(0.05)
 		afterimage_timer.timeout.connect(_create_afterimages_during_dash)
-
-
 
 func create_afterimage() -> void:
 	var afterimage = Sprite2D.new()
@@ -617,8 +634,13 @@ func update_glow_state() -> void:
 # Importiere diese Zeile in deine `take_damage`-Funktion, um den Partikel-Effekt zu aktivieren
 func take_damage(amount: int, hit_source: Vector2) -> void:
 	current_health -= amount
-	show_damage_text(amount, false)  
+	show_damage_text(amount, false)
 	flash_damage_color()
+	
+	# Sound mit zufälliger Variation
+	$HitSound.pitch_scale = randf_range(1.5, 2)  # Großer Pitch-Bereich für dramatische Effekte
+	$HitSound.volume_db = randf_range(-10, -5)       # Lautstärke leicht variieren
+	$HitSound.play()
 
 	# Knockback und Stun wie bisher
 	is_stunned = true
@@ -1089,3 +1111,15 @@ offset_bottom = 43.0
 text = "HP: 0000"
 
 [node name="HTTPRequest" type="HTTPRequest" parent="."]
+
+[node name="HitSound" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("21_bi64h")
+
+[node name="JumpSound" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("22_2ijsl")
+
+[node name="LandSound" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("23_p1odr")
+
+[node name="WalkSound" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("24_2ijsl")
