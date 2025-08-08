@@ -1,9 +1,10 @@
-[gd_scene load_steps=15 format=3 uid="uid://dqykudmd26o2q"]
+[gd_scene load_steps=16 format=3 uid="uid://dqykudmd26o2q"]
 
 [ext_resource type="Script" uid="uid://btm7kd5s0flqi" path="res://Scripts/bat.gd" id="1_fveqw"]
 [ext_resource type="Texture2D" uid="uid://dmh4k0yq2bjpa" path="res://Assets/Bat/Standard/BatStandard_Sheet.png" id="2_kikkf"]
 [ext_resource type="Texture2D" uid="uid://bhpr6uxcspd17" path="res://Assets/GUI/Healthbar/off.png" id="3_50dnf"]
 [ext_resource type="Texture2D" uid="uid://dg4h8q8vjxyh" path="res://Assets/GUI/Healthbar/over.png" id="4_mqh3e"]
+[ext_resource type="AudioStream" uid="uid://cmooj0bsqoqv4" path="res://Assets/Sounds/test.mp3" id="5_mqh3e"]
 
 [sub_resource type="Animation" id="Animation_wxra7"]
 length = 0.001
@@ -172,3 +173,7 @@ offset_bottom = -11.0
 [node name="CollisionShape2D" type="CollisionShape2D" parent="DetectionArea"]
 position = Vector2(0, -8.66667)
 shape = SubResource("CircleShape2D_50dnf")
+
+[node name="AudioStreamPlayer2D" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("5_mqh3e")
+pitch_scale = 15.0
