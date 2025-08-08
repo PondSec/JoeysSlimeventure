@@ -30,6 +30,3 @@ func _process(delta: float) -> void:
 
 	# Animationen der Fackeln abspielen
 	$TorchAnimation.play("torch")
-
-func _ready() -> void:
-	light.add_to_group("lights")

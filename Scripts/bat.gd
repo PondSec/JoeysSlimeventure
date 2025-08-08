@@ -5,12 +5,12 @@ const SPEED = 140.0
 const FAST_SPEED = 220.0
 const DETECTION_RADIUS = 300.0
 const ATTACK_RANGE = 35.0
-const ATTACK_COOLDOWN = 1.5
+const ATTACK_COOLDOWN = 1
 const MIN_DISTANCE = 10.0
 const RESPAWN_COOLDOWN = 10
 const BASE_DETECTION_RADIUS = 150.0
 const NAVIGATION_UPDATE_INTERVAL = 0.5
-const CRITICAL_HIT_CHANCE = 0.15
+const CRITICAL_HIT_CHANCE = 0.3
 const DODGE_CHANCE = 0.25
 const MAX_HEALTH = 50
 const ACCELERATION = 8.0
@@ -68,7 +68,7 @@ var current_state = "patrol"  # Kann "idle", "patrol" oder "chase" sein
 @export var current_speed := SPEED  # Standardwert ist SPEED
 
 # Sound-Effekte
-var attack_sound = preload("res://Assets/Sounds/Bat_idle1.ogg")
+#var attack_sound = preload("res://Assets/Sounds/Bat_idle1.ogg")
 var death_sound = preload("res://Assets/Sounds/Bat_death.ogg")
 var hurt_sound = preload("res://Assets/Sounds/Bat_hurt2.ogg.mp3")
 var dodge_sound = preload("res://Assets/Sounds/Bat_takeoff.ogg")
@@ -349,7 +349,7 @@ func attack() -> void:
 		if is_critical:
 			perform_critical_hit()
 		else:
-			sound_player.stream = attack_sound
+			#sound_player.stream = attack_sound
 			sound_player.play()
 		
 		animation_player.play("attack")
@@ -377,7 +377,7 @@ func dodge() -> void:
 	is_dodging = false
 
 func perform_critical_hit() -> void:
-	sound_player.stream = attack_sound
+	#sound_player.stream = attack_sound
 	sound_player.pitch_scale = 1.5
 	sound_player.play()
 	
@@ -410,44 +410,57 @@ func _on_attack_animation_finished(anim_name: String) -> void:
 func show_damage_number(amount: int, is_critical: bool = false) -> void:
 	var damage_text = str(amount)
 	
-	# Erstelle einen RichTextLabel mit angepasster Größe
 	var damage_label = RichTextLabel.new()
 	damage_label.bbcode_enabled = true
 	damage_label.fit_content = true
 	damage_label.scroll_active = false
+	damage_label.custom_minimum_size = Vector2(100, 100)
 	
-	# BBCode mit kleinerer Schriftgröße (font_size=16 für normal, 20 für kritisch)
 	if is_critical:
-		damage_label.text = "[center][font_size=16][shake rate=30.0 level=15][tornado radius=5.0 freq=2.0][color=#FF2222]%s[/color][/tornado][/shake][/font_size][/center]" % damage_text
+		damage_label.text = "[center][shake rate=30.0 level=15][tornado radius=5.0 freq=2.0][color=#FF2222][font_size=8]CRIT![/font_size][font_size=10] %s[/font_size][/color][/tornado][/shake][/center]" % damage_text
+		# Critical Hit Sound
+		var crit_sound = AudioStreamPlayer.new()
+		crit_sound.stream = preload("res://Assets/Sounds/crit.mp3")
+		crit_sound.pitch_scale = randf_range(2, 2.2)  # Leichte Variation
+		add_child(crit_sound)
+		crit_sound.play()
+		crit_sound.finished.connect(crit_sound.queue_free)
 	else:
 		damage_label.text = "[center][font_size=10][wave amp=10.0 freq=3.0][color=#FFFFFF]%s[/color][/wave][/font_size][/center]" % damage_text
+		# Normal Hit Sound
+		var hit_sound = AudioStreamPlayer.new()
+		hit_sound.stream = preload("res://Assets/Sounds/test.mp3")  # Korrigiert von crit.mp3 zu count.mp3
+		hit_sound.pitch_scale = randf_range(15, 15.5)  # Größere Variation für normale Hits
+		add_child(hit_sound)
+		hit_sound.play()
+		hit_sound.finished.connect(hit_sound.queue_free)
 	
 	# Positionierung
 	var x_offset = randf_range(-25, 25)
 	damage_label.position = global_position + Vector2(x_offset, -40)
-	damage_label.size = Vector2(40, 20)  # Kleineres Label
+	damage_label.size = Vector2(40, 20)
 	
 	get_parent().add_child(damage_label)
 	
-	# Tween-Animation mit kleineren Skalierungen
+	# Tween-Animation
 	var tween = create_tween().set_parallel(true)
 	tween.set_trans(Tween.TRANS_BACK)
 	tween.set_ease(Tween.EASE_OUT)
 	
-	var jump_height = -60 if is_critical else -40  # Geringere Sprunghöhe
+	var jump_height = -60 if is_critical else -40
 	var jump_distance = x_offset * 1.5
 	var jump_duration = 0.9 if is_critical else 0.7
 	
 	tween.tween_property(damage_label, "position:y", damage_label.position.y + jump_height, jump_duration)
 	tween.tween_property(damage_label, "position:x", damage_label.position.x + jump_distance, jump_duration)
 	
-	# Kamera-Shake für kritische Treffer (unverändert)
+	# Kamera-Shake für kritische Treffer
 	if is_critical:
 		var camera = get_viewport().get_camera_2d()
 		if camera and camera.has_method("shake"):
 			camera.shake(0.5, 25)
 	
-	# Kleinere Skalierungseffekte
+	# Skalierungseffekte
 	if is_critical:
 		damage_label.scale = Vector2(0.5, 0.5)
 		tween.tween_property(damage_label, "scale", Vector2(1.2, 1.2), 0.2)
@@ -463,7 +476,7 @@ func show_damage_number(amount: int, is_critical: bool = false) -> void:
 	await tween.finished
 	damage_label.queue_free()
 	
-	# Hitstop (unverändert)
+	# Hitstop für kritische Treffer
 	if is_critical:
 		Engine.time_scale = 0.1
 		await get_tree().create_timer(0.1).timeout
@@ -490,16 +503,23 @@ func set_animation() -> void:
 	else:
 		animation_player.play("idle")
 
-func take_damage(amount: int) -> void:
+func take_damage(amount: int, direction: Vector2, is_crit: bool = false) -> void:
 	if is_dead or is_dodging:
 		return
 	
+	# Apply crit multiplier if it's a crit
+	var final_damage = amount
+	if is_crit:
+		final_damage = ceil(amount * 1.5)  # 50% more damage on crit
+		# Play special crit effects
+		perform_critical_hit_effects()
+	
 	# Schadensreduktion basierend auf der Entfernung
 	var distance_factor = clamp(global_position.distance_to(player.global_position) / 100.0, 0.5, 1.0)
-	var final_damage = ceil(amount * distance_factor)
+	final_damage = ceil(final_damage * distance_factor)
 	
 	bat_health -= final_damage
-	show_damage_number(final_damage)
+	show_damage_number(final_damage, is_crit)  # Pass is_crit to show different damage numbers
 	
 	sound_player.stream = hurt_sound
 	sound_player.pitch_scale = randf_range(0.9, 1.1)
@@ -512,6 +532,25 @@ func take_damage(amount: int) -> void:
 	else:
 		health_bar.visible = true
 		get_tree().create_timer(2.0).timeout.connect(func(): health_bar.visible = false)
+
+func perform_critical_hit_effects():
+	# Screen Shake
+	var shake_intensity = 15.0
+	var camera = get_viewport().get_camera_2d()
+	if camera and camera.has_method("shake"):
+		camera.shake(0.5, shake_intensity)
+	
+	# Flash white
+	var flash_tween = create_tween()
+	flash_tween.tween_property(sprite, "modulate", Color(2, 2, 2), 0.1)
+	flash_tween.tween_property(sprite, "modulate", Color.WHITE, 0.2)
+	
+	# Play crit sound
+	var crit_sound = AudioStreamPlayer.new()
+	crit_sound.stream = preload("res://Assets/Sounds/crit.mp3")
+	add_child(crit_sound)
+	crit_sound.play()
+	crit_sound.finished.connect(crit_sound.queue_free)
 
 func flash_red() -> void:
 	var flash_tween = create_tween()
@@ -539,6 +578,7 @@ func die() -> void:
 	is_dead = true
 	animation_player.play("death")
 	sound_player.stream = death_sound
+	sound_player.volume_db = -20.0
 	sound_player.play()
 	
 	set_collision_layer_value(1, false)
