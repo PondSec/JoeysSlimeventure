@@ -1,7 +1,9 @@
-[gd_scene load_steps=13 format=3 uid="uid://dqykudmd26o2q"]
+[gd_scene load_steps=15 format=3 uid="uid://dqykudmd26o2q"]
 
-[ext_resource type="Script" path="res://Scripts/bat.gd" id="1_fveqw"]
+[ext_resource type="Script" uid="uid://btm7kd5s0flqi" path="res://Scripts/bat.gd" id="1_fveqw"]
 [ext_resource type="Texture2D" uid="uid://dmh4k0yq2bjpa" path="res://Assets/Bat/Standard/BatStandard_Sheet.png" id="2_kikkf"]
+[ext_resource type="Texture2D" uid="uid://bhpr6uxcspd17" path="res://Assets/GUI/Healthbar/off.png" id="3_50dnf"]
+[ext_resource type="Texture2D" uid="uid://dg4h8q8vjxyh" path="res://Assets/GUI/Healthbar/over.png" id="4_mqh3e"]
 
 [sub_resource type="Animation" id="Animation_wxra7"]
 length = 0.001
@@ -44,10 +46,10 @@ tracks/0/path = NodePath(".:frame")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.5),
-"transitions": PackedFloat32Array(1, 1),
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
 "update": 0,
-"values": [14, 15]
+"values": [14]
 }
 
 [sub_resource type="Animation" id="Animation_l3fkf"]
@@ -99,37 +101,24 @@ tracks/0/keys = {
 "values": [2]
 }
 
-[sub_resource type="Animation" id="Animation_ghu1s"]
-resource_name = "stunned"
-tracks/0/type = "value"
-tracks/0/imported = false
-tracks/0/enabled = true
-tracks/0/path = NodePath(".:frame")
-tracks/0/interp = 1
-tracks/0/loop_wrap = true
-tracks/0/keys = {
-"times": PackedFloat32Array(0, 1),
-"transitions": PackedFloat32Array(1, 1),
-"update": 0,
-"values": [22, 22]
-}
-
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_ojm6m"]
 _data = {
-"RESET": SubResource("Animation_wxra7"),
-"attack": SubResource("Animation_yxgnl"),
-"death": SubResource("Animation_ey6uc"),
-"flying": SubResource("Animation_l3fkf"),
-"idle": SubResource("Animation_tny1m"),
-"jump": SubResource("Animation_m6oq1"),
-"stunned": SubResource("Animation_ghu1s")
+&"RESET": SubResource("Animation_wxra7"),
+&"attack": SubResource("Animation_yxgnl"),
+&"death": SubResource("Animation_ey6uc"),
+&"flying": SubResource("Animation_l3fkf"),
+&"idle": SubResource("Animation_tny1m"),
+&"jump": SubResource("Animation_m6oq1")
 }
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_p57rr"]
-radius = 6.14636
+radius = 10.0222
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_chl00"]
-size = Vector2(6.37498, 5.79167)
+size = Vector2(12, 8.22917)
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_50dnf"]
+radius = 48.074
 
 [node name="Bat" type="CharacterBody2D"]
 scale = Vector2(1.5, 1.5)
@@ -143,7 +132,7 @@ vframes = 5
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="Sprite2D"]
 libraries = {
-"": SubResource("AnimationLibrary_ojm6m")
+&"": SubResource("AnimationLibrary_ojm6m")
 }
 speed_scale = 2.0
 
@@ -154,7 +143,7 @@ position = Vector2(0, -8.66667)
 shape = SubResource("CircleShape2D_p57rr")
 
 [node name="Collision" type="CollisionShape2D" parent="."]
-position = Vector2(0, -6)
+position = Vector2(0, -7.21875)
 shape = SubResource("RectangleShape2D_chl00")
 
 [node name="NavigationAgent2D" type="NavigationAgent2D" parent="."]
@@ -162,3 +151,24 @@ shape = SubResource("RectangleShape2D_chl00")
 [node name="Timer" type="Timer" parent="NavigationAgent2D"]
 wait_time = 0.1
 autostart = true
+
+[node name="HealthBar" type="TextureProgressBar" parent="."]
+offset_left = -12.6667
+offset_top = -19.3333
+offset_right = 12.3333
+offset_bottom = -16.3333
+nine_patch_stretch = true
+texture_under = ExtResource("3_50dnf")
+texture_progress = ExtResource("4_mqh3e")
+
+[node name="AlertIcon" type="Label" parent="."]
+offset_left = -1.0
+offset_top = -34.0
+offset_right = 4.0
+offset_bottom = -11.0
+
+[node name="DetectionArea" type="Area2D" parent="."]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="DetectionArea"]
+position = Vector2(0, -8.66667)
+shape = SubResource("CircleShape2D_50dnf")

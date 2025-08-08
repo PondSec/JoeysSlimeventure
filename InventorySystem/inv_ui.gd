@@ -174,48 +174,82 @@ func _on_slot_released(slot_index: int):
 			source_slot_ui.visible = true  # Stelle das ItemTexture im Quell-Slot wieder her
 
 func _on_right_click(slot_index: int):
-	if dragging_item:
-		var source_slot = inv.slots[dragging_slot_index]
-		var target_slot = inv.slots[slot_index]
-
+	if not dragging_item:
+		return
+	
+	var source_slot = inv.slots[dragging_slot_index]
+	var target_slot = inv.slots[slot_index]
+	
+	# Sicherheitsprüfungen
+	if not source_slot.item or source_slot.amount <= 0:
+		return
+	
+	# Fall 1: Ziel-Slot ist leer
+	if not target_slot.item:
+		target_slot.item = source_slot.item.duplicate()  # Wichtig: Neue Instanz erstellen!
+		target_slot.amount = 1
+		source_slot.amount -= 1
+		
+		if source_slot.amount <= 0:
+			source_slot.item = null
+			cleanup_dragging_item()
+		else:
+			update_dragging_item(source_slot.item)
+	
+	# Fall 2: Gleiches Item und Platz zum Stapeln
+	elif target_slot.item == source_slot.item and target_slot.amount < 64:
+		target_slot.amount += 1
+		source_slot.amount -= 1
+		
+		if source_slot.amount <= 0:
+			source_slot.item = null
+			cleanup_dragging_item()
+		else:
+			update_dragging_item(source_slot.item)
+	
+	# Fall 3: Unterschiedliche Items - Tausche nur ein Item
+	else:
+		# Temporäre Variablen speichern
+		var temp_item = target_slot.item.duplicate()
+		var temp_amount = target_slot.amount
+		
+		# Ein Item vom Quell-Slot in den Ziel-Slot bewegen
+		target_slot.item = source_slot.item.duplicate()
+		target_slot.amount = 1
+		source_slot.amount -= 1
+		
+		# Ursprüngliches Ziel-Item in den Quell-Slot bewegen
 		if source_slot.amount > 0:
-			if source_slot.amount > 1:
-				# Übertrage nur ein Item
-				source_slot.amount -= 1
-				# Wenn der Ziel-Slot das gleiche Item enthält, stapel es
-				if target_slot.item == source_slot.item:
-					target_slot.amount += 1
-				else:
-					# Falls der Ziel-Slot leer ist, das Item setzen
-					target_slot.item = source_slot.item
-					target_slot.amount = 1
+			source_slot.item = temp_item
+			source_slot.amount = temp_amount
+		else:
+			source_slot.item = temp_item
+			source_slot.amount = temp_amount
+		
+		update_dragging_item(source_slot.item)
+	
+	update_slots()
 
-				# Restlichen Stapel an der Maus behalten (immer noch das gleiche Item-Objekt)
-				dragging_item.position = get_global_mouse_position()  # Stelle sicher, dass das verbleibende Item weiterhin folgt
-			else:
-				# Wenn nur noch ein Item übrig ist, lege es ab
-				if target_slot.item == null:
-					target_slot.item = source_slot.item
-					target_slot.amount = 1
-				else:
-					# Wenn das Ziel-Slot das gleiche Item enthält, dann stapeln
-					target_slot.amount += 1
+func cleanup_dragging_item():
+	if dragging_item:
+		dragging_item.queue_free()
+		dragging_item = null
+	dragging_slot_index = -1
 
-				# Das letzte Item ablegen
-				source_slot.item = null
-				source_slot.amount = 0
-				dragging_item.queue_free()  # Entferne das Objekt
-				dragging_item = null  # Setze die Hand auf null
-
-				# Aktualisiere UI sofort
-				# Manuell das ItemTexture des Quell-Slots ausblenden
-				var source_slot_ui = slots[dragging_slot_index].get_node("CenterContainer/Panel/ItemDisplay") if slots[dragging_slot_index].has_node("ItemTexture") else null
-				if source_slot_ui:
-					source_slot_ui.visible = false
-
-				update_slots()
-				return  # Ende des Rechtsklicks, keine weiteren Items in der Hand
-		update_slots()
+func update_dragging_item(item: InvItem):
+	if dragging_item:
+		# Altes Sprite entfernen
+		var old_sprite = dragging_item.get_child(0)
+		dragging_item.remove_child(old_sprite)
+		old_sprite.queue_free()
+		
+		# Neues Sprite erstellen
+		var new_sprite = Sprite2D.new()
+		new_sprite.texture = item.texture
+		if new_sprite.texture:
+			var tex_size = new_sprite.texture.get_size()
+			new_sprite.scale = Vector2(64/tex_size.x, 64/tex_size.y)
+		dragging_item.add_child(new_sprite)
 
 # Item für das Ziehen erstellen
 func create_dragging_item(item: InvItem) -> Control:
