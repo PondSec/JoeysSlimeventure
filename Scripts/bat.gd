@@ -36,6 +36,13 @@ const PATROL_CHANCE = 0.9  # 30% Chance zu patrouillieren, wenn der Spieler nich
 const PATROL_DURATION = 20.0  # Wie lange patrouilliert wird
 const IDLE_DURATION = 0.1  # Wie lange sie ruhig bleibt
 
+const CALL_COOLDOWN = 15.0  # Wie oft die Fledermaus rufen kann
+const CALL_RANGE = 200.0    # In welchem Radius nach anderen Fledermäusen gesucht wird
+var call_timer := 0.0
+var can_call_for_help := true
+const CALL_PROBABILITY = 0.3
+var was_called = false  # True, wenn diese Fledermaus durch einen Ruf erstellt wurde
+
 # Variablen
 var is_patrolling := false
 var patrol_timer := 0.0
@@ -90,6 +97,10 @@ func _ready() -> void:
 	add_child(sound_player)  # WICHTIG: Node hinzufügen
 
 func _physics_process(delta: float) -> void:
+	if not can_call_for_help:
+		call_timer -= delta
+		if call_timer <= 0:
+			can_call_for_help = true
 	var can_attack_now = can_attack()
 	if can_attack_now:
 		if attack_timer <= 0.0:
@@ -127,6 +138,10 @@ func _physics_process(delta: float) -> void:
 func handle_state_machine(delta: float) -> void:
 	var distance_to_player = global_position.distance_to(player.global_position)
 	var actual_detection_radius = DETECTION_RADIUS if player.is_glowing else BASE_DETECTION_RADIUS
+	
+	if bat_health < MAX_HEALTH * 0.3 && can_call_for_help && current_state == "chase":
+		if randf() < CALL_PROBABILITY:  # Zufallsprüfung
+			call_for_help()
 	
 	# Nur verfolgen, wenn der Spieler im Detektionsradius ist
 	if distance_to_player <= actual_detection_radius:
@@ -473,6 +488,9 @@ func drop_loot() -> void:
 			return
 
 func respawn() -> void:
+	if was_called:  # Gerufene Fledermäuse respawnen nicht
+		queue_free()  # Entferne sie komplett
+		return
 	bat_health = MAX_HEALTH
 	is_dead = false
 	is_stunned = false
@@ -541,3 +559,52 @@ func _on_player_lost(body: Node2D) -> void:
 		await get_tree().create_timer(0.5).timeout
 		alert_icon.visible = false
 		alert_icon.text = "!"  # Zurück zum Ausrufezeichen für das nächste Mal
+
+func call_for_help() -> void:
+	if not can_call_for_help or is_dead:
+		return
+	
+	# Überprüfe, ob bereits genug Fledermäuse in der Nähe sind
+	var nearby_bats = 0
+	for bat in get_tree().get_nodes_in_group("bats"):
+		if bat != self and global_position.distance_to(bat.global_position) < CALL_RANGE:
+			nearby_bats += 1
+	
+	# Wenn nicht genug Fledermäuse in der Nähe sind, spawne eine neue
+	if nearby_bats < 2:  # Maximal 2 Fledermäuse in der Nähe
+		spawn_new_bat()
+	
+	# Ruf-Cooldown setzen
+	can_call_for_help = false
+	call_timer = CALL_COOLDOWN
+	show_call_icon()
+
+func spawn_new_bat() -> void:
+	var bat_scene = load("res://Scenes/albino_bat.tscn")  # Pfad anpassen
+	var new_bat = bat_scene.instantiate()
+	
+	# Wichtige Variablen setzen
+	new_bat.player = player
+	new_bat.spawn_zone_container = spawn_zone_container
+	
+	# Position relativ zur aktuellen Fledermaus setzen
+	new_bat.was_called = true
+	var spawn_offset = Vector2(randf_range(-50, 50), randf_range(-50, 50))
+	new_bat.global_position = global_position + spawn_offset
+	
+	# Zur Szene hinzufügen
+	get_parent().add_child(new_bat)
+
+func show_call_icon() -> void:
+	alert_icon.text = "!?"
+	alert_icon.visible = true
+	
+	# Animation für das Ruf-Icon
+	var call_tween = create_tween()
+	call_tween.tween_property(alert_icon, "scale", Vector2(1.8, 1.8), 0.2)
+	call_tween.tween_property(alert_icon, "scale", Vector2(1.0, 1.0), 0.2)
+	
+	# Nach 1 Sekunde unsichtbar machen
+	await get_tree().create_timer(1.0).timeout
+	alert_icon.visible = false
+	alert_icon.text = "!"  # Zurück zum normalen Alert-Icon
