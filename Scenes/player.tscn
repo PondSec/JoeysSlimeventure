@@ -142,9 +142,9 @@ var url = \"https://api.joeysslimeventure.com\"
 @onready var api_script = preload(\"res://Scenes/api.tscn\").instantiate()
 
 var is_walking := false
-const WALK_STEP_INTERVAL := 0.3
+const WALK_STEP_INTERVAL := 0.2
 var last_sound_time = 0.0
-var sound_cooldown = 0.3
+var sound_cooldown = 0.2
 
 var stun_timer: Timer = Timer.new()
 var save_load = preload(\"res://Scripts/SaveLoad.gd\").new()
@@ -297,7 +297,7 @@ func handle_jump_mechanics(delta):
 		velocity.y = JUMP_VELOCITY
 		coyote_time = 0
 		jump_buffer_time = 0
-		$JumpSound.pitch_scale = randf_range(1.3, 1.55)  # Leichte Tonhöhen-Variation
+		$JumpSound.pitch_scale = randf_range(1.3, 1.75)  # Leichte Tonhöhen-Variation
 		$JumpSound.play()
 	
 	# Kurzer Sprung (wenn Taste losgelassen)
@@ -445,8 +445,8 @@ func update_animations():
 
 func play_walk_sound():
 	var speed_factor = clamp(abs(velocity.x) / 300.0, 0.2, 1.0)
-	$WalkSound.volume_db = lerp(-10, -8, speed_factor)
-	$WalkSound.pitch_scale = randf_range(0.8, 1.28)
+	$WalkSound.volume_db = lerp(-10, 0, speed_factor)
+	$WalkSound.pitch_scale = randf_range(0.6, 1.28)
 	$WalkSound.play()
 	last_sound_time = Time.get_ticks_usec() / 1_000_000.0  # Präziser
 	

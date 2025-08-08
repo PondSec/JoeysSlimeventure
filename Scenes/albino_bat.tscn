@@ -118,7 +118,7 @@ radius = 10.0222
 size = Vector2(12, 8.22917)
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_50dnf"]
-radius = 78.6695
+radius = 133.468
 
 [node name="Bat" type="CharacterBody2D"]
 scale = Vector2(1.5, 1.5)

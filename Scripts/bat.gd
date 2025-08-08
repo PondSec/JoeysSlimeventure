@@ -43,7 +43,7 @@ const CALL_COOLDOWN = 15.0  # Wie oft die Fledermaus rufen kann
 const CALL_RANGE = 200.0    # In welchem Radius nach anderen Fledermäusen gesucht wird
 var call_timer := 0.0
 var can_call_for_help := true
-const CALL_PROBABILITY = 0.3
+const CALL_PROBABILITY = 0.1
 var was_called = false  # True, wenn diese Fledermaus durch einen Ruf erstellt wurde
 
 # Variablen
