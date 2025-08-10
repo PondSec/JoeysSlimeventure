@@ -1,4 +1,4 @@
-[gd_scene load_steps=34 format=4 uid="uid://cmdh8rpdo8fb2"]
+[gd_scene load_steps=26 format=4 uid="uid://cmdh8rpdo8fb2"]
 
 [ext_resource type="Texture2D" uid="uid://82opar247kat" path="res://Assets/Tiles/platformertiles.png" id="1_lx4yj"]
 [ext_resource type="Script" uid="uid://hrb3bfkpp2mn" path="res://Scripts/game.gd" id="1_wyx84"]
@@ -6,6 +6,7 @@
 [ext_resource type="PackedScene" uid="uid://ccep15ieo6o6o" path="res://Scenes/torch.tscn" id="3_d07bp"]
 [ext_resource type="Texture2D" uid="uid://h245qfth6gf5" path="res://Assets/itch.io/Tilevania.png" id="3_khj2t"]
 [ext_resource type="Texture2D" uid="uid://cimvb1apxwlty" path="res://Assets/block.png" id="3_xdlxs"]
+[ext_resource type="Texture2D" uid="uid://cllwmov7ffejk" path="res://Assets/Particles#/dust.png" id="4_acvyw"]
 [ext_resource type="PackedScene" uid="uid://b6ublycstdj8n" path="res://Scenes/player.tscn" id="5_26h23"]
 [ext_resource type="Texture2D" uid="uid://cjnbif52iwlf0" path="res://Assets/danger.png" id="5_pl5b0"]
 [ext_resource type="PackedScene" uid="uid://dqykudmd26o2q" path="res://Scenes/bat.tscn" id="6_u4atw"]
@@ -244,35 +245,24 @@ texture = ExtResource("3_xdlxs")
 navigation_layer_0/layers = 1
 sources/0 = SubResource("TileSetAtlasSource_5uy8r")
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_xt0t6"]
-size = Vector2(171, 279)
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_t7snr"]
-size = Vector2(575.5, 161)
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_phwsh"]
-size = Vector2(423, 166.5)
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_k4ke2"]
-size = Vector2(111, 331)
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_yd5pl"]
-size = Vector2(111, 176.5)
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_kob5s"]
-size = Vector2(391, 78)
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_8e2l1"]
-size = Vector2(142, 175)
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_bvrpd"]
-size = Vector2(708, 157.5)
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_xffbt"]
-size = Vector2(306, 128)
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_3u848"]
-size = Vector2(182, 139.25)
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_acvyw"]
+lifetime_randomness = 0.09
+particle_flag_disable_z = true
+emission_shape_scale = Vector3(1000, 1000, 1000)
+emission_shape = 3
+emission_box_extents = Vector3(1, 1, 1)
+direction = Vector3(0, 0, 0)
+initial_velocity_min = 5.0
+initial_velocity_max = 5.0
+orbit_velocity_min = 9.49949e-08
+orbit_velocity_max = 9.49949e-08
+gravity = Vector3(0, 0, 0)
+scale_min = 0.0
+scale_max = 2.0
+turbulence_enabled = true
+turbulence_influence_min = 0.122
+turbulence_influence_max = 0.343
+collision_mode = 2
 
 [node name="Game" type="Node2D"]
 script = ExtResource("1_wyx84")
@@ -401,6 +391,19 @@ tile_set = SubResource("TileSet_nhier")
 [node name="PlayerModel" parent="." instance=ExtResource("5_26h23")]
 position = Vector2(284, 768)
 
+[node name="FlyingDust" type="Node2D" parent="PlayerModel"]
+position = Vector2(-4057.14, -10971.4)
+scale = Vector2(14.2857, 14.2857)
+
+[node name="GPUParticles2D" type="GPUParticles2D" parent="PlayerModel/FlyingDust"]
+modulate = Color(0.626766, 0.920037, 0.820692, 1)
+position = Vector2(284, 768)
+amount = 1000
+texture = ExtResource("4_acvyw")
+lifetime = 3.0
+randomness = 0.8
+process_material = SubResource("ParticleProcessMaterial_acvyw")
+
 [node name="Bat" parent="." node_paths=PackedStringArray("player") instance=ExtResource("6_u4atw")]
 position = Vector2(975, 1440)
 scale = Vector2(2, 2)
@@ -441,69 +444,6 @@ position = Vector2(2477, 1187)
 
 [node name="PauseMenu" parent="." instance=ExtResource("9_dvqdi")]
 visible = false
-
-[node name="SpawnZones(Bat)" type="Node2D" parent="."]
-
-[node name="Area2D" type="Area2D" parent="SpawnZones(Bat)"]
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="SpawnZones(Bat)/Area2D"]
-position = Vector2(113.5, 705)
-shape = SubResource("RectangleShape2D_xt0t6")
-
-[node name="Area2D2" type="Area2D" parent="SpawnZones(Bat)"]
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="SpawnZones(Bat)/Area2D2"]
-position = Vector2(1344.25, 619.5)
-shape = SubResource("RectangleShape2D_t7snr")
-
-[node name="Area2D3" type="Area2D" parent="SpawnZones(Bat)"]
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="SpawnZones(Bat)/Area2D3"]
-position = Vector2(1270.5, 869.75)
-shape = SubResource("RectangleShape2D_phwsh")
-
-[node name="Area2D4" type="Area2D" parent="SpawnZones(Bat)"]
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="SpawnZones(Bat)/Area2D4"]
-position = Vector2(559.5, 1302.5)
-shape = SubResource("RectangleShape2D_k4ke2")
-
-[node name="Area2D5" type="Area2D" parent="SpawnZones(Bat)"]
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="SpawnZones(Bat)/Area2D5"]
-position = Vector2(786.5, 1227.25)
-shape = SubResource("RectangleShape2D_yd5pl")
-
-[node name="Area2D6" type="Area2D" parent="SpawnZones(Bat)"]
-position = Vector2(423, 1224.5)
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="SpawnZones(Bat)/Area2D6"]
-position = Vector2(890.5, 208.5)
-shape = SubResource("RectangleShape2D_kob5s")
-
-[node name="Area2D7" type="Area2D" parent="SpawnZones(Bat)"]
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="SpawnZones(Bat)/Area2D7"]
-position = Vector2(423, 1224.5)
-shape = SubResource("RectangleShape2D_8e2l1")
-
-[node name="Area2D8" type="Area2D" parent="SpawnZones(Bat)"]
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="SpawnZones(Bat)/Area2D8"]
-position = Vector2(2345, 1256.75)
-shape = SubResource("RectangleShape2D_bvrpd")
-
-[node name="Area2D9" type="Area2D" parent="SpawnZones(Bat)"]
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="SpawnZones(Bat)/Area2D9"]
-position = Vector2(641, 635)
-shape = SubResource("RectangleShape2D_xffbt")
-
-[node name="Area2D10" type="Area2D" parent="SpawnZones(Bat)"]
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="SpawnZones(Bat)/Area2D10"]
-position = Vector2(312, 928.375)
-shape = SubResource("RectangleShape2D_3u848")
 
 [node name="Timer" type="Timer" parent="."]
 
