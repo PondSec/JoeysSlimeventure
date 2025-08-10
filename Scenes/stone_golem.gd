@@ -61,45 +61,109 @@ func _process(delta: float) -> void:
 		if notification_timer <= 0:
 			notification_label.hide()
 
-func show_notification(text: String) -> void:
-	current_notification = text
-	notification_label.text = text
+func show_damage_notification(amount: int, is_critical: bool = false) -> void:
+	var damage_text = str(amount)
+	var damage_label = RichTextLabel.new()
+	damage_label.bbcode_enabled = true
+	damage_label.fit_content = true
+	damage_label.scroll_active = false
+	damage_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	damage_label.custom_minimum_size = Vector2(100, 100)
 	
-	# Farbe basierend auf Textinhalt setzen
-	if text == "CRITICAL!":
-		notification_label.add_theme_color_override("font_color", Color.RED)
-		notification_label.add_theme_font_size_override("font_size", 22)  # Größer für kritische Treffer
-	else:
-		notification_label.add_theme_color_override("font_color", Color.WHITE)
-		notification_label.add_theme_font_size_override("font_size", 18)  # Normale Größe
-	
-	notification_label.show()
-	notification_timer = NOTIFICATION_DURATION
-	
-	# Animation für das Erscheinen
-	var tween = get_tree().create_tween()
-	notification_label.modulate.a = 0
-	notification_label.position.y = -20
-	tween.tween_property(notification_label, "modulate:a", 1.0, 0.2)
-	tween.parallel().tween_property(notification_label, "position:y", -40, 0.2).set_trans(Tween.TRANS_BACK)
-	
-	# Zusätzliche Effekte nur für kritische Treffer
-	if text == "CRITICAL!":
-		# Pulse-Effekt für kritische Treffer
-		var pulse_tween = get_tree().create_tween()
-		pulse_tween.tween_property(notification_label, "scale", Vector2(1.3, 1.3), 0.1)
-		pulse_tween.tween_property(notification_label, "scale", Vector2(1.0, 1.0), 0.2)
+	if is_critical:
+		damage_label.text = "[center][shake rate=30.0 level=15][tornado radius=5.0 freq=2.0][color=#FF2222][font_size=24]CRIT![/font_size][font_size=32] %s[/font_size][/color][/tornado][/shake][/center]" % damage_text
 		
-		# Kamera-Shake für kritische Treffer
-		if camera:
-			camera.shake(0.3, 0.4)
+		var crit_sound = AudioStreamPlayer.new()
+		crit_sound.stream = preload("res://Assets/Sounds/crit.mp3")
+		crit_sound.pitch_scale = randf_range(2, 2.5)
+		add_child(crit_sound)
+		crit_sound.play()
+		crit_sound.finished.connect(crit_sound.queue_free)
+	else:
+		damage_label.text = "[center][font_size=28][wave amp=10.0 freq=3.0][color=#AAAAAA]%s[/color][/wave][/font_size][/center]" % damage_text
+		
+		var hit_sound = AudioStreamPlayer.new()
+		hit_sound.stream = preload("res://Assets/Sounds/test.mp3")
+		hit_sound.pitch_scale = randf_range(15, 16)
+		add_child(hit_sound)
+		hit_sound.play()
+		hit_sound.finished.connect(hit_sound.queue_free)
+	
+	var x_offset = randf_range(-25, 25)
+	damage_label.position = global_position + Vector2(x_offset, -80)
+	damage_label.size = Vector2(100, 50)
+	get_parent().add_child(damage_label)
+	
+	var tween = create_tween().set_parallel(true)
+	tween.set_trans(Tween.TRANS_BACK)
+	tween.set_ease(Tween.EASE_OUT)
+	
+	var jump_height = -80 if is_critical else -60
+	var jump_distance = x_offset * 1.5
+	var jump_duration = 0.9 if is_critical else 0.7
+	
+	tween.tween_property(damage_label, "position:y", damage_label.position.y + jump_height, jump_duration)
+	tween.tween_property(damage_label, "position:x", damage_label.position.x + jump_distance, jump_duration)
+	
+	if is_critical and camera and camera.has_method("shake"):
+		camera.shake(0.5, 25)
+	
+	if is_critical:
+		damage_label.scale = Vector2(0.5, 0.5)
+		tween.tween_property(damage_label, "scale", Vector2(1.5, 1.5), 0.2)
+		tween.chain().tween_property(damage_label, "scale", Vector2(1.2, 1.2), 0.3)
+	else:
+		damage_label.scale = Vector2(0.6, 0.6)
+		tween.tween_property(damage_label, "scale", Vector2(1.2, 1.2), 0.2)
+		tween.chain().tween_property(damage_label, "scale", Vector2(1.0, 1.0), 0.3)
+	
+	tween.tween_property(damage_label, "modulate:a", 0.0, 0.6).set_delay(0.4)
+	
+	if is_critical:
+		Engine.time_scale = 0.2
+		await get_tree().create_timer(0.15).timeout
+		Engine.time_scale = 1.0
+	
+	await tween.finished
+	damage_label.queue_free()
+
+func show_status_notification(text: String) -> void:
+	var status_label = RichTextLabel.new()
+	status_label.bbcode_enabled = true
+	status_label.fit_content = true
+	status_label.scroll_active = false
+	status_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	status_label.custom_minimum_size = Vector2(50, 50)
+	
+	match text:
+		"!":
+			status_label.text = "[center][color=#FF0000][font_size=32]![/font_size][/color][/center]"
+		"?":
+			status_label.text = "[center][color=#FFFF00][font_size=32]?[/font_size][/color][/center]"
+		_:
+			status_label.text = "[center][color=#FFFFFF][font_size=28]%s[/font_size][/color][/center]" % text
+	
+	status_label.position = global_position + Vector2(0, -80)
+	status_label.size = Vector2(50, 50)
+	get_parent().add_child(status_label)
+	
+	var tween = create_tween().set_parallel(true)
+	tween.set_trans(Tween.TRANS_BACK)
+	tween.set_ease(Tween.EASE_OUT)
+	
+	tween.tween_property(status_label, "position:y", status_label.position.y - 40, 0.7)
+	tween.tween_property(status_label, "modulate:a", 0.0, 0.6).set_delay(0.4)
+	
+	await tween.finished
+	status_label.queue_free()
+	
 func find_player() -> void:
 	var players = get_tree().get_nodes_in_group("players")
 	if players.size() > 0:
 		player = players[0]
 		if not player_detected:
 			player_detected = true
-			show_notification("!")
+			show_status_notification("!")
 	else:
 		print("Warnung: Kein Spieler gefunden!")
 
@@ -113,7 +177,7 @@ func _physics_process(delta: float) -> void:
 		set_animation()
 		if player_detected and player != null and player.current_health <= 0:
 			player_detected = false
-			show_notification("?")
+			show_status_notification("?")
 		return
 
 	# Schwerkraft anwenden
@@ -140,12 +204,12 @@ func _physics_process(delta: float) -> void:
 		# Spieler verloren
 		if player_detected and distance_to_player > actual_detection_radius:
 			player_detected = false
-			show_notification("?")
+			show_status_notification("?")
 		
 		# Spieler entdeckt
 		if not player_detected and distance_to_player <= actual_detection_radius:
 			player_detected = true
-			show_notification("!")
+			show_status_notification("!")
 
 		if distance_to_player <= ATTACK_RANGE:
 			attack_timer -= delta
@@ -258,21 +322,22 @@ func set_animation() -> void:
 	else:
 		animation_player.play("idle")
 
-func take_damage(amount: int) -> void:
+func take_damage(damage: int, knockback_direction: Vector2 = Vector2.ZERO, is_crit: bool = false) -> void:
 	if is_dead or is_stone_mantle_active:
 		return
 		
-	show_notification(str(amount))
+	show_damage_notification(damage, is_crit)
 	decide_ability()
-	golem_health -= amount
+	golem_health -= damage
 	flash_red()
 
 	if not is_attacking:
-		apply_knockback()
+		knockback_velocity = knockback_direction * 100
+		is_knocked_back = true
 
 	if golem_health <= 0:
 		die()
-
+		
 func flash_red():
 	var sprite = $Sprite2D
 	var tween = get_tree().create_tween()
