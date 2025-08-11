@@ -52,7 +52,9 @@ var patrol_timer := 0.0
 var idle_timer := 0.0
 var current_state = "patrol"  # Kann "idle", "patrol" oder "chase" sein
 
-
+var normal_hit_streak := 0
+var streak_reset_time := 2.0 # Sekunden ohne Treffer bis Reset
+var streak_timer := 0.0
 
 @export var player: CharacterBody2D
 @export var spawn_zone_container: Node2D
@@ -79,7 +81,7 @@ var loot_table = [
 	{ "scene": preload("res://Scenes/Items/copper_nugget.tscn"), "chance": 0.15 },
 	{ "scene": preload("res://Scenes/Items/iron_nugget.tscn"), "chance": 0.05 },
 	{ "scene": preload("res://Scenes/Items/gold_nugget.tscn"), "chance": 0.01 },
-	{ "scene": preload("res://Scenes/Items/bat_artefact.tscn"), "chance": 0.005 },
+	{ "scene": preload("res://Scenes/Items/bat_artefact.tscn"), "chance": 0.005 }, #0.005
 	{ "scene": null, "chance": 0.70 }
 ]
 
@@ -103,6 +105,13 @@ func _ready() -> void:
 	add_child(sound_player)  # WICHTIG: Node hinzufügen
 
 func _physics_process(delta: float) -> void:
+	
+	if normal_hit_streak > 0:
+		streak_timer += delta
+		if streak_timer >= streak_reset_time:
+			normal_hit_streak = 0
+			streak_timer = 0.0
+	
 	if not can_call_for_help:
 		call_timer -= delta
 		if call_timer <= 0:
@@ -410,6 +419,10 @@ func _on_attack_animation_finished(anim_name: String) -> void:
 func show_damage_number(amount: int, is_critical: bool = false) -> void:
 	var damage_text = str(amount)
 	
+	# Hitstreak erhöhen
+	normal_hit_streak += 1
+	streak_timer = 0.0
+	
 	var damage_label = RichTextLabel.new()
 	damage_label.bbcode_enabled = true
 	damage_label.fit_content = true
@@ -418,31 +431,41 @@ func show_damage_number(amount: int, is_critical: bool = false) -> void:
 	
 	if is_critical:
 		damage_label.text = "[center][shake rate=30.0 level=15][tornado radius=5.0 freq=2.0][color=#FF2222][font_size=8]CRIT![/font_size][font_size=10] %s[/font_size][/color][/tornado][/shake][/center]" % damage_text
-		# Critical Hit Sound
+		
 		var crit_sound = AudioStreamPlayer.new()
 		crit_sound.stream = preload("res://Assets/Sounds/crit.mp3")
-		crit_sound.pitch_scale = randf_range(2, 2.2)  # Leichte Variation
+		crit_sound.pitch_scale = randf_range(2, 2.2)
 		add_child(crit_sound)
 		crit_sound.play()
 		crit_sound.finished.connect(crit_sound.queue_free)
 	else:
-		damage_label.text = "[center][font_size=10][wave amp=10.0 freq=3.0][color=#FFFFFF]%s[/color][/wave][/font_size][/center]" % damage_text
-		# Normal Hit Sound
+		var color := "#AAAAAA" # Standard Grau
+		
+		if normal_hit_streak == 2:
+			color = "#04d9ff" # Blau
+		elif normal_hit_streak == 3:
+			color = "#FFFF00" # Gelb
+		elif normal_hit_streak >= 5:
+			color = "#FFA500" # Orange
+		
+		if normal_hit_streak > 5:
+			# Schaden orange, Multiplier pink
+			damage_label.text = "[center][font_size=10][wave amp=10.0 freq=3.0][color=%s]%s[/color][color=#FF00FF] x%s[/color][/wave][/font_size][/center]" % [color, damage_text, normal_hit_streak]
+		else:
+			damage_label.text = "[center][font_size=10][wave amp=10.0 freq=3.0][color=%s]%s[/color][/wave][/font_size][/center]" % [color, damage_text]
+		
 		var hit_sound = AudioStreamPlayer.new()
-		hit_sound.stream = preload("res://Assets/Sounds/test.mp3")  # Korrigiert von crit.mp3 zu count.mp3
-		hit_sound.pitch_scale = randf_range(15, 15.5)  # Größere Variation für normale Hits
+		hit_sound.stream = preload("res://Assets/Sounds/test.mp3")
+		hit_sound.pitch_scale = randf_range(15, 15.5)
 		add_child(hit_sound)
 		hit_sound.play()
 		hit_sound.finished.connect(hit_sound.queue_free)
 	
-	# Positionierung
 	var x_offset = randf_range(-25, 25)
 	damage_label.position = global_position + Vector2(x_offset, -40)
 	damage_label.size = Vector2(40, 20)
-	
 	get_parent().add_child(damage_label)
 	
-	# Tween-Animation
 	var tween = create_tween().set_parallel(true)
 	tween.set_trans(Tween.TRANS_BACK)
 	tween.set_ease(Tween.EASE_OUT)
@@ -454,13 +477,11 @@ func show_damage_number(amount: int, is_critical: bool = false) -> void:
 	tween.tween_property(damage_label, "position:y", damage_label.position.y + jump_height, jump_duration)
 	tween.tween_property(damage_label, "position:x", damage_label.position.x + jump_distance, jump_duration)
 	
-	# Kamera-Shake für kritische Treffer
 	if is_critical:
 		var camera = get_viewport().get_camera_2d()
 		if camera and camera.has_method("shake"):
 			camera.shake(0.5, 25)
 	
-	# Skalierungseffekte
 	if is_critical:
 		damage_label.scale = Vector2(0.5, 0.5)
 		tween.tween_property(damage_label, "scale", Vector2(1.2, 1.2), 0.2)
@@ -470,17 +491,16 @@ func show_damage_number(amount: int, is_critical: bool = false) -> void:
 		tween.tween_property(damage_label, "scale", Vector2(1.0, 1.0), 0.2)
 		tween.chain().tween_property(damage_label, "scale", Vector2(0.8, 0.8), 0.3)
 	
-	# Ausblenden
 	tween.tween_property(damage_label, "modulate:a", 0.0, 0.6).set_delay(0.4)
-
+	
 	await tween.finished
 	damage_label.queue_free()
 	
-	# Hitstop für kritische Treffer
 	if is_critical:
 		Engine.time_scale = 0.1
 		await get_tree().create_timer(0.1).timeout
 		Engine.time_scale = 1.0
+
 
 func set_animation() -> void:
 	if is_dead:
