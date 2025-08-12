@@ -1,4 +1,4 @@
-[gd_scene load_steps=34 format=4 uid="uid://cmdh8rpdo8fb2"]
+[gd_scene load_steps=35 format=4 uid="uid://cmdh8rpdo8fb2"]
 
 [ext_resource type="Texture2D" uid="uid://82opar247kat" path="res://Assets/Tiles/platformertiles.png" id="1_lx4yj"]
 [ext_resource type="Script" uid="uid://hrb3bfkpp2mn" path="res://Scripts/game.gd" id="1_wyx84"]
@@ -9,11 +9,11 @@
 [ext_resource type="Texture2D" uid="uid://cllwmov7ffejk" path="res://Assets/Particles#/dust.png" id="4_acvyw"]
 [ext_resource type="PackedScene" uid="uid://b6ublycstdj8n" path="res://Scenes/player.tscn" id="5_26h23"]
 [ext_resource type="Texture2D" uid="uid://cjnbif52iwlf0" path="res://Assets/danger.png" id="5_pl5b0"]
-[ext_resource type="PackedScene" uid="uid://dqykudmd26o2q" path="res://Scenes/bat.tscn" id="6_u4atw"]
 [ext_resource type="PackedScene" uid="uid://btd70wfyuwmhw" path="res://Scenes/PauseMenu.tscn" id="9_dvqdi"]
 [ext_resource type="Texture2D" uid="uid://cr61tmhecyo04" path="res://Assets/jump_left.png" id="11_ctkaa"]
 [ext_resource type="Texture2D" uid="uid://5d5bkg2pl08v" path="res://Assets/jump_right.png" id="12_1fuev"]
 [ext_resource type="AudioStream" uid="uid://ctx84nhxfohmq" path="res://Assets/Sounds/dark-ambient-music-354475.mp3" id="13_acvyw"]
+[ext_resource type="PackedScene" uid="uid://c04dxie1kwqsr" path="res://Scenes/albino_bat.tscn" id="15_acvyw"]
 [ext_resource type="PackedScene" uid="uid://c8bjyoq5oxoup" path="res://Scenes/door.tscn" id="16_alh3a"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_83pvq"]
@@ -304,6 +304,14 @@ turbulence_influence_over_life = SubResource("CurveTexture_8r6kd")
 collision_mode = 2
 collision_use_scale = true
 
+[sub_resource type="Environment" id="Environment_acvyw"]
+glow_enabled = true
+glow_normalized = true
+glow_intensity = 1.5
+glow_bloom = 1.0
+glow_blend_mode = 3
+glow_hdr_threshold = 0.7
+
 [node name="Game" type="Node2D"]
 script = ExtResource("1_wyx84")
 
@@ -440,7 +448,7 @@ self_modulate = Color(0.34902, 1, 0.768627, 0.996078)
 show_behind_parent = true
 position = Vector2(-0.000976563, 0.0166016)
 scale = Vector2(14.2857, 14.2857)
-amount = 5000
+amount = 6000
 sub_emitter = NodePath(".")
 texture = ExtResource("4_acvyw")
 lifetime = 10.0
@@ -450,11 +458,6 @@ fixed_fps = 60
 collision_base_size = 0.0
 process_material = SubResource("ParticleProcessMaterial_acvyw")
 
-[node name="Bat" parent="." node_paths=PackedStringArray("player") instance=ExtResource("6_u4atw")]
-position = Vector2(1417, 1330)
-scale = Vector2(2, 2)
-player = NodePath("../PlayerModel")
-
 [node name="AudioStreamPlayer2D" type="AudioStreamPlayer" parent="."]
 stream = ExtResource("13_acvyw")
 volume_db = -5.0
@@ -462,7 +465,7 @@ autoplay = true
 parameters/looping = true
 
 [node name="Moon" parent="." instance=ExtResource("3_8txav")]
-position = Vector2(2477, 1187)
+position = Vector2(2465, 1042)
 
 [node name="PauseMenu" parent="." instance=ExtResource("9_dvqdi")]
 visible = false
@@ -488,6 +491,13 @@ horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="HTTPRequest" type="HTTPRequest" parent="."]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_acvyw")
+
+[node name="AlbinoBat" parent="." node_paths=PackedStringArray("player") instance=ExtResource("15_acvyw")]
+position = Vector2(1379, 1458)
+player = NodePath("../PlayerModel")
 
 [connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_canvas_layer_go_to_main_menu"]
 [connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_pause_menu_go_to_main_menu"]
