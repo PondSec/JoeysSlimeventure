@@ -5,4 +5,5 @@
 [node name="MoonLight" type="Node2D"]
 
 [node name="PointLight2D" type="PointLight2D" parent="."]
+energy = 0.5
 texture = ExtResource("1_b1ety")
