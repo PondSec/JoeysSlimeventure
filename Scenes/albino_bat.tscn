@@ -118,9 +118,9 @@ radius = 10.0222
 size = Vector2(12, 8.22917)
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_50dnf"]
-radius = 133.468
+radius = 30.5941
 
-[node name="Bat" type="CharacterBody2D"]
+[node name="AlbinoBat" type="CharacterBody2D"]
 scale = Vector2(1.5, 1.5)
 script = ExtResource("1_fveqw")
 
