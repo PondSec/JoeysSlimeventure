@@ -13,12 +13,14 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	for body in area.get_overlapping_bodies():
-		if body.name == \"player\" and Input.is_action_just_pressed(\"Interact\"):
-			pass
+		if body.name == \"PlayerModel\" and Input.is_action_just_pressed(\"Interact\"):
+			# Lade die neue Szene
+			var main_scene = load(\"res://Scenes/main_menu.tscn\")
+			get_tree().change_scene_to_packed(main_scene)
 "
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_hvas2"]
-size = Vector2(6, 1)
+size = Vector2(6, 2)
 
 [node name="Door" type="Node2D"]
 script = SubResource("GDScript_8kysj")
@@ -31,5 +33,5 @@ texture = ExtResource("1_lomnf")
 position = Vector2(0, -16)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Area2D"]
-position = Vector2(0, 15.5)
+position = Vector2(0, 15)
 shape = SubResource("RectangleShape2D_hvas2")
