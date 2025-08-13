@@ -11,14 +11,14 @@ uniform int blur_samples : hint_range(1, 10) = 5;  // Mehr Samples für bessere 
 void fragment() {
     vec2 uv = UV;
     vec4 col = texture(screen_tex, uv);
-    
+
     // Bloom-Effekt
     float brightness = dot(col.rgb, vec3(0.299, 0.587, 0.114));
     vec4 bloom = vec4(0.0);
-    
+
     if (brightness > threshold) {
         float sample_count = 0.0;
-        
+
         // Größere Blur-Matrix für weicheren Effekt
         for (int x = -blur_samples; x <= blur_samples; x++) {
             for (int y = -blur_samples; y <= blur_samples; y++) {
@@ -27,10 +27,10 @@ void fragment() {
                 sample_count += 1.0;
             }
         }
-        
+
         bloom /= sample_count;
         col += bloom * bloom_strength * smoothstep(threshold, threshold + 0.2, brightness);
     }
-    
+
     COLOR = col;
 }

@@ -1,4 +1,4 @@
-[gd_scene load_steps=27 format=4 uid="uid://cmdh8rpdo8fb2"]
+[gd_scene load_steps=28 format=4 uid="uid://cmdh8rpdo8fb2"]
 
 [ext_resource type="Texture2D" uid="uid://82opar247kat" path="res://Assets/Tiles/platformertiles.png" id="1_lx4yj"]
 [ext_resource type="Script" uid="uid://hrb3bfkpp2mn" path="res://Scripts/game.gd" id="1_wyx84"]
@@ -15,6 +15,7 @@
 [ext_resource type="PackedScene" uid="uid://c04dxie1kwqsr" path="res://Scenes/albino_bat.tscn" id="15_acvyw"]
 [ext_resource type="Shader" uid="uid://cdnl80n14eb2i" path="res://Shaders/post_proccessing.gdshader" id="15_alh3a"]
 [ext_resource type="PackedScene" uid="uid://c8bjyoq5oxoup" path="res://Scenes/door.tscn" id="16_alh3a"]
+[ext_resource type="PackedScene" uid="uid://dx4m8ks5y31ax" path="res://Scenes/vine.tscn" id="17_4q8tf"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_acvyw"]
 shader = ExtResource("15_alh3a")
@@ -264,8 +265,10 @@ glow_hdr_threshold = 0.7
 script = ExtResource("1_wyx84")
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
+visible = false
 
 [node name="ColorRect" type="ColorRect" parent="CanvasLayer"]
+visible = false
 material = SubResource("ShaderMaterial_acvyw")
 offset_left = -7.0
 offset_top = -1.0
@@ -440,5 +443,22 @@ environment = SubResource("Environment_acvyw")
 position = Vector2(1379, 1458)
 player = NodePath("../PlayerModel")
 
-[connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_canvas_layer_go_to_main_menu"]
+[node name="Deko" type="Node2D" parent="."]
+
+[node name="Vine" parent="Deko" instance=ExtResource("17_4q8tf")]
+position = Vector2(229, 726)
+
+[node name="Vine3" parent="Deko" instance=ExtResource("17_4q8tf")]
+position = Vector2(262, 726)
+
+[node name="Vine4" parent="Deko" instance=ExtResource("17_4q8tf")]
+position = Vector2(270, 749)
+
+[node name="Vine5" parent="Deko" instance=ExtResource("17_4q8tf")]
+position = Vector2(273, 727)
+
+[node name="Vine2" parent="Deko" instance=ExtResource("17_4q8tf")]
+position = Vector2(228, 750)
+
 [connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_pause_menu_go_to_main_menu"]
+[connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_canvas_layer_go_to_main_menu"]

@@ -1,0 +1,29 @@
+[gd_scene load_steps=6 format=3 uid="uid://dx4m8ks5y31ax"]
+
+[ext_resource type="Texture2D" uid="uid://bboblgeqsyeph" path="res://Assets/Deko/vine.png" id="1_6slj2"]
+[ext_resource type="Shader" uid="uid://cmigwa3spj20f" path="res://Shaders/vine_wobble.gdshader" id="1_krw3f"]
+[ext_resource type="Texture2D" uid="uid://c771vveh0silu" path="res://Assets/Light/light_white.png" id="2_krw3f"]
+[ext_resource type="Script" uid="uid://d20ut34vmtrow" path="res://Scripts/vine.gd" id="3_xaa8b"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_xaa8b"]
+shader = ExtResource("1_krw3f")
+shader_parameter/wind_power = 1.739
+shader_parameter/sway_speed = 1.518
+shader_parameter/flutter_freq = 2.652
+shader_parameter/stem_sway = 0.715
+shader_parameter/random_offset = 19.101
+
+[node name="Vine" type="Sprite2D"]
+process_mode = 1
+material = SubResource("ShaderMaterial_xaa8b")
+scale = Vector2(0.02, 0.02)
+texture = ExtResource("1_6slj2")
+script = ExtResource("3_xaa8b")
+
+[node name="PointLight2D" type="PointLight2D" parent="."]
+color = Color(0.593189, 1, 0.602958, 1)
+energy = 0.3
+shadow_enabled = true
+shadow_filter = 2
+texture = ExtResource("2_krw3f")
+texture_scale = 6.0
