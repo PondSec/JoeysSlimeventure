@@ -234,7 +234,13 @@ func update_health_bar() -> void:
 func _process(delta: float) -> void:
 	if is_landing:
 		return  # Keine Aktionen während der Lande-Animation erlauben
-
+	
+	if global_position.y > 2000:
+		current_health = 0
+		update_health_bar()
+		stop_healing()
+		die()
+	
 	# Angriff ausführen, wenn die Angriffstaste gedrückt wird
 	if Input.is_action_just_pressed(\"Attack\") and not is_attacking:
 		perform_attack()
@@ -287,42 +293,42 @@ func handle_input():
 		is_facing_left = direction.x < 0
 
 func charge():
-	if is_charging:
-		return
+	if is_on_floor() and !is_charging:
+		is_charging = true
+		direction.x = 0
 	
-	is_charging = true
-	
-	var material: ParticleProcessMaterial = particles.process_material
-	if not material:
-		push_error(\"No process material assigned to particles!\")
+		var material: ParticleProcessMaterial = particles.process_material
+		if not material:
+			push_error(\"No process material assigned to particles!\")
+			is_charging = false
+			return
+		
+		# Originalwert speichern
+		var original_radial_velocity: Vector2 = material.radial_velocity
+		
+		# Phase 1: Starker Sog (-500) für 1 Sekunde
+		material.radial_velocity = Vector2(-300, -300)
+		await get_tree().create_timer(2).timeout
+		
+		# Phase 2: Explosion (+500) für 1 Sekunde
+		material.radial_velocity = Vector2(800, 800)
+		await get_tree().create_timer(1.0).timeout
 		is_charging = false
-		return
-	
-	# Originalwert speichern
-	var original_radial_velocity: Vector2 = material.radial_velocity
-	
-	# Phase 1: Starker Sog (-500) für 1 Sekunde
-	material.radial_velocity = Vector2(-600, -600)
-	await get_tree().create_timer(3.0).timeout
-	
-	# Phase 2: Explosion (+500) für 1 Sekunde
-	material.radial_velocity = Vector2(500, 500)
-	await get_tree().create_timer(1.0).timeout
-	is_charging = false
-	# Phase 3: Sanftes Ausklingen über 2 Sekunden
-	var fade_time = 3.0
-	var elapsed = 0.0
-	while elapsed < fade_time:
-		var progress = elapsed / fade_time
-		# Langsam von 500 auf 0 reduzieren (quadratisch für weicheren Übergang)
-		var current_strength = lerp(500, 0, progress * progress)
-		material.radial_velocity = Vector2(current_strength, current_strength)
-		elapsed += get_process_delta_time()
-		await get_tree().process_frame
-	
-	# Endgültig stoppen
-	material.radial_velocity = Vector2.ZERO
-	is_charging = false
+		# Phase 3: Sanftes Ausklingen über 2 Sekunden
+		var fade_time = 3.0
+		var elapsed = 0.0
+		while elapsed < fade_time:
+			var progress = elapsed / fade_time
+			# Langsam von 500 auf 0 reduzieren (quadratisch für weicheren Übergang)
+			var current_strength = lerp(500, 0, progress * progress)
+			material.radial_velocity = Vector2(current_strength, current_strength)
+			elapsed += get_process_delta_time()
+			await get_tree().process_frame
+		
+		# Endgültig stoppen
+		material.radial_velocity = Vector2.ZERO
+		is_charging = false
+	return
 
 func apply_gravity(delta):
 	if not is_on_floor():
