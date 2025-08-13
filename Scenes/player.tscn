@@ -1,4 +1,4 @@
-[gd_scene load_steps=35 format=3 uid="uid://b6ublycstdj8n"]
+[gd_scene load_steps=45 format=3 uid="uid://b6ublycstdj8n"]
 
 [ext_resource type="Texture2D" uid="uid://cildswtcj7qrc" path="res://Assets/slime-sprite.png" id="1_4yq4u"]
 [ext_resource type="Resource" uid="uid://0rntjh2xt5s5" path="res://InventorySystem/playerinv.tres" id="1_e7ml4"]
@@ -24,6 +24,7 @@
 [ext_resource type="AudioStream" uid="uid://b5coygrv7ui68" path="res://Assets/Sounds/jump_slime.mp3" id="22_2ijsl"]
 [ext_resource type="AudioStream" uid="uid://c14lbto0tykos" path="res://Assets/Sounds/land.mp3" id="23_p1odr"]
 [ext_resource type="AudioStream" uid="uid://c4t47qbmuxikx" path="res://Assets/Sounds/walk.mp3" id="24_2ijsl"]
+[ext_resource type="Texture2D" uid="uid://cllwmov7ffejk" path="res://Assets/Particles#/dust.png" id="25_p1odr"]
 
 [sub_resource type="GDScript" id="GDScript_381hh"]
 resource_name = "Player"
@@ -144,6 +145,9 @@ var url = \"https://api.joeysslimeventure.com\"
 @onready var health_label = $CanvasLayer/HealthLabel
 @onready var api_script = preload(\"res://Scenes/api.tscn\").instantiate()
 
+@onready var particles: GPUParticles2D = $GPUParticles2D
+var is_charging: bool = false
+
 var is_walking := false
 const WALK_STEP_INTERVAL := 0.2
 var last_sound_time = 0.0
@@ -242,6 +246,9 @@ func _process(delta: float) -> void:
 
 	if Input.is_action_just_pressed(\"drop_item\"):  
 		drop_hotbar_item()
+	if Input.is_action_just_pressed(\"Interact\"):
+		charge()
+		print(\"Charge completed!\")
 		
 	if health_label:
 		health_label.text = \"HP: \" + str(current_health)  # Zeigt die HP an
@@ -277,6 +284,44 @@ func handle_input():
 	# Blickrichtung aktualisieren
 	if direction.x != 0:
 		is_facing_left = direction.x < 0
+
+func charge():
+	if is_charging:
+		return
+	
+	is_charging = true
+	
+	var material: ParticleProcessMaterial = particles.process_material
+	if not material:
+		push_error(\"No process material assigned to particles!\")
+		is_charging = false
+		return
+	
+	# Originalwert speichern
+	var original_radial_velocity: Vector2 = material.radial_velocity
+	
+	# Phase 1: Starker Sog (-500) für 1 Sekunde
+	material.radial_velocity = Vector2(-600, -600)
+	await get_tree().create_timer(3.0).timeout
+	
+	# Phase 2: Explosion (+500) für 1 Sekunde
+	material.radial_velocity = Vector2(500, 500)
+	await get_tree().create_timer(1.0).timeout
+	
+	# Phase 3: Sanftes Ausklingen über 2 Sekunden
+	var fade_time = 2.0
+	var elapsed = 0.0
+	while elapsed < fade_time:
+		var progress = elapsed / fade_time
+		# Langsam von 500 auf 0 reduzieren (quadratisch für weicheren Übergang)
+		var current_strength = lerp(500, 0, progress * progress)
+		material.radial_velocity = Vector2(current_strength, current_strength)
+		elapsed += get_process_delta_time()
+		await get_tree().process_frame
+	
+	# Endgültig stoppen
+	material.radial_velocity = Vector2.ZERO
+	is_charging = false
 
 func apply_gravity(delta):
 	if not is_on_floor():
@@ -916,6 +961,65 @@ _data = {
 &"walk": SubResource("Animation_wvi70")
 }
 
+[sub_resource type="Curve" id="Curve_0gysh"]
+_limits = [0.0, 1.0, 0.215328, 1.0]
+_data = [Vector2(0.215328, 0), 0.0, 0.0, 0, 0, Vector2(0.31556, 0.996271), 0.0, 0.0, 0, 0, Vector2(0.716487, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 4
+
+[sub_resource type="CurveTexture" id="CurveTexture_alh3a"]
+curve = SubResource("Curve_0gysh")
+
+[sub_resource type="Curve" id="Curve_vfarp"]
+_data = [Vector2(0, 0.0224719), 0.0, 0.0, 0, 0, Vector2(0.389706, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="CurveTexture_4q8tf"]
+curve = SubResource("Curve_vfarp")
+
+[sub_resource type="Curve" id="Curve_y6uwr"]
+_data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(0.595588, 0.786517), 0.0, 0.0, 0, 0, Vector2(1, 0.393258), 0.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="CurveTexture_x3xnh"]
+curve = SubResource("Curve_y6uwr")
+
+[sub_resource type="Curve" id="Curve_83xs0"]
+_data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(0.466216, 1), 0.0, 0.0, 0, 0, Vector2(0.662162, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 4
+
+[sub_resource type="CurveTexture" id="CurveTexture_8r6kd"]
+curve = SubResource("Curve_83xs0")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_ypfnu"]
+lifetime_randomness = 0.09
+emission_shape_scale = Vector3(1000, 1000, 1000)
+emission_shape = 3
+emission_box_extents = Vector3(1, 1, 1)
+direction = Vector3(0, 0, 0)
+initial_velocity_min = 2.0
+initial_velocity_max = 8.0
+orbit_velocity_min = 9.49949e-08
+orbit_velocity_max = 9.49949e-08
+gravity = Vector3(0, 0, 0)
+scale_min = 0.0
+scale_max = 2.0
+scale_over_velocity_max = 51.72
+color = Color(0.728456, 1, 0.750538, 1)
+alpha_curve = SubResource("CurveTexture_alh3a")
+emission_curve = SubResource("CurveTexture_4q8tf")
+hue_variation_min = -0.28
+hue_variation_max = 0.12
+hue_variation_curve = SubResource("CurveTexture_x3xnh")
+anim_speed_max = 3.13
+turbulence_enabled = true
+turbulence_influence_min = 0.045
+turbulence_influence_max = 0.058
+turbulence_initial_displacement_min = -22.6
+turbulence_initial_displacement_max = 8.4
+turbulence_influence_over_life = SubResource("CurveTexture_8r6kd")
+collision_mode = 2
+collision_use_scale = true
+
 [node name="PlayerModel" type="CharacterBody2D"]
 position = Vector2(291, 687)
 scale = Vector2(0.07, 0.07)
@@ -1133,3 +1237,19 @@ stream = ExtResource("23_p1odr")
 
 [node name="WalkSound" type="AudioStreamPlayer2D" parent="."]
 stream = ExtResource("24_2ijsl")
+
+[node name="GPUParticles2D" type="GPUParticles2D" parent="."]
+modulate = Color(0.626766, 0.920037, 0.820692, 1)
+self_modulate = Color(0.34902, 1, 0.768627, 0.996078)
+show_behind_parent = true
+position = Vector2(-0.000976563, 0.0166016)
+scale = Vector2(14.2857, 14.2857)
+amount = 6000
+sub_emitter = NodePath(".")
+texture = ExtResource("25_p1odr")
+lifetime = 10.0
+preprocess = 1.11
+randomness = 0.8
+fixed_fps = 60
+collision_base_size = 0.0
+process_material = SubResource("ParticleProcessMaterial_ypfnu")
