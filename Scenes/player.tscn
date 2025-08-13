@@ -1,4 +1,4 @@
-[gd_scene load_steps=45 format=3 uid="uid://b6ublycstdj8n"]
+[gd_scene load_steps=47 format=3 uid="uid://b6ublycstdj8n"]
 
 [ext_resource type="Texture2D" uid="uid://cildswtcj7qrc" path="res://Assets/slime-sprite.png" id="1_4yq4u"]
 [ext_resource type="Resource" uid="uid://0rntjh2xt5s5" path="res://InventorySystem/playerinv.tres" id="1_e7ml4"]
@@ -992,6 +992,14 @@ point_count = 3
 [sub_resource type="CurveTexture" id="CurveTexture_x3xnh"]
 curve = SubResource("Curve_y6uwr")
 
+[sub_resource type="Curve" id="Curve_p1odr"]
+_limits = [0.0, 1.02439, 0.0, 1.0]
+_data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(0.445255, 1.02439), 0.0, 0.0, 0, 0, Vector2(0.718978, 0.874479), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 4
+
+[sub_resource type="CurveTexture" id="CurveTexture_0gysh"]
+curve = SubResource("Curve_p1odr")
+
 [sub_resource type="Curve" id="Curve_83xs0"]
 _data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(0.466216, 1), 0.0, 0.0, 0, 0, Vector2(0.662162, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
 point_count = 4
@@ -1012,6 +1020,7 @@ orbit_velocity_max = 9.49949e-08
 gravity = Vector3(0, 0, 0)
 scale_min = 0.0
 scale_max = 2.0
+scale_curve = SubResource("CurveTexture_0gysh")
 scale_over_velocity_max = 51.72
 color = Color(0.728456, 1, 0.750538, 1)
 alpha_curve = SubResource("CurveTexture_alh3a")
