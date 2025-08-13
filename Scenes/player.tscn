@@ -279,7 +279,8 @@ func handle_input():
 		current_speed = WALK_SPEED
 	
 	# Richtungseingabe
-	direction.x = Input.get_axis(\"left\", \"right\")
+	if !is_charging:
+		direction.x = Input.get_axis(\"left\", \"right\")
 	
 	# Blickrichtung aktualisieren
 	if direction.x != 0:
@@ -307,9 +308,9 @@ func charge():
 	# Phase 2: Explosion (+500) für 1 Sekunde
 	material.radial_velocity = Vector2(500, 500)
 	await get_tree().create_timer(1.0).timeout
-	
+	is_charging = false
 	# Phase 3: Sanftes Ausklingen über 2 Sekunden
-	var fade_time = 2.0
+	var fade_time = 3.0
 	var elapsed = 0.0
 	while elapsed < fade_time:
 		var progress = elapsed / fade_time
@@ -329,6 +330,8 @@ func apply_gravity(delta):
 		velocity.y = min(velocity.y, MAX_FALL_SPEED)
 
 func handle_jump_mechanics(delta):
+	if is_charging:
+		return
 	# Coyote Time (Sprung nach Verlassen der Plattform)
 	if is_on_floor():
 		coyote_time = 0.1
