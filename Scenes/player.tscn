@@ -250,7 +250,7 @@ func update_facing_direction():
 	$PlayerSprite/AttackSprite.flip_h = is_facing_left
 
 func _process(delta: float) -> void:
-	if is_landing and not Input.is_action_just_pressed(\"Attack\"):
+	if is_landing and !Input.is_action_just_pressed(\"Attack\") and !Input.is_action_just_pressed(\"Glow\"):
 		return
 	
 	if global_position.y > 2000:
@@ -1258,11 +1258,13 @@ libraries = {
 [node name="Camera2D" type="Camera2D" parent="."]
 position = Vector2(7.62939e-06, 5.34058e-05)
 scale = Vector2(5, 5)
+ignore_rotation = false
 zoom = Vector2(4, 4)
 limit_left = -14
 limit_top = 500
 limit_right = 3450
 limit_bottom = 1545
+limit_smoothed = true
 position_smoothing_enabled = true
 position_smoothing_speed = 6.0
 editor_draw_limits = true
