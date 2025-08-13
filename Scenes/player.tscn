@@ -79,6 +79,9 @@ var was_on_floor := true
 # Konstanten für Bewegung und Sprung
 const SPEED = 220.0
 const MIN_FALL_HEIGHT = 10.0  # Mindesthöhe, ab der die Lande-Animation abgespielt wird
+var last_charge_time: float = -300.0  # Initialwert (sofort nutzbar)
+var charge_cooldown: float = 300.0     # 5 Minuten in Sekunden
+var is_charging: bool = false
 
 # Variablen für Bewegung und Status
 var is_glowing := true
@@ -146,7 +149,6 @@ var url = \"https://api.joeysslimeventure.com\"
 @onready var api_script = preload(\"res://Scenes/api.tscn\").instantiate()
 
 @onready var particles: GPUParticles2D = $GPUParticles2D
-var is_charging: bool = false
 
 var is_walking := false
 const WALK_STEP_INTERVAL := 0.2
@@ -157,6 +159,7 @@ var stun_timer: Timer = Timer.new()
 var save_load = preload(\"res://Scripts/SaveLoad.gd\").new()
 
 func _ready() -> void:
+	load_charge_cooldown()
 	glow_effect = $PlayerGlow
 	# Initialisiere Angriffsknoten
 	attack_sprite = $PlayerSprite/AttackSprite
@@ -231,9 +234,24 @@ func update_health_bar() -> void:
 	health_bar.value = current_health
 	health_bar.max_value = max_health
 
+func update_facing_direction():
+	# Priorität 1: Explizite Eingabe (Links/Rechts)
+	if Input.is_action_pressed(\"left\"):
+		is_facing_left = true
+	elif Input.is_action_pressed(\"right\"):
+		is_facing_left = false
+	# Priorität 2: Mausposition
+	else:
+		var mouse_pos = get_global_mouse_position()
+		is_facing_left = mouse_pos.x < global_position.x
+
+	# Sprite aktualisieren
+	$PlayerSprite.flip_h = is_facing_left
+	$PlayerSprite/AttackSprite.flip_h = is_facing_left
+
 func _process(delta: float) -> void:
-	if is_landing:
-		return  # Keine Aktionen während der Lande-Animation erlauben
+	if is_landing and not Input.is_action_just_pressed(\"Attack\"):
+		return
 	
 	if global_position.y > 2000:
 		current_health = 0
@@ -258,10 +276,14 @@ func _process(delta: float) -> void:
 		
 	if health_label:
 		health_label.text = \"HP: \" + str(current_health)  # Zeigt die HP an
+	save_charge_cooldown()
 
 func _physics_process(delta: float) -> void:
 	# Bewegungseingaben verarbeiten
 	handle_input()
+	# Bewegung ausführen
+	move_and_slide()
+	update_facing_direction()
 	
 	# Spezielle Bewegungszustände
 	handle_dash()
@@ -271,20 +293,18 @@ func _physics_process(delta: float) -> void:
 	# Schwerkraft anwenden
 	apply_gravity(delta)
 	
-	# Bewegung ausführen
-	move_and_slide()
-	
 	# Animationen aktualisieren
 	update_animations()
 
 func handle_input():
-	# Laufen/Rennen
-	if Input.is_action_pressed(\"sprint\"):
-		current_speed = RUN_SPEED
-	else:
-		current_speed = WALK_SPEED
+	# Laufen/Rennen - aber nur wenn nicht in Landeanimation
+	if not is_landing:
+		if Input.is_action_pressed(\"sprint\"):
+			current_speed = RUN_SPEED
+		else:
+			current_speed = WALK_SPEED
 	
-	# Richtungseingabe
+	# Richtungseingabe - ebenfalls nur wenn nicht in Landeanimation
 	if !is_charging:
 		direction.x = Input.get_axis(\"left\", \"right\")
 	
@@ -292,43 +312,120 @@ func handle_input():
 	if direction.x != 0:
 		is_facing_left = direction.x < 0
 
+
 func charge():
+	# Cooldown-Prüfung
+	var current_time = Time.get_ticks_msec() / 1000.0
+	if current_time - last_charge_time < charge_cooldown:
+		var remaining = charge_cooldown - (current_time - last_charge_time)
+		print(\"Cooldown aktiv! Noch \", remaining, \" Sekunden\")
+		return
+	
 	if is_on_floor() and !is_charging:
+		# Starte Cooldown
+		last_charge_time = current_time
+		save_charge_cooldown()
 		is_charging = true
 		direction.x = 0
-	
+		
+		# Partikel-Effekte
 		var material: ParticleProcessMaterial = particles.process_material
 		if not material:
-			push_error(\"No process material assigned to particles!\")
+			push_error(\"Kein ParticleProcessMaterial gefunden!\")
 			is_charging = false
 			return
-		
-		# Originalwert speichern
-		var original_radial_velocity: Vector2 = material.radial_velocity
-		
-		# Phase 1: Starker Sog (-500) für 1 Sekunde
+			
+		# Phase 1: Sog-Effekt (2 Sekunden)
 		material.radial_velocity = Vector2(-300, -300)
-		await get_tree().create_timer(2).timeout
+		await get_tree().create_timer(2.0).timeout
 		
-		# Phase 2: Explosion (+500) für 1 Sekunde
+		# Phase 2: Explosion (1 Sekunde)
 		material.radial_velocity = Vector2(800, 800)
+		
+		# 1. Spieler heilen
+		current_health = max_health
+		update_health_bar()
+		show_damage_text(max_health - current_health, true)
+		flash_heal_effect()
+		
+		# 2. Gegner schädigen
+		var explosion_radius = 300.0
+		var explosion_damage = 130
+		var knockback_force = 1000.0
+		
+		var enemies = get_tree().get_nodes_in_group(\"enemies\")
+		for enemy in enemies:
+			var distance = global_position.distance_to(enemy.global_position)
+			if distance <= explosion_radius:
+				var knockback_dir = (enemy.global_position - global_position).normalized()
+				var is_crit = randf() < base_crit_chance
+				var final_damage = explosion_damage * (crit_damage_multiplier if is_crit else 1.0)
+				
+				if enemy.has_method(\"take_damage\"):
+					enemy.take_damage(final_damage, knockback_dir * knockback_force, is_crit)
+		
+		# Effekte
+		$Camera2D.shake(0.3, 15)
 		await get_tree().create_timer(1.0).timeout
-		is_charging = false
-		# Phase 3: Sanftes Ausklingen über 2 Sekunden
+		
+		# Phase 3: Ausklingen (3 Sekunden)
 		var fade_time = 3.0
 		var elapsed = 0.0
 		while elapsed < fade_time:
 			var progress = elapsed / fade_time
-			# Langsam von 500 auf 0 reduzieren (quadratisch für weicheren Übergang)
-			var current_strength = lerp(500, 0, progress * progress)
-			material.radial_velocity = Vector2(current_strength, current_strength)
+			material.radial_velocity = Vector2.ONE * lerp(500, 0, progress * progress)
 			elapsed += get_process_delta_time()
 			await get_tree().process_frame
 		
-		# Endgültig stoppen
 		material.radial_velocity = Vector2.ZERO
 		is_charging = false
-	return
+
+# Speicher/Lade-Funktionen
+func save_charge_cooldown():
+	var save_data = {
+		\"last_charge_time\": last_charge_time,
+		\"saved_at\": Time.get_ticks_msec() / 1000.0  # Aktuelle Zeit in Sekunden
+	}
+	
+	var file = FileAccess.open(\"user://charge_cooldown.dat\", FileAccess.WRITE)
+	file.store_var(save_data)
+	file.close()	
+
+func load_charge_cooldown():
+	if not FileAccess.file_exists(\"user://charge_cooldown.dat\"):
+		last_charge_time = -300.0  # Cooldown abgelaufen
+		return
+	
+	var file = FileAccess.open(\"user://charge_cooldown.dat\", FileAccess.READ)
+	var save_data = file.get_var()
+	
+	# Berechne wie viel Zeit seit dem Speichern vergangen ist
+	var time_since_save = Time.get_ticks_msec() / 1000.0 - save_data[\"saved_at\"]
+	
+	# Wenn seit dem Speichern mehr Zeit vergangen ist als der Cooldown,
+	# dann ist der Cooldown abgelaufen
+	if time_since_save >= charge_cooldown:
+		last_charge_time = -300.0  # Cooldown abgelaufen
+	else:
+		# Ansonsten setze die last_charge_time so, dass der verbleibende
+		# Cooldown korrekt berechnet wird
+		last_charge_time = save_data[\"last_charge_time\"] + time_since_save
+	
+	file.close()
+
+func clear_cooldown():
+	last_charge_time = -300.0
+	if FileAccess.file_exists(\"user://charge_cooldown.dat\"):
+		DirAccess.remove_absolute(\"user://charge_cooldown.dat\")
+
+func flash_heal_effect():
+	var heal_tween = create_tween()
+	# Glow-Effekt vergrößern und heller machen
+	glow_effect.color = Color(0.2, 1.0, 0.2)  # Hellgrün
+	glow_effect.energy = 2.0  # Intensiver
+	
+	heal_tween.tween_property(glow_effect, \"energy\", 1.0, 0.5)
+	heal_tween.parallel().tween_property(glow_effect, \"color\", COLOR_NORMAL, 0.5)
 
 func apply_gravity(delta):
 	if not is_on_floor():
@@ -356,6 +453,7 @@ func handle_jump_mechanics(delta):
 		jump_buffer_time = 0
 		$JumpSound.pitch_scale = randf_range(1.3, 1.75)  # Leichte Tonhöhen-Variation
 		$JumpSound.play()
+		$AnimationPlayer.play(\"jump\")
 	
 	# Kurzer Sprung (wenn Taste losgelassen)
 	if Input.is_action_just_released(\"up\") and velocity.y < JUMP_VELOCITY * SHORT_JUMP_MULTIPLIER:
@@ -478,27 +576,41 @@ func update_animations():
 		$AnimationPlayer.play(\"dash\")
 		return
 	
+	if is_landing:  # Priorisiere Landeanimation über alles andere
+		return
+	
 	if is_wall_sliding:
 		$AnimationPlayer.play(\"wall_slide\")
 		$PlayerSprite.flip_h = last_wall_normal.x > 0
 	elif not is_on_floor():
+		# Sprunganimationen
 		if velocity.y < 0:
 			$AnimationPlayer.play(\"jump_up\")
+			fall_start_y = global_position.y
 		else:
 			$AnimationPlayer.play(\"jump_down\")
+		
+		was_in_air = true
 	else:
-		if abs(velocity.x) > 10:
-			$AnimationPlayer.play(\"run\" if current_speed == RUN_SPEED else \"walk\")
-			$PlayerSprite.flip_h = velocity.x < 0
+		# Landeanimation hat Priorität vor Laufanimation
+		if was_in_air:
+			# Fallhöhe berechnen (mindestens 50 Pixel für Landeanimation)
+			fall_distance = max(50, abs(fall_start_y - global_position.y))
+			
+			if fall_distance > 300:
+				play_landing_animation(\"landing\") #hard_landing
+			else:
+				play_landing_animation(\"landing\")
+			
+			was_in_air = false
+			fall_start_y = global_position.y
+		elif abs(velocity.x) > 10 and not is_landing:  # Nur laufen wenn nicht landend
+			# Warte kurz nach der Landung bevor run/walk Animation startet
+			if $AnimationPlayer.current_animation != \"landing\" and $AnimationPlayer.current_animation != \"landing\":
+				$AnimationPlayer.play(\"run\" if Input.is_action_pressed(\"sprint\") else \"walk\")
+				$PlayerSprite.flip_h = velocity.x < 0
 		else:
 			$AnimationPlayer.play(\"idle\")
-			
-		# Walk-Sound steuern
-	if is_on_floor() and abs(velocity.x) > 10.0 and direction.x != 0:
-		if not $WalkSound.playing and (Time.get_ticks_msec() / 1000.0 - last_sound_time) >= sound_cooldown:
-			play_walk_sound()
-	else:
-		$WalkSound.stop()
 
 func play_walk_sound():
 	var speed_factor = clamp(abs(velocity.x) / 300.0, 0.2, 1.0)
@@ -511,6 +623,8 @@ func play_walk_sound():
 func _on_floor_entered():
 	$LandingParticles.emitting = true
 	$LandSound.play()
+	play_landing_animation()
+	
 
 func _on_wall_entered():
 	$WallSlideParticles.emitting = true
@@ -546,12 +660,32 @@ func _on_heal_timer_timeout() -> void:
 		heal_amount = min(heal_amount, 25)  # Maximal 25 HP pro Tick
 		heal(heal_amount)
 
-func play_landing_animation() -> void:
+func play_landing_animation(anim_name: String = \"landing\") -> void:
+	if is_landing:
+		return
+	
 	is_landing = true
 	$AnimationPlayer.stop()
-	$AnimationPlayer.play(\"landing\")
+	
+	# Spiel entsprechende Animation ab
+	$AnimationPlayer.play(anim_name)
+	
+	# Soundeffekte basierend auf Landestärke
+	if anim_name == \"hard_landing\":
+		$LandSound.pitch_scale = 0.8
+		$LandSound.volume_db = 0
+	else:
+		$LandSound.pitch_scale = 1.2
+		$LandSound.volume_db = -10
+	
+	$LandSound.play()
+	
 	await $AnimationPlayer.animation_finished
 	is_landing = false
+
+# Füge diese Zeilen in die handle_jump_mechanics() Funktion ein (nach dem Sprung-Code):
+	if velocity.y < 0:  # Nur wenn wir nach oben springen
+		fall_start_y = global_position.y  # Fallhöhe tracking starten
 
 func set_animation() -> void:
 	if is_attacking or is_landing:
@@ -923,14 +1057,15 @@ tracks/0/path = NodePath("PlayerSprite:frame")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.2, 0.4),
-"transitions": PackedFloat32Array(1, 1, 1),
-"update": 0,
-"values": [5, 6, 7]
+"times": PackedFloat32Array(0, 0.1, 0.2, 0.3, 0.4, 0.5),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1, 1),
+"update": 1,
+"values": [5, 6, 7, 8, 10, 11]
 }
 
 [sub_resource type="Animation" id="Animation_28ebo"]
 resource_name = "landing"
+length = 0.4
 tracks/0/type = "value"
 tracks/0/imported = false
 tracks/0/enabled = true
@@ -938,8 +1073,8 @@ tracks/0/path = NodePath("PlayerSprite:frame")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0, 1),
-"transitions": PackedFloat32Array(1, 1),
+"times": PackedFloat32Array(0, 0.4),
+"transitions": PackedFloat32Array(1, 8.87656),
 "update": 0,
 "values": [8, 11]
 }
