@@ -48,6 +48,9 @@ func _input(event):
 		if event.is_action_pressed(tutorial_steps[current_step]["input"]):
 			current_step += 1
 			update_tutorial_text()
+	
+	if event.is_action_pressed("UI"):
+		$PlayerModel/CanvasLayer.visible = !$PlayerModel/CanvasLayer.visible
 
 func _on_pause_menu_go_to_main_menu() -> void:
 	# Pausierung aufheben, bevor wir Szenen entfernen
