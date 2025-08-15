@@ -467,7 +467,6 @@ shape = SubResource("RectangleShape2D_alh3a")
 position = Vector2(959, 1445)
 player = NodePath("../../PlayerModel")
 spawn_zone_container = NodePath("../CollisionShape2D")
-want_call = false
 
 [connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_pause_menu_go_to_main_menu"]
 [connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_canvas_layer_go_to_main_menu"]

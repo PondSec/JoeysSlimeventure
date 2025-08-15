@@ -90,7 +90,7 @@ func _ready() -> void:
 	randomize()
 	add_to_group("enemies")
 	add_to_group("bats")
-	bat_position = global_position
+	bat_position = get_random_spawn_position()
 	health_bar.visible = false
 	alert_icon.visible = false
 	alert_icon.text = "!"  # Stelle sicher, dass das Symbol ein ! ist
@@ -536,7 +536,6 @@ func take_damage(amount: int, direction: Vector2, is_crit: bool = false) -> void
 	
 	bat_health -= final_damage
 	show_damage_number(final_damage, is_crit)  # Pass is_crit to show different damage numbers
-	
 	sound_player.stream = hurt_sound
 	sound_player.pitch_scale = randf_range(0.9, 1.1)
 	sound_player.play()
@@ -735,7 +734,7 @@ func spawn_new_bat() -> void:
 	# Position relativ zur aktuellen Fledermaus setzen
 	new_bat.was_called = true
 	var spawn_offset = Vector2(randf_range(-50, 50), randf_range(-50, 50))
-	new_bat.global_position = global_position + spawn_offset
+	new_bat.global_position = get_random_spawn_position()
 	
 	# Zur Szene hinzufügen
 	get_parent().add_child(new_bat)
