@@ -1,4 +1,4 @@
-[gd_scene load_steps=28 format=4 uid="uid://cmdh8rpdo8fb2"]
+[gd_scene load_steps=29 format=4 uid="uid://cmdh8rpdo8fb2"]
 
 [ext_resource type="Texture2D" uid="uid://82opar247kat" path="res://Assets/Tiles/platformertiles.png" id="1_lx4yj"]
 [ext_resource type="Script" uid="uid://hrb3bfkpp2mn" path="res://Scripts/game.gd" id="1_wyx84"]
@@ -12,8 +12,8 @@
 [ext_resource type="Texture2D" uid="uid://cr61tmhecyo04" path="res://Assets/jump_left.png" id="11_ctkaa"]
 [ext_resource type="Texture2D" uid="uid://5d5bkg2pl08v" path="res://Assets/jump_right.png" id="12_1fuev"]
 [ext_resource type="AudioStream" uid="uid://kd2rghc2s1ug" path="res://Assets/Sounds/alone_ambient.wav" id="12_alh3a"]
-[ext_resource type="PackedScene" uid="uid://c04dxie1kwqsr" path="res://Scenes/albino_bat.tscn" id="15_acvyw"]
 [ext_resource type="Shader" uid="uid://cdnl80n14eb2i" path="res://Shaders/post_proccessing.gdshader" id="15_alh3a"]
+[ext_resource type="PackedScene" uid="uid://dqykudmd26o2q" path="res://Scenes/bat.tscn" id="16_4q8tf"]
 [ext_resource type="PackedScene" uid="uid://c8bjyoq5oxoup" path="res://Scenes/door.tscn" id="16_alh3a"]
 [ext_resource type="PackedScene" uid="uid://dx4m8ks5y31ax" path="res://Scenes/vine.tscn" id="17_4q8tf"]
 
@@ -261,6 +261,9 @@ glow_bloom = 1.0
 glow_blend_mode = 3
 glow_hdr_threshold = 0.7
 
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_alh3a"]
+size = Vector2(1680, 259)
+
 [node name="Game" type="Node2D"]
 script = ExtResource("1_wyx84")
 
@@ -437,10 +440,6 @@ vertical_alignment = 1
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_acvyw")
 
-[node name="AlbinoBat" parent="." node_paths=PackedStringArray("player") instance=ExtResource("15_acvyw")]
-position = Vector2(1379, 1458)
-player = NodePath("../PlayerModel")
-
 [node name="Deko" type="Node2D" parent="."]
 
 [node name="Vine" parent="Deko" instance=ExtResource("17_4q8tf")]
@@ -457,6 +456,18 @@ position = Vector2(273, 727)
 
 [node name="Vine2" parent="Deko" instance=ExtResource("17_4q8tf")]
 position = Vector2(228, 750)
+
+[node name="SpawnArea" type="Area2D" parent="."]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="SpawnArea"]
+position = Vector2(897, 1361.5)
+shape = SubResource("RectangleShape2D_alh3a")
+
+[node name="Bat" parent="SpawnArea" node_paths=PackedStringArray("player", "spawn_zone_container") instance=ExtResource("16_4q8tf")]
+position = Vector2(959, 1445)
+player = NodePath("../../PlayerModel")
+spawn_zone_container = NodePath("../CollisionShape2D")
+want_call = false
 
 [connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_pause_menu_go_to_main_menu"]
 [connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_canvas_layer_go_to_main_menu"]
