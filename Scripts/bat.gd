@@ -495,11 +495,6 @@ func show_damage_number(amount: int, is_critical: bool = false) -> void:
 	
 	await tween.finished
 	damage_label.queue_free()
-	
-	if is_critical:
-		Engine.time_scale = 0.1
-		await get_tree().create_timer(0.1).timeout
-		Engine.time_scale = 1.0
 
 
 func set_animation() -> void:
