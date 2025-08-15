@@ -42,7 +42,7 @@ const IDLE_DURATION = 0.1  # Wie lange sie ruhig bleibt
 const CALL_COOLDOWN = 15.0  # Wie oft die Fledermaus rufen kann
 const CALL_RANGE = 200.0    # In welchem Radius nach anderen Fledermäusen gesucht wird
 var call_timer := 0.0
-var can_call_for_help := true
+var can_call_for_help = true
 const CALL_PROBABILITY = 0.1
 var was_called = false  # True, wenn diese Fledermaus durch einen Ruf erstellt wurde
 
@@ -58,6 +58,7 @@ var streak_timer := 0.0
 
 @export var player: CharacterBody2D
 @export var spawn_zone_container: Node2D
+@export var want_call: bool = true
 @onready var animation_player = $Sprite2D/AnimationPlayer
 @onready var navigation_agent = $NavigationAgent2D
 @onready var hit_particles = $HitParticles
@@ -112,9 +113,9 @@ func _physics_process(delta: float) -> void:
 			normal_hit_streak = 0
 			streak_timer = 0.0
 	
-	if not can_call_for_help:
+	if !can_call_for_help:
 		call_timer -= delta
-		if call_timer <= 0:
+		if want_call == true and call_timer <= 0:
 			can_call_for_help = true
 	var can_attack_now = can_attack()
 	if can_attack_now:
@@ -637,30 +638,37 @@ func respawn() -> void:
 	set_collision_mask_value(1, true)
 	health_bar.visible = false
 
-func get_random_spawn_position() -> Vector2:
-	if not spawn_zone_container or spawn_zone_container.get_child_count() == 0:
-		return global_position
+func get_random_spawn_position(max_attempts: int = 20) -> Vector2:
+	var spawn_areas = spawn_zone_container
+	var selected_area = spawn_areas
+	var shape = selected_area
 	
-	var spawn_areas = spawn_zone_container.get_children().filter(func(node): return node is Area2D)
-	
-	if spawn_areas.is_empty():
-		return global_position
-
-	var selected_area = spawn_areas[randi() % spawn_areas.size()]
-	var shape = selected_area.get_node_or_null("CollisionShape2D")
-
-	if shape and shape.shape is RectangleShape2D:
-		var rect = shape.shape.extents * 2
-		var top_left = selected_area.global_position - shape.shape.extents
-		var random_pos = top_left + Vector2(randf_range(0, rect.x), randf_range(0, rect.y))
-		return random_pos
-	
-	elif shape and shape.shape is CircleShape2D:
-		var radius = shape.shape.radius
-		var angle = randf_range(0, TAU)
-		var distance = sqrt(randf()) * radius
-		return selected_area.global_position + Vector2(cos(angle), sin(angle)) * distance
-
+	if shape and shape is CollisionShape2D:
+		var space_state = get_world_2d().direct_space_state
+		var params = PhysicsPointQueryParameters2D.new()
+		params.collide_with_bodies = true
+		params.collide_with_areas = false
+		params.collision_mask = 0b1
+		
+		for _i in range(max_attempts):
+			var random_pos: Vector2
+			
+			if shape.shape is RectangleShape2D:
+				var extents = shape.shape.extents
+				random_pos = shape.global_position + Vector2(
+					randf_range(-extents.x, extents.x),
+					randf_range(-extents.y, extents.y)
+				)
+			elif shape.shape is CircleShape2D:
+				var radius = shape.shape.radius
+				var angle = randf_range(0, TAU)
+				var distance = sqrt(randf()) * radius
+				random_pos = shape.global_position + Vector2(cos(angle), sin(angle)) * distance
+			else:
+				continue
+			params.position = random_pos
+			if space_state.intersect_point(params).is_empty():
+				return random_pos
 	return global_position
 
 func update_health_bar() -> void:
@@ -697,7 +705,7 @@ func _on_player_lost(body: Node2D) -> void:
 		alert_icon.text = "!"  # Zurück zum Ausrufezeichen für das nächste Mal
 
 func call_for_help() -> void:
-	if not can_call_for_help or is_dead:
+	if !want_call or !can_call_for_help or is_dead:
 		return
 	
 	# Überprüfe, ob bereits genug Fledermäuse in der Nähe sind

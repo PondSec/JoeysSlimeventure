@@ -126,7 +126,6 @@ scale = Vector2(1.5, 1.5)
 script = ExtResource("1_fveqw")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
-position = Vector2(0, -5)
 texture = ExtResource("2_kikkf")
 hframes = 7
 vframes = 5
@@ -140,11 +139,9 @@ speed_scale = 2.0
 [node name="AttackArea" type="Area2D" parent="."]
 
 [node name="Body" type="CollisionShape2D" parent="AttackArea"]
-position = Vector2(0, -8.66667)
 shape = SubResource("CircleShape2D_p57rr")
 
 [node name="Collision" type="CollisionShape2D" parent="."]
-position = Vector2(0, -7.21875)
 shape = SubResource("RectangleShape2D_chl00")
 
 [node name="NavigationAgent2D" type="NavigationAgent2D" parent="."]
@@ -171,7 +168,6 @@ offset_bottom = -11.0
 [node name="DetectionArea" type="Area2D" parent="."]
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="DetectionArea"]
-position = Vector2(0, -8.66667)
 shape = SubResource("CircleShape2D_50dnf")
 
 [node name="AudioStreamPlayer2D" type="AudioStreamPlayer2D" parent="."]
