@@ -270,7 +270,7 @@ func _process(delta: float) -> void:
 
 	if Input.is_action_just_pressed(\"drop_item\"):  
 		drop_hotbar_item()
-	if Input.is_action_just_pressed(\"Interact\"):
+	if Input.is_action_just_pressed(\"ult\"):
 		charge()
 		print(\"Charge completed!\")
 		
@@ -341,7 +341,7 @@ func charge():
 		
 		# Phase 2: Explosion (1 Sekunde)
 		material.radial_velocity = Vector2(800, 800)
-		
+		is_charging = false
 		# 1. Spieler heilen
 		current_health = max_health
 		update_health_bar()
@@ -614,7 +614,7 @@ func update_animations():
 
 func play_walk_sound():
 	var speed_factor = clamp(abs(velocity.x) / 300.0, 0.2, 1.0)
-	$WalkSound.volume_db = lerp(-10, 0, speed_factor)
+	$WalkSound.volume_db = lerp(-20, -15, speed_factor)
 	$WalkSound.pitch_scale = randf_range(0.6, 1.28)
 	$WalkSound.play()
 	last_sound_time = Time.get_ticks_usec() / 1_000_000.0  # Präziser
@@ -676,7 +676,7 @@ func play_landing_animation(anim_name: String = \"landing\") -> void:
 		$LandSound.volume_db = 0
 	else:
 		$LandSound.pitch_scale = 1.2
-		$LandSound.volume_db = -10
+		$LandSound.volume_db = -20
 	
 	$LandSound.play()
 	
@@ -728,6 +728,7 @@ func die() -> void:
 	var save_file = FileAccess.open(\"user://inventory.save\", FileAccess.WRITE)
 	if FileAccess.file_exists(\"user://inventory.save\"):
 		DirAccess.remove_absolute(\"user://inventory.save\")
+		DirAccess.remove_absolute(\"user://charge_cooldown.dat\")
 		print(\"❌ Inventory-Datei gelöscht – Items werden nicht erneut geladen!\")
 	
 	self.visible = false  
@@ -837,7 +838,7 @@ func take_damage(amount: int, hit_source: Vector2) -> void:
 	
 	# Sound mit zufälliger Variation
 	$HitSound.pitch_scale = randf_range(1.5, 2)  # Großer Pitch-Bereich für dramatische Effekte
-	$HitSound.volume_db = randf_range(-10, -5)       # Lautstärke leicht variieren
+	$HitSound.volume_db = randf_range(-20, -15)       # Lautstärke leicht variieren
 	$HitSound.play()
 
 	# Knockback und Stun wie bisher

@@ -7,8 +7,8 @@
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_xaa8b"]
 shader = ExtResource("1_krw3f")
-shader_parameter/wind_power = 1.739
-shader_parameter/sway_speed = 1.518
+shader_parameter/wind_power = 4.0
+shader_parameter/sway_speed = 1.743
 shader_parameter/flutter_freq = 2.652
 shader_parameter/stem_sway = 0.715
 shader_parameter/random_offset = 19.101

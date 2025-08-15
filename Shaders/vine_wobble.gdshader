@@ -1,8 +1,8 @@
 shader_type canvas_item;
 
 // Kontrollparameter
-uniform float wind_power : hint_range(0.1, 2.0) = 0.8;      // Gesamtstärke
-uniform float sway_speed : hint_range(0.1, 2.0) = 0.6;       // Grundgeschwindigkeit
+uniform float wind_power : hint_range(0.1, 4.0) = 0.8;      // Gesamtstärke
+uniform float sway_speed : hint_range(0.1, 4.0) = 0.6;       // Grundgeschwindigkeit
 uniform float flutter_freq : hint_range(1.0, 15.0) = 8.0;    // Blattflatter-Frequenz
 uniform float stem_sway : hint_range(0.0, 1.0) = 0.4;       // Stielbewegung
 uniform float random_offset : hint_range(0.0, 100.0) = 0.0;  // Zufälliger Offset pro Pflanze

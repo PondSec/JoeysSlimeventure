@@ -11,7 +11,7 @@
 [ext_resource type="PackedScene" uid="uid://btd70wfyuwmhw" path="res://Scenes/PauseMenu.tscn" id="9_dvqdi"]
 [ext_resource type="Texture2D" uid="uid://cr61tmhecyo04" path="res://Assets/jump_left.png" id="11_ctkaa"]
 [ext_resource type="Texture2D" uid="uid://5d5bkg2pl08v" path="res://Assets/jump_right.png" id="12_1fuev"]
-[ext_resource type="AudioStream" uid="uid://ctx84nhxfohmq" path="res://Assets/Sounds/dark-ambient-music-354475.mp3" id="13_acvyw"]
+[ext_resource type="AudioStream" uid="uid://kd2rghc2s1ug" path="res://Assets/Sounds/alone_ambient.wav" id="12_alh3a"]
 [ext_resource type="PackedScene" uid="uid://c04dxie1kwqsr" path="res://Scenes/albino_bat.tscn" id="15_acvyw"]
 [ext_resource type="Shader" uid="uid://cdnl80n14eb2i" path="res://Shaders/post_proccessing.gdshader" id="15_alh3a"]
 [ext_resource type="PackedScene" uid="uid://c8bjyoq5oxoup" path="res://Scenes/door.tscn" id="16_alh3a"]
@@ -403,10 +403,8 @@ tile_set = SubResource("TileSet_nhier")
 position = Vector2(284, 768)
 
 [node name="AudioStreamPlayer2D" type="AudioStreamPlayer" parent="."]
-stream = ExtResource("13_acvyw")
-volume_db = -5.0
+stream = ExtResource("12_alh3a")
 autoplay = true
-parameters/looping = true
 
 [node name="Moon" parent="." instance=ExtResource("3_8txav")]
 position = Vector2(2465, 1042)
