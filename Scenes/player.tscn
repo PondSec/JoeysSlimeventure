@@ -295,7 +295,7 @@ func _physics_process(delta: float) -> void:
 	
 	# Animationen aktualisieren
 	update_animations()
-
+	
 func handle_input():
 	# Laufen/Rennen - aber nur wenn nicht in Landeanimation
 	if not is_landing:
