@@ -1,4 +1,4 @@
-[gd_scene load_steps=35 format=4 uid="uid://smsqlk2bm8ok"]
+[gd_scene load_steps=37 format=4 uid="uid://smsqlk2bm8ok"]
 
 [ext_resource type="Texture2D" uid="uid://82opar247kat" path="res://Assets/Tiles/platformertiles.png" id="1_c5erv"]
 [ext_resource type="Script" uid="uid://bp7am01qxi47c" path="res://Scripts/level1.gd" id="1_lyd6k"]
@@ -7,11 +7,11 @@
 [ext_resource type="PackedScene" uid="uid://btd70wfyuwmhw" path="res://Scenes/PauseMenu.tscn" id="3_y4dr7"]
 [ext_resource type="PackedScene" uid="uid://b6ublycstdj8n" path="res://Scenes/player.tscn" id="4_lyd6k"]
 [ext_resource type="PackedScene" uid="uid://c8bjyoq5oxoup" path="res://Scenes/door.tscn" id="5_bs12r"]
-[ext_resource type="Texture2D" uid="uid://4n57rax7jl82" path="res://Assets/still_water.png" id="5_rqhku"]
 [ext_resource type="PackedScene" uid="uid://dqykudmd26o2q" path="res://Scenes/bat.tscn" id="6_didp7"]
 [ext_resource type="PackedScene" uid="uid://ccep15ieo6o6o" path="res://Scenes/torch.tscn" id="7_2a60c"]
 [ext_resource type="PackedScene" uid="uid://dx4m8ks5y31ax" path="res://Scenes/vine.tscn" id="9_bs12r"]
-[ext_resource type="Shader" uid="uid://dwhrblpk0ws8x" path="res://Shaders/water.gdshader" id="9_cpkqv"]
+[ext_resource type="Shader" uid="uid://dh7hgu87epekd" path="res://Shaders/water.gdshader" id="9_cpkqv"]
+[ext_resource type="Texture2D" uid="uid://bopt1a7jty3iw" path="res://Assets/Tiles/water_half.png" id="12_d1mwp"]
 [ext_resource type="Texture2D" uid="uid://dew3eisvhovfu" path="res://Assets/Tiles/water.png" id="13_d1mwp"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_y4dr7"]
@@ -154,7 +154,6 @@ texture_region_size = Vector2i(32, 32)
 13:5/0 = 0
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_d1mwp"]
-texture = ExtResource("5_rqhku")
 texture_region_size = Vector2i(32, 32)
 0:0/0 = 0
 
@@ -202,7 +201,6 @@ texture_region_size = Vector2i(32, 32)
 7:2/0 = 0
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_u1b78"]
-texture = ExtResource("5_rqhku")
 texture_region_size = Vector2i(32, 32)
 0:0/0 = 0
 
@@ -353,19 +351,31 @@ noise = SubResource("FastNoiseLite_cpkqv")
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_cpkqv"]
 shader = ExtResource("9_cpkqv")
-shader_parameter/noixe_texture = SubResource("NoiseTexture2D_d1mwp")
+shader_parameter/noise_texture = SubResource("NoiseTexture2D_d1mwp")
 shader_parameter/speed = Vector2(0.5, 0.2)
-shader_parameter/wave_strength = 0.1
 shader_parameter/distortion = 0.01
+shader_parameter/wave_strength = 0.1
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_wwu6c"]
+texture = ExtResource("12_d1mwp")
+texture_region_size = Vector2i(32, 32)
+0:0/0 = 0
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_bdr3p"]
 texture = ExtResource("13_d1mwp")
 texture_region_size = Vector2i(32, 32)
 0:0/0 = 0
+1:0/0 = 0
+0:1/0 = 0
+1:1/0 = 0
 
 [sub_resource type="TileSet" id="TileSet_wwu6c"]
 tile_size = Vector2i(32, 32)
 sources/4 = SubResource("TileSetAtlasSource_bdr3p")
+sources/0 = SubResource("TileSetAtlasSource_wwu6c")
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_d1mwp"]
+size = Vector2(257, 117.5)
 
 [node name="level1" type="Node2D"]
 script = ExtResource("1_lyd6k")
@@ -411,6 +421,7 @@ tile_map_data = PackedByteArray("AABBAE4AAAADAAIAAABBAE8AAAADAAIAAABCAE4AAAADAAI
 tile_set = SubResource("TileSet_2a60c")
 
 [node name="Shadow" type="CanvasModulate" parent="Background"]
+visible = false
 modulate = Color(0, 0, 0, 0.12549)
 self_modulate = Color(0, 0, 0, 0.121569)
 position = Vector2(-14, 10)
@@ -443,5 +454,14 @@ position = Vector2(574, 815)
 
 [node name="water" type="TileMapLayer" parent="."]
 material = SubResource("ShaderMaterial_cpkqv")
-tile_map_data = PackedByteArray("AAAFABsABAAAAAAAAAAEABsABAAAAAAAAAADABsABAAAAAAAAAADABwABAAAAAAAAAAEABwABAAAAAAAAAAFABwABAAAAAAAAAAGABwABAAAAAAAAAAHABwABAAAAAAAAAAIABwABAAAAAAAAAAKAB0ABAAAAAAAAAAKABwABAAAAAAAAAAJABwABAAAAAAAAAAJAB0ABAAAAAAAAAAIAB0ABAAAAAAAAAAHAB0ABAAAAAAAAAAGAB0ABAAAAAAAAAAFAB0ABAAAAAAAAAAEAB0ABAAAAAAAAAADAB0ABAAAAAAAAAA=")
+tile_map_data = PackedByteArray("AAADAB0ABAAAAAAAAAAEAB0ABAAAAAAAAAAFAB0ABAAAAAAAAAAGAB0ABAAAAAAAAAAHAB0ABAAAAAAAAAAIAB0ABAAAAAAAAAAJAB0ABAAAAAAAAAAKAB0ABAAAAAAAAAAKABwABAAAAAAAAAAJABwABAAAAAAAAAAIABwABAAAAAAAAAAHABwABAAAAAAAAAAGABwABAAAAAAAAAAFABwABAAAAAAAAAAEABwABAAAAAAAAAADABwABAAAAAAAAAADABsAAAAAAAAAAAAEABsAAAAAAAAAAAAFABsAAAAAAAAAAAA=")
 tile_set = SubResource("TileSet_wwu6c")
+
+[node name="WaterArea" type="Area2D" parent="water"]
+
+[node name="CollisionPolygon2D" type="CollisionShape2D" parent="water/WaterArea"]
+position = Vector2(223.5, 934.25)
+shape = SubResource("RectangleShape2D_d1mwp")
+
+[connection signal="body_entered" from="water/WaterArea" to="PlayerModel" method="_on_water_area_body_entered"]
+[connection signal="body_shape_exited" from="water/WaterArea" to="PlayerModel" method="_on_water_area_body_shape_exited"]
