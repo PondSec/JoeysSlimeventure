@@ -353,7 +353,6 @@ tile_map_data = PackedByteArray("AABBAE4AAAADAAIAAABBAE8AAAADAAIAAABCAE4AAAADAAI
 tile_set = SubResource("TileSet_2a60c")
 
 [node name="Shadow" type="CanvasModulate" parent="Background"]
-visible = false
 modulate = Color(0, 0, 0, 1)
 self_modulate = Color(0, 0, 0, 1)
 position = Vector2(-14, 10)
@@ -365,9 +364,6 @@ level = "Game"
 
 [node name="PauseMenu" parent="." instance=ExtResource("3_y4dr7")]
 visible = false
-
-[node name="player_spawn" type="Marker2D" parent="."]
-position = Vector2(334, 720)
 
 [node name="Bat" parent="." node_paths=PackedStringArray("player", "spawn_zone_container") instance=ExtResource("6_didp7")]
 position = Vector2(42, 599)
@@ -382,6 +378,9 @@ shape = SubResource("RectangleShape2D_2a60c")
 
 [node name="PlayerModel" parent="." instance=ExtResource("4_lyd6k")]
 position = Vector2(335, 707)
+
+[node name="player_spawn" type="Marker2D" parent="."]
+position = Vector2(574, 815)
 
 [node name="Decko" type="Node" parent="."]
 

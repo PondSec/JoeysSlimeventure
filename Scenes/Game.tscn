@@ -110,9 +110,10 @@ texture = ExtResource("3_khj2t")
 
 [sub_resource type="TileSet" id="TileSet_jgi20"]
 tile_size = Vector2i(32, 32)
-physics_layer_0/collision_layer = 2
-physics_layer_0/collision_mask = 2
-physics_layer_1/collision_layer = 1
+physics_layer_0/collision_layer = 3
+physics_layer_0/collision_mask = 3
+physics_layer_1/collision_layer = 3
+physics_layer_1/collision_mask = 3
 sources/1 = SubResource("TileSetAtlasSource_83pvq")
 sources/4 = SubResource("TileSetAtlasSource_v7xju")
 
@@ -443,15 +444,16 @@ position = Vector2(228, 750)
 position = Vector2(897, 1361.5)
 shape = SubResource("RectangleShape2D_alh3a")
 
-[node name="Bat" parent="SpawnArea" node_paths=PackedStringArray("spawn_zone_container") instance=ExtResource("16_4q8tf")]
+[node name="Bat" parent="SpawnArea" node_paths=PackedStringArray("player", "spawn_zone_container") instance=ExtResource("16_4q8tf")]
 position = Vector2(959, 1445)
+player = NodePath("../../PlayerModel")
 spawn_zone_container = NodePath("../CollisionShape2D")
-
-[node name="player_spawn" type="Marker2D" parent="."]
-position = Vector2(249, 741)
 
 [node name="PlayerModel" parent="." instance=ExtResource("5_26h23")]
 position = Vector2(262, 767)
+
+[node name="player_spawn" type="Marker2D" parent="."]
+position = Vector2(2955, 1342)
 
 [connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_pause_menu_go_to_main_menu"]
 [connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_canvas_layer_go_to_main_menu"]
