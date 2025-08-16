@@ -19,12 +19,15 @@ var tutorial_steps = [
 ]
 var current_step = 0
 
+@export var player_scene: PackedScene
+@export var spawn_point_name: String = "player_spawn"
+
 func _ready():
 	if not savegame_exists():
 		show_tutorial()
 	else:
 		tutorial_overlay.hide()
-
+				
 func savegame_exists() -> bool:
 	return FileAccess.file_exists("user://savegame.tres") and FileAccess.file_exists("user://inventory.save")
 
