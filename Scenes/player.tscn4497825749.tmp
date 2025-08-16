@@ -336,35 +336,32 @@ func _physics_process(delta: float) -> void:
 
 
 func apply_water_physics(delta: float) -> void:
-	# Wasserwiderstand anwenden (quadratisch zur Geschwindigkeit für realistischeres Verhalten)
+	# Sanftere Wasserwiderstandsberechnung
 	var drag_force = -velocity * velocity.length() * WATER_DRAG * delta
-	velocity += drag_force
-	
-	# Auftrieb und Schwerkraft anpassen
-	var gravity_scale = WATER_GRAVITY_SCALE
+	velocity += drag_force * 0.5  # Reduziere den Einfluss
 	
 	# Dynamische Auftriebsberechnung basierend auf Tiefe
-	var depth_factor = clamp((water_surface_y - global_position.y) / 50.0, 0.0, 1.0)
+	var depth = water_surface_y - global_position.y
+	var depth_factor = clamp(depth / 50.0, 0.0, 1.0)  # Normalisierte Tiefe
+	
+	# Sanftere Übergänge zwischen Unterwasser und Oberfläche
 	var buoyancy = WATER_BUOYANCY * depth_factor
+	var gravity_scale = lerp(1.0, WATER_GRAVITY_SCALE, depth_factor)
 	
 	# Oberflächenspannung - hält den Spieler näher an der Oberfläche
-	if global_position.y < water_surface_y && global_position.y > water_surface_y - 30:
-		buoyancy += WATER_SURFACE_TENSION * (1.0 - (water_surface_y - global_position.y) / 30.0)
+	if depth > -30 and depth < 30:  # Bereich um die Oberfläche
+		buoyancy += WATER_SURFACE_TENSION * (1.0 - abs(depth) / 30.0)
 	
 	velocity.y -= buoyancy * delta
 	velocity.y += GRAVITY * gravity_scale * delta
-	
-	# Schwimmbewegungen
-	handle_swimming_input(delta)
 	
 	# Begrenze die Geschwindigkeit im Wasser
 	velocity.x = clamp(velocity.x, -WATER_MAX_SPEED, WATER_MAX_SPEED)
 	velocity.y = clamp(velocity.y, -WATER_MAX_SPEED, WATER_MAX_SPEED * 1.5)
 	
-	# Spezielle Effekte beim Eintauchen
-	#if Time.get_ticks_msec() / 1000.0 - last_out_of_water_time < 0.5:
-		#if water_enter_velocity > WATER_MIN_SPLASH_VELOCITY:
-			#create_water_splash_effect(water_enter_velocity)
+	# Verhindere zu starke vertikale Bewegungen an der Oberfläche
+	if abs(depth) < 10:
+		velocity.y *= 0.9  # Dämpfung an der Oberfläche
 
 func handle_swimming_input(delta: float) -> void:
 	# Horizontalbewegung im Wasser
