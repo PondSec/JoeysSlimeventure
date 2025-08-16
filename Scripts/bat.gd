@@ -151,6 +151,16 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	set_animation()
 
+func find_player() -> void:
+	# Warte einen Frame, damit der Player sicher geladen ist
+	await get_tree().process_frame
+	# Finde den Player in der Szene
+	var players = get_tree().get_nodes_in_group("player")
+	if players.size() > 0:
+		player = players[0]
+	else:
+		push_warning("Player nicht gefunden! Stelle sicher, dass der Player in der 'player' Gruppe ist.")
+
 func handle_state_machine(delta: float) -> void:
 	var distance_to_player = global_position.distance_to(player.global_position)
 	var actual_detection_radius = DETECTION_RADIUS if player.is_glowing else BASE_DETECTION_RADIUS
