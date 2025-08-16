@@ -7,13 +7,9 @@ class CurrentLevelResource extends Resource:
 @onready var pause_menu = $PauseMenu
 @onready var player = get_node("PlayerModel")
 @onready var timer = $Timer
-
-@export var player_scene: PackedScene
 @export var spawn_point_name: String = "player_spawn"
 
 func _ready() -> void:
-	# Player instanzieren
-	var player = player_scene.instantiate()
 	
 	# SpawnPoint im aktuellen Level suchen
 	var spawn = get_node(spawn_point_name)

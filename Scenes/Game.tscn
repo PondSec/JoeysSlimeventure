@@ -140,7 +140,7 @@ polygons = Array[PackedInt32Array]([PackedInt32Array(0, 1, 2, 3)])
 outlines = Array[PackedVector2Array]([PackedVector2Array(-8, -8, 8, -8, 8, 8, -8, 8)])
 agent_radius = 0.0
 
-[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_5uy8r"]
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_acvyw"]
 texture = ExtResource("3_xdlxs")
 0:0/0 = 0
 0:0/0/navigation_layer_0/polygon = SubResource("NavigationPolygon_tk8gs")
@@ -243,7 +243,7 @@ texture = ExtResource("3_xdlxs")
 
 [sub_resource type="TileSet" id="TileSet_nhier"]
 navigation_layer_0/layers = 1
-sources/0 = SubResource("TileSetAtlasSource_5uy8r")
+sources/0 = SubResource("TileSetAtlasSource_acvyw")
 
 [sub_resource type="Environment" id="Environment_acvyw"]
 glow_enabled = true
@@ -443,9 +443,8 @@ position = Vector2(228, 750)
 position = Vector2(897, 1361.5)
 shape = SubResource("RectangleShape2D_alh3a")
 
-[node name="Bat" parent="SpawnArea" node_paths=PackedStringArray("player", "spawn_zone_container") instance=ExtResource("16_4q8tf")]
+[node name="Bat" parent="SpawnArea" node_paths=PackedStringArray("spawn_zone_container") instance=ExtResource("16_4q8tf")]
 position = Vector2(959, 1445)
-player = NodePath("../../PlayerModel")
 spawn_zone_container = NodePath("../CollisionShape2D")
 
 [node name="player_spawn" type="Marker2D" parent="."]
