@@ -95,7 +95,6 @@ func _ready() -> void:
 	alert_icon.visible = false
 	alert_icon.text = "!"  # Stelle sicher, dass das Symbol ein ! ist
 	generate_patrol_points()
-	
 	# Verbinde Area-Signale
 	detection_area.body_entered.connect(_on_player_detected)
 	detection_area.body_exited.connect(_on_player_lost)

@@ -23,7 +23,6 @@ script/source = "extends Control
 const CONFIG_PATH = \"user://settings.cfg\"
 const PLAYER_ID_PATH = \"user://player_id.save\"
 var config := ConfigFile.new()
-  # Verwende 'instantiate()' statt 'instance()'
 
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
@@ -82,7 +81,21 @@ func _on_credits_button_pressed() -> void:
 	change_scene(\"res://Scenes/credits.tscn\")
 
 func _on_play_button_pressed() -> void:
-	change_scene(\"res://Scenes/Game.tscn\")
+	var level_resource = load(\"user://current_level.res\")
+	
+	if level_resource:
+		var level_scene_path = level_resource.unlocked_level
+		print(\"Freigeschaltetes Level:\", level_scene_path)
+		
+		# Überprüfe ob die Scene existiert
+		if ResourceLoader.exists(level_scene_path):
+			get_tree().change_scene_to_file(level_scene_path)
+		else:
+			print(\"Fehler: Level-Scene nicht gefunden unter \", level_scene_path)
+			# Fallback: Gehe zur Hauptmenu oder ersten Level
+			get_tree().change_scene_to_file(\"res://Scenes/main_menu.tscn\")
+	else:
+		change_scene(\"res://Scenes/Game.tscn\")
 
 func _on_quit_button_pressed() -> void:
 	get_tree().quit()
@@ -244,6 +257,6 @@ text = "020394329432894732847847284823"
 
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/PlayButton" to="." method="_on_play_button_pressed"]
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/SettingsButton" to="." method="_on_settings_button_pressed"]
-[connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/CreditsButton" to="." method="_on_credits_button_pressed"]
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/CreditsButton" to="." method="_on_texture_button_pressed"]
+[connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/CreditsButton" to="." method="_on_credits_button_pressed"]
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/QuitButton" to="." method="_on_quit_button_pressed"]

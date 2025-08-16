@@ -6,17 +6,26 @@
 resource_name = "DoorHandler"
 script/source = "extends Node2D
 
-@onready var area = $Area2D
+@onready var area: Area2D = $Area2D
+@export var level: String = \"\"
 
-func _ready() -> void:
-	pass
-
-func _physics_process(delta: float) -> void:
+func _physics_process(_delta: float) -> void:
 	for body in area.get_overlapping_bodies():
 		if body.name == \"PlayerModel\" and Input.is_action_just_pressed(\"Interact\"):
-			# Lade die neue Szene
-			var main_scene = load(\"res://Scenes/main_menu.tscn\")
-			get_tree().change_scene_to_packed(main_scene)
+			_change_level()
+
+func _change_level() -> void:
+	if level == \"\":
+		push_warning(\"Kein Level für diese Tür gesetzt!\")
+		return
+	
+	var path = \"res://Scenes/\" + level + \".tscn\"
+	var scene = load(path)
+	
+	if scene == null:
+		push_error(\"Szene nicht gefunden: \" + path)
+		return
+	get_tree().change_scene_to_packed(scene)
 "
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_hvas2"]
