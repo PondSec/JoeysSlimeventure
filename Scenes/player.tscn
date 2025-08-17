@@ -169,8 +169,6 @@ const WATER_SINK_SPEED := 100.0  # Geschwindigkeit beim Absinken
 const WATER_SURFACE_TENSION := 50.0  # Kraft die den Spieler an der Oberfläche hält
 const WATER_SPLASH_FORCE := 200.0  # Kraft beim Eintauchen
 const WATER_MIN_SPLASH_VELOCITY := 300.0  # Mindestgeschwindigkeit für Spritzeffekt
-const WATER_INERTIA_X := 0.85  # wie träge horizontal
-const WATER_INERTIA_Y := 0.65  # wie träge vertikal
 
 # Wasser-Statusvariablen
 var is_in_water = false
@@ -340,8 +338,8 @@ func _physics_process(delta: float) -> void:
 func apply_water_physics(delta: float) -> void:
 	# --- Wasserwiderstand (Drag) ---
 	# Y-Komponente nur leicht dämpfen, X stärker
-	var drag_x = -velocity.x * abs(velocity.x) * WATER_DRAG * delta
-	var drag_y = -velocity.y * abs(velocity.y) * WATER_DRAG * 0.3 * delta
+	var drag_x = -velocity.x * abs(velocity.x) * WATER_DRAG * 0.5 * delta
+	var drag_y = -velocity.y * abs(velocity.y) * WATER_DRAG * 0.5 * delta
 	velocity.x += drag_x
 	velocity.y += drag_y
 	
