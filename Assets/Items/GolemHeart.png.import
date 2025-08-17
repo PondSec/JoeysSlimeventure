@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://ddojknswi3rhf"
-path="res://.godot/imported/GolemHeart.png-f6c65bee26d9fcf5a7636b0165140d68.ctex"
+uid="uid://d31jtevxfrlb4"
+path="res://.godot/imported/GolemHeart.png-92ee2c18cafbbdf617607f9ab0af5efe.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Assets/Items/Mob Drops/StoneGolem/GolemHeart.png"
-dest_files=["res://.godot/imported/GolemHeart.png-f6c65bee26d9fcf5a7636b0165140d68.ctex"]
+source_file="res://Assets/Items/GolemHeart.png"
+dest_files=["res://.godot/imported/GolemHeart.png-92ee2c18cafbbdf617607f9ab0af5efe.ctex"]
 
 [params]
 
