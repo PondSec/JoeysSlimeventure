@@ -336,56 +336,46 @@ func _physics_process(delta: float) -> void:
 
 
 func apply_water_physics(delta: float) -> void:
-	# Wasserwiderstand anwenden (quadratisch zur Geschwindigkeit für realistischeres Verhalten)
+	# Wasserwiderstand
 	var drag_force = -velocity * velocity.length() * WATER_DRAG * delta
 	velocity += drag_force
 	
-	# Auftrieb und Schwerkraft anpassen
-	var gravity_scale = WATER_GRAVITY_SCALE
-	
-	# Dynamische Auftriebsberechnung basierend auf Tiefe
+	# Dynamische Auftriebsberechnung
 	var depth_factor = clamp((water_surface_y - global_position.y) / 50.0, 0.0, 1.0)
 	var buoyancy = WATER_BUOYANCY * depth_factor
 	
-	# Oberflächenspannung - hält den Spieler näher an der Oberfläche
+	# Sanfte Oberflächenspannung
 	if global_position.y < water_surface_y && global_position.y > water_surface_y - 30:
-		buoyancy += WATER_SURFACE_TENSION * (1.0 - (water_surface_y - global_position.y) / 30.0)
+		var surface_proximity = 1.0 - (water_surface_y - global_position.y) / 30.0
+		buoyancy += WATER_SURFACE_TENSION * smoothstep(0, 1, surface_proximity)
 	
 	velocity.y -= buoyancy * delta
-	velocity.y += GRAVITY * gravity_scale * delta
+	velocity.y += GRAVITY * WATER_GRAVITY_SCALE * delta
 	
-	# Schwimmbewegungen
+	# Schwimm-Inputs
 	handle_swimming_input(delta)
 	
-	# Begrenze die Geschwindigkeit im Wasser
+	# Geschwindigkeitsbegrenzung mit stabilisierender Deadzone
 	velocity.x = clamp(velocity.x, -WATER_MAX_SPEED, WATER_MAX_SPEED)
-	velocity.y = clamp(velocity.y, -WATER_MAX_SPEED, WATER_MAX_SPEED * 1.5)
-	
-	# Spezielle Effekte beim Eintauchen
-	#if Time.get_ticks_msec() / 1000.0 - last_out_of_water_time < 0.5:
-		#if water_enter_velocity > WATER_MIN_SPLASH_VELOCITY:
-			#create_water_splash_effect(water_enter_velocity)
+	if abs(velocity.y) < 0.1:
+		velocity.y = 0
+	else:
+		velocity.y = clamp(velocity.y, -WATER_MAX_SPEED, WATER_MAX_SPEED * 1.5)
 
 func handle_swimming_input(delta: float) -> void:
-	# Horizontalbewegung im Wasser
+	# Horizontalbewegung
 	var swim_direction = Input.get_axis(\"left\", \"right\")
 	if swim_direction != 0:
-		var target_speed = swim_direction * WATER_MAX_SPEED
-		velocity.x = move_toward(velocity.x, target_speed, WATER_ACCELERATION * delta)
-		is_swimming = true
-	else:
-		is_swimming = false
+		velocity.x = move_toward(velocity.x, swim_direction * WATER_MAX_SPEED, WATER_ACCELERATION * delta)
 	
-	# Vertikale Bewegung (Schwimmen nach oben/drücken)
+	# Vertikale Bewegung
+	is_swimming = false
 	if Input.is_action_pressed(\"up\"):
 		velocity.y = -WATER_SWIM_IMPULSE
 		is_swimming = true
-		#create_water_bubble_effect()
 	elif Input.is_action_pressed(\"down\"):
-		velocity.y = WATER_SINK_SPEED
+		velocity.y = max(WATER_SINK_SPEED, velocity.y)  # Nur beschleunigen wenn nötig
 		is_swimming = true
-	else:
-		is_swimming = false
 
 func handle_input():
 	# Laufen/Rennen - aber nur wenn nicht in Landeanimation
