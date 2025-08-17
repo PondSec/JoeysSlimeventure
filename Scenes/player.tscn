@@ -30,6 +30,8 @@
 resource_name = "Player"
 script/source = "extends CharacterBody2D
 
+var public_key: CryptoKey
+
 # Bewegungseinstellungen
 const WALK_SPEED = 140.0
 const RUN_SPEED = 220.0
@@ -188,6 +190,10 @@ var water_enter_velocity := 0.0
 var is_swimming := false
 
 func _ready() -> void:
+	public_key = CryptoKey.new()
+	# Lade den öffentlichen Schlüssel des Servers
+	public_key.load(\"res://Keys/public.pem\")
+	
 	load_charge_cooldown()
 	glow_effect = $PlayerGlow
 	# Initialisiere Angriffsknoten
@@ -1133,35 +1139,30 @@ func open_transfer_dialog():
 	dialog.refresh_item_list()  # Liste beim Öffnen aktualisieren
 
 func send_item_to_player(receiver_id: String, item_name: String) -> void:
-	# Überprüfe, ob der Spieler das Item tatsächlich hat
-	var has_item = false
-	for slot in inv.slots:
-		if slot.item and slot.item.name == item_name and slot.amount > 0:
-			has_item = true
-			break
-	
-	if not has_item:
-		show_notification(\"Item nicht im Inventar gefunden\")
-		return
-	
-	# Erstelle die Anfragedaten
 	var data = {
 		\"senderId\": str(get_instance_id()),
 		\"receiverId\": receiver_id,
 		\"itemId\": item_name
 	}
+
+	var payload_string = JSON.stringify(data).replace(\" \", \"\")
 	
-	# Erstelle die HTTP-Anfrage
+	var headers = [
+		\"Content-Type: application/json\"
+	]
+
 	var http_request = HTTPRequest.new()
 	add_child(http_request)
 	http_request.request_completed.connect(self._on_item_sent.bind(item_name))
-	
-	var headers = [\"Content-Type: application/json\"]
-	var error = http_request.request(url + \"transfer-item\", headers, HTTPClient.METHOD_POST, JSON.stringify(data))
-	
+	var error = http_request.request(url + \"transfer-item\", headers, HTTPClient.METHOD_POST, payload_string)
+
 	if error != OK:
 		push_error(\"Fehler beim Senden des Items: \" + str(error))
-		show_notification(\"Fehler beim Verbindungsaufbau\")
+
+func verify_signature(payload: String, signature: String) -> bool:
+	var crypto = Crypto.new()
+	var sig_bytes = Marshalls.base64_to_raw(signature)
+	return crypto.verify(HashingContext.HASH_SHA256, payload.to_utf8_buffer(), sig_bytes, public_key)
 	
 func _on_item_sent(result: int, response_code: int, headers: PackedStringArray, body: PackedByteArray, item_name: String) -> void:
 	var response = JSON.parse_string(body.get_string_from_utf8())
