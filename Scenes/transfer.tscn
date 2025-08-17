@@ -1,0 +1,68 @@
+[gd_scene load_steps=2 format=3 uid="uid://ie0sg54ff2s8"]
+
+[sub_resource type="GDScript" id="GDScript_ctekh"]
+script/source = "# transfer_dialog.gd
+extends PopupPanel
+
+@onready var receiver_id_input = $VBoxContainer/LineEdit
+@onready var item_select = $VBoxContainer/OptionButton
+@onready var confirm_button = $VBoxContainer/Button
+
+var player_node: Node
+
+func _ready():
+	confirm_button.pressed.connect(self._on_confirm_pressed)
+	# Fülle die Item-Auswahl
+	item_select.clear()
+	item_select.add_item(\"Bat Artefact\", 0)
+	item_select.add_item(\"Golem Heart\", 1)
+	item_select.add_item(\"Gold Nugget\", 2)
+	# Füge weitere Items hinzu...
+
+func _on_confirm_pressed():
+	var receiver_id = receiver_id_input.text.strip_edges()
+	var selected_item = item_select.get_item_text(item_select.selected)
+	
+	if receiver_id.is_empty():
+		show_error(\"Bitte Empfänger-ID eingeben\")
+		return
+	
+	if selected_item.is_empty():
+		show_error(\"Bitte ein Item auswählen\")
+		return
+	
+	# Konvertiere den Anzeigenamen zurück in den Item-Namen
+	var item_name = selected_item.to_lower().replace(\" \", \"_\")
+	player_node.send_item_to_player(receiver_id, item_name)
+	hide()
+
+func show_error(message: String):
+	# Zeige eine Fehlermeldung an
+	var error_label = $VBoxContainer/Label
+	error_label.text = message
+	error_label.visible = true
+"
+
+[node name="Transfer" type="PopupPanel"]
+size = Vector2i(100, 125)
+visible = true
+script = SubResource("GDScript_ctekh")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+offset_left = 4.0
+offset_top = 4.0
+offset_right = 96.0
+offset_bottom = 121.0
+
+[node name="LineEdit" type="LineEdit" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="OptionButton" type="OptionButton" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="Button" type="Button" parent="VBoxContainer"]
+layout_mode = 2
+text = "Bestätigen"
+
+[node name="Label" type="Label" parent="VBoxContainer"]
+layout_mode = 2

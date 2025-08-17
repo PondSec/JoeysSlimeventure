@@ -114,6 +114,8 @@ var selected_hotbar_index: int = 0  # Standardmäßig der erste Slot
 var dash_timer: Timer
 var dash_cooldown_timer: Timer
 
+var transfer_dialog_scene = preload(\"res://Scenes/transfer.tscn\")
+
 # Konstanten für den Fall-Schaden
 const FALL_DAMAGE_THRESHOLD = 1580  # Y-Position, ab der Schaden verursacht wird
 const FALL_DAMAGE = 30  # Schaden, der beim Fallen verursacht wird
@@ -1107,7 +1109,14 @@ func _input(event):
 		if event.keycode >= KEY_1 and event.keycode <= KEY_9:
 			selected_hotbar_index = event.keycode - KEY_1  # 1 = Index 0, 2 = Index 1, etc.
 			print(\"Hotbar Slot gewechselt zu:\", selected_hotbar_index)  # Debugging
+	if event.is_action_pressed(\"open_transfer\"):
+		open_transfer_dialog()
 
+func open_transfer_dialog():
+	var dialog = transfer_dialog_scene.instantiate()
+	dialog.player_node = self
+	get_tree().current_scene.add_child(dialog)
+	dialog.popup_centered()
 
 func _on_water_area_body_entered(body: Node2D) -> void:
 	if body == self:
@@ -1122,6 +1131,49 @@ func _on_water_area_body_shape_exited(body_rid: RID, body: Node2D, body_shape_in
 		is_in_water = false
 		is_submerged = false
 		last_out_of_water_time = Time.get_ticks_msec() / 1000.0
+
+func send_item_to_player(receiver_id: String, item_name: String) -> void:
+	# Erstelle die Anfragedaten
+	var data = {
+		\"senderId\": str(get_instance_id()),  # Oder eine eindeutige Spieler-ID
+		\"receiverId\": receiver_id,
+		\"itemId\": item_name
+	}
+	
+	# Erstelle die HTTP-Anfrage
+	var http_request = HTTPRequest.new()
+	add_child(http_request)
+	http_request.request_completed.connect(self._on_item_sent)
+	
+	var headers = [\"Content-Type: application/json\"]
+	var error = http_request.request(url + \"transfer-item\", headers, HTTPClient.METHOD_POST, JSON.stringify(data))
+	
+	if error != OK:
+		push_error(\"Fehler beim Senden des Items: \" + str(error))
+
+func _on_item_sent(result: int, response_code: int, headers: PackedStringArray, body: PackedByteArray) -> void:
+	var response = JSON.parse_string(body.get_string_from_utf8())
+	
+	if response_code == 200:
+		print(\"Item erfolgreich gesendet: \", response)
+		# Zeige eine Bestätigung im Spiel an
+		show_notification(\"Item erfolgreich gesendet!\")
+	else:
+		push_error(\"Fehler beim Senden: \", response)
+		show_notification(\"Fehler beim Senden des Items: \" + str(response.get(\"error\", \"Unbekannter Fehler\")))
+
+func show_notification(message: String) -> void:
+	# Hier könntest du eine UI-Nachricht einblenden
+	var label = Label.new()
+	label.text = message
+	label.modulate = Color(1, 1, 1, 0)
+	$CanvasLayer.add_child(label)
+	
+	var tween = create_tween()
+	tween.tween_property(label, \"modulate:a\", 1.0, 0.5)
+	tween.tween_interval(2.0)
+	tween.tween_property(label, \"modulate:a\", 0.0, 0.5)
+	tween.tween_callback(label.queue_free)
 "
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_uwm2o"]

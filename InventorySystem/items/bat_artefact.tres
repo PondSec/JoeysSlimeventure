@@ -10,4 +10,4 @@ texture = ExtResource("2_6oehd")
 health_bonus = 0.0
 damage_bonus = 0.5
 crit_chance_bonus = 0.1
-crit_damage_bonus = 0.5
+crit_damage_bonus = 0.1
