@@ -92,7 +92,7 @@ func _on_play_button_pressed() -> void:
 	
 	var transition = preload(\"res://Scenes/transition.tscn\").instantiate()
 	get_tree().root.add_child(transition)
-	transition.play_transition(level_scene_path, true)  # <- skip_fade_in = true
+	transition.play_transition(level_scene_path, false)  # <- skip_fade_in = true | transition.play_transition(level_scene_path, true)
 
 
 func _on_quit_button_pressed() -> void:

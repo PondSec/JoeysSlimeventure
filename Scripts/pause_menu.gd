@@ -31,5 +31,7 @@ func _on_continue_button_pressed() -> void:
 func _on_main_menu_button_pressed() -> void:
 	# Entpausiere das Spiel bevor wir zum Hauptmenü wechseln
 	get_tree().paused = false
-	# Wechsle zur Hauptmenü-Szene
-	get_tree().change_scene_to_packed(main_menu_scene)
+	var transition = preload("res://Scenes/transition.tscn").instantiate()
+	get_tree().root.add_child(transition)
+	self.visible = false
+	transition.play_transition("res://Scenes/main_menu.tscn", false)
