@@ -61,6 +61,7 @@ texture_filter = 1
 position = Vector2(-6.66675, -30.303)
 scale = Vector2(0.105793, 0.105368)
 color = Color(0.811765, 0.772549, 0.34902, 1)
+energy = 1.5
 shadow_enabled = true
 shadow_filter = 1
 shadow_filter_smooth = 64.0

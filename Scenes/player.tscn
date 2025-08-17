@@ -1,4 +1,4 @@
-[gd_scene load_steps=35 format=3 uid="uid://b6ublycstdj8n"]
+[gd_scene load_steps=48 format=3 uid="uid://b6ublycstdj8n"]
 
 [ext_resource type="Texture2D" uid="uid://cildswtcj7qrc" path="res://Assets/slime-sprite.png" id="1_4yq4u"]
 [ext_resource type="Resource" uid="uid://0rntjh2xt5s5" path="res://InventorySystem/playerinv.tres" id="1_e7ml4"]
@@ -24,6 +24,7 @@
 [ext_resource type="AudioStream" uid="uid://b5coygrv7ui68" path="res://Assets/Sounds/jump_slime.mp3" id="22_2ijsl"]
 [ext_resource type="AudioStream" uid="uid://c14lbto0tykos" path="res://Assets/Sounds/land.mp3" id="23_p1odr"]
 [ext_resource type="AudioStream" uid="uid://c4t47qbmuxikx" path="res://Assets/Sounds/walk.mp3" id="24_2ijsl"]
+[ext_resource type="Texture2D" uid="uid://cllwmov7ffejk" path="res://Assets/Particles#/dust.png" id="25_p1odr"]
 
 [sub_resource type="GDScript" id="GDScript_381hh"]
 resource_name = "Player"
@@ -78,6 +79,9 @@ var was_on_floor := true
 # Konstanten für Bewegung und Sprung
 const SPEED = 220.0
 const MIN_FALL_HEIGHT = 10.0  # Mindesthöhe, ab der die Lande-Animation abgespielt wird
+var last_charge_time: float = -300.0  # Initialwert (sofort nutzbar)
+var charge_cooldown: float = 300.0     # 5 Minuten in Sekunden
+var is_charging: bool = false
 
 # Variablen für Bewegung und Status
 var is_glowing := true
@@ -144,6 +148,8 @@ var url = \"https://api.joeysslimeventure.com\"
 @onready var health_label = $CanvasLayer/HealthLabel
 @onready var api_script = preload(\"res://Scenes/api.tscn\").instantiate()
 
+@onready var particles: GPUParticles2D = $GPUParticles2D
+
 var is_walking := false
 const WALK_STEP_INTERVAL := 0.2
 var last_sound_time = 0.0
@@ -152,7 +158,29 @@ var sound_cooldown = 0.2
 var stun_timer: Timer = Timer.new()
 var save_load = preload(\"res://Scripts/SaveLoad.gd\").new()
 
+# Wasser-Einstellungen (am Anfang des Skripts hinzufügen)
+const WATER_DRAG := 0.85  # Widerstand im Wasser (0.0 - 1.0, höher = mehr Widerstand)
+const WATER_GRAVITY_SCALE := 0.5  # Schwerkraftreduktion im Wasser
+const WATER_ACCELERATION := 800.0  # Beschleunigung im Wasser
+const WATER_MAX_SPEED := 180.0  # Maximalgeschwindigkeit im Wasser
+const WATER_BUOYANCY := 300.0  # Auftriebskraft
+const WATER_SWIM_IMPULSE := 250.0  # Schwimmkraft beim Drücken der Sprungtaste
+const WATER_SINK_SPEED := 100.0  # Geschwindigkeit beim Absinken
+const WATER_SURFACE_TENSION := 50.0  # Kraft die den Spieler an der Oberfläche hält
+const WATER_SPLASH_FORCE := 200.0  # Kraft beim Eintauchen
+const WATER_MIN_SPLASH_VELOCITY := 300.0  # Mindestgeschwindigkeit für Spritzeffekt
+
+# Wasser-Statusvariablen
+var is_in_water = false
+var water_area: Area2D
+var is_submerged := false  # Ganz unter Wasser
+var water_surface_y := 0.0  # Y-Position der Wasseroberfläche
+var last_out_of_water_time := 0.0
+var water_enter_velocity := 0.0
+var is_swimming := false
+
 func _ready() -> void:
+	load_charge_cooldown()
 	glow_effect = $PlayerGlow
 	# Initialisiere Angriffsknoten
 	attack_sprite = $PlayerSprite/AttackSprite
@@ -210,6 +238,20 @@ func _ready() -> void:
 	dash_cooldown_timer.connect(\"timeout\", Callable(self, \"_on_dash_cooldown_timer_timeout\"))
 	add_child(dash_cooldown_timer)
 	
+	water_area = $WaterDetector
+	water_area.connect(\"body_entered\", Callable(self, \"_on_water_entered\"))
+	water_area.connect(\"body_exited\", Callable(self, \"_on_water_exited\"))
+
+func _on_water_entered(body: Node):
+	if body.is_in_group(\"water\"):  # Stelle sicher, dass dein Wasser diese Gruppe hat
+		is_in_water = true
+		#$SplashSound.play()
+
+func _on_water_exited(body: Node):
+	if body.is_in_group(\"water\"):
+		is_in_water = false
+		#$SplashSound.play()
+
 func update_health_bonus():
 	var bonus = 1.0  # Startwert für Multiplikation
 
@@ -227,10 +269,31 @@ func update_health_bar() -> void:
 	health_bar.value = current_health
 	health_bar.max_value = max_health
 
-func _process(delta: float) -> void:
-	if is_landing:
-		return  # Keine Aktionen während der Lande-Animation erlauben
+func update_facing_direction():
+	# Priorität 1: Explizite Eingabe (Links/Rechts)
+	if Input.is_action_pressed(\"left\"):
+		is_facing_left = true
+	elif Input.is_action_pressed(\"right\"):
+		is_facing_left = false
+	# Priorität 2: Mausposition
+	else:
+		var mouse_pos = get_global_mouse_position()
+		is_facing_left = mouse_pos.x < global_position.x
 
+	# Sprite aktualisieren
+	$PlayerSprite.flip_h = is_facing_left
+	$PlayerSprite/AttackSprite.flip_h = is_facing_left
+
+func _process(delta: float) -> void:
+	if is_landing and !Input.is_action_just_pressed(\"Attack\") and !Input.is_action_just_pressed(\"Glow\"):
+		return
+	
+	if global_position.y > 2000:
+		current_health = 0
+		update_health_bar()
+		stop_healing()
+		die()
+	
 	# Angriff ausführen, wenn die Angriffstaste gedrückt wird
 	if Input.is_action_just_pressed(\"Attack\") and not is_attacking:
 		perform_attack()
@@ -242,13 +305,23 @@ func _process(delta: float) -> void:
 
 	if Input.is_action_just_pressed(\"drop_item\"):  
 		drop_hotbar_item()
+	if Input.is_action_just_pressed(\"ult\"):
+		charge()
+		print(\"Charge completed!\")
 		
 	if health_label:
 		health_label.text = \"HP: \" + str(current_health)  # Zeigt die HP an
+	save_charge_cooldown()
 
 func _physics_process(delta: float) -> void:
 	# Bewegungseingaben verarbeiten
 	handle_input()
+	
+	if is_in_water:
+		apply_water_physics(delta)
+	# Bewegung ausführen
+	move_and_slide()
+	update_facing_direction()
 	
 	# Spezielle Bewegungszustände
 	handle_dash()
@@ -258,25 +331,195 @@ func _physics_process(delta: float) -> void:
 	# Schwerkraft anwenden
 	apply_gravity(delta)
 	
-	# Bewegung ausführen
-	move_and_slide()
-	
 	# Animationen aktualisieren
 	update_animations()
 
-func handle_input():
-	# Laufen/Rennen
-	if Input.is_action_pressed(\"sprint\"):
-		current_speed = RUN_SPEED
-	else:
-		current_speed = WALK_SPEED
+
+func apply_water_physics(delta: float) -> void:
+	# --- Wasserwiderstand (Drag) ---
+	# Y-Komponente nur leicht dämpfen, X stärker
+	var drag_x = -velocity.x * abs(velocity.x) * WATER_DRAG * 0.5 * delta
+	var drag_y = -velocity.y * abs(velocity.y) * WATER_DRAG * 0.5 * delta
+	velocity.x += drag_x
+	velocity.y += drag_y
 	
-	# Richtungseingabe
-	direction.x = Input.get_axis(\"left\", \"right\")
+	# --- Dynamischer Auftrieb ---
+	var depth_factor = clamp((water_surface_y - global_position.y) / 50.0, 0.0, 1.0)
+	depth_factor = smoothstep(0.0, 1.0, depth_factor) # weicher Übergang
+	var buoyancy = WATER_BUOYANCY * depth_factor
+	
+	# --- Oberflächen-Übergang ---
+	if global_position.y < water_surface_y and global_position.y > water_surface_y - 30:
+		var surface_proximity = 1.0 - (water_surface_y - global_position.y) / 30.0
+		buoyancy += WATER_SURFACE_TENSION * surface_proximity
+	
+	# --- Kräfte anwenden ---
+	velocity.y += (GRAVITY * WATER_GRAVITY_SCALE - buoyancy) * delta
+	
+	# --- Input für Schwimmen ---
+	handle_swimming_input(delta)
+	
+	# --- Stabilisierung (kein hartes Nullsetzen mehr) ---
+	if abs(velocity.y) < 0.05:
+		velocity.y = lerp(velocity.y, 0.0, 0.1)
+	
+	# --- Geschwindigkeitslimits ---
+	velocity.x = clamp(velocity.x, -WATER_MAX_SPEED, WATER_MAX_SPEED)
+	velocity.y = clamp(velocity.y, -WATER_MAX_SPEED, WATER_MAX_SPEED * 1.5)
+
+
+func handle_swimming_input(delta: float) -> void:
+	var swim_direction = Input.get_axis(\"left\", \"right\")
+	
+	# --- Horizontal bewegen ---
+	if swim_direction != 0:
+		velocity.x = move_toward(
+			velocity.x,
+			swim_direction * WATER_MAX_SPEED,
+			WATER_ACCELERATION * delta
+		)
+	
+	# --- Vertikale Bewegung ---
+	is_swimming = false
+	if Input.is_action_pressed(\"up\"):
+		velocity.y = lerp(velocity.y, -WATER_SWIM_IMPULSE, 0.3)
+		is_swimming = true
+	elif Input.is_action_pressed(\"down\"):
+		# weiches Absenken, nicht instant überschreiben
+		velocity.y = move_toward(velocity.y, WATER_SINK_SPEED, WATER_ACCELERATION * delta)
+		is_swimming = true
+
+
+func handle_input():
+	# Laufen/Rennen - aber nur wenn nicht in Landeanimation
+	if not is_landing:
+		if Input.is_action_pressed(\"sprint\"):
+			current_speed = RUN_SPEED
+		else:
+			current_speed = WALK_SPEED
+	
+	# Richtungseingabe - ebenfalls nur wenn nicht in Landeanimation
+	if !is_charging:
+		direction.x = Input.get_axis(\"left\", \"right\")
 	
 	# Blickrichtung aktualisieren
 	if direction.x != 0:
 		is_facing_left = direction.x < 0
+
+
+func charge():
+	# Cooldown-Prüfung
+	var current_time = Time.get_ticks_msec() / 1000.0
+	if current_time - last_charge_time < charge_cooldown:
+		var remaining = charge_cooldown - (current_time - last_charge_time)
+		print(\"Cooldown aktiv! Noch \", remaining, \" Sekunden\")
+		return
+	
+	if is_on_floor() and !is_charging:
+		# Starte Cooldown
+		last_charge_time = current_time
+		save_charge_cooldown()
+		is_charging = true
+		direction.x = 0
+		
+		# Partikel-Effekte
+		var material: ParticleProcessMaterial = particles.process_material
+		if not material:
+			push_error(\"Kein ParticleProcessMaterial gefunden!\")
+			is_charging = false
+			return
+			
+		# Phase 1: Sog-Effekt (2 Sekunden)
+		material.radial_velocity = Vector2(-300, -300)
+		await get_tree().create_timer(2.0).timeout
+		
+		# Phase 2: Explosion (1 Sekunde)
+		material.radial_velocity = Vector2(800, 800)
+		is_charging = false
+		# 1. Spieler heilen
+		current_health = max_health
+		update_health_bar()
+		show_damage_text(max_health - current_health, true)
+		flash_heal_effect()
+		
+		# 2. Gegner schädigen
+		var explosion_radius = 300.0
+		var explosion_damage = 130
+		var knockback_force = 1000.0
+		
+		var enemies = get_tree().get_nodes_in_group(\"enemies\")
+		for enemy in enemies:
+			var distance = global_position.distance_to(enemy.global_position)
+			if distance <= explosion_radius:
+				var knockback_dir = (enemy.global_position - global_position).normalized()
+				var is_crit = randf() < base_crit_chance
+				var final_damage = explosion_damage * (crit_damage_multiplier if is_crit else 1.0)
+				
+				if enemy.has_method(\"take_damage\"):
+					enemy.take_damage(final_damage, knockback_dir * knockback_force, is_crit)
+		
+		# Effekte
+		$Camera2D.shake(0.3, 15)
+		await get_tree().create_timer(1.0).timeout
+		
+		# Phase 3: Ausklingen (3 Sekunden)
+		var fade_time = 3.0
+		var elapsed = 0.0
+		while elapsed < fade_time:
+			var progress = elapsed / fade_time
+			material.radial_velocity = Vector2.ONE * lerp(500, 0, progress * progress)
+			elapsed += get_process_delta_time()
+			await get_tree().process_frame
+		
+		material.radial_velocity = Vector2.ZERO
+		is_charging = false
+
+# Speicher/Lade-Funktionen
+func save_charge_cooldown():
+	var save_data = {
+		\"last_charge_time\": last_charge_time,
+		\"saved_at\": Time.get_ticks_msec() / 1000.0  # Aktuelle Zeit in Sekunden
+	}
+	
+	var file = FileAccess.open(\"user://charge_cooldown.dat\", FileAccess.WRITE)
+	file.store_var(save_data)
+	file.close()	
+
+func load_charge_cooldown():
+	if not FileAccess.file_exists(\"user://charge_cooldown.dat\"):
+		last_charge_time = -300.0  # Cooldown abgelaufen
+		return
+	
+	var file = FileAccess.open(\"user://charge_cooldown.dat\", FileAccess.READ)
+	var save_data = file.get_var()
+	
+	# Berechne wie viel Zeit seit dem Speichern vergangen ist
+	var time_since_save = Time.get_ticks_msec() / 1000.0 - save_data[\"saved_at\"]
+	
+	# Wenn seit dem Speichern mehr Zeit vergangen ist als der Cooldown,
+	# dann ist der Cooldown abgelaufen
+	if time_since_save >= charge_cooldown:
+		last_charge_time = -300.0  # Cooldown abgelaufen
+	else:
+		# Ansonsten setze die last_charge_time so, dass der verbleibende
+		# Cooldown korrekt berechnet wird
+		last_charge_time = save_data[\"last_charge_time\"] + time_since_save
+	
+	file.close()
+
+func clear_cooldown():
+	last_charge_time = -300.0
+	if FileAccess.file_exists(\"user://charge_cooldown.dat\"):
+		DirAccess.remove_absolute(\"user://charge_cooldown.dat\")
+
+func flash_heal_effect():
+	var heal_tween = create_tween()
+	# Glow-Effekt vergrößern und heller machen
+	glow_effect.color = Color(0.2, 1.0, 0.2)  # Hellgrün
+	glow_effect.energy = 2.0  # Intensiver
+	
+	heal_tween.tween_property(glow_effect, \"energy\", 1.0, 0.5)
+	heal_tween.parallel().tween_property(glow_effect, \"color\", COLOR_NORMAL, 0.5)
 
 func apply_gravity(delta):
 	if not is_on_floor():
@@ -284,32 +527,41 @@ func apply_gravity(delta):
 		velocity.y = min(velocity.y, MAX_FALL_SPEED)
 
 func handle_jump_mechanics(delta):
-	# Coyote Time (Sprung nach Verlassen der Plattform)
-	if is_on_floor():
-		coyote_time = 0.1
+	if is_in_water:
+		# Wasser-Sprünge sind schwächer aber öfter möglich
+		if Input.is_action_just_pressed(\"up\"):
+			velocity.y = JUMP_VELOCITY * 0.7
+			#$WaterJumpSound.play()
 	else:
-		coyote_time -= delta
-	
-	# Jump Buffer (Sprung vor dem Landen)
-	if Input.is_action_just_pressed(\"up\"):
-		jump_buffer_time = 0.1
-	else:
-		jump_buffer_time -= delta
-	
-	if (coyote_time > 0 and jump_buffer_time > 0) or (is_on_floor() and Input.is_action_just_pressed(\"up\")):
-		velocity.y = JUMP_VELOCITY
-		coyote_time = 0
-		jump_buffer_time = 0
-		$JumpSound.pitch_scale = randf_range(1.3, 1.75)  # Leichte Tonhöhen-Variation
-		$JumpSound.play()
-	
-	# Kurzer Sprung (wenn Taste losgelassen)
-	if Input.is_action_just_released(\"up\") and velocity.y < JUMP_VELOCITY * SHORT_JUMP_MULTIPLIER:
-		velocity.y = JUMP_VELOCITY * SHORT_JUMP_MULTIPLIER
-	
-	# Sofortige Sprungabbremsung
-	if Input.is_action_just_pressed(\"down\") and velocity.y < 0:
-		velocity.y *= JUMP_CUT_MULTIPLIER
+		if is_charging:
+			return
+		# Coyote Time (Sprung nach Verlassen der Plattform)
+		if is_on_floor():
+			coyote_time = 0.1
+		else:
+			coyote_time -= delta
+		
+		# Jump Buffer (Sprung vor dem Landen)
+		if Input.is_action_just_pressed(\"up\"):
+			jump_buffer_time = 0.1
+		else:
+			jump_buffer_time -= delta
+		
+		if (coyote_time > 0 and jump_buffer_time > 0) or (is_on_floor() and Input.is_action_just_pressed(\"up\")):
+			velocity.y = JUMP_VELOCITY
+			coyote_time = 0
+			jump_buffer_time = 0
+			$JumpSound.pitch_scale = randf_range(1.3, 1.75)  # Leichte Tonhöhen-Variation
+			$JumpSound.play()
+			$AnimationPlayer.play(\"jump\")
+		
+		# Kurzer Sprung (wenn Taste losgelassen)
+		if Input.is_action_just_released(\"up\") and velocity.y < JUMP_VELOCITY * SHORT_JUMP_MULTIPLIER:
+			velocity.y = JUMP_VELOCITY * SHORT_JUMP_MULTIPLIER
+		
+		# Sofortige Sprungabbremsung
+		if Input.is_action_just_pressed(\"down\") and velocity.y < 0:
+			velocity.y *= JUMP_CUT_MULTIPLIER
 
 func handle_wall_mechanics(delta):
 	# Wandsprung
@@ -424,31 +676,45 @@ func update_animations():
 		$AnimationPlayer.play(\"dash\")
 		return
 	
+	if is_landing:  # Priorisiere Landeanimation über alles andere
+		return
+	
 	if is_wall_sliding:
 		$AnimationPlayer.play(\"wall_slide\")
 		$PlayerSprite.flip_h = last_wall_normal.x > 0
 	elif not is_on_floor():
+		# Sprunganimationen
 		if velocity.y < 0:
 			$AnimationPlayer.play(\"jump_up\")
+			fall_start_y = global_position.y
 		else:
 			$AnimationPlayer.play(\"jump_down\")
+		
+		was_in_air = true
 	else:
-		if abs(velocity.x) > 10:
-			$AnimationPlayer.play(\"run\" if current_speed == RUN_SPEED else \"walk\")
-			$PlayerSprite.flip_h = velocity.x < 0
+		# Landeanimation hat Priorität vor Laufanimation
+		if was_in_air:
+			# Fallhöhe berechnen (mindestens 50 Pixel für Landeanimation)
+			fall_distance = max(50, abs(fall_start_y - global_position.y))
+			
+			if fall_distance > 300:
+				play_landing_animation(\"landing\") #hard_landing
+			else:
+				play_landing_animation(\"landing\")
+			
+			was_in_air = false
+			fall_start_y = global_position.y
+		elif abs(velocity.x) > 10 and not is_landing:  # Nur laufen wenn nicht landend
+			# Warte kurz nach der Landung bevor run/walk Animation startet
+			if $AnimationPlayer.current_animation != \"landing\" and $AnimationPlayer.current_animation != \"landing\":
+				$AnimationPlayer.play(\"run\" if Input.is_action_pressed(\"sprint\") else \"walk\")
+				$PlayerSprite.flip_h = velocity.x < 0
 		else:
 			$AnimationPlayer.play(\"idle\")
-			
-		# Walk-Sound steuern
-	if is_on_floor() and abs(velocity.x) > 10.0 and direction.x != 0:
-		if not $WalkSound.playing and (Time.get_ticks_msec() / 1000.0 - last_sound_time) >= sound_cooldown:
-			play_walk_sound()
-	else:
-		$WalkSound.stop()
 
 func play_walk_sound():
 	var speed_factor = clamp(abs(velocity.x) / 300.0, 0.2, 1.0)
-	$WalkSound.volume_db = lerp(-10, 0, speed_factor)
+	$WalkSound.volume_db = lerp(-20, -15, speed_factor)
 	$WalkSound.pitch_scale = randf_range(0.6, 1.28)
 	$WalkSound.play()
 	last_sound_time = Time.get_ticks_usec() / 1_000_000.0  # Präziser
@@ -457,6 +723,8 @@ func play_walk_sound():
 func _on_floor_entered():
 	$LandingParticles.emitting = true
 	$LandSound.play()
+	play_landing_animation()
+	
 
 func _on_wall_entered():
 	$WallSlideParticles.emitting = true
@@ -492,12 +760,32 @@ func _on_heal_timer_timeout() -> void:
 		heal_amount = min(heal_amount, 25)  # Maximal 25 HP pro Tick
 		heal(heal_amount)
 
-func play_landing_animation() -> void:
+func play_landing_animation(anim_name: String = \"landing\") -> void:
+	if is_landing:
+		return
+	
 	is_landing = true
 	$AnimationPlayer.stop()
-	$AnimationPlayer.play(\"landing\")
+	
+	# Spiel entsprechende Animation ab
+	$AnimationPlayer.play(anim_name)
+	
+	# Soundeffekte basierend auf Landestärke
+	if anim_name == \"hard_landing\":
+		$LandSound.pitch_scale = 0.8
+		$LandSound.volume_db = 0
+	else:
+		$LandSound.pitch_scale = 1.2
+		$LandSound.volume_db = -20
+	
+	$LandSound.play()
+	
 	await $AnimationPlayer.animation_finished
 	is_landing = false
+
+# Füge diese Zeilen in die handle_jump_mechanics() Funktion ein (nach dem Sprung-Code):
+	if velocity.y < 0:  # Nur wenn wir nach oben springen
+		fall_start_y = global_position.y  # Fallhöhe tracking starten
 
 func set_animation() -> void:
 	if is_attacking or is_landing:
@@ -540,6 +828,7 @@ func die() -> void:
 	var save_file = FileAccess.open(\"user://inventory.save\", FileAccess.WRITE)
 	if FileAccess.file_exists(\"user://inventory.save\"):
 		DirAccess.remove_absolute(\"user://inventory.save\")
+		DirAccess.remove_absolute(\"user://charge_cooldown.dat\")
 		print(\"❌ Inventory-Datei gelöscht – Items werden nicht erneut geladen!\")
 	
 	self.visible = false  
@@ -649,7 +938,7 @@ func take_damage(amount: int, hit_source: Vector2) -> void:
 	
 	# Sound mit zufälliger Variation
 	$HitSound.pitch_scale = randf_range(1.5, 2)  # Großer Pitch-Bereich für dramatische Effekte
-	$HitSound.volume_db = randf_range(-10, -5)       # Lautstärke leicht variieren
+	$HitSound.volume_db = randf_range(-20, -15)       # Lautstärke leicht variieren
 	$HitSound.play()
 
 	# Knockback und Stun wie bisher
@@ -788,6 +1077,21 @@ func _input(event):
 		if event.keycode >= KEY_1 and event.keycode <= KEY_9:
 			selected_hotbar_index = event.keycode - KEY_1  # 1 = Index 0, 2 = Index 1, etc.
 			print(\"Hotbar Slot gewechselt zu:\", selected_hotbar_index)  # Debugging
+
+
+func _on_water_area_body_entered(body: Node2D) -> void:
+	if body == self:
+		is_in_water = true
+		water_surface_y = body.global_position.y
+		water_enter_velocity = abs(velocity.y)
+		last_out_of_water_time = Time.get_ticks_msec() / 1000.0
+
+
+func _on_water_area_body_shape_exited(body_rid: RID, body: Node2D, body_shape_index: int, local_shape_index: int) -> void:
+	if body == self:
+		is_in_water = false
+		is_submerged = false
+		last_out_of_water_time = Time.get_ticks_msec() / 1000.0
 "
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_uwm2o"]
@@ -869,14 +1173,15 @@ tracks/0/path = NodePath("PlayerSprite:frame")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.2, 0.4),
-"transitions": PackedFloat32Array(1, 1, 1),
-"update": 0,
-"values": [5, 6, 7]
+"times": PackedFloat32Array(0, 0.1, 0.2, 0.3, 0.4, 0.5),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1, 1),
+"update": 1,
+"values": [5, 6, 7, 8, 10, 11]
 }
 
 [sub_resource type="Animation" id="Animation_28ebo"]
 resource_name = "landing"
+length = 0.4
 tracks/0/type = "value"
 tracks/0/imported = false
 tracks/0/enabled = true
@@ -884,8 +1189,8 @@ tracks/0/path = NodePath("PlayerSprite:frame")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0, 1),
-"transitions": PackedFloat32Array(1, 1),
+"times": PackedFloat32Array(0, 0.4),
+"transitions": PackedFloat32Array(1, 8.87656),
 "update": 0,
 "values": [8, 11]
 }
@@ -915,6 +1220,77 @@ _data = {
 &"landing": SubResource("Animation_28ebo"),
 &"walk": SubResource("Animation_wvi70")
 }
+
+[sub_resource type="Curve" id="Curve_0gysh"]
+_limits = [0.0, 1.0, 0.215328, 1.0]
+_data = [Vector2(0.215328, 0), 0.0, 0.0, 0, 0, Vector2(0.31556, 0.996271), 0.0, 0.0, 0, 0, Vector2(0.716487, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 4
+
+[sub_resource type="CurveTexture" id="CurveTexture_alh3a"]
+curve = SubResource("Curve_0gysh")
+
+[sub_resource type="Curve" id="Curve_vfarp"]
+_data = [Vector2(0, 0.0224719), 0.0, 0.0, 0, 0, Vector2(0.389706, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="CurveTexture_4q8tf"]
+curve = SubResource("Curve_vfarp")
+
+[sub_resource type="Curve" id="Curve_y6uwr"]
+_data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(0.595588, 0.786517), 0.0, 0.0, 0, 0, Vector2(1, 0.393258), 0.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="CurveTexture_x3xnh"]
+curve = SubResource("Curve_y6uwr")
+
+[sub_resource type="Curve" id="Curve_p1odr"]
+_limits = [0.0, 1.02439, 0.0, 1.0]
+_data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(0.445255, 1.02439), 0.0, 0.0, 0, 0, Vector2(0.718978, 0.874479), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 4
+
+[sub_resource type="CurveTexture" id="CurveTexture_0gysh"]
+curve = SubResource("Curve_p1odr")
+
+[sub_resource type="Curve" id="Curve_83xs0"]
+_data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(0.466216, 1), 0.0, 0.0, 0, 0, Vector2(0.662162, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 4
+
+[sub_resource type="CurveTexture" id="CurveTexture_8r6kd"]
+curve = SubResource("Curve_83xs0")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_ypfnu"]
+lifetime_randomness = 0.09
+emission_shape_scale = Vector3(1000, 1000, 1000)
+emission_shape = 3
+emission_box_extents = Vector3(1, 1, 1)
+direction = Vector3(0, 0, 0)
+initial_velocity_min = 2.0
+initial_velocity_max = 8.0
+orbit_velocity_min = 9.49949e-08
+orbit_velocity_max = 9.49949e-08
+gravity = Vector3(0, 0, 0)
+scale_min = 0.0
+scale_max = 2.0
+scale_curve = SubResource("CurveTexture_0gysh")
+scale_over_velocity_max = 51.72
+color = Color(0.728456, 1, 0.750538, 1)
+alpha_curve = SubResource("CurveTexture_alh3a")
+emission_curve = SubResource("CurveTexture_4q8tf")
+hue_variation_min = -0.28
+hue_variation_max = 0.12
+hue_variation_curve = SubResource("CurveTexture_x3xnh")
+anim_speed_max = 3.13
+turbulence_enabled = true
+turbulence_influence_min = 0.045
+turbulence_influence_max = 0.058
+turbulence_initial_displacement_min = -22.6
+turbulence_initial_displacement_max = 8.4
+turbulence_influence_over_life = SubResource("CurveTexture_8r6kd")
+collision_mode = 2
+collision_use_scale = true
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_p1odr"]
+size = Vector2(400, 257.14)
 
 [node name="PlayerModel" type="CharacterBody2D"]
 position = Vector2(291, 687)
@@ -1001,11 +1377,13 @@ libraries = {
 [node name="Camera2D" type="Camera2D" parent="."]
 position = Vector2(7.62939e-06, 5.34058e-05)
 scale = Vector2(5, 5)
+ignore_rotation = false
 zoom = Vector2(4, 4)
 limit_left = -14
 limit_top = 500
 limit_right = 3450
 limit_bottom = 1545
+limit_smoothed = true
 position_smoothing_enabled = true
 position_smoothing_speed = 6.0
 editor_draw_limits = true
@@ -1133,3 +1511,25 @@ stream = ExtResource("23_p1odr")
 
 [node name="WalkSound" type="AudioStreamPlayer2D" parent="."]
 stream = ExtResource("24_2ijsl")
+
+[node name="GPUParticles2D" type="GPUParticles2D" parent="."]
+modulate = Color(0.626766, 0.920037, 0.820692, 1)
+self_modulate = Color(0.34902, 1, 0.768627, 0.996078)
+show_behind_parent = true
+position = Vector2(-0.000976563, 0.0166016)
+scale = Vector2(14.2857, 14.2857)
+amount = 6000
+sub_emitter = NodePath(".")
+texture = ExtResource("25_p1odr")
+lifetime = 10.0
+preprocess = 1.11
+randomness = 0.8
+fixed_fps = 60
+collision_base_size = 0.0
+process_material = SubResource("ParticleProcessMaterial_ypfnu")
+
+[node name="WaterDetector" type="Area2D" parent="."]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="WaterDetector"]
+position = Vector2(0, 14.2891)
+shape = SubResource("RectangleShape2D_p1odr")

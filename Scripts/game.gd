@@ -19,11 +19,48 @@ var tutorial_steps = [
 ]
 var current_step = 0
 
+@export var player_scene: PackedScene
+@export var spawn_point_name: String = "player_spawn"
+
 func _ready():
 	if not savegame_exists():
 		show_tutorial()
 	else:
 		tutorial_overlay.hide()
+	
+	# SpawnPoint im aktuellen Level suchen
+	var spawn = get_node(spawn_point_name)
+	if spawn:
+		add_child(player)
+		var level_resource = load("user://current_level.res")
+	
+		if level_resource:
+			var level_scene_path = level_resource.unlocked_level
+			print("Freigeschaltetes Level:", level_scene_path)
+			
+			# Nur Position setzen, wenn das gespeicherte Level NICHT level1.tscn ist
+			if level_scene_path != "res://Scenes/Game.tscn":
+				player.global_position = spawn.global_position
+		else:
+			# Falls keine level_resource geladen werden konnte, Position trotzdem setzen
+			player.global_position = spawn.global_position
+			save_current_level()
+	else:
+		push_warning("Spawnpoint nicht gefunden: " + spawn_point_name)
+	
+	# Aktuelles Level speichern
+	save_current_level()
+
+func save_current_level():
+	var current_level = get_tree().current_scene.scene_file_path
+	var level_resource = LevelResource.new()
+	level_resource.unlocked_level = current_level
+	
+	# Speichern der .res Datei
+	var error = ResourceSaver.save(level_resource, "user://current_level.res")
+	if error != OK:
+		push_error("Fehler beim Speichern des Levels: " + str(error))
+
 
 func savegame_exists() -> bool:
 	return FileAccess.file_exists("user://savegame.tres") and FileAccess.file_exists("user://inventory.save")
@@ -48,6 +85,9 @@ func _input(event):
 		if event.is_action_pressed(tutorial_steps[current_step]["input"]):
 			current_step += 1
 			update_tutorial_text()
+	
+	if event.is_action_pressed("UI"):
+		$PlayerModel/CanvasLayer.visible = !$PlayerModel/CanvasLayer.visible
 
 func _on_pause_menu_go_to_main_menu() -> void:
 	# Pausierung aufheben, bevor wir Szenen entfernen
