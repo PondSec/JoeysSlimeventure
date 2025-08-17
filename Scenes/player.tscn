@@ -207,21 +207,21 @@ func _ready() -> void:
 	damage_label.visible = false
 	
 	# Füge den Heil-Timer als Kind hinzu und starte ihn
-	add_child(heal_timer)  # Füge den Timer als Kind hinzu
-	heal_timer.wait_time = heal_interval  # Setze das Intervall
-	heal_timer.autostart = true  # Timer startet automatisch
-	heal_timer.start()  # Stelle sicher, dass der Timer auch wirklich startet
+	add_child(heal_timer)
+	heal_timer.wait_time = heal_interval
+	heal_timer.autostart = true
+	heal_timer.start()
 	heal_timer.connect(\"timeout\", Callable(self, \"_on_heal_timer_timeout\"))
 	
-	add_child(damage_timer)  # Füge den Timer als Kind hinzu
-	damage_timer.wait_time = 0.5  # 3 Sekunden warten
-	damage_timer.one_shot = true  # Der Timer läuft nur einmal
-	damage_timer.autostart = false  # Timer startet nicht automatisch
-	damage_timer.connect(\"timeout\", Callable(self, \"_on_damage_timer_timeout\"))  # Signalverbindung
+	add_child(damage_timer)
+	damage_timer.wait_time = 0.5
+	damage_timer.one_shot = true
+	damage_timer.autostart = false
+	damage_timer.connect(\"timeout\", Callable(self, \"_on_damage_timer_timeout\"))
 	
 	# Stun-Timer initialisieren
 	add_child(stun_timer)
-	stun_timer.wait_time = 0.5  # Spieler ist 0,5 Sekunden gestunned
+	stun_timer.wait_time = 0.5
 	stun_timer.one_shot = true
 	stun_timer.connect(\"timeout\", Callable(self, \"_on_stun_timer_timeout\"))
 	load_game()
@@ -232,6 +232,16 @@ func _ready() -> void:
 	inv.update.connect(update_damage_bonus)
 	inv.update.connect(update_crit_bonuses)
 	add_child(api_script)
+	
+	# Timer für regelmäßige API-Abfragen (alle 3 Sekunden)
+	var api_timer = Timer.new()
+	add_child(api_timer)
+	api_timer.wait_time = 3.0  # Alle 3 Sekunden
+	api_timer.autostart = true
+	api_timer.timeout.connect(_on_api_timer_timeout)
+	api_timer.start()
+	
+	# Sofortige erste Abfrage
 	api_script.send_request()
 	update_damage_bonus()
 
@@ -251,29 +261,9 @@ func _ready() -> void:
 	water_area = $WaterDetector
 	water_area.connect(\"body_entered\", Callable(self, \"_on_water_entered\"))
 	water_area.connect(\"body_exited\", Callable(self, \"_on_water_exited\"))
-	
-	var http_timer = Timer.new()
-	http_timer.wait_time = 5  # 5 Sekunden
-	http_timer.autostart = true
-	http_timer.timeout.connect(_send_http_request)
-	add_child(http_timer)
 
-func _send_http_request():
-	# Erstelle eine neue HTTPRequest-Instanz, falls benötigt
-	if not has_node(\"HTTPRequest\"):
-		var new_request = HTTPRequest.new()
-		add_child(new_request)
-		new_request.name = \"HTTPRequest\"
-	
-	# URL und Daten für den Request
-	var request_url = \"https://api.joeysslimeventure.com/\"  # oder deine spezifische API-URL
-	var headers = [\"Content-Type: application/json\"]
-	var data_to_send = {\"player_id\": str(get_instance_id())}  # Beispiel-Daten
-	
-	# Sende den Request
-	var error = $HTTPRequest.request(request_url, headers, HTTPClient.METHOD_POST, JSON.stringify(data_to_send))
-	if error != OK:
-		push_error(\"Fehler beim Senden des HTTP-Requests: \" + str(error))
+func _on_api_timer_timeout():
+	api_script.send_request()
 
 func _on_water_entered(body: Node):
 	if body.is_in_group(\"water\"):  # Stelle sicher, dass dein Wasser diese Gruppe hat
