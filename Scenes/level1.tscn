@@ -421,7 +421,6 @@ tile_map_data = PackedByteArray("AABBAE4AAAADAAIAAABBAE8AAAADAAIAAABCAE4AAAADAAI
 tile_set = SubResource("TileSet_2a60c")
 
 [node name="Shadow" type="CanvasModulate" parent="Background"]
-visible = false
 modulate = Color(0, 0, 0, 0.12549)
 self_modulate = Color(0, 0, 0, 0.121569)
 position = Vector2(-14, 10)
