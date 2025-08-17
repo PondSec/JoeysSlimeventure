@@ -11,14 +11,55 @@ script/source = "extends PopupPanel
 @onready var receiver_id_input = $Panel/VBoxContainer/LineEdit
 @onready var item_select = $Panel/VBoxContainer/OptionButton
 @onready var confirm_button = $Panel/VBoxContainer/Button
+@onready var error_label = $Panel/VBoxContainer/Label
 
 var player_node: Node
+var original_input_map = {}
 
 func _ready():
-	confirm_button.pressed.connect(self._on_confirm_pressed)
+	# Verbinde Signale
+	confirm_button.pressed.connect(_on_confirm_pressed)
+	about_to_popup.connect(_on_about_to_show)
+	popup_hide.connect(_on_popup_hide)
+	
+	# Initialisiere UI
+	error_label.visible = false
 	refresh_item_list()
 
-# Aktualisiert die Liste der transferierbaren Items mit Icons
+func _on_about_to_show():
+	# Speichere originale Input-Mappings
+	_save_original_inputs()
+	
+	# Deaktiviere alle relevanten Spiel-Aktionen
+	_disable_game_inputs()
+	
+	# Setze Fokus auf Eingabefeld
+	receiver_id_input.grab_focus()
+
+func _on_popup_hide():
+	# Stelle originale Input-Mappings wieder her
+	_restore_original_inputs()
+
+func _save_original_inputs():
+	var actions = [\"Interact\", \"ult\", \"Attack\", \"Glow\", \"left\", \"right\", \"up\", \"down\", \"inventory\", \"sprint\", \"Pause\", \"drop_item\", \"dash_left\", \"dash_right\", \"dash_up\", \"UI\", \"hotbar_1\", \"hotbar_2\", \"hotbar_3\", \"hotbar_4\", \"hotbar_5\", \"hotbar_6\", \"hotbar_7\", \"hotbar_8\", \"hotbar_9\"]  # Füge alle relevanten Aktionen hinzu
+	for action in actions:
+		original_input_map[action] = InputMap.action_get_events(action).duplicate()
+
+func _disable_game_inputs():
+	var dummy_event = InputEventKey.new()
+	dummy_event.keycode = KEY_NONE
+	
+	var actions = [\"Interact\", \"ult\", \"Attack\", \"Glow\", \"left\", \"right\", \"up\", \"down\", \"inventory\", \"sprint\", \"Pause\", \"drop_item\", \"dash_left\", \"dash_right\", \"dash_up\", \"UI\", \"hotbar_1\", \"hotbar_2\", \"hotbar_3\", \"hotbar_4\", \"hotbar_5\", \"hotbar_6\", \"hotbar_7\", \"hotbar_8\", \"hotbar_9\"]  # Dieselben wie oben
+	for action in actions:
+		InputMap.action_erase_events(action)
+		InputMap.action_add_event(action, dummy_event)
+
+func _restore_original_inputs():
+	for action in original_input_map:
+		InputMap.action_erase_events(action)
+		for event in original_input_map[action]:
+			InputMap.action_add_event(action, event)
+
 func refresh_item_list():
 	item_select.clear()
 	
@@ -28,21 +69,15 @@ func refresh_item_list():
 	var item_index = 0
 	for slot in player_node.inv.slots:
 		if slot.item and slot.amount > 0:
-			# Formatieren des Anzeigenamens
 			var display_name = slot.item.name.replace(\"_\", \" \").capitalize()
-			
-			# Versuche das Item-Icon zu laden
 			var icon_path = \"res://assets/items/%s.png\" % slot.item.name
 			var icon = load(icon_path) if ResourceLoader.exists(icon_path) else null
-			
-			# Füge Item mit Icon hinzu
 			item_select.add_icon_item(icon, \"%s (%d)\" % [display_name, slot.amount], item_index)
 			item_index += 1
 
-# Der Rest deines Codes bleibt unverändert...
 func _on_confirm_pressed():
 	var receiver_id = receiver_id_input.text.strip_edges()
-	var selected_index = item_select.selected
+	var selected_index = item_select.get_selected_id()
 	
 	if receiver_id.is_empty():
 		show_error(\"Bitte Empfänger-ID eingeben\")
@@ -52,9 +87,9 @@ func _on_confirm_pressed():
 		show_error(\"Bitte ein Item auswählen\")
 		return
 	
-	# Finde das tatsächliche Item im Inventar
 	var actual_slot_index = 0
 	var selected_item_slot = null
+	
 	for slot in player_node.inv.slots:
 		if slot.item and slot.amount > 0:
 			if actual_slot_index == selected_index:
@@ -69,20 +104,19 @@ func _on_confirm_pressed():
 	var item_name = selected_item_slot.item.name
 	player_node.send_item_to_player(receiver_id, item_name)
 	
-	# Item aus dem Inventar entfernen
 	selected_item_slot.amount -= 1
 	if selected_item_slot.amount <= 0:
 		selected_item_slot.item = null
 	
-	# Inventar aktualisieren
 	player_node.inv.update.emit()
 	refresh_item_list()
 	hide()
 
 func show_error(message: String):
-	var error_label = $Panel/VBoxContainer/Label
 	error_label.text = message
 	error_label.visible = true
+	await get_tree().create_timer(3.0).timeout
+	error_label.visible = false
 "
 
 [sub_resource type="StyleBoxTexture" id="StyleBoxTexture_wq0ro"]
