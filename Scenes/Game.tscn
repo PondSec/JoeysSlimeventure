@@ -1,4 +1,4 @@
-[gd_scene load_steps=27 format=4 uid="uid://cmdh8rpdo8fb2"]
+[gd_scene load_steps=34 format=4 uid="uid://cmdh8rpdo8fb2"]
 
 [ext_resource type="Texture2D" uid="uid://82opar247kat" path="res://Assets/Tiles/platformertiles.png" id="1_lx4yj"]
 [ext_resource type="Script" uid="uid://hrb3bfkpp2mn" path="res://Scripts/game.gd" id="1_wyx84"]
@@ -14,7 +14,9 @@
 [ext_resource type="AudioStream" uid="uid://kd2rghc2s1ug" path="res://Assets/Sounds/alone_ambient.wav" id="12_alh3a"]
 [ext_resource type="PackedScene" uid="uid://dqykudmd26o2q" path="res://Scenes/bat.tscn" id="16_4q8tf"]
 [ext_resource type="PackedScene" uid="uid://c8bjyoq5oxoup" path="res://Scenes/door.tscn" id="16_alh3a"]
+[ext_resource type="Texture2D" uid="uid://biudf3lou32hd" path="res://Assets/GUI/TextBox.png" id="16_x3xnh"]
 [ext_resource type="PackedScene" uid="uid://dx4m8ks5y31ax" path="res://Scenes/vine.tscn" id="17_4q8tf"]
+[ext_resource type="FontFile" uid="uid://c2wsertwqrai5" path="res://Assets/GUI/Font/PixelatedEleganceRegular-ovyAA.ttf" id="17_x3xnh"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_83pvq"]
 texture = ExtResource("1_lx4yj")
@@ -257,9 +259,77 @@ glow_hdr_threshold = 0.7
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_alh3a"]
 size = Vector2(1680, 259)
 
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_8r6kd"]
+texture = ExtResource("16_x3xnh")
+
+[sub_resource type="Animation" id="Animation_acvyw"]
+resource_name = "text_appear"
+length = 0.8
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("MarginContainer/Text:visible")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 1,
+"values": [false, true]
+}
+
+[sub_resource type="Animation" id="Animation_alh3a"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("MarginContainer/Text:visible")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [true]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath(".:position")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [Vector2(660, 682.705)]
+}
+
+[sub_resource type="Animation" id="Animation_4q8tf"]
+resource_name = "show_hide"
+length = 0.3
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:position")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.3),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Vector2(810, 682.705), Vector2(660, 682.705)]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_x3xnh"]
+_data = {
+&"RESET": SubResource("Animation_alh3a"),
+&"show_hide": SubResource("Animation_4q8tf"),
+&"text_appear": SubResource("Animation_acvyw")
+}
+
 [node name="Game" type="Node2D"]
 script = ExtResource("1_wyx84")
-player_scene = ExtResource("5_26h23")
 
 [node name="Background" type="TileMap" parent="."]
 tile_set = SubResource("TileSet_jgi20")
@@ -398,24 +468,6 @@ visible = false
 
 [node name="Timer" type="Timer" parent="."]
 
-[node name="TutorialOverlay" type="CanvasLayer" parent="."]
-
-[node name="Panel" type="Panel" parent="TutorialOverlay"]
-offset_left = 313.0
-offset_top = 628.0
-offset_right = 669.0
-offset_bottom = 776.0
-
-[node name="Label" type="Label" parent="TutorialOverlay/Panel"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-horizontal_alignment = 1
-vertical_alignment = 1
-
 [node name="HTTPRequest" type="HTTPRequest" parent="."]
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
@@ -454,6 +506,56 @@ position = Vector2(262, 767)
 
 [node name="player_spawn" type="Marker2D" parent="."]
 position = Vector2(52, 1018)
+
+[node name="DialogBox" type="CanvasLayer" parent="."]
+
+[node name="Panel" type="Panel" parent="DialogBox"]
+custom_minimum_size = Vector2(600, 150)
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -300.0
+offset_top = -397.295
+offset_right = 300.0
+offset_bottom = -247.295
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_styles/panel = SubResource("StyleBoxTexture_8r6kd")
+
+[node name="MarginContainer" type="MarginContainer" parent="DialogBox/Panel"]
+custom_minimum_size = Vector2(550, 100)
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -275.0
+offset_top = -50.0
+offset_right = 275.0
+offset_bottom = 50.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 15
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 15
+
+[node name="Text" type="Label" parent="DialogBox/Panel/MarginContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_fonts/font = ExtResource("17_x3xnh")
+theme_override_font_sizes/font_size = 20
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 1
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="DialogBox/Panel"]
+libraries = {
+&"": SubResource("AnimationLibrary_x3xnh")
+}
 
 [connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_canvas_layer_go_to_main_menu"]
 [connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_pause_menu_go_to_main_menu"]

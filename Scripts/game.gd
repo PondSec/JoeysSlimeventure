@@ -2,32 +2,30 @@ extends Node2D
 
 @onready var pause_menu = $PauseMenu
 @onready var player = get_node("PlayerModel")
-@onready var timer = $Timer
-@onready var tutorial_overlay = $TutorialOverlay
-@onready var tutorial_label = $TutorialOverlay/Panel/Label
-@onready var inventory_ui = $PlayerModel/CanvasLayer/InvUI
 
-var tutorial_steps = [
-	{"text": "Bewege dich mit A nach links", "input": "left"},
-	{"text": "Bewege dich mit D nach rechts", "input": "right"},
-	{"text": "Springe mit Leertaste", "input": "up"},
-	{"text": "Greif mit links Klick an", "input": "Attack"},
-	{"text": "Drücke F, um leuchten aus zu machen", "input": "Glow"},
-	{"text": "Drücke F, um leuchten an zu machen", "input": "Glow"},
-	{"text": "Öffne das Inventar mit TAB", "input": "inventory"},
-	{"text": "Schließe das Inventar mit TAB", "input": "inventory"}
+# Dialog Variablen
+const CONFIG_PATH = "user://game_config.cfg"
+var intro_lines = [
+	"...Wo bin ich?",
+	"Das letzte was ich sah... der modrige Schatten... mein fallender Körper...",
+	"*glibber* Ich... ich kann mich nicht spüren... nicht wie früher...",
+	"Etwas ist anders... ganz anders...",
+	"Dieser... Körper? Er fühlt sich fremd an... und doch...",
+	"Da ist etwas... ein Pulsieren... ein seltsames Kribbeln in mir...",
+	"Als ob... als ob etwas in mir schlummert... etwas Unbekanntes...",
+	"Etwas, das ich noch nicht verstehe... aber es fühlt sich... mächtig an.",
+	"Diese Höhle... sie strahlt eine seltsame Energie aus...",
+	"Ich spüre... hier liegt ein Geheimnis verborgen...",
+	"Vielleicht... vielleicht bin ich genau deshalb hier...",
+	"Ich werde Antworten finden... egal was ich jetzt bin!"
 ]
-var current_step = 0
+var current_line = 0
+var dialog_active = true
 
 @export var player_scene: PackedScene
 @export var spawn_point_name: String = "player_spawn"
 
 func _ready():
-	if not savegame_exists():
-		show_tutorial()
-	else:
-		tutorial_overlay.hide()
-	
 	# SpawnPoint im aktuellen Level suchen
 	var spawn = get_node(spawn_point_name)
 	if spawn:
@@ -38,18 +36,34 @@ func _ready():
 			var level_scene_path = level_resource.unlocked_level
 			print("Freigeschaltetes Level:", level_scene_path)
 			
-			# Nur Position setzen, wenn das gespeicherte Level NICHT level1.tscn ist
+			# Nur Position setzen, wenn das gespeicherte Level existiert und NICHT level1.tscn ist
 			if level_scene_path != "res://Scenes/Game.tscn":
 				player.global_position = spawn.global_position
-		else:
-			# Falls keine level_resource geladen werden konnte, Position trotzdem setzen
-			player.global_position = spawn.global_position
-			save_current_level()
+		# Wenn keine level_resource existiert, wird die Position NICHT geändert
 	else:
 		push_warning("Spawnpoint nicht gefunden: " + spawn_point_name)
 	
 	# Aktuelles Level speichern
 	save_current_level()
+	
+	# Nur Dialog starten, wenn er noch nicht abgeschlossen wurde
+	if not load_dialog_state():
+		show_next_line()
+	else:
+		# Wenn Dialog bereits abgeschlossen, direkt beenden
+		end_intro()
+
+func save_dialog_state(completed: bool):
+	var config = ConfigFile.new()
+	config.set_value("dialogs", "intro_completed", completed)
+	config.save(CONFIG_PATH)
+
+func load_dialog_state() -> bool:
+	var config = ConfigFile.new()
+	var err = config.load(CONFIG_PATH)
+	if err == OK:
+		return config.get_value("dialogs", "intro_completed", false)
+	return false
 
 func save_current_level():
 	var current_level = get_tree().current_scene.scene_file_path
@@ -61,33 +75,35 @@ func save_current_level():
 	if error != OK:
 		push_error("Fehler beim Speichern des Levels: " + str(error))
 
-
 func savegame_exists() -> bool:
 	return FileAccess.file_exists("user://savegame.tres") and FileAccess.file_exists("user://inventory.save")
-
-func show_tutorial():
-	tutorial_overlay.show()
-	update_tutorial_text()
-
-func update_tutorial_text():
-	if current_step < tutorial_steps.size():
-		tutorial_label.text = tutorial_steps[current_step]["text"]
-	else:
-		tutorial_overlay.hide()
 
 func _input(event):
 	# Pausensteuerung
 	if event.is_action_pressed("Pause"):  # Standardmäßig ESC
 		pause_menu.toggle_pause()
 	
-	# Tutorial-Steuerung (nur wenn Overlay sichtbar ist)
-	if tutorial_overlay.visible:
-		if event.is_action_pressed(tutorial_steps[current_step]["input"]):
-			current_step += 1
-			update_tutorial_text()
-	
 	if event.is_action_pressed("UI"):
 		$PlayerModel/CanvasLayer.visible = !$PlayerModel/CanvasLayer.visible
+	
+	# Dialogsteuerung
+	if dialog_active and event.is_action_pressed("Interact"):
+		show_next_line()
+
+func show_next_line():
+	if current_line < intro_lines.size():
+		$DialogBox/Panel/MarginContainer/Text.text = intro_lines[current_line]
+		$DialogBox/Panel/AnimationPlayer.play("text_appear")
+		current_line += 1
+	else:
+		end_intro()
+
+func end_intro():
+	dialog_active = false
+	$DialogBox.queue_free()
+	# Speichern, dass der Dialog abgeschlossen wurde
+	save_dialog_state(true)
+	# Spielersteuerung freigeben oder andere Startaktionen hier
 
 func _on_pause_menu_go_to_main_menu() -> void:
 	# Pausierung aufheben, bevor wir Szenen entfernen
