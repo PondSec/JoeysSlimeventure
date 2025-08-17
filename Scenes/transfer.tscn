@@ -1,8 +1,7 @@
 [gd_scene load_steps=2 format=3 uid="uid://ie0sg54ff2s8"]
 
 [sub_resource type="GDScript" id="GDScript_ctekh"]
-script/source = "# transfer_dialog.gd
-extends PopupPanel
+script/source = "extends PopupPanel
 
 @onready var receiver_id_input = $VBoxContainer/LineEdit
 @onready var item_select = $VBoxContainer/OptionButton
@@ -12,32 +11,63 @@ var player_node: Node
 
 func _ready():
 	confirm_button.pressed.connect(self._on_confirm_pressed)
-	# Fülle die Item-Auswahl
+	refresh_item_list()
+
+# Aktualisiert die Liste der transferierbaren Items
+func refresh_item_list():
 	item_select.clear()
-	item_select.add_item(\"Bat Artefact\", 0)
-	item_select.add_item(\"Golem Heart\", 1)
-	item_select.add_item(\"Gold Nugget\", 2)
-	# Füge weitere Items hinzu...
+	
+	if not player_node or not player_node.inv:
+		return
+	
+	var item_index = 0
+	for slot in player_node.inv.slots:
+		if slot.item and slot.amount > 0:
+			# Formatieren des Anzeigenamens (z.B. \"bat_artefact\" -> \"Bat Artefact\")
+			var display_name = slot.item.name.replace(\"_\", \" \").capitalize()
+			item_select.add_item(display_name + \" (\" + str(slot.amount) + \")\", item_index)
+			item_index += 1
 
 func _on_confirm_pressed():
 	var receiver_id = receiver_id_input.text.strip_edges()
-	var selected_item = item_select.get_item_text(item_select.selected)
+	var selected_index = item_select.selected
 	
 	if receiver_id.is_empty():
 		show_error(\"Bitte Empfänger-ID eingeben\")
 		return
 	
-	if selected_item.is_empty():
+	if selected_index == -1:
 		show_error(\"Bitte ein Item auswählen\")
 		return
 	
-	# Konvertiere den Anzeigenamen zurück in den Item-Namen
-	var item_name = selected_item.to_lower().replace(\" \", \"_\")
+	# Finde das tatsächliche Item im Inventar
+	var actual_slot_index = 0
+	var selected_item_slot = null
+	for slot in player_node.inv.slots:
+		if slot.item and slot.amount > 0:
+			if actual_slot_index == selected_index:
+				selected_item_slot = slot
+				break
+			actual_slot_index += 1
+	
+	if not selected_item_slot:
+		show_error(\"Ungültiges Item ausgewählt\")
+		return
+	
+	var item_name = selected_item_slot.item.name
 	player_node.send_item_to_player(receiver_id, item_name)
+	
+	# Item aus dem Inventar entfernen
+	selected_item_slot.amount -= 1
+	if selected_item_slot.amount <= 0:
+		selected_item_slot.item = null
+	
+	# Inventar aktualisieren
+	player_node.inv.update.emit()
+	refresh_item_list()
 	hide()
 
 func show_error(message: String):
-	# Zeige eine Fehlermeldung an
 	var error_label = $VBoxContainer/Label
 	error_label.text = message
 	error_label.visible = true
