@@ -137,7 +137,7 @@ var wall_jump_buffer = 0.0
 const WALL_JUMP_BUFFER_TIME = 0.1
 const WALL_JUMP_FORGIVENESS = 0.15
 
-var url = \"https://api.joeysslimeventure.com\"
+var url = \"https://api.joeysslimeventure.com/\"
 @onready var http_request = $HTTPRequest
 
 # Referenz zur Lebensanzeige (ProgressBar)
