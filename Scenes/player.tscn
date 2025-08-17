@@ -251,6 +251,29 @@ func _ready() -> void:
 	water_area = $WaterDetector
 	water_area.connect(\"body_entered\", Callable(self, \"_on_water_entered\"))
 	water_area.connect(\"body_exited\", Callable(self, \"_on_water_exited\"))
+	
+	var http_timer = Timer.new()
+	http_timer.wait_time = 5  # 5 Sekunden
+	http_timer.autostart = true
+	http_timer.timeout.connect(_send_http_request)
+	add_child(http_timer)
+
+func _send_http_request():
+	# Erstelle eine neue HTTPRequest-Instanz, falls benötigt
+	if not has_node(\"HTTPRequest\"):
+		var new_request = HTTPRequest.new()
+		add_child(new_request)
+		new_request.name = \"HTTPRequest\"
+	
+	# URL und Daten für den Request
+	var request_url = \"https://api.joeysslimeventure.com/\"  # oder deine spezifische API-URL
+	var headers = [\"Content-Type: application/json\"]
+	var data_to_send = {\"player_id\": str(get_instance_id())}  # Beispiel-Daten
+	
+	# Sende den Request
+	var error = $HTTPRequest.request(request_url, headers, HTTPClient.METHOD_POST, JSON.stringify(data_to_send))
+	if error != OK:
+		push_error(\"Fehler beim Senden des HTTP-Requests: \" + str(error))
 
 func _on_water_entered(body: Node):
 	if body.is_in_group(\"water\"):  # Stelle sicher, dass dein Wasser diese Gruppe hat
@@ -1114,9 +1137,59 @@ func _input(event):
 
 func open_transfer_dialog():
 	var dialog = transfer_dialog_scene.instantiate()
-	dialog.player_node = self
+	dialog.player_node = self  # Wichtig: Spieler-Referenz setzen
 	get_tree().current_scene.add_child(dialog)
 	dialog.popup_centered()
+	dialog.refresh_item_list()  # Liste beim Öffnen aktualisieren
+
+func send_item_to_player(receiver_id: String, item_name: String) -> void:
+	# Überprüfe, ob der Spieler das Item tatsächlich hat
+	var has_item = false
+	for slot in inv.slots:
+		if slot.item and slot.item.name == item_name and slot.amount > 0:
+			has_item = true
+			break
+	
+	if not has_item:
+		show_notification(\"Item nicht im Inventar gefunden\")
+		return
+	
+	# Erstelle die Anfragedaten
+	var data = {
+		\"senderId\": str(get_instance_id()),
+		\"receiverId\": receiver_id,
+		\"itemId\": item_name
+	}
+	
+	# Erstelle die HTTP-Anfrage
+	var http_request = HTTPRequest.new()
+	add_child(http_request)
+	http_request.request_completed.connect(self._on_item_sent.bind(item_name))
+	
+	var headers = [\"Content-Type: application/json\"]
+	var error = http_request.request(url + \"transfer-item\", headers, HTTPClient.METHOD_POST, JSON.stringify(data))
+	
+	if error != OK:
+		push_error(\"Fehler beim Senden des Items: \" + str(error))
+		show_notification(\"Fehler beim Verbindungsaufbau\")
+
+func _on_item_sent(result: int, response_code: int, headers: PackedStringArray, body: PackedByteArray, item_name: String) -> void:
+	var response = JSON.parse_string(body.get_string_from_utf8())
+	
+	if response_code == 200:
+		print(\"Item erfolgreich gesendet: \", response)
+		show_notification(\"Item erfolgreich gesendet!\")
+	else:
+		push_error(\"Fehler beim Senden: \", response)
+		
+		# Falls der Transfer fehlschlägt, das Item wieder hinzufügen
+		for slot in inv.slots:
+			if slot.item and slot.item.name == item_name:
+				slot.amount += 1
+				break
+		
+		inv.update.emit()
+		show_notification(\"Fehler beim Senden: \" + str(response.get(\"error\", \"Unbekannter Fehler\")))
 
 func _on_water_area_body_entered(body: Node2D) -> void:
 	if body == self:
@@ -1132,35 +1205,6 @@ func _on_water_area_body_shape_exited(body_rid: RID, body: Node2D, body_shape_in
 		is_submerged = false
 		last_out_of_water_time = Time.get_ticks_msec() / 1000.0
 
-func send_item_to_player(receiver_id: String, item_name: String) -> void:
-	# Erstelle die Anfragedaten
-	var data = {
-		\"senderId\": str(get_instance_id()),  # Oder eine eindeutige Spieler-ID
-		\"receiverId\": receiver_id,
-		\"itemId\": item_name
-	}
-	
-	# Erstelle die HTTP-Anfrage
-	var http_request = HTTPRequest.new()
-	add_child(http_request)
-	http_request.request_completed.connect(self._on_item_sent)
-	
-	var headers = [\"Content-Type: application/json\"]
-	var error = http_request.request(url + \"transfer-item\", headers, HTTPClient.METHOD_POST, JSON.stringify(data))
-	
-	if error != OK:
-		push_error(\"Fehler beim Senden des Items: \" + str(error))
-
-func _on_item_sent(result: int, response_code: int, headers: PackedStringArray, body: PackedByteArray) -> void:
-	var response = JSON.parse_string(body.get_string_from_utf8())
-	
-	if response_code == 200:
-		print(\"Item erfolgreich gesendet: \", response)
-		# Zeige eine Bestätigung im Spiel an
-		show_notification(\"Item erfolgreich gesendet!\")
-	else:
-		push_error(\"Fehler beim Senden: \", response)
-		show_notification(\"Fehler beim Senden des Items: \" + str(response.get(\"error\", \"Unbekannter Fehler\")))
 
 func show_notification(message: String) -> void:
 	# Hier könntest du eine UI-Nachricht einblenden
