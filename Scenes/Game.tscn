@@ -273,7 +273,7 @@ tile_set = SubResource("TileSet_jgi20")
 collision_enabled = false
 
 [node name="Door" parent="Background" instance=ExtResource("16_alh3a")]
-position = Vector2(2936, 1354)
+position = Vector2(34, 1034)
 level = "level1"
 
 [node name="wall" type="TileMapLayer" parent="Background"]
@@ -453,7 +453,7 @@ spawn_zone_container = NodePath("../CollisionShape2D")
 position = Vector2(262, 767)
 
 [node name="player_spawn" type="Marker2D" parent="."]
-position = Vector2(2955, 1342)
+position = Vector2(52, 1018)
 
-[connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_pause_menu_go_to_main_menu"]
 [connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_canvas_layer_go_to_main_menu"]
+[connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_pause_menu_go_to_main_menu"]

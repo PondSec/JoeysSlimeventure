@@ -44,6 +44,7 @@ func _ready():
 		else:
 			# Falls keine level_resource geladen werden konnte, Position trotzdem setzen
 			player.global_position = spawn.global_position
+			save_current_level()
 	else:
 		push_warning("Spawnpoint nicht gefunden: " + spawn_point_name)
 	

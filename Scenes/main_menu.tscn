@@ -83,19 +83,18 @@ func _on_credits_button_pressed() -> void:
 func _on_play_button_pressed() -> void:
 	var level_resource = load(\"user://current_level.res\")
 	
-	if level_resource:
+	if level_resource and level_resource.has_method(\"get\"): # oder dein Resource-Property checken
 		var level_scene_path = level_resource.unlocked_level
-		print(\"Freigeschaltetes Level:\", level_scene_path)
 		
-		# Überprüfe ob die Scene existiert
 		if ResourceLoader.exists(level_scene_path):
 			get_tree().change_scene_to_file(level_scene_path)
+			return
 		else:
-			print(\"Fehler: Level-Scene nicht gefunden unter \", level_scene_path)
-			# Fallback: Gehe zur Hauptmenu oder ersten Level
-			get_tree().change_scene_to_file(\"res://Scenes/main_menu.tscn\")
-	else:
-		change_scene(\"res://Scenes/Game.tscn\")
+			print(\"⚠ Level ungültig, fallback auf Startlevel\")
+	
+	# Fallback – wenn nix geht, immer erstes Level
+	get_tree().change_scene_to_file(\"res://Scenes/Game.tscn\")
+
 
 func _on_quit_button_pressed() -> void:
 	get_tree().quit()
