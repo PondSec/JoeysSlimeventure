@@ -230,7 +230,6 @@ func _ready() -> void:
 	stun_timer.wait_time = 0.5
 	stun_timer.one_shot = true
 	stun_timer.connect(\"timeout\", Callable(self, \"_on_stun_timer_timeout\"))
-	load_game()
 	load_dropped_items()
 	update_health_bar()
 	damage_timer.start()
@@ -267,6 +266,7 @@ func _ready() -> void:
 	water_area = $WaterDetector
 	water_area.connect(\"body_entered\", Callable(self, \"_on_water_entered\"))
 	water_area.connect(\"body_exited\", Callable(self, \"_on_water_exited\"))
+	load_game()
 
 func _on_api_timer_timeout():
 	api_script.send_request()
