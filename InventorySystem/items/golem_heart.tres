@@ -1,10 +1,11 @@
 [gd_resource type="Resource" script_class="InvItem" load_steps=3 format=3 uid="uid://by734ky61leyb"]
 
-[ext_resource type="Script" uid="uid://bf3a2juv1orwt" path="res://InventorySystem/inventory_item.gd" id="1_wl6qs"]
+[ext_resource type="Script" uid="uid://g8qoas1goouj" path="res://InventorySystem/inventory_item.gd" id="1_wl6qs"]
 [ext_resource type="Texture2D" uid="uid://d31jtevxfrlb4" path="res://Assets/Items/Mob Drops/StoneGolem/GolemHeart.png" id="2_xstlb"]
 
 [resource]
 script = ExtResource("1_wl6qs")
 name = "golem_heart"
 texture = ExtResource("2_xstlb")
-health_bonus = 50.0
+health_bonus = 0.5
+damage_bonus = 0.0

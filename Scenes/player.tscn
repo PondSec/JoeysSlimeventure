@@ -41,6 +41,13 @@ const AIR_DECELERATION = 800.0   # Vorher vielleicht 600.0
 var base_crit_chance: float = 0.15  # 15% base crit chance
 var crit_damage_multiplier: float = 1.5  # 50% extra damage on crit
 
+var base_attack_damage: int = 15
+var attack_damage: int = 15
+var damage_multiplier: float = 1.0
+var current_crit_chance: float = 0.15
+var base_crit_multiplier: float = 1.5   # Basis-Crit-Multiplikator (50% Bonus)
+var current_crit_multiplier: float = 1.5
+
 # Sprung- und Gravitationseinstellungen
 const GRAVITY = 1200.0
 const MAX_FALL_SPEED = 800.0
@@ -98,7 +105,6 @@ var heal_timer: Timer = Timer.new()  # Timer für regelmäßige Heilung
 var is_healing_active: bool = false  # Flag, ob Heilung aktiv ist
 var healed_to_full: bool = false  # Flag, ob der Spieler voll geheilt wurde
 var damage_timer: Timer = Timer.new()  # Timer für den Schadensabstand
-var attack_damage: int = 15
 var is_stunned: bool = false  # Spieler kann sich während des Stuns nicht bewegen
 var inventory = {}  # Ein Dictionary für das Inventar
 var dropped_items = []  # Liste für persistente Speicherung
@@ -152,7 +158,7 @@ var url = \"https://api.joeysslimeventure.com/\"
 
 var is_walking := false
 const WALK_STEP_INTERVAL := 0.2
-var last_sound_time = 0.0
+var last_sound_time = 0.
 var sound_cooldown = 0.2
 
 var stun_timer: Timer = Timer.new()
@@ -221,9 +227,11 @@ func _ready() -> void:
 	update_health_bar()
 	damage_timer.start()
 	inv.update.connect(update_health_bonus)
+	inv.update.connect(update_damage_bonus)
+	inv.update.connect(update_crit_bonuses)
 	add_child(api_script)
 	api_script.send_request()
-	
+	update_damage_bonus()
 
 	# Timer für Dash initialisieren
 	dash_timer = Timer.new()
@@ -251,6 +259,28 @@ func _on_water_exited(body: Node):
 	if body.is_in_group(\"water\"):
 		is_in_water = false
 		#$SplashSound.play()
+
+func update_crit_bonuses():
+	var total_crit_chance = base_crit_chance
+	var total_crit_damage = base_crit_multiplier
+	
+	for slot in inv.slots:
+		if slot.item and slot.amount > 0:
+			total_crit_chance += slot.item.crit_chance_bonus * slot.amount
+			total_crit_damage += slot.item.crit_damage_bonus * slot.amount
+	
+	current_crit_chance = clamp(total_crit_chance, 0.0, 0.8)  # Maximal 80% Crit-Chance
+	current_crit_multiplier = max(total_crit_damage, 1.0)     # Mindestens 100% Schaden
+
+func update_damage_bonus():
+	var bonus = 1.0  # Startwert für Multiplikation
+
+	for slot in inv.slots:
+		if slot.item and slot.amount > 0:  # Falls der Slot gültig ist und Items enthält
+			bonus += slot.item.damage_bonus * slot.amount  # Multipliziere mit Stack-Anzahl
+
+	damage_multiplier = bonus
+	attack_damage = base_attack_damage * damage_multiplier
 
 func update_health_bonus():
 	var bonus = 1.0  # Startwert für Multiplikation
@@ -807,8 +837,8 @@ func is_in_air() -> bool:
 func _on_attack_area_body_entered(body) -> void:
 	if body.is_in_group(\"enemies\"):
 		# Calculate damage and check for crit
-		var is_crit = randf() < base_crit_chance
-		var damage = attack_damage
+		var is_crit = randf() < current_crit_chance
+		var damage = attack_damage * (current_crit_multiplier if is_crit else 1.0)
 		var knockback_direction = (body.global_position - global_position).normalized()
 		
 		# Let the enemy handle the damage calculation and crit determination
