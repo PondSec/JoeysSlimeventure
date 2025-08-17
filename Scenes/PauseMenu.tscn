@@ -8,6 +8,7 @@
 
 [node name="CanvasLayer" type="CanvasLayer"]
 process_mode = 3
+layer = 0
 script = ExtResource("1_m6jhc")
 
 [node name="ColorRect" type="ColorRect" parent="."]

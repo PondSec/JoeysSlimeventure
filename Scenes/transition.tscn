@@ -6,6 +6,7 @@ script/source = "extends CanvasLayer
 signal transition_completed
 
 @onready var animation_player = $AnimationPlayer
+var player = is_in_group(\"players\")
 
 # Neuer Parameter: skip_fade_in (standardmäßig false)
 func play_transition(scene_path: String, skip_fade_in: bool = false) -> void:
