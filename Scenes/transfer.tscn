@@ -1,11 +1,16 @@
-[gd_scene load_steps=2 format=3 uid="uid://ie0sg54ff2s8"]
+[gd_scene load_steps=15 format=3 uid="uid://ie0sg54ff2s8"]
+
+[ext_resource type="Texture2D" uid="uid://pavtfpdi5fc0" path="res://Assets/GUI/Transfer.png" id="1_m8ads"]
+[ext_resource type="Texture2D" uid="uid://ckkm2wypcxoa0" path="res://Assets/GUI/Back/hover.png" id="2_0j0wu"]
+[ext_resource type="Texture2D" uid="uid://by5nnsktymsb6" path="res://Assets/GUI/Back/button.png" id="3_vuq03"]
+[ext_resource type="Texture2D" uid="uid://chol4j55hl3wo" path="res://Assets/GUI/Back/pressed.png" id="4_7jn76"]
 
 [sub_resource type="GDScript" id="GDScript_ctekh"]
 script/source = "extends PopupPanel
 
-@onready var receiver_id_input = $VBoxContainer/LineEdit
-@onready var item_select = $VBoxContainer/OptionButton
-@onready var confirm_button = $VBoxContainer/Button
+@onready var receiver_id_input = $Panel/VBoxContainer/LineEdit
+@onready var item_select = $Panel/VBoxContainer/OptionButton
+@onready var confirm_button = $Panel/VBoxContainer/Button
 
 var player_node: Node
 
@@ -13,7 +18,7 @@ func _ready():
 	confirm_button.pressed.connect(self._on_confirm_pressed)
 	refresh_item_list()
 
-# Aktualisiert die Liste der transferierbaren Items
+# Aktualisiert die Liste der transferierbaren Items mit Icons
 func refresh_item_list():
 	item_select.clear()
 	
@@ -23,11 +28,18 @@ func refresh_item_list():
 	var item_index = 0
 	for slot in player_node.inv.slots:
 		if slot.item and slot.amount > 0:
-			# Formatieren des Anzeigenamens (z.B. \"bat_artefact\" -> \"Bat Artefact\")
+			# Formatieren des Anzeigenamens
 			var display_name = slot.item.name.replace(\"_\", \" \").capitalize()
-			item_select.add_item(display_name + \" (\" + str(slot.amount) + \")\", item_index)
+			
+			# Versuche das Item-Icon zu laden
+			var icon_path = \"res://assets/items/%s.png\" % slot.item.name
+			var icon = load(icon_path) if ResourceLoader.exists(icon_path) else null
+			
+			# Füge Item mit Icon hinzu
+			item_select.add_icon_item(icon, \"%s (%d)\" % [display_name, slot.amount], item_index)
 			item_index += 1
 
+# Der Rest deines Codes bleibt unverändert...
 func _on_confirm_pressed():
 	var receiver_id = receiver_id_input.text.strip_edges()
 	var selected_index = item_select.selected
@@ -68,31 +80,93 @@ func _on_confirm_pressed():
 	hide()
 
 func show_error(message: String):
-	var error_label = $VBoxContainer/Label
+	var error_label = $Panel/VBoxContainer/Label
 	error_label.text = message
 	error_label.visible = true
 "
 
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_wq0ro"]
+texture = ExtResource("1_m8ads")
+
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_7jn76"]
+texture = ExtResource("2_0j0wu")
+
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_7qt5v"]
+texture = ExtResource("3_vuq03")
+
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_0j0wu"]
+texture = ExtResource("2_0j0wu")
+
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_vuq03"]
+texture = ExtResource("4_7jn76")
+
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_hbgk0"]
+texture = ExtResource("3_vuq03")
+
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_2kp0r"]
+texture = ExtResource("2_0j0wu")
+
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_nbso7"]
+texture = ExtResource("4_7jn76")
+
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_6kq3b"]
+texture = ExtResource("3_vuq03")
+
 [node name="Transfer" type="PopupPanel"]
-size = Vector2i(100, 125)
+mode = 3
+title = "Transfer Item"
+size = Vector2i(300, 300)
 visible = true
 script = SubResource("GDScript_ctekh")
 
-[node name="VBoxContainer" type="VBoxContainer" parent="."]
+[node name="Panel" type="Panel" parent="."]
+texture_filter = 3
 offset_left = 4.0
 offset_top = 4.0
-offset_right = 96.0
-offset_bottom = 121.0
+offset_right = 296.0
+offset_bottom = 296.0
+theme_override_styles/panel = SubResource("StyleBoxTexture_wq0ro")
 
-[node name="LineEdit" type="LineEdit" parent="VBoxContainer"]
-layout_mode = 2
+[node name="VBoxContainer" type="VBoxContainer" parent="Panel"]
+custom_minimum_size = Vector2(200, 200)
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -70.0
+offset_top = -70.0
+offset_right = 70.0
+offset_bottom = 70.0
+grow_horizontal = 2
+grow_vertical = 2
+alignment = 1
 
-[node name="OptionButton" type="OptionButton" parent="VBoxContainer"]
+[node name="LineEdit" type="LineEdit" parent="Panel/VBoxContainer"]
+texture_filter = 1
+custom_minimum_size = Vector2(50, 50)
 layout_mode = 2
+theme_override_styles/focus = SubResource("StyleBoxTexture_7jn76")
+theme_override_styles/normal = SubResource("StyleBoxTexture_7qt5v")
+placeholder_text = "    Player ID"
 
-[node name="Button" type="Button" parent="VBoxContainer"]
+[node name="OptionButton" type="OptionButton" parent="Panel/VBoxContainer"]
+texture_filter = 1
+custom_minimum_size = Vector2(30, 50)
 layout_mode = 2
+theme_override_styles/hover = SubResource("StyleBoxTexture_0j0wu")
+theme_override_styles/pressed = SubResource("StyleBoxTexture_vuq03")
+theme_override_styles/normal = SubResource("StyleBoxTexture_hbgk0")
+
+[node name="Button" type="Button" parent="Panel/VBoxContainer"]
+texture_filter = 1
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+theme_override_styles/hover = SubResource("StyleBoxTexture_2kp0r")
+theme_override_styles/pressed = SubResource("StyleBoxTexture_nbso7")
+theme_override_styles/normal = SubResource("StyleBoxTexture_6kq3b")
 text = "Bestätigen"
 
-[node name="Label" type="Label" parent="VBoxContainer"]
+[node name="Label" type="Label" parent="Panel/VBoxContainer"]
 layout_mode = 2

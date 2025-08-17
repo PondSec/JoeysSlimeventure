@@ -1162,7 +1162,7 @@ func send_item_to_player(receiver_id: String, item_name: String) -> void:
 	if error != OK:
 		push_error(\"Fehler beim Senden des Items: \" + str(error))
 		show_notification(\"Fehler beim Verbindungsaufbau\")
-
+	
 func _on_item_sent(result: int, response_code: int, headers: PackedStringArray, body: PackedByteArray, item_name: String) -> void:
 	var response = JSON.parse_string(body.get_string_from_utf8())
 	
@@ -1179,6 +1179,7 @@ func _on_item_sent(result: int, response_code: int, headers: PackedStringArray, 
 				break
 		
 		inv.update.emit()
+		save_game()
 		show_notification(\"Fehler beim Senden: \" + str(response.get(\"error\", \"Unbekannter Fehler\")))
 
 func _on_water_area_body_entered(body: Node2D) -> void:
