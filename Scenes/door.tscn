@@ -12,20 +12,19 @@ script/source = "extends Node2D
 func _physics_process(_delta: float) -> void:
 	for body in area.get_overlapping_bodies():
 		if body.name == \"PlayerModel\" and Input.is_action_just_pressed(\"Interact\"):
-			_change_level()
-
-func _change_level() -> void:
-	if level == \"\":
-		push_warning(\"Kein Level für diese Tür gesetzt!\")
-		return
-	
-	var path = \"res://Scenes/\" + level + \".tscn\"
-	var scene = load(path)
-	
-	if scene == null:
-		push_error(\"Szene nicht gefunden: \" + path)
-		return
-	get_tree().change_scene_to_packed(scene)
+			if level.is_empty():
+				push_warning(\"Kein Level für diese Tür gesetzt!\")
+				return
+			
+			var transition = preload(\"res://Scenes/transition.tscn\").instantiate()
+			get_tree().root.add_child(transition)
+			
+			var scene_path = \"res://Scenes/%s.tscn\" % level
+			transition.play_transition(scene_path)
+			await transition.transition_completed
+			
+			# Ab hier ist die Transition bereits im Begriff sich selbst zu entfernen
+			# und die neue Szene ist geladen
 "
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_hvas2"]

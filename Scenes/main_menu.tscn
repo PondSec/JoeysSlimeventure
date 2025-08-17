@@ -82,18 +82,17 @@ func _on_credits_button_pressed() -> void:
 
 func _on_play_button_pressed() -> void:
 	var level_resource = load(\"user://current_level.res\")
+	var level_scene_path = \"res://Scenes/Game.tscn\"  # Standardpfad
 	
-	if level_resource and level_resource.has_method(\"get\"): # oder dein Resource-Property checken
-		var level_scene_path = level_resource.unlocked_level
-		
-		if ResourceLoader.exists(level_scene_path):
-			get_tree().change_scene_to_file(level_scene_path)
-			return
-		else:
+	if level_resource and level_resource.has_method(\"get\"):
+		level_scene_path = level_resource.unlocked_level
+		if not ResourceLoader.exists(level_scene_path):
 			print(\"⚠ Level ungültig, fallback auf Startlevel\")
+			level_scene_path = \"res://Scenes/Game.tscn\"
 	
-	# Fallback – wenn nix geht, immer erstes Level
-	get_tree().change_scene_to_file(\"res://Scenes/Game.tscn\")
+	var transition = preload(\"res://Scenes/transition.tscn\").instantiate()
+	get_tree().root.add_child(transition)
+	transition.play_transition(level_scene_path, true)  # <- skip_fade_in = true
 
 
 func _on_quit_button_pressed() -> void:
