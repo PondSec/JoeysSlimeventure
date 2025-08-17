@@ -164,11 +164,13 @@ const WATER_GRAVITY_SCALE := 0.5  # Schwerkraftreduktion im Wasser
 const WATER_ACCELERATION := 800.0  # Beschleunigung im Wasser
 const WATER_MAX_SPEED := 180.0  # Maximalgeschwindigkeit im Wasser
 const WATER_BUOYANCY := 300.0  # Auftriebskraft
-const WATER_SWIM_IMPULSE := 450.0  # Schwimmkraft beim Drücken der Sprungtaste
-const WATER_SINK_SPEED := 120.0  # Geschwindigkeit beim Absinken
+const WATER_SWIM_IMPULSE := 250.0  # Schwimmkraft beim Drücken der Sprungtaste
+const WATER_SINK_SPEED := 100.0  # Geschwindigkeit beim Absinken
 const WATER_SURFACE_TENSION := 50.0  # Kraft die den Spieler an der Oberfläche hält
 const WATER_SPLASH_FORCE := 200.0  # Kraft beim Eintauchen
 const WATER_MIN_SPLASH_VELOCITY := 300.0  # Mindestgeschwindigkeit für Spritzeffekt
+const WATER_INERTIA_X := 0.85  # wie träge horizontal
+const WATER_INERTIA_Y := 0.65  # wie träge vertikal
 
 # Wasser-Statusvariablen
 var is_in_water = false
@@ -336,54 +338,59 @@ func _physics_process(delta: float) -> void:
 
 
 func apply_water_physics(delta: float) -> void:
-	var target_velocity = velocity
+	# --- Wasserwiderstand (Drag) ---
+	# Y-Komponente nur leicht dämpfen, X stärker
+	var drag_x = -velocity.x * abs(velocity.x) * WATER_DRAG * delta
+	var drag_y = -velocity.y * abs(velocity.y) * WATER_DRAG * 0.3 * delta
+	velocity.x += drag_x
+	velocity.y += drag_y
 	
-	# Wasserwiderstand (leicht reduziert)
-	var drag_force = -velocity * velocity.length() * (WATER_DRAG * 0.8) * delta
-	target_velocity += drag_force
+	# --- Dynamischer Auftrieb ---
+	var depth_factor = clamp((water_surface_y - global_position.y) / 50.0, 0.0, 1.0)
+	depth_factor = smoothstep(0.0, 1.0, depth_factor) # weicher Übergang
+	var buoyancy = WATER_BUOYANCY * depth_factor
 	
-	# Auftrieb neu berechnet (wichtigste Änderung)
-	var depth = water_surface_y - global_position.y
-	var depth_factor = clamp(depth / 40.0, 0.0, 1.0)  # Flachere Kurve
+	# --- Oberflächen-Übergang ---
+	if global_position.y < water_surface_y and global_position.y > water_surface_y - 30:
+		var surface_proximity = 1.0 - (water_surface_y - global_position.y) / 30.0
+		buoyancy += WATER_SURFACE_TENSION * surface_proximity
 	
-	# Grundauftrieb + Tiefeneinfluss
-	var buoyancy = WATER_BUOYANCY * (1.0 - exp(-depth_factor * 2.0))  # Sanftere Exponentialkurve
+	# --- Kräfte anwenden ---
+	velocity.y += (GRAVITY * WATER_GRAVITY_SCALE - buoyancy) * delta
 	
-	# Oberflächenspannung (reduziert)
-	if depth > 0 && depth < 25:  # Kürzerer Bereich
-		var surface_proximity = depth / 25.0
-		buoyancy += WATER_SURFACE_TENSION * (1.0 - pow(surface_proximity, 3))  # Kubische Kurve
+	# --- Input für Schwimmen ---
+	handle_swimming_input(delta)
 	
-	# Vertikale Kräfte (angepasst)
-	target_velocity.y -= buoyancy * delta * 0.8  # Auftrieb leicht reduziert
-	target_velocity.y += GRAVITY * WATER_GRAVITY_SCALE * delta
+	# --- Stabilisierung (kein hartes Nullsetzen mehr) ---
+	if abs(velocity.y) < 0.05:
+		velocity.y = lerp(velocity.y, 0.0, 0.1)
 	
-	# Inputverarbeitung (unverändert)
-	handle_swimming_input(delta, target_velocity)
-	
-	# Geschwindigkeitsbegrenzung (leicht gelockert)
-	target_velocity.x = clamp(target_velocity.x, -WATER_MAX_SPEED, WATER_MAX_SPEED)
-	target_velocity.y = clamp(target_velocity.y, -WATER_MAX_SPEED * 1.2, WATER_MAX_SPEED * 1.5)
-	
-	# Sanfte Übergänge (etwas schneller)
-	velocity = velocity.lerp(target_velocity, 0.4)
+	# --- Geschwindigkeitslimits ---
+	velocity.x = clamp(velocity.x, -WATER_MAX_SPEED, WATER_MAX_SPEED)
+	velocity.y = clamp(velocity.y, -WATER_MAX_SPEED, WATER_MAX_SPEED * 1.5)
 
-func handle_swimming_input(delta: float, target_velocity: Vector2) -> void:
-	# Horizontalbewegung (unverändert)
+
+func handle_swimming_input(delta: float) -> void:
 	var swim_direction = Input.get_axis(\"left\", \"right\")
-	if swim_direction != 0:
-		target_velocity.x = move_toward(target_velocity.x, swim_direction * WATER_MAX_SPEED, WATER_ACCELERATION * delta)
 	
-	# Vertikale Bewegung (korrigiert - wichtig!)
+	# --- Horizontal bewegen ---
+	if swim_direction != 0:
+		velocity.x = move_toward(
+			velocity.x,
+			swim_direction * WATER_MAX_SPEED,
+			WATER_ACCELERATION * delta
+		)
+	
+	# --- Vertikale Bewegung ---
 	is_swimming = false
 	if Input.is_action_pressed(\"up\"):
-		# Stärkerer Auftrieb beim Schwimmen nach oben
-		target_velocity.y = lerp(target_velocity.y, -WATER_SWIM_IMPULSE * 1.3, 0.6 * delta)
+		velocity.y = lerp(velocity.y, -WATER_SWIM_IMPULSE, 0.3)
 		is_swimming = true
 	elif Input.is_action_pressed(\"down\"):
-		# Sinken mit Mindestgeschwindigkeit
-		target_velocity.y = move_toward(target_velocity.y, WATER_SINK_SPEED, WATER_ACCELERATION * delta * 0.3)
+		# weiches Absenken, nicht instant überschreiben
+		velocity.y = move_toward(velocity.y, WATER_SINK_SPEED, WATER_ACCELERATION * delta)
 		is_swimming = true
+
 
 func handle_input():
 	# Laufen/Rennen - aber nur wenn nicht in Landeanimation
