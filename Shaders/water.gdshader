@@ -7,7 +7,7 @@ uniform float distortion = 0.01;
 uniform float wave_strength = 0.1;
 
 void vertex() {
-	VERTEX.y += sin(TIME);
+	VERTEX.y += sin(TIME) * 0.3;
 }
 
 void fragment() {
