@@ -5,44 +5,71 @@
 [sub_resource type="GDScript" id="GDScript_a02cp"]
 script/source = "extends Node2D
 
-var current_player_scene = preload(\"res://Scenes/player.tscn\")
+var player_scene = preload(\"res://Scenes/player.tscn\")
 
 func _ready():
-	if multiplayer.is_server():
-		spawn_all_players()
+	# Jeder spawnt zuerst seinen eigenen Spieler
+	spawn_player(multiplayer.get_unique_id())
 	
+	if multiplayer.is_server():
+		# Host spawnt alle bereits verbundenen Clients
+		for peer_id in multiplayer.get_peers():
+			spawn_player(peer_id)
+			# Informiere den neuen Client über den Host
+			spawn_player_on_client.rpc_id(peer_id, 1)  # Host-ID ist immer 1
+	else:
+		# Client fordert alle existierenden Spieler an
+		request_players.rpc_id(1)  # An Host senden
+
 	multiplayer.peer_connected.connect(_on_peer_connected)
-	multiplayer.peer_disconnected.connect(remove_player)
+	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
+
+@rpc(\"any_peer\", \"reliable\")
+func request_players():
+	if multiplayer.is_server():
+		var sender_id = multiplayer.get_remote_sender_id()
+		# Sende alle existierenden Spieler an den anfragenden Client
+		for peer_id in multiplayer.get_peers():
+			if peer_id != sender_id:  # Den eigenen Spieler nicht nochmal senden
+				spawn_player_on_client.rpc_id(sender_id, peer_id)
+		# Sende auch den Host-Spieler
+		spawn_player_on_client.rpc_id(sender_id, 1)
 
 func _on_peer_connected(peer_id):
-	spawn_player.rpc(peer_id)
+	if multiplayer.is_server():
+		# Spawne neuen Client für alle existierenden Spieler
+		spawn_player(peer_id)
+		# Informiere den neuen Client über alle existierenden Spieler
+		for existing_id in multiplayer.get_peers():
+			if existing_id != peer_id:
+				spawn_player_on_client.rpc_id(peer_id, existing_id)
+		# Informiere über den Host
+		spawn_player_on_client.rpc_id(peer_id, 1)
 
-func spawn_all_players():
-	# Spawn für Host
-	spawn_player(multiplayer.get_unique_id())
-	# Spawn für alle bereits verbundenen Clients
-	for peer_id in multiplayer.get_peers():
+func _on_peer_disconnected(peer_id):
+	if has_node(str(peer_id)):
+		get_node(str(peer_id)).queue_free()
+
+@rpc(\"reliable\", \"call_remote\")
+func spawn_player_on_client(peer_id):
+	if not get_node_or_null(str(peer_id)):
 		spawn_player(peer_id)
 
-@rpc(\"any_peer\", \"call_local\")
 func spawn_player(peer_id):
-	var player = current_player_scene.instantiate()
+	if get_node_or_null(str(peer_id)):
+		return  # Spieler existiert bereits
+	
+	var player = player_scene.instantiate()
 	player.name = str(peer_id)
 	player.set_multiplayer_authority(peer_id)
-	add_child(player, true)
+	add_child(player)
 	
-	# Zufälliger Spawn-Punkt
+	# Zufällige Spawn-Position
 	var spawn_points = get_tree().get_nodes_in_group(\"spawn_points\")
 	if spawn_points.size() > 0:
 		player.global_position = spawn_points[randi() % spawn_points.size()].global_position
 	else:
-		player.global_position = Vector2(500, 500) # Fallback Position
-
-@rpc(\"any_peer\", \"call_local\")
-func remove_player(peer_id):
-	var player = get_node_or_null(str(peer_id))
-	if player:
-		player.queue_free()
+		player.global_position = Vector2(randf_range(100, 900), randf_range(100, 500))
 "
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_go701"]

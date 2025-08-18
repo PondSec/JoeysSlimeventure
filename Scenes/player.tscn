@@ -370,32 +370,37 @@ func _process(delta: float) -> void:
 	save_charge_cooldown()
 
 func _physics_process(delta: float) -> void:
-	if !is_multiplayer_authority():
-		return
+	if is_multiplayer_authority():
+		# Nur der Besitzer des Spielers führt Bewegungscode aus
+		handle_input()
+		move_and_slide()
+		# Synchronisiere Position mit allen
+		update_position.rpc(position, velocity)
+		update_facing_direction()
+		
+		# Spezielle Bewegungszustände
+		handle_dash()
+		handle_jump_mechanics(delta)
+		handle_wall_mechanics(delta)
+		
+		# Schwerkraft anwenden
+		apply_gravity(delta)
+		
+		# Animationen aktualisieren
+		update_animations()
+		
 	# Bewegungseingaben verarbeiten
-	handle_input()
-	update_position.rpc(position, velocity)
+	#handle_input()
 	
 	if is_in_water:
 		apply_water_physics(delta)
 	# Bewegung ausführen
-	move_and_slide()
-	update_facing_direction()
+	#move_and_slide()
 	
-	# Spezielle Bewegungszustände
-	handle_dash()
-	handle_jump_mechanics(delta)
-	handle_wall_mechanics(delta)
-	
-	# Schwerkraft anwenden
-	apply_gravity(delta)
-	
-	# Animationen aktualisieren
-	update_animations()
 
-@rpc(\"unreliable\")  # Für häufige Updates
+@rpc(\"unreliable\")  
 func update_position(new_pos, new_vel):
-	if !is_multiplayer_authority():
+	if !is_multiplayer_authority():  # Nur andere Spieler aktualisieren
 		position = new_pos
 		velocity = new_vel
 
