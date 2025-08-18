@@ -330,6 +330,10 @@ grow_vertical = 2
 layout_mode = 2
 text = "Host Game"
 
+[node name="PortInput" type="LineEdit" parent="VBoxContainer"]
+layout_mode = 2
+placeholder_text = "8910"
+
 [node name="join_game" type="Button" parent="VBoxContainer"]
 layout_mode = 2
 text = "Join Game"
@@ -337,10 +341,6 @@ text = "Join Game"
 [node name="IPInput" type="LineEdit" parent="VBoxContainer"]
 layout_mode = 2
 placeholder_text = "localhost"
-
-[node name="PortInput" type="LineEdit" parent="VBoxContainer"]
-layout_mode = 2
-placeholder_text = "8910"
 
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/PlayButton" to="." method="_on_play_button_pressed"]
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/SettingsButton" to="." method="_on_settings_button_pressed"]
