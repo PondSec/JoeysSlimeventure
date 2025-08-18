@@ -1,0 +1,118 @@
+[gd_scene load_steps=7 format=4 uid="uid://da6grha0bpajn"]
+
+[ext_resource type="Texture2D" uid="uid://82opar247kat" path="res://Assets/Tiles/platformertiles.png" id="1_a02cp"]
+
+[sub_resource type="GDScript" id="GDScript_a02cp"]
+script/source = "extends Node2D
+
+var current_player_scene = preload(\"res://Scenes/player.tscn\")
+
+func _ready():
+	if multiplayer.is_server():
+		spawn_all_players()
+	
+	multiplayer.peer_connected.connect(spawn_new_player)
+	multiplayer.peer_disconnected.connect(remove_player)
+
+func spawn_all_players():
+	for peer_id in multiplayer.get_peers():
+		spawn_player(peer_id)
+	spawn_player(multiplayer.get_unique_id())
+
+func spawn_new_player(peer_id):
+	spawn_player.rpc(peer_id)
+
+@rpc(\"any_peer\", \"call_local\")
+func spawn_player(peer_id):
+	var player = current_player_scene.instantiate()
+	player.name = str(peer_id)
+	player.set_multiplayer_authority(peer_id)
+	add_child(player)
+	
+	# Zufälliger Spawn-Punkt
+	var spawn_points = get_tree().get_nodes_in_group(\"spawn_points\")
+	player.global_position = spawn_points[randi() % spawn_points.size()].global_position
+
+func remove_player(peer_id):
+	var player = get_node_or_null(str(peer_id))
+	if player:
+		player.queue_free()
+"
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_go701"]
+texture = ExtResource("1_a02cp")
+texture_region_size = Vector2i(32, 32)
+0:0/0 = 0
+0:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+1:0/0 = 0
+1:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+2:0/0 = 0
+2:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+3:0/0 = 0
+4:0/0 = 0
+4:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+5:0/0 = 0
+5:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+6:0/0 = 0
+6:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+7:0/0 = 0
+7:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+0:1/0 = 0
+0:1/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+1:1/0 = 0
+1:1/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+2:1/0 = 0
+2:1/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+3:1/0 = 0
+4:1/0 = 0
+4:1/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+5:1/0 = 0
+6:1/0 = 0
+7:1/0 = 0
+0:2/0 = 0
+0:2/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+1:2/0 = 0
+1:2/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+2:2/0 = 0
+2:2/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+3:2/0 = 0
+4:2/0 = 0
+4:2/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+5:2/0 = 0
+6:2/0 = 0
+7:2/0 = 0
+
+[sub_resource type="TileSet" id="TileSet_5a7ea"]
+tile_size = Vector2i(32, 32)
+physics_layer_0/collision_layer = 1
+sources/0 = SubResource("TileSetAtlasSource_go701")
+
+[sub_resource type="GDScript" id="GDScript_5a7ea"]
+script/source = "extends Marker2D
+
+func _ready():
+	self.add_to_group(\"spawn_points\")
+"
+
+[sub_resource type="GDScript" id="GDScript_go701"]
+script/source = "extends Marker2D
+
+func _ready():
+	self.add_to_group(\"spawn_points\")
+"
+
+[node name="world" type="Node2D"]
+position = Vector2(689, 914)
+script = SubResource("GDScript_a02cp")
+
+[node name="wall" type="TileMapLayer" parent="."]
+tile_map_data = PackedByteArray("AAD7/wIAAAABAAAAAAD8/wIAAAABAAAAAAD9/wIAAAABAAAAAAD+/wIAAAABAAAAAAD//wIAAAABAAAAAAAAAAIAAAABAAAAAAABAAIAAAABAAAAAAACAAIAAAABAAAAAAADAAIAAAABAAAAAAAEAAIAAAABAAAAAAAFAAIAAAABAAAAAAAGAAIAAAABAAAAAAAHAAIAAAABAAAAAAD6/wIAAAABAAAAAAD5/wIAAAABAAAAAAD4/wIAAAABAAAAAAD3/wIAAAABAAAAAAALAAIAAAABAAAAAAAMAAIAAAABAAAAAAANAAIAAAABAAAAAAAOAAIAAAABAAAAAAAPAAIAAAABAAAAAAAQAAIAAAABAAAAAAAKAAIAAAABAAAAAAAJAAIAAAABAAAAAAAIAAIAAAABAAAAAAA=")
+tile_set = SubResource("TileSet_5a7ea")
+
+[node name="spawn1" type="Marker2D" parent="."]
+position = Vector2(-185, 30)
+script = SubResource("GDScript_5a7ea")
+
+[node name="spawn2" type="Marker2D" parent="."]
+position = Vector2(112, 38)
+script = SubResource("GDScript_go701")

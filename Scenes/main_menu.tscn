@@ -25,6 +25,10 @@ const PLAYER_ID_PATH = \"user://player_id.save\"
 const SECRET_SALT = \"X7!d9$#_MySaltHere_2025\"  # geheim, für Signatur
 var config := ConfigFile.new()
 
+# Neue Referenzen für Multiplayer-Elemente
+@onready var ip_input: LineEdit = $VBoxContainer/IPInput
+@onready var port_input: LineEdit = $VBoxContainer/PortInput
+
 # ---------------------------------------------------
 # 🔒 Hash & ID-Funktionen
 # ---------------------------------------------------
@@ -67,6 +71,9 @@ func _ready() -> void:
 	$BackgroundSprite/AnimationPlayer.play(\"loop\")  
 	load_settings()  
 	set_uuid_label()
+	
+	# Initialisiere Multiplayer-UI (optional ausblenden)
+	#$VBoxContainer.visible = false
 
 func set_uuid_label() -> void:
 	var player_id = load_or_create_player_id()
@@ -125,6 +132,35 @@ func _on_quit_button_pressed() -> void:
 
 func _on_settings_button_pressed() -> void:
 	change_scene(\"res://Scenes/settings.tscn\")
+
+func _on_multiplayer_button_pressed() -> void:
+	# Zeige/Verstecke Multiplayer-UI
+	$VBoxContainer/MultiplayerContainer.visible = not $VBoxContainer/MultiplayerContainer.visible
+
+func _on_host_game_pressed() -> void:
+	if port_input.text.is_valid_int():
+		var port = int(port_input.text)
+		if port > 1024 and port < 49151:
+			var game_manager = get_node(\"/root/GameManager\")
+			game_manager.host_game(port)
+			hide()  # Menü ausblenden
+		else:
+			print(\"Ungültiger Port! Muss zwischen 1024 und 49151 liegen\")
+	else:
+		print(\"Bitte eine Zahl eingeben!\")
+
+func _on_join_game_pressed() -> void:
+	if ip_input.text.is_empty():
+		print(\"Bitte IP-Adresse eingeben!\")
+		return
+	
+	if port_input.text.is_valid_int():
+		var port = int(port_input.text)
+		var game_manager = get_node(\"/root/GameManager\")
+		game_manager.join_game(ip_input.text, port)
+		hide()
+	else:
+		print(\"Bitte einen gültigen Port eingeben!\")
 
 func change_scene(scene_path: String) -> void:
 	var new_scene = load(scene_path)
@@ -277,8 +313,39 @@ offset_right = 1006.0
 offset_bottom = 1095.0
 text = "020394329432894732847847284823"
 
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 6
+anchor_left = 1.0
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = -94.0
+offset_top = -68.0
+offset_bottom = 68.0
+grow_horizontal = 0
+grow_vertical = 2
+
+[node name="host_game" type="Button" parent="VBoxContainer"]
+layout_mode = 2
+text = "Host Game"
+
+[node name="join_game" type="Button" parent="VBoxContainer"]
+layout_mode = 2
+text = "Join Game"
+
+[node name="IPInput" type="LineEdit" parent="VBoxContainer"]
+layout_mode = 2
+placeholder_text = "localhost"
+
+[node name="PortInput" type="LineEdit" parent="VBoxContainer"]
+layout_mode = 2
+placeholder_text = "8910"
+
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/PlayButton" to="." method="_on_play_button_pressed"]
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/SettingsButton" to="." method="_on_settings_button_pressed"]
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/CreditsButton" to="." method="_on_credits_button_pressed"]
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/CreditsButton" to="." method="_on_texture_button_pressed"]
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/QuitButton" to="." method="_on_quit_button_pressed"]
+[connection signal="pressed" from="VBoxContainer/host_game" to="." method="_on_host_game_pressed"]
+[connection signal="pressed" from="VBoxContainer/join_game" to="." method="_on_join_game_pressed"]

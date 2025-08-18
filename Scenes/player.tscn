@@ -32,6 +32,9 @@ script/source = "extends CharacterBody2D
 
 var public_key: CryptoKey
 
+@onready var ip_input = $IPInput
+@onready var port_input = $PortInput
+
 # Bewegungseinstellungen
 const WALK_SPEED = 140.0
 const RUN_SPEED = 220.0
@@ -365,8 +368,11 @@ func _process(delta: float) -> void:
 	save_charge_cooldown()
 
 func _physics_process(delta: float) -> void:
+	if !is_multiplayer_authority():
+		return
 	# Bewegungseingaben verarbeiten
 	handle_input()
+	update_position.rpc(position, velocity)
 	
 	if is_in_water:
 		apply_water_physics(delta)
@@ -385,6 +391,11 @@ func _physics_process(delta: float) -> void:
 	# Animationen aktualisieren
 	update_animations()
 
+@rpc(\"unreliable\")  # Für häufige Updates
+func update_position(new_pos, new_vel):
+	if !is_multiplayer_authority():
+		position = new_pos
+		velocity = new_vel
 
 func apply_water_physics(delta: float) -> void:
 	# --- Wasserwiderstand (Drag) ---
@@ -963,6 +974,7 @@ func load_dropped_items():
 		print(\"❌ Drop-Datei gelöscht – Items werden nicht erneut geladen!\")
 
 # Angriff ausführen
+@rpc(\"call_local\")
 func perform_attack() -> void:
 	if is_attacking or is_stunned:
 		return
@@ -982,7 +994,10 @@ func update_glow_state() -> void:
 	glow_effect.visible = is_glowing
 
 # Importiere diese Zeile in deine `take_damage`-Funktion, um den Partikel-Effekt zu aktivieren
-func take_damage(amount: int, hit_source: Vector2) -> void:
+@rpc(\"any_peer\", \"call_local\")
+func take_damage(amount: int, hit_source: Vector2):
+	if !is_multiplayer_authority():
+		return
 	current_health -= amount
 	show_damage_text(amount, false)
 	flash_damage_color()
