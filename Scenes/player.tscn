@@ -905,7 +905,10 @@ func die() -> void:
 	# Kollisionsabfrage deaktivieren, damit Items nicht aufgesammelt werden
 	$ColisionArea.set_deferred(\"disabled\", true) 
 	# Inventar droppen
-	drop_inventory_items()
+	var gm = get_node(\"/root/GameManager\")
+	if gm.is_multiplayer == false:
+		print(\"⚠ Multiplayer inaktiv → drop erlaubt\")
+		drop_inventory_items()
 	save_game()
 	# Spieler unsichtbar machen
 	var save_file = FileAccess.open(\"user://inventory.save\", FileAccess.WRITE)
@@ -1014,36 +1017,34 @@ func update_glow_state() -> void:
 	glow_effect.visible = is_glowing  # Lokale Aktualisierung
 
 # Importiere diese Zeile in deine `take_damage`-Funktion, um den Partikel-Effekt zu aktivieren
-@rpc(\"any_peer\", \"call_local\", \"reliable\")
-func take_damage(amount: int, hit_source: Vector2, is_crit: bool):
+@rpc(\"any_peer\", \"call_local\")
+func take_damage(amount: int, hit_source: Vector2):
 	if !is_multiplayer_authority():
 		return
-	
 	current_health -= amount
 	show_damage_text(amount, false)
 	flash_damage_color()
 	
 	# Sound mit zufälliger Variation
-	$HitSound.pitch_scale = randf_range(1.5, 2)
-	$HitSound.volume_db = randf_range(-20, -15)
+	$HitSound.pitch_scale = randf_range(1.5, 2)  # Großer Pitch-Bereich für dramatische Effekte
+	$HitSound.volume_db = randf_range(-20, -15)       # Lautstärke leicht variieren
 	$HitSound.play()
 
-	# Knockback und Stun
+	# Knockback und Stun wie bisher
 	is_stunned = true
 	stun_timer.start()  
-	velocity = hit_source * 300  # Knockback
 
-	# Setze Heilung zurück
+	# Setze Heilung zurück und verlängere Verzögerung
 	stop_healing()
-	damage_timer.wait_time = 3.0
+	damage_timer.wait_time = 3.0  # Erhöhe Verzögerung vor Heilung
 	damage_timer.start()
 
+	# Falls der Spieler stirbt
 	if current_health <= 0:
 		current_health = 0
-		die.rpc()
+		die()
 	
-	# Lebensanzeige für alle Spieler aktualisieren
-	update_health_bar.rpc()
+	update_health_bar()
 
 func _on_stun_timer_timeout() -> void:
 	is_stunned = false  # Spieler kann sich wieder bewegen
