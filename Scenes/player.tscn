@@ -32,9 +32,6 @@ script/source = "extends CharacterBody2D
 
 var public_key: CryptoKey
 
-@onready var ip_input = $IPInput
-@onready var port_input = $PortInput
-
 # Bewegungseinstellungen
 const WALK_SPEED = 140.0
 const RUN_SPEED = 220.0
@@ -990,9 +987,8 @@ func perform_attack() -> void:
 		
 	stop_healing()
 	is_attacking = true
-	$PlayerSprite/AttackSprite.flip_h = is_facing_left
-	$PlayerSprite/AttackSprite.play(\"swing\")
-	attack_area.monitoring = true
+	sync_attack.rpc()  # Synchronisiere den Angriff mit allen Clients
+	
 	await get_tree().create_timer(0.5).timeout
 	is_attacking = false
 	attack_area.monitoring = false
@@ -1000,7 +996,7 @@ func perform_attack() -> void:
 
 # Leuchteffekt aktualisieren
 func update_glow_state() -> void:
-	glow_effect.visible = is_glowing
+	sync_glow_state.rpc(is_glowing)
 
 # Importiere diese Zeile in deine `take_damage`-Funktion, um den Partikel-Effekt zu aktivieren
 @rpc(\"any_peer\", \"call_local\")
@@ -1248,6 +1244,18 @@ func _enter_tree():
 		set_process_input(false)
 		set_process(true)  # Für Animationen etc.
 		set_physics_process(true)  # Für Bewegungsupdates
+
+@rpc(\"call_local\", \"reliable\")
+func sync_attack():
+	is_attacking = true
+	$PlayerSprite/AttackSprite.flip_h = is_facing_left
+	$PlayerSprite/AttackSprite.play(\"swing\")
+	attack_area.monitoring = true
+
+@rpc(\"call_local\", \"reliable\")
+func sync_glow_state(new_state: bool):
+	is_glowing = new_state
+	glow_effect.visible = is_glowing
 "
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_uwm2o"]
