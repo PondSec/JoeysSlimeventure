@@ -338,6 +338,10 @@ func update_facing_direction():
 func _process(delta: float) -> void:
 	if !is_multiplayer_authority():
 		return
+	if Input.is_action_just_pressed(\"Glow\"):
+		is_glowing = !is_glowing
+		update_glow_state()
+	
 	if is_landing and !Input.is_action_just_pressed(\"Attack\") and !Input.is_action_just_pressed(\"Glow\"):
 		return
 	
@@ -996,7 +1000,9 @@ func perform_attack() -> void:
 
 # Leuchteffekt aktualisieren
 func update_glow_state() -> void:
-	sync_glow_state.rpc(is_glowing)
+	if is_multiplayer_authority():  # Nur der Besitzer des Spielers darf den Zustand ändern
+		sync_glow_state.rpc(is_glowing)
+	glow_effect.visible = is_glowing  # Lokale Aktualisierung
 
 # Importiere diese Zeile in deine `take_damage`-Funktion, um den Partikel-Effekt zu aktivieren
 @rpc(\"any_peer\", \"call_local\")
@@ -1252,8 +1258,11 @@ func sync_attack():
 	$PlayerSprite/AttackSprite.play(\"swing\")
 	attack_area.monitoring = true
 
-@rpc(\"call_local\", \"reliable\")
+@rpc(\"any_peer\", \"call_local\", \"reliable\")
 func sync_glow_state(new_state: bool):
+	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
+		return  # Ignoriere Nachrichten von nicht-autoritativen Clients
+		
 	is_glowing = new_state
 	glow_effect.visible = is_glowing
 "
