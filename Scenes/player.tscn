@@ -893,9 +893,9 @@ func _on_attack_area_body_entered(body) -> void:
 			
 			# Sende Schaden an den getroffenen Spieler oder Gegner
 			if body.is_in_group(\"players\"):
-				body.take_damage.rpc(damage, knockback_direction, is_crit)
+				body.take_damage.rpc(damage, knockback_direction)
 			else:
-				body.take_damage(damage, knockback_direction, is_crit)
+				body.take_damage(damage, knockback_direction)
 			
 			$Camera2D.shake(3.0, 0.2)
 		
@@ -1017,29 +1017,32 @@ func update_glow_state() -> void:
 	glow_effect.visible = is_glowing  # Lokale Aktualisierung
 
 # Importiere diese Zeile in deine `take_damage`-Funktion, um den Partikel-Effekt zu aktivieren
-@rpc(\"any_peer\", \"call_local\")
+@rpc(\"any_peer\", \"call_local\", \"reliable\")
 func take_damage(amount: int, hit_source: Vector2):
 	if !is_multiplayer_authority():
 		return
+	
+	# Eigenen Schaden verarbeiten
 	current_health -= amount
 	show_damage_text(amount, false)
 	flash_damage_color()
 	
-	# Sound mit zufälliger Variation
-	$HitSound.pitch_scale = randf_range(1.5, 2)  # Großer Pitch-Bereich für dramatische Effekte
-	$HitSound.volume_db = randf_range(-20, -15)       # Lautstärke leicht variieren
+	# Soundeffekt
+	$HitSound.pitch_scale = randf_range(0.8, 1.2)
 	$HitSound.play()
 
-	# Knockback und Stun wie bisher
+	# Knockback in Richtung der Trefferquelle
+	var knockback_dir = (global_position - hit_source).normalized()
+	velocity = knockback_dir * 200  # Mäßiger Knockback
+
+	# Stun-Effekt
 	is_stunned = true
-	stun_timer.start()  
-
-	# Setze Heilung zurück und verlängere Verzögerung
+	stun_timer.start()
+	
+	# Heilung zurücksetzen
 	stop_healing()
-	damage_timer.wait_time = 3.0  # Erhöhe Verzögerung vor Heilung
-	damage_timer.start()
-
-	# Falls der Spieler stirbt
+	
+	# Tod prüfen
 	if current_health <= 0:
 		current_health = 0
 		die()
