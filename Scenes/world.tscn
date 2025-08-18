@@ -26,9 +26,9 @@ func spawn_new_player(peer_id):
 func spawn_player(peer_id):
 	var player = current_player_scene.instantiate()
 	player.name = str(peer_id)
-	player.set_multiplayer_authority(peer_id)
+	player.set_multiplayer_authority(peer_id)  # Wichtig: Setzt die Autorität
 	add_child(player)
-	
+
 	# Zufälliger Spawn-Punkt
 	var spawn_points = get_tree().get_nodes_in_group(\"spawn_points\")
 	player.global_position = spawn_points[randi() % spawn_points.size()].global_position

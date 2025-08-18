@@ -339,6 +339,8 @@ func update_facing_direction():
 	$PlayerSprite/AttackSprite.flip_h = is_facing_left
 
 func _process(delta: float) -> void:
+	if !is_multiplayer_authority():
+		return
 	if is_landing and !Input.is_action_just_pressed(\"Attack\") and !Input.is_action_just_pressed(\"Glow\"):
 		return
 	
@@ -453,6 +455,8 @@ func handle_swimming_input(delta: float) -> void:
 
 
 func handle_input():
+	if !is_multiplayer_authority():
+		return
 	# Laufen/Rennen - aber nur wenn nicht in Landeanimation
 	if not is_landing:
 		if Input.is_action_pressed(\"sprint\"):
@@ -1139,6 +1143,8 @@ func get_selected_hotbar_index() -> int:
 	return selected_hotbar_index  
 
 func _input(event):
+	if !is_multiplayer_authority():
+		return
 	if event is InputEventKey and event.pressed:
 		if event.keycode >= KEY_1 and event.keycode <= KEY_9:
 			selected_hotbar_index = event.keycode - KEY_1  # 1 = Index 0, 2 = Index 1, etc.
