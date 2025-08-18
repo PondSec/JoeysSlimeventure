@@ -894,17 +894,14 @@ func _on_attack_area_body_entered(body) -> void:
 			
 			$Camera2D.shake(3.0, 0.2)
 		
-
 @rpc(\"call_local\", \"reliable\")
-func die():
-    print(\"Der Spieler ist gestorben!\")
-    $ColisionArea.set_deferred(\"disabled\", true)
-    drop_inventory_items()
-    save_game()
-    self.visible = false  
-    set_process(false)
-    set_physics_process(false)
-    death_screen.show_death_screen()
+func die() -> void:
+	print(\"Der Spieler ist gestorben!\")
+	# Kollisionsabfrage deaktivieren, damit Items nicht aufgesammelt werden
+	$ColisionArea.set_deferred(\"disabled\", true) 
+	# Inventar droppen
+	drop_inventory_items()
+	save_game()
 	# Spieler unsichtbar machen
 	var save_file = FileAccess.open(\"user://inventory.save\", FileAccess.WRITE)
 	if FileAccess.file_exists(\"user://inventory.save\"):
