@@ -193,7 +193,7 @@ func _ready() -> void:
 	public_key = CryptoKey.new()
 	# Lade den öffentlichen Schlüssel des Servers
 	public_key.load(\"res://Keys/public.pem\")
-	
+	sync_health.rpc(current_health)
 	load_charge_cooldown()
 	glow_effect = $PlayerGlow
 	# Initialisiere Angriffsknoten
@@ -1017,6 +1017,7 @@ func take_damage(amount: int, hit_source: Vector2, is_crit: bool):
 		return
 	
 	current_health -= amount
+	sync_health.rpc(current_health)
 	show_damage_text(amount, false)
 	flash_damage_color()
 	
@@ -1036,7 +1037,6 @@ func take_damage(amount: int, hit_source: Vector2, is_crit: bool):
 	damage_timer.start()
 
 	if current_health <= 0:
-		current_health = 0
 		die.rpc()
 	
 	update_health_bar()
@@ -1087,9 +1087,14 @@ func show_damage_text(amount: int, is_heal: bool) -> void:
 	damage_label.visible = false
 
 
+@rpc(\"any_peer\", \"call_local\", \"reliable\")
 func heal(amount: int) -> void:
-	current_health += amount
-	show_damage_text(amount, true)  # Zeigt die Heilung an
+	if !is_multiplayer_authority():
+		return
+	
+	current_health = min(current_health + amount, max_health)
+	sync_health.rpc(current_health)
+	show_damage_text(amount, true)
 	if current_health > max_health:
 		current_health = max_health  # Stelle sicher, dass max_health nicht überschritten wird
 	update_health_bar()
@@ -1272,6 +1277,11 @@ func sync_glow_state(new_state: bool):
 		
 	is_glowing = new_state
 	glow_effect.visible = is_glowing
+
+@rpc(\"any_peer\", \"call_local\", \"reliable\")
+func sync_health(new_health: int) -> void:
+	current_health = new_health
+	update_health_bar()  # Aktualisiert die UI
 "
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_uwm2o"]
