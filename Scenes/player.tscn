@@ -341,7 +341,7 @@ func _process(delta: float) -> void:
 	if Input.is_action_just_pressed(\"Glow\"):
 		is_glowing = !is_glowing
 		update_glow_state()
-	
+		
 	if is_landing and !Input.is_action_just_pressed(\"Attack\") and !Input.is_action_just_pressed(\"Glow\"):
 		return
 	
@@ -877,20 +877,16 @@ func is_in_air() -> bool:
 
 # Angriffskollisionsbehandlung
 func _on_attack_area_body_entered(body) -> void:
-	if body.is_in_group(\"enemies\") or body.is_in_group(\"players\"):
-		# Ignoriere sich selbst
-		if body == self:
-			return
-			
+	if body.is_in_group(\"enemies\"):
+		# Calculate damage and check for crit
 		var is_crit = randf() < current_crit_chance
 		var damage = attack_damage * (current_crit_multiplier if is_crit else 1.0)
 		var knockback_direction = (body.global_position - global_position).normalized()
 		
-		# Schaden an Gegner oder anderen Spielern zufügen
-		if body.has_method(\"take_damage\"):
-			body.take_damage.rpc(damage, knockback_direction, is_crit)
+		# Let the enemy handle the damage calculation and crit determination
+		body.take_damage(damage, knockback_direction, is_crit)
 		
-		$Camera2D.shake(0.2, 15)
+		$Camera2D.shake(3.0, 0.2)
 		
 
 func die() -> void:
@@ -993,26 +989,14 @@ func perform_attack() -> void:
 	if is_attacking or is_stunned:
 		return
 		
+	stop_healing()
 	is_attacking = true
-	$PlayerSprite/AttackSprite.play(\"swing\")
-	attack_area.monitoring = true
+	sync_attack.rpc()  # Synchronisiere den Angriff mit allen Clients
 	
-	# Nur der angreifende Spieler triggert den Schaden
-	if is_multiplayer_authority():
-		await get_tree().create_timer(0.2).timeout  # Verzögerung für Angriffstiming
-		check_attack_hits()
-	
-	await get_tree().create_timer(0.3).timeout
+	await get_tree().create_timer(0.5).timeout
 	is_attacking = false
 	attack_area.monitoring = false
-
-func check_attack_hits():
-	for body in attack_area.get_overlapping_bodies():
-		if body.is_in_group(\"players\") and body != self:
-			var direction = (body.global_position - global_position).normalized()
-			var is_crit = randf() < current_crit_chance
-			var damage = attack_damage * (current_crit_multiplier if is_crit else 1.0)
-			body.take_damage.rpc(damage, direction, is_crit)
+	damage_timer.start()
 
 # Leuchteffekt aktualisieren
 func update_glow_state() -> void:
@@ -1022,22 +1006,30 @@ func update_glow_state() -> void:
 
 # Importiere diese Zeile in deine `take_damage`-Funktion, um den Partikel-Effekt zu aktivieren
 @rpc(\"any_peer\", \"call_local\")
-func take_damage(amount: int, knockback: Vector2, is_crit: bool):
+func take_damage(amount: int, hit_source: Vector2):
 	if !is_multiplayer_authority():
-		return  # Nur der Besitzer des Spielers darf Schaden verarbeiten
-	
+		return
 	current_health -= amount
 	show_damage_text(amount, false)
 	flash_damage_color()
 	
-	# Knockback anwenden
-	velocity = knockback * 300
-	
-	# Soundeffekt
-	$HitSound.pitch_scale = randf_range(1.5, 2)
+	# Sound mit zufälliger Variation
+	$HitSound.pitch_scale = randf_range(1.5, 2)  # Großer Pitch-Bereich für dramatische Effekte
+	$HitSound.volume_db = randf_range(-20, -15)       # Lautstärke leicht variieren
 	$HitSound.play()
 
+	# Knockback und Stun wie bisher
+	is_stunned = true
+	stun_timer.start()  
+
+	# Setze Heilung zurück und verlängere Verzögerung
+	stop_healing()
+	damage_timer.wait_time = 3.0  # Erhöhe Verzögerung vor Heilung
+	damage_timer.start()
+
+	# Falls der Spieler stirbt
 	if current_health <= 0:
+		current_health = 0
 		die()
 	
 	update_health_bar()
@@ -1273,11 +1265,6 @@ func sync_glow_state(new_state: bool):
 		
 	is_glowing = new_state
 	glow_effect.visible = is_glowing
-
-@rpc(\"any_peer\", \"unreliable\")
-func apply_knockback(force: Vector2):
-    if is_multiplayer_authority():
-        velocity = force
 "
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_uwm2o"]
