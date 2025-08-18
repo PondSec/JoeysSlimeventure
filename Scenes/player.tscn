@@ -319,8 +319,10 @@ func update_health_bar() -> void:
 	# Setze den Wert der Lebensanzeige basierend auf dem aktuellen Gesundheitswert
 	health_bar.value = current_health
 	health_bar.max_value = max_health
-
+@rpc(\"unreliable\") 
 func update_facing_direction():
+	if !is_multiplayer_authority():
+		return
 	# Priorität 1: Explizite Eingabe (Links/Rechts)
 	if Input.is_action_pressed(\"left\"):
 		is_facing_left = true
@@ -877,25 +879,32 @@ func is_in_air() -> bool:
 
 # Angriffskollisionsbehandlung
 func _on_attack_area_body_entered(body) -> void:
-	if body.is_in_group(\"enemies\"):
-		# Calculate damage and check for crit
-		var is_crit = randf() < current_crit_chance
-		var damage = attack_damage * (current_crit_multiplier if is_crit else 1.0)
-		var knockback_direction = (body.global_position - global_position).normalized()
-		
-		# Let the enemy handle the damage calculation and crit determination
-		body.take_damage(damage, knockback_direction, is_crit)
-		
-		$Camera2D.shake(3.0, 0.2)
+	if body.is_in_group(\"enemies\") or body.is_in_group(\"players\"):
+		# Nur der autoritative Spieler berechnet Schaden
+		if is_multiplayer_authority():
+			var is_crit = randf() < current_crit_chance
+			var damage = attack_damage * (current_crit_multiplier if is_crit else 1.0)
+			var knockback_direction = (body.global_position - global_position).normalized()
+			
+			# Sende Schaden an den getroffenen Spieler oder Gegner
+			if body.is_in_group(\"players\"):
+				body.take_damage.rpc(damage, knockback_direction, is_crit)
+			else:
+				body.take_damage(damage, knockback_direction, is_crit)
+			
+			$Camera2D.shake(3.0, 0.2)
 		
 
-func die() -> void:
-	print(\"Der Spieler ist gestorben!\")
-	# Kollisionsabfrage deaktivieren, damit Items nicht aufgesammelt werden
-	$ColisionArea.set_deferred(\"disabled\", true) 
-	# Inventar droppen
-	drop_inventory_items()
-	save_game()
+@rpc(\"call_local\", \"reliable\")
+func die():
+    print(\"Der Spieler ist gestorben!\")
+    $ColisionArea.set_deferred(\"disabled\", true)
+    drop_inventory_items()
+    save_game()
+    self.visible = false  
+    set_process(false)
+    set_physics_process(false)
+    death_screen.show_death_screen()
 	# Spieler unsichtbar machen
 	var save_file = FileAccess.open(\"user://inventory.save\", FileAccess.WRITE)
 	if FileAccess.file_exists(\"user://inventory.save\"):
@@ -984,7 +993,7 @@ func load_dropped_items():
 		print(\"❌ Drop-Datei gelöscht – Items werden nicht erneut geladen!\")
 
 # Angriff ausführen
-@rpc(\"call_local\")
+@rpc(\"call_local\", \"reliable\")
 func perform_attack() -> void:
 	if is_attacking or is_stunned:
 		return
@@ -1000,37 +1009,36 @@ func perform_attack() -> void:
 
 # Leuchteffekt aktualisieren
 func update_glow_state() -> void:
-	if is_multiplayer_authority():  # Nur der Besitzer des Spielers darf den Zustand ändern
-		sync_glow_state.rpc(is_glowing)
 	glow_effect.visible = is_glowing  # Lokale Aktualisierung
 
 # Importiere diese Zeile in deine `take_damage`-Funktion, um den Partikel-Effekt zu aktivieren
-@rpc(\"any_peer\", \"call_local\")
-func take_damage(amount: int, hit_source: Vector2):
+@rpc(\"any_peer\", \"call_local\", \"reliable\")
+func take_damage(amount: int, hit_source: Vector2, is_crit: bool):
 	if !is_multiplayer_authority():
 		return
+	
 	current_health -= amount
 	show_damage_text(amount, false)
 	flash_damage_color()
 	
 	# Sound mit zufälliger Variation
-	$HitSound.pitch_scale = randf_range(1.5, 2)  # Großer Pitch-Bereich für dramatische Effekte
-	$HitSound.volume_db = randf_range(-20, -15)       # Lautstärke leicht variieren
+	$HitSound.pitch_scale = randf_range(1.5, 2)
+	$HitSound.volume_db = randf_range(-20, -15)
 	$HitSound.play()
 
-	# Knockback und Stun wie bisher
+	# Knockback und Stun
 	is_stunned = true
 	stun_timer.start()  
+	velocity = hit_source * 300  # Knockback
 
-	# Setze Heilung zurück und verlängere Verzögerung
+	# Setze Heilung zurück
 	stop_healing()
-	damage_timer.wait_time = 3.0  # Erhöhe Verzögerung vor Heilung
+	damage_timer.wait_time = 3.0
 	damage_timer.start()
 
-	# Falls der Spieler stirbt
 	if current_health <= 0:
 		current_health = 0
-		die()
+		die.rpc()
 	
 	update_health_bar()
 
