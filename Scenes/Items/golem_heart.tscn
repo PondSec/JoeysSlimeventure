@@ -1,7 +1,7 @@
 [gd_scene load_steps=6 format=3 uid="uid://c5gf7gixygiky"]
 
 [ext_resource type="Resource" uid="uid://by734ky61leyb" path="res://InventorySystem/items/golem_heart.tres" id="1_gik10"]
-[ext_resource type="Texture2D" uid="uid://d31jtevxfrlb4" path="res://Assets/Items/Mob Drops/StoneGolem/GolemHeart.png" id="2_svco1"]
+[ext_resource type="Texture2D" uid="uid://d31jtevxfrlb4" path="res://Assets/Items/GolemHeart.png" id="2_svco1"]
 
 [sub_resource type="GDScript" id="GDScript_8jn70"]
 resource_name = "bat_claw"

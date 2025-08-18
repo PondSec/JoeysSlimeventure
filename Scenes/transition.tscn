@@ -1,0 +1,99 @@
+[gd_scene load_steps=6 format=3 uid="uid://crgderoqhvis4"]
+
+[sub_resource type="GDScript" id="GDScript_jxdek"]
+script/source = "extends CanvasLayer
+
+signal transition_completed
+
+@onready var animation_player = $AnimationPlayer
+var player = is_in_group(\"players\")
+
+# Neuer Parameter: skip_fade_in (standardmäßig false)
+func play_transition(scene_path: String, skip_fade_in: bool = false) -> void:
+	if not skip_fade_in:
+		fade_in()
+		await animation_player.animation_finished
+	
+	emit_signal(\"transition_completed\")
+	get_tree().change_scene_to_file(scene_path)
+	
+	fade_out()
+	await animation_player.animation_finished
+	queue_free()
+
+func fade_in() -> void:
+	animation_player.play(\"fade_in\")
+
+func fade_out() -> void:
+	animation_player.play(\"fade_out\")
+"
+
+[sub_resource type="Animation" id="Animation_ah04o"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:color")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [Color(0, 0, 0, 1)]
+}
+
+[sub_resource type="Animation" id="Animation_jnsx0"]
+resource_name = "fade_in"
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:color")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Color(0, 0, 0, 0), Color(0, 0, 0, 1)]
+}
+
+[sub_resource type="Animation" id="Animation_vlteq"]
+resource_name = "fade_out"
+length = 1.5
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:color")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 1.5),
+"transitions": PackedFloat32Array(14.9285, 14.9285),
+"update": 0,
+"values": [Color(0, 0, 0, 1), Color(0, 0, 0, 0)]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_3nmoj"]
+_data = {
+&"RESET": SubResource("Animation_ah04o"),
+&"fade_in": SubResource("Animation_jnsx0"),
+&"fade_out": SubResource("Animation_vlteq")
+}
+
+[node name="Transition" type="CanvasLayer"]
+script = SubResource("GDScript_jxdek")
+
+[node name="ColorRect" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 1)
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+root_node = NodePath("../ColorRect")
+libraries = {
+&"": SubResource("AnimationLibrary_3nmoj")
+}

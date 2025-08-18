@@ -22,47 +22,72 @@ script/source = "extends Control
 
 const CONFIG_PATH = \"user://settings.cfg\"
 const PLAYER_ID_PATH = \"user://player_id.save\"
+const SECRET_SALT = \"X7!d9$#_MySaltHere_2025\"  # geheim, für Signatur
 var config := ConfigFile.new()
 
-# Called when the node enters the scene tree for the first time.
-func _ready() -> void:
-	$BackgroundSprite/AnimationPlayer.play(\"loop\")  
-	load_settings()  # Lade die gespeicherten Einstellungen
-	set_uuid_label()
-	
-func set_uuid_label() -> void:
-	var player_id = \"\"
+# ---------------------------------------------------
+# 🔒 Hash & ID-Funktionen
+# ---------------------------------------------------
+func get_signature(player_id: String) -> String:
+	var ctx := HashingContext.new()
+	ctx.start(HashingContext.HASH_SHA256)
+	ctx.update(player_id.to_utf8_buffer() + SECRET_SALT.to_utf8_buffer())
+	var hash: PackedByteArray = ctx.finish()
+	return hash.hex_encode()
+
+func save_player_id(player_id: String) -> void:
+	var sig = get_signature(player_id)
+	var file = FileAccess.open(PLAYER_ID_PATH, FileAccess.WRITE)
+	if file:
+		file.store_line(player_id)
+		file.store_line(sig)
+		file.close()
+
+func load_or_create_player_id() -> String:
 	if FileAccess.file_exists(PLAYER_ID_PATH):
 		var file = FileAccess.open(PLAYER_ID_PATH, FileAccess.READ)
 		if file:
-			player_id = file.get_line().replace(\"{\", \"\").replace(\"}\", \"\")  # Entfernt geschweifte Klammern
+			var player_id = file.get_line().strip_edges()
+			var sig = file.get_line().strip_edges()
 			file.close()
-		else:
-			print(\"❌ Fehler beim Laden der Spieler-ID.\")
-	else:
-		print(\"❌ Keine Spieler-ID gefunden.\")
-	
-	# UUID in das Label schreiben mit \"UUID: \" davor
+
+			if sig == get_signature(player_id):
+				return player_id
+			else:
+				push_warning(\"⚠ Manipulierte Player-ID entdeckt → neue ID wird generiert.\")
+	# Falls keine Datei existiert oder sie manipuliert ist → neue ID
+	var new_id = OS.get_unique_id()
+	save_player_id(new_id)
+	return new_id
+
+# ---------------------------------------------------
+# 🎬 Lebenszyklus
+# ---------------------------------------------------
+func _ready() -> void:
+	$BackgroundSprite/AnimationPlayer.play(\"loop\")  
+	load_settings()  
+	set_uuid_label()
+
+func set_uuid_label() -> void:
+	var player_id = load_or_create_player_id()
 	$UUID.text = \"UUID: \" + player_id
 
-# LÄDT die gespeicherten Einstellungen
+# ---------------------------------------------------
+# ⚙️ Settings laden
+# ---------------------------------------------------
 func load_settings() -> void:
 	if config.load(CONFIG_PATH) != OK:
-		return  # Datei existiert nicht -> Standardwerte bleiben
+		return
 	
-	# Volume laden
 	var volume = config.get_value(\"audio\", \"volume\", 0.0)
 	AudioServer.set_bus_volume_db(0, volume)
 	
-	# Mute-Status laden
 	var mute = config.get_value(\"audio\", \"mute\", false)
 	AudioServer.set_bus_mute(0, mute)
 	
-	# Auflösung laden
 	var resolution_index = config.get_value(\"graphics\", \"resolution\", 2)
 	set_resolution(resolution_index)
 
-# Anwenden der gespeicherten Auflösung
 func set_resolution(index: int) -> void:
 	var resolutions = [
 		Vector2i(3840, 2160),
@@ -72,29 +97,28 @@ func set_resolution(index: int) -> void:
 		Vector2i(1366, 768),
 		Vector2i(1280, 720)
 	]
-	
 	if index >= 0 and index < resolutions.size():
 		DisplayServer.window_set_size(resolutions[index])
 
-# Beispielhafte Button-Handler, die Szenenwechsel durchführen
+# ---------------------------------------------------
+# 🔘 Buttons
+# ---------------------------------------------------
 func _on_credits_button_pressed() -> void:
 	change_scene(\"res://Scenes/credits.tscn\")
 
 func _on_play_button_pressed() -> void:
 	var level_resource = load(\"user://current_level.res\")
+	var level_scene_path = \"res://Scenes/Game.tscn\"
 	
-	if level_resource and level_resource.has_method(\"get\"): # oder dein Resource-Property checken
-		var level_scene_path = level_resource.unlocked_level
-		
-		if ResourceLoader.exists(level_scene_path):
-			get_tree().change_scene_to_file(level_scene_path)
-			return
-		else:
+	if level_resource and level_resource.has_method(\"get\"):
+		level_scene_path = level_resource.unlocked_level
+		if not ResourceLoader.exists(level_scene_path):
 			print(\"⚠ Level ungültig, fallback auf Startlevel\")
+			level_scene_path = \"res://Scenes/Game.tscn\"
 	
-	# Fallback – wenn nix geht, immer erstes Level
-	get_tree().change_scene_to_file(\"res://Scenes/Game.tscn\")
-
+	var transition = preload(\"res://Scenes/transition.tscn\").instantiate()
+	get_tree().root.add_child(transition)
+	transition.play_transition(level_scene_path, false)
 
 func _on_quit_button_pressed() -> void:
 	get_tree().quit()
@@ -102,7 +126,6 @@ func _on_quit_button_pressed() -> void:
 func _on_settings_button_pressed() -> void:
 	change_scene(\"res://Scenes/settings.tscn\")
 
-# Hilfsfunktion zum Wechseln der Szene
 func change_scene(scene_path: String) -> void:
 	var new_scene = load(scene_path)
 	if new_scene == null:
