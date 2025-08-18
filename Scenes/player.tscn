@@ -190,6 +190,8 @@ var water_enter_velocity := 0.0
 var is_swimming := false
 
 func _ready() -> void:
+	if is_multiplayer_authority():
+		update_health_bar.rpc()
 	public_key = CryptoKey.new()
 	# Lade den öffentlichen Schlüssel des Servers
 	public_key.load(\"res://Keys/public.pem\")
@@ -304,21 +306,22 @@ func update_damage_bonus():
 	attack_damage = base_attack_damage * damage_multiplier
 
 func update_health_bonus():
-	var bonus = 1.0  # Startwert für Multiplikation
+    var bonus = 1.0
+    for slot in inv.slots:
+        if slot.item and slot.amount > 0:
+            bonus += slot.item.health_bonus * slot.amount
 
-	for slot in inv.slots:
-		if slot.item and slot.amount > 0:  # Falls der Slot gültig ist und Items enthält
-			bonus += slot.item.health_bonus * slot.amount  # Multipliziere mit Stack-Anzahl
-
-	max_health = base_max_health * bonus
-	current_health = min(current_health, max_health)
-
+    max_health = base_max_health * bonus
+    current_health = min(current_health, max_health)
+    sync_max_health.rpc()
 
 # Lebensanzeige aktualisieren
-func update_health_bar() -> void:
-	# Setze den Wert der Lebensanzeige basierend auf dem aktuellen Gesundheitswert
+@rpc(\"reliable\", \"call_remote\")
+func update_health_bar():
 	health_bar.value = current_health
 	health_bar.max_value = max_health
+	health_label.text = \"HP: \" + str(current_health)
+	
 @rpc(\"unreliable\") 
 func update_facing_direction():
 	if !is_multiplayer_authority():
@@ -1039,7 +1042,8 @@ func take_damage(amount: int, hit_source: Vector2, is_crit: bool):
 		current_health = 0
 		die.rpc()
 	
-	update_health_bar()
+	# Lebensanzeige für alle Spieler aktualisieren
+	update_health_bar.rpc()
 
 func _on_stun_timer_timeout() -> void:
 	is_stunned = false  # Spieler kann sich wieder bewegen
@@ -1087,12 +1091,16 @@ func show_damage_text(amount: int, is_heal: bool) -> void:
 	damage_label.visible = false
 
 
-func heal(amount: int) -> void:
+@rpc(\"any_peer\", \"call_local\", \"reliable\")
+func heal(amount: int):
+	if !is_multiplayer_authority():
+		return
+		
 	current_health += amount
-	show_damage_text(amount, true)  # Zeigt die Heilung an
+	show_damage_text(amount, true)
 	if current_health > max_health:
-		current_health = max_health  # Stelle sicher, dass max_health nicht überschritten wird
-	update_health_bar()
+		current_health = max_health
+	update_health_bar.rpc()
 
 func collect(item):
 	inv.Insert(item)
@@ -1272,6 +1280,14 @@ func sync_glow_state(new_state: bool):
 		
 	is_glowing = new_state
 	glow_effect.visible = is_glowing
+
+@rpc(\"reliable\", \"call_remote\")
+func sync_max_health():
+	max_health = base_max_health
+	for slot in inv.slots:
+		if slot.item and slot.amount > 0:
+			max_health += slot.item.health_bonus * slot.amount
+	update_health_bar.rpc()
 "
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_uwm2o"]
