@@ -1,9 +1,7 @@
 extends Node
 
-var peer: ENetMultiplayerPeer
-
 func host_game(port):
-	peer = ENetMultiplayerPeer.new()
+	var peer = ENetMultiplayerPeer.new()
 	var err = peer.create_server(port)
 	if err != OK:
 		print("Fehler beim Erstellen des Servers: ", err)
@@ -12,38 +10,25 @@ func host_game(port):
 	multiplayer.multiplayer_peer = peer
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	load_game_world()
-	print("Server gestartet auf Port", port)
 
 func join_game(ip, port):
-	peer = ENetMultiplayerPeer.new()
+	var peer = ENetMultiplayerPeer.new()
 	var err = peer.create_client(ip, port)
 	if err != OK:
 		print("Fehler beim Verbinden: ", err)
 		return
 	
 	multiplayer.multiplayer_peer = peer
-	
-	# Korrekte Signal-Verbindung für Godot 4:
-	multiplayer.connected_to_server.connect(_on_connection_success)
-	multiplayer.connection_failed.connect(_on_connection_failed)
-	multiplayer.server_disconnected.connect(_on_server_disconnected)
+	# Warte auf Verbindung bevor die Welt geladen wird
+	peer.connection_succeeded.connect(_on_connection_success.bind(ip, port))
 
-func _on_connection_success():
-	print("Erfolgreich mit Server verbunden!")
+func _on_connection_success(ip, port):
+	print("Erfolgreich verbunden mit ", ip, ":", port)
 	load_game_world()
 
-func _on_connection_failed():
-	print("Verbindung zum Server fehlgeschlagen!")
-	# Hier könnten Sie zum Hauptmenü zurückkehren
-
-func _on_server_disconnected():
-	print("Vom Server getrennt!")
-	# Hier könnten Sie zum Hauptmenü zurückkehren
-	get_tree().reload_current_scene()
-
-func _on_peer_connected(id):
-	print("Neuer Client verbunden:", id)
+func _on_peer_connected(peer_id):
+	print("Neuer Spieler verbunden: ", peer_id)
 
 func load_game_world():
-	print("Lade Spielwelt...")
+	# Lade die Welt für alle Spieler
 	get_tree().change_scene_to_file("res://Scenes/world.tscn")
