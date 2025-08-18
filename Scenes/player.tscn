@@ -306,14 +306,14 @@ func update_damage_bonus():
 	attack_damage = base_attack_damage * damage_multiplier
 
 func update_health_bonus():
-    var bonus = 1.0
-    for slot in inv.slots:
-        if slot.item and slot.amount > 0:
-            bonus += slot.item.health_bonus * slot.amount
+	var bonus = 1.0
+	for slot in inv.slots:
+		if slot.item and slot.amount > 0:
+			bonus += slot.item.health_bonus * slot.amount
 
-    max_health = base_max_health * bonus
-    current_health = min(current_health, max_health)
-    sync_max_health.rpc()
+	max_health = base_max_health * bonus
+	current_health = min(current_health, max_health)
+	sync_max_health.rpc()
 
 # Lebensanzeige aktualisieren
 @rpc(\"reliable\", \"call_remote\")
@@ -1107,10 +1107,18 @@ func collect(item):
 		
 
 func save_game():
+	var gm = get_node(\"/root/GameManager\")
+	if gm.is_multiplayer:
+		print(\"⚠ Multiplayer aktiv → kein Speichern erlaubt\")
+		return
 	var bats = get_tree().get_nodes_in_group(\"bats\")  # 🦇 Alle Fledermäuse holen
 	save_load.save_game(self, bats)  # Spieler & Fledermäuse speichern
 
 func load_game():
+	var gm = get_node(\"/root/GameManager\")
+	if gm.is_multiplayer:
+		print(\"⚠ Multiplayer aktiv → kein Laden erlaubt\")
+		return
 	var bat_scene = preload(\"res://Scenes/bat.tscn\")  # 🦇 Vorlage für Fle	dermäuse
 	save_load.load_game(self, bat_scene)  # Spieler & Fledermäuse laden
 

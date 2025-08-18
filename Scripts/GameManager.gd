@@ -1,8 +1,10 @@
 extends Node
 
 var peer: ENetMultiplayerPeer
+var is_multiplayer: bool = false
 
 func host_game(port):
+	is_multiplayer = true
 	peer = ENetMultiplayerPeer.new()
 	var err = peer.create_server(port)
 	if err != OK:
@@ -15,6 +17,7 @@ func host_game(port):
 	print("Server gestartet auf Port", port)
 
 func join_game(ip, port):
+	is_multiplayer = true
 	peer = ENetMultiplayerPeer.new()
 	var err = peer.create_client(ip, port)
 	if err != OK:
