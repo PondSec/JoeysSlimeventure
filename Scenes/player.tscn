@@ -879,6 +879,8 @@ func is_in_air() -> bool:
 
 # Angriffskollisionsbehandlung
 func _on_attack_area_body_entered(body) -> void:
+	if body == self:  # Verhindere Selbstschaden
+		return
 	if body.is_in_group(\"enemies\") or body.is_in_group(\"players\"):
 		# Nur der autoritative Spieler berechnet Schaden
 		if is_multiplayer_authority():
