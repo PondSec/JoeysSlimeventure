@@ -1231,6 +1231,18 @@ func show_notification(message: String) -> void:
 	tween.tween_interval(2.0)
 	tween.tween_property(label, \"modulate:a\", 0.0, 0.5)
 	tween.tween_callback(label.queue_free)
+
+func _enter_tree():
+	if is_multiplayer_authority():
+		# Nur für den eigenen Spieler Input aktivieren
+		set_process_input(true)
+		set_process(true)
+		set_physics_process(true)
+	else:
+		# Für andere Spieler nur die notwendigen Prozesse
+		set_process_input(false)
+		set_process(true)  # Für Animationen etc.
+		set_physics_process(true)  # Für Bewegungsupdates
 "
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_uwm2o"]
