@@ -26,8 +26,8 @@ const SECRET_SALT = \"X7!d9$#_MySaltHere_2025\"  # geheim, für Signatur
 var config := ConfigFile.new()
 
 # Neue Referenzen für Multiplayer-Elemente
-@onready var ip_input: LineEdit = $VBoxContainer/IPInput
-@onready var port_input: LineEdit = $VBoxContainer/PortInput
+@onready var ip_input: LineEdit = $MultiPlayer/VBoxContainer/IPInput
+@onready var port_input: LineEdit = $MultiPlayer/VBoxContainer/PortInput
 
 # ---------------------------------------------------
 # 🔒 Hash & ID-Funktionen
@@ -135,7 +135,7 @@ func _on_settings_button_pressed() -> void:
 
 func _on_multiplayer_button_pressed() -> void:
 	# Zeige/Verstecke Multiplayer-UI
-	$VBoxContainer/MultiplayerContainer.visible = not $VBoxContainer/MultiplayerContainer.visible
+	$MultiPlayer/VBoxContainer/MultiplayerContainer.visible = not $VBoxContainer/MultiplayerContainer.visible
 
 func _on_host_game_pressed() -> void:
 	if port_input.text.is_valid_int():
@@ -279,8 +279,8 @@ stretch_mode = 0
 layout_mode = 0
 offset_left = 110.0
 offset_top = 2.0
-offset_right = 511.0
-offset_bottom = 96.0
+offset_right = 176.0
+offset_bottom = 26.0
 scale = Vector2(3, 3)
 text = "Settings"
 
@@ -313,32 +313,40 @@ offset_right = 1006.0
 offset_bottom = 1095.0
 text = "020394329432894732847847284823"
 
-[node name="VBoxContainer" type="VBoxContainer" parent="."]
+[node name="MultiPlayer" type="PanelContainer" parent="."]
+custom_minimum_size = Vector2(400, 200)
 layout_mode = 1
-anchors_preset = 6
+anchors_preset = 3
 anchor_left = 1.0
-anchor_top = 0.5
+anchor_top = 1.0
 anchor_right = 1.0
-anchor_bottom = 0.5
-offset_left = -94.0
-offset_top = -68.0
-offset_bottom = 68.0
+anchor_bottom = 1.0
+offset_left = -100.0
+offset_top = -212.0
 grow_horizontal = 0
-grow_vertical = 2
+grow_vertical = 0
 
-[node name="host_game" type="Button" parent="VBoxContainer"]
+[node name="VBoxContainer" type="VBoxContainer" parent="MultiPlayer"]
+custom_minimum_size = Vector2(100, 100)
+layout_mode = 2
+
+[node name="host_game" type="Button" parent="MultiPlayer/VBoxContainer"]
+custom_minimum_size = Vector2(100, 50)
 layout_mode = 2
 text = "Host Game"
 
-[node name="PortInput" type="LineEdit" parent="VBoxContainer"]
+[node name="PortInput" type="LineEdit" parent="MultiPlayer/VBoxContainer"]
+custom_minimum_size = Vector2(100, 50)
 layout_mode = 2
 placeholder_text = "8910"
 
-[node name="join_game" type="Button" parent="VBoxContainer"]
+[node name="join_game" type="Button" parent="MultiPlayer/VBoxContainer"]
+custom_minimum_size = Vector2(100, 50)
 layout_mode = 2
 text = "Join Game"
 
-[node name="IPInput" type="LineEdit" parent="VBoxContainer"]
+[node name="IPInput" type="LineEdit" parent="MultiPlayer/VBoxContainer"]
+custom_minimum_size = Vector2(100, 50)
 layout_mode = 2
 placeholder_text = "localhost"
 
@@ -347,5 +355,5 @@ placeholder_text = "localhost"
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/CreditsButton" to="." method="_on_credits_button_pressed"]
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/CreditsButton" to="." method="_on_texture_button_pressed"]
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/QuitButton" to="." method="_on_quit_button_pressed"]
-[connection signal="pressed" from="VBoxContainer/host_game" to="." method="_on_host_game_pressed"]
-[connection signal="pressed" from="VBoxContainer/join_game" to="." method="_on_join_game_pressed"]
+[connection signal="pressed" from="MultiPlayer/VBoxContainer/host_game" to="." method="_on_host_game_pressed"]
+[connection signal="pressed" from="MultiPlayer/VBoxContainer/join_game" to="." method="_on_join_game_pressed"]
