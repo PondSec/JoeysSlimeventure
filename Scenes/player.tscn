@@ -343,9 +343,6 @@ func update_facing_direction():
 func _process(delta: float) -> void:
 	if !is_multiplayer_authority():
 		return
-	if Input.is_action_just_pressed(\"Glow\"):
-		is_glowing = !is_glowing
-		update_glow_state()
 		
 	if is_landing and !Input.is_action_just_pressed(\"Attack\") and !Input.is_action_just_pressed(\"Glow\"):
 		return
