@@ -65,9 +65,9 @@ const WALL_SLIDE_SPEED = 50.0
 const WALL_STICK_TIME = 0.15       # Zeit, in der man sich noch vom Wand abstoßen kann
 
 # Dash-Einstellungen
-const DASH_SPEED = 600.0
+const DASH_SPEED = 350.0
 const DASH_DURATION = 0.15
-const DASH_COOLDOWN = 1.0
+const DASH_COOLDOWN = 3.0
 const DASH_INVULNERABILITY_TIME = 0.2
 
 # Bewegung und Status
