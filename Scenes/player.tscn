@@ -1595,7 +1595,7 @@ editor_draw_drag_margin = true
 script = ExtResource("12_4e8m4")
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
-layer = 0
+layer = 2
 script = ExtResource("11_4apbi")
 
 [node name="ProgressBar" type="ProgressBar" parent="CanvasLayer"]

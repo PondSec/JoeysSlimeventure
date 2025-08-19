@@ -82,6 +82,7 @@ _data = {
 }
 
 [node name="Transition" type="CanvasLayer"]
+layer = 5
 script = SubResource("GDScript_jxdek")
 
 [node name="ColorRect" type="ColorRect" parent="."]
