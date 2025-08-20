@@ -1,4 +1,4 @@
-[gd_scene load_steps=43 format=4 uid="uid://smsqlk2bm8ok"]
+[gd_scene load_steps=44 format=4 uid="uid://smsqlk2bm8ok"]
 
 [ext_resource type="Texture2D" uid="uid://82opar247kat" path="res://Assets/Tiles/platformertiles.png" id="1_c5erv"]
 [ext_resource type="Script" uid="uid://bp7am01qxi47c" path="res://Scripts/level1.gd" id="1_lyd6k"]
@@ -14,6 +14,7 @@
 [ext_resource type="Texture2D" uid="uid://dew3eisvhovfu" path="res://Assets/Tiles/water.png" id="13_d1mwp"]
 [ext_resource type="Texture2D" uid="uid://bfkhjal3igtil" path="res://Assets/Tiles/water_3_4.png" id="13_u1b78"]
 [ext_resource type="Texture2D" uid="uid://dhdr7nku6wwht" path="res://Assets/Tiles/water_1_4.png" id="15_wwu6c"]
+[ext_resource type="PackedScene" uid="uid://dqykudmd26o2q" path="res://Scenes/bat.tscn" id="16_wwu6c"]
 [ext_resource type="Texture2D" uid="uid://cegbqflcsgrm" path="res://Assets/Tiles/water_2_4.png" id="16_yymuf"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_y4dr7"]
@@ -464,7 +465,6 @@ visible = false
 [node name="SpawnArea" type="Area2D" parent="."]
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="SpawnArea"]
-visible = false
 position = Vector2(305.25, 672)
 shape = SubResource("RectangleShape2D_2a60c")
 
@@ -485,6 +485,11 @@ tile_set = SubResource("TileSet_wwu6c")
 [node name="CollisionShape2D" type="CollisionShape2D" parent="water/WaterArea"]
 position = Vector2(303, 901)
 shape = SubResource("RectangleShape2D_wwu6c")
+
+[node name="Bat" parent="." node_paths=PackedStringArray("player", "spawn_zone_container") instance=ExtResource("16_wwu6c")]
+position = Vector2(60, 756)
+player = NodePath("../PlayerModel")
+spawn_zone_container = NodePath("../SpawnArea/CollisionShape2D")
 
 [connection signal="body_entered" from="water/WaterArea" to="PlayerModel" method="_on_water_area_body_entered"]
 [connection signal="body_shape_exited" from="water/WaterArea" to="PlayerModel" method="_on_water_area_body_shape_exited"]

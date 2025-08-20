@@ -14,19 +14,32 @@ func _ready():
 	
 	# Pausiere das Spiel nicht beim Start
 	get_tree().paused = false
+	
+	# Menü soll auch bei pausiertem Tree weiterlaufen
+	process_mode = Node.PROCESS_MODE_ALWAYS
+
 
 func toggle_pause():
-	# Wechsle die Sichtbarkeit
-	visible = not visible
-	# Pausiere/Entpausiere den Spielbaum
-	get_tree().paused = visible
+	var gm = get_node("/root/GameManager")
 	
-	# Wenn sichtbar, bewege es nach vorne
+	# Sichtbarkeit des Menüs toggeln
+	visible = not visible
+	
+	if not gm.is_multiplayer:
+		# Singleplayer → echten Pause-State setzen
+		get_tree().paused = visible
+	else:
+		# Multiplayer → niemals pausieren, nur Menü sichtbar machen
+		get_tree().paused = false
+	
+	# Menü in den Vordergrund holen, wenn sichtbar
 	if visible:
 		get_parent().move_child(self, get_parent().get_child_count() - 1)
 
+
 func _on_continue_button_pressed() -> void:
 	toggle_pause()
+
 
 func _on_main_menu_button_pressed() -> void:
 	# Entpausiere das Spiel bevor wir zum Hauptmenü wechseln
