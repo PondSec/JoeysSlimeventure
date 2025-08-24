@@ -1,0 +1,56 @@
+[gd_scene load_steps=3 format=3 uid="uid://d0pkm7hasr2k0"]
+
+[ext_resource type="Script" path="res://Scripts/spind_ui.gd" id="1_4lstw"]
+[ext_resource type="Texture2D" uid="uid://cildswtcj7qrc" path="res://Assets/slime-sprite.png" id="2_vf263"]
+
+[node name="SpindUI" type="CanvasLayer"]
+script = ExtResource("1_4lstw")
+
+[node name="Control" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Sprite2D" type="Sprite2D" parent="Control"]
+position = Vector2(334, 523)
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("2_vf263")
+hframes = 5
+vframes = 3
+
+[node name="GridContainer" type="GridContainer" parent="Control"]
+layout_mode = 0
+offset_left = 856.0
+offset_top = 93.0
+offset_right = 1595.0
+offset_bottom = 966.0
+
+[node name="slime" type="Button" parent="Control/GridContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+text = "Skeleton"
+
+[node name="skeleton" type="Button" parent="Control/GridContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+text = "Slime"
+
+[node name="Button3" type="Button" parent="Control/GridContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+text = "Skin3"
+
+[node name="Button4" type="Button" parent="Control/GridContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+text = "Skin4"
+
+[connection signal="pressed" from="Control/GridContainer/slime" to="." method="_on_slime_pressed"]
+[connection signal="pressed" from="Control/GridContainer/skeleton" to="." method="_on_skeleton_pressed"]

@@ -1,0 +1,61 @@
+[gd_scene load_steps=5 format=3 uid="uid://cmdh8rpdo8fb2"]
+
+[ext_resource type="Texture2D" uid="uid://d108tjd0tq2rl" path="res://Assets/player.pg.png" id="1_ywbac"]
+
+[sub_resource type="GDScript" id="GDScript_l5cgp"]
+resource_name = "Player"
+script/source = "extends CharacterBody2D
+
+# Konstante Variablen für Geschwindigkeit und Sprungkraft
+const SPEED: float = 300.0
+const JUMP_VELOCITY: float = -400.0
+const GRAVITY: float = 500.0  # Feste Gravitation, falls get_gravity() nicht definiert ist
+
+func _physics_process(delta: float) -> void:
+	# Gravitation anwenden, wenn der Spieler nicht auf dem Boden ist
+	if not is_on_floor():
+		velocity.y += GRAVITY * delta
+
+	# Sprung behandeln
+	if Input.is_action_just_pressed(\"ui_accept\") and is_on_floor():
+		velocity.y = JUMP_VELOCITY
+
+	# Bewegung links und rechts
+	if Input.is_action_pressed(\"left\"):
+		velocity.x = -SPEED
+	elif Input.is_action_pressed(\"right\"):
+		velocity.x = SPEED
+	else:
+		# Geschwindigkeit sanft abbremsen, wenn keine Eingabe erfolgt
+		velocity.x = lerp(velocity.x, 0, 0.1)  # Sanftes Abbremsen mit lerp()
+
+	# Bewegung anwenden und Kollisionen handhaben
+	velocity = move_and_slide(velocity, Vector2.UP)
+"
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_pop2l"]
+size = Vector2(279.5, 260)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_dtv3g"]
+size = Vector2(1927, 25.5)
+
+[node name="Game" type="Node2D"]
+
+[node name="PlayerModel" type="CharacterBody2D" parent="."]
+script = SubResource("GDScript_l5cgp")
+
+[node name="PlayerSprite" type="Sprite2D" parent="PlayerModel"]
+position = Vector2(140, 950)
+texture = ExtResource("1_ywbac")
+hframes = 5
+vframes = 2
+
+[node name="PlayerCollisionShape" type="CollisionShape2D" parent="PlayerModel"]
+position = Vector2(140.25, 950)
+shape = SubResource("RectangleShape2D_pop2l")
+
+[node name="Ground" type="StaticBody2D" parent="."]
+
+[node name="GroundCollisionShape" type="CollisionShape2D" parent="Ground"]
+position = Vector2(963.5, 1092.25)
+shape = SubResource("RectangleShape2D_dtv3g")

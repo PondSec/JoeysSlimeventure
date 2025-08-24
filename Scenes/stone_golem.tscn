@@ -1,0 +1,157 @@
+[gd_scene load_steps=13 format=3 uid="uid://i7wdghs3brrd"]
+
+[ext_resource type="Script" uid="uid://dkev2yyxb8832" path="res://Scenes/stone_golem.gd" id="1_innic"]
+[ext_resource type="Texture2D" uid="uid://bmiirj5a8xro0" path="res://Assets/Stone_Golem/stone_golem_sheet_packed.png" id="2_w2hxi"]
+
+[sub_resource type="Animation" id="Animation_ihhpm"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [0]
+}
+
+[sub_resource type="Animation" id="Animation_ou1ql"]
+resource_name = "attack"
+length = 0.2
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.2),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [5, 9]
+}
+
+[sub_resource type="Animation" id="Animation_j4b5v"]
+resource_name = "death"
+length = 0.6
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.6),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [10, 14]
+}
+
+[sub_resource type="Animation" id="Animation_m1c55"]
+resource_name = "idle"
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [9, 10]
+}
+
+[sub_resource type="Animation" id="Animation_t7478"]
+resource_name = "stone_mantle"
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.166667, 1),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 0,
+"values": [22, 17, 22]
+}
+
+[sub_resource type="Animation" id="Animation_dmr0l"]
+resource_name = "walk"
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [0, 4]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_gwacr"]
+_data = {
+&"RESET": SubResource("Animation_ihhpm"),
+&"attack": SubResource("Animation_ou1ql"),
+&"death": SubResource("Animation_j4b5v"),
+&"idle": SubResource("Animation_m1c55"),
+&"stone_mantle": SubResource("Animation_t7478"),
+&"walk": SubResource("Animation_dmr0l")
+}
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_c1dq0"]
+size = Vector2(60, 56)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_8fdcm"]
+size = Vector2(126, 20.6667)
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_4em5g"]
+radius = 41.4849
+
+[node name="StoneGolem" type="CharacterBody2D" node_paths=PackedStringArray("spawn_zone_container")]
+script = ExtResource("1_innic")
+spawn_zone_container = NodePath("Collision")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_w2hxi")
+hframes = 5
+vframes = 5
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="Sprite2D"]
+libraries = {
+&"": SubResource("AnimationLibrary_gwacr")
+}
+
+[node name="Collision" type="CollisionShape2D" parent="."]
+position = Vector2(1, 1)
+shape = SubResource("RectangleShape2D_c1dq0")
+
+[node name="AttackArea" type="Area2D" parent="."]
+
+[node name="Body" type="CollisionShape2D" parent="AttackArea"]
+position = Vector2(2.5, 15.5)
+scale = Vector2(1.5, 1.5)
+shape = SubResource("RectangleShape2D_8fdcm")
+
+[node name="NavigationAgent2D" type="NavigationAgent2D" parent="."]
+
+[node name="Timer" type="Timer" parent="NavigationAgent2D"]
+wait_time = 0.1
+autostart = true
+
+[node name="DetectionArea" type="Area2D" parent="."]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="DetectionArea"]
+shape = SubResource("CircleShape2D_4em5g")
+
+[node name="NotificationLabel" type="Label" parent="."]
+offset_left = -2.0
+offset_top = -56.0
+offset_right = 38.0
+offset_bottom = -33.0

@@ -1,0 +1,1090 @@
+[gd_scene load_steps=31 format=3 uid="uid://b6ublycstdj8n"]
+
+[ext_resource type="Texture2D" uid="uid://cildswtcj7qrc" path="res://Assets/slime-sprite.png" id="1_4yq4u"]
+[ext_resource type="Resource" uid="uid://0rntjh2xt5s5" path="res://InventorySystem/playerinv.tres" id="1_e7ml4"]
+[ext_resource type="Texture2D" uid="uid://c771vveh0silu" path="res://Assets/Light/light_white.png" id="1_p71sj"]
+[ext_resource type="Texture2D" uid="uid://quh4mac3hef1" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame0.png" id="3_ubp3h"]
+[ext_resource type="Texture2D" uid="uid://cjb4nq6aeftnv" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame1.png" id="4_6hcqa"]
+[ext_resource type="Texture2D" uid="uid://dq3ow8oywurgq" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame2.png" id="5_eo1jl"]
+[ext_resource type="Texture2D" uid="uid://b8fkvpdoglnlv" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame3.png" id="6_whfsg"]
+[ext_resource type="Texture2D" uid="uid://bdf3l7k3ha5iw" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame4.png" id="7_ojgk2"]
+[ext_resource type="Texture2D" uid="uid://lhtf7y3rpgu1" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame5.png" id="8_efps6"]
+[ext_resource type="Texture2D" uid="uid://bjy6egsrs8xvt" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame6.png" id="9_obsdn"]
+[ext_resource type="Texture2D" uid="uid://dhohrt3t5t7ed" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame7.png" id="10_2w1s5"]
+[ext_resource type="Script" uid="uid://mnec0uydyntw" path="res://Scripts/canvas_layer.gd" id="11_4apbi"]
+[ext_resource type="Script" uid="uid://cx3dqkch8yx6d" path="res://Scenes/camera_2d.gd" id="12_4e8m4"]
+[ext_resource type="Texture2D" uid="uid://bhpr6uxcspd17" path="res://Assets/GUI/Healthbar/off.png" id="12_tc5iy"]
+[ext_resource type="Texture2D" uid="uid://dg4h8q8vjxyh" path="res://Assets/GUI/Healthbar/over.png" id="13_d3fsm"]
+[ext_resource type="PackedScene" uid="uid://b0a5ssuwf6jb5" path="res://InventorySystem/inv_ui.tscn" id="15_qbc48"]
+[ext_resource type="PackedScene" uid="uid://0hg2cyfd6vle" path="res://Scenes/gameover.tscn" id="16_g18uv"]
+[ext_resource type="Script" uid="uid://c4mfr2cmctuup" path="res://InventorySystem/hot_bar.gd" id="17_1u0f7"]
+[ext_resource type="Texture2D" uid="uid://dyvglc0y8q8y7" path="res://Assets/Inventory/hotbar.png" id="18_4ugw6"]
+[ext_resource type="PackedScene" uid="uid://de82c5pup452l" path="res://InventorySystem/slot_hotbar.tscn" id="19_jqgo5"]
+
+[sub_resource type="GDScript" id="GDScript_381hh"]
+resource_name = "Player"
+script/source = "extends CharacterBody2D
+
+# Bewegungseinstellungen
+const WALK_SPEED = 140.0
+const RUN_SPEED = 220.0
+const ACCELERATION = 1800.0
+const DECELERATION = 2400.0
+const AIR_ACCELERATION = 1200.0  # Vorher vielleicht 900.0
+const AIR_DECELERATION = 800.0   # Vorher vielleicht 600.0
+
+# Sprung- und Gravitationseinstellungen
+const GRAVITY = 1200.0
+const MAX_FALL_SPEED = 800.0
+const JUMP_VELOCITY = -430.0
+const SHORT_JUMP_MULTIPLIER = 0.6  # Für kürzere Sprünge bei losgelassener Taste
+const JUMP_CUT_MULTIPLIER = 0.4    # Für sofortige Sprungabbremsung
+
+# Wall-Jump und Slide
+const WALL_JUMP_VELOCITY_X = -300.0  # Stärkerer horizontaler Impuls
+const WALL_JUMP_VELOCITY_Y = -400.0  # Etwas geringere vertikale Geschwindigkeit
+const WALL_JUMP_PUSH_AWAY = 200.0  # Zusätzlicher Abstoß-Effekt
+const WALL_SLIDE_SPEED = 50.0
+const WALL_STICK_TIME = 0.15       # Zeit, in der man sich noch vom Wand abstoßen kann
+
+# Dash-Einstellungen
+const DASH_SPEED = 600.0
+const DASH_DURATION = 0.15
+const DASH_COOLDOWN = 1.0
+const DASH_INVULNERABILITY_TIME = 0.2
+
+# Bewegung und Status
+var current_speed = WALK_SPEED
+var direction := Vector2.ZERO
+var is_wall_sliding := false
+var can_wall_jump := true
+var last_wall_normal := Vector2.ZERO
+var wall_stick_timer := 0.0
+var coyote_time := 0.0
+var jump_buffer_time := 0.0
+var is_dashing := false
+var can_dash := true
+var dash_direction := Vector2.ZERO
+var is_facing_left := false
+var was_on_floor := true
+
+# Konstanten für Bewegung und Sprung
+const SPEED = 220.0
+const MIN_FALL_HEIGHT = 10.0  # Mindesthöhe, ab der die Lande-Animation abgespielt wird
+
+# Variablen für Bewegung und Status
+var is_glowing := true
+var is_attacking := false  # Angriffszustand
+var was_in_air := false  # Variable, um zu überprüfen, ob der Spieler gerade in der Luft war
+var is_landing := false  # Variable, um die Landeanimation zu verfolgen
+var fall_start_y := 0.0  # Y-Position, bei der der Spieler zu fallen begann
+var fall_distance := 10.0  # Berechnete Fallhöhe
+var heal_rate: float = 15.0  # Anfangsheilrate
+var min_heal_rate: float = 1  # Mindestheilrate, die nie unterschritten werden soll
+var heal_decay: float = 0.7  # Heilrate sinkt um diesen Betrag nach jeder Heilung
+var heal_interval: float = 2  # Intervall, in dem der Spieler geheilt wird (in Sekunden)
+var heal_timer: Timer = Timer.new()  # Timer für regelmäßige Heilung
+var is_healing_active: bool = false  # Flag, ob Heilung aktiv ist
+var healed_to_full: bool = false  # Flag, ob der Spieler voll geheilt wurde
+var damage_timer: Timer = Timer.new()  # Timer für den Schadensabstand
+var attack_damage: int = 15
+var is_stunned: bool = false  # Spieler kann sich während des Stuns nicht bewegen
+var inventory = {}  # Ein Dictionary für das Inventar
+var dropped_items = []  # Liste für persistente Speicherung
+var selected_hotbar_index: int = 0  # Standardmäßig der erste Slot
+
+# Timer Nodes
+var dash_timer: Timer
+var dash_cooldown_timer: Timer
+
+# Konstanten für den Fall-Schaden
+const FALL_DAMAGE_THRESHOLD = 1580  # Y-Position, ab der Schaden verursacht wird
+const FALL_DAMAGE = 30  # Schaden, der beim Fallen verursacht wird
+
+# Referenzen zu Knoten
+var attack_sprite: AnimatedSprite2D
+var attack_area: Area2D
+var glow_effect: PointLight2D
+@onready var damage_label: Label = $PlayerSprite/CanvasLayer2/DamageLabel# Referenz zum Schadens-Label
+
+# Variablen für das Lebenssystem
+var max_health: int = 100
+var current_health: int = 100
+var base_max_health = 100
+# Definiert die Originalfarbe und die Farbe, die bei Schaden angezeigt werden soll
+const COLOR_NORMAL = Color(0.62, 1.0, 0.58)  # Originalfarbe (9fff94 in Hex)
+const COLOR_DAMAGE = Color(1.0, 0.29, 0.29)  # Schadenfarbe (ff4a4a in Hex)
+
+var url = \"https://api.joeysslimeventure.com\"
+@onready var http_request = $HTTPRequest
+
+# Referenz zur Lebensanzeige (ProgressBar)
+@onready var health_bar: TextureProgressBar = $CanvasLayer/TextureProgressBar
+@onready var canvas_layer: CanvasLayer = $CanvasLayer  # Referenz zum CanvasLayer für die Tween-Animationen
+@onready var death_screen: Control = get_node(\"CanvasLayer/GameOver\")
+@export var inv: Inv
+@onready var health_label = $CanvasLayer/HealthLabel
+@onready var api_script = preload(\"res://Scenes/api.tscn\").instantiate()
+
+var stun_timer: Timer = Timer.new()
+var save_load = preload(\"res://Scripts/SaveLoad.gd\").new()
+
+func _ready() -> void:
+	glow_effect = $PlayerGlow
+	# Initialisiere Angriffsknoten
+	attack_sprite = $PlayerSprite/AttackSprite
+	attack_area = $PlayerSprite/AttackSprite/AttackArea
+	
+    var shader_material = ShaderMaterial.new()
+    shader_material.shader = preload(\"res://player_glow.shader\")
+    $PlayerSprite.material = shader_material
+	
+	# Deaktiviere das Angriffskollisionsgebiet anfänglich
+	attack_area.monitoring = false
+	attack_area.connect(\"body_entered\", Callable(self, \"_on_attack_area_body_entered\"))
+	
+	death_screen.visible = false
+	
+	add_to_group(\"players\")
+	glow_effect.set(\"custom_range\", 300.0)
+	glow_effect.add_to_group(\"lights\")
+	update_health_bar()
+	damage_label.visible = false
+	
+	# Füge den Heil-Timer als Kind hinzu und starte ihn
+	add_child(heal_timer)  # Füge den Timer als Kind hinzu
+	heal_timer.wait_time = heal_interval  # Setze das Intervall
+	heal_timer.autostart = true  # Timer startet automatisch
+	heal_timer.start()  # Stelle sicher, dass der Timer auch wirklich startet
+	heal_timer.connect(\"timeout\", Callable(self, \"_on_heal_timer_timeout\"))
+	
+	add_child(damage_timer)  # Füge den Timer als Kind hinzu
+	damage_timer.wait_time = 0.5  # 3 Sekunden warten
+	damage_timer.one_shot = true  # Der Timer läuft nur einmal
+	damage_timer.autostart = false  # Timer startet nicht automatisch
+	damage_timer.connect(\"timeout\", Callable(self, \"_on_damage_timer_timeout\"))  # Signalverbindung
+	
+	# Stun-Timer initialisieren
+	add_child(stun_timer)
+	stun_timer.wait_time = 0.5  # Spieler ist 0,5 Sekunden gestunned
+	stun_timer.one_shot = true
+	stun_timer.connect(\"timeout\", Callable(self, \"_on_stun_timer_timeout\"))
+	load_game()
+	load_dropped_items()
+	update_health_bar()
+	damage_timer.start()
+	inv.update.connect(update_health_bonus)
+	add_child(api_script)
+	api_script.send_request()
+	
+
+	# Timer für Dash initialisieren
+	dash_timer = Timer.new()
+	dash_timer.one_shot = true
+	dash_timer.wait_time = DASH_DURATION
+	dash_timer.connect(\"timeout\", Callable(self, \"_on_dash_timer_timeout\"))
+	add_child(dash_timer)
+	
+	dash_cooldown_timer = Timer.new()
+	dash_cooldown_timer.one_shot = true
+	dash_cooldown_timer.wait_time = DASH_COOLDOWN
+	dash_cooldown_timer.connect(\"timeout\", Callable(self, \"_on_dash_cooldown_timer_timeout\"))
+	add_child(dash_cooldown_timer)
+	
+func update_health_bonus():
+	var bonus = 1.0  # Startwert für Multiplikation
+
+	for slot in inv.slots:
+		if slot.item and slot.amount > 0:  # Falls der Slot gültig ist und Items enthält
+			bonus += slot.item.health_bonus * slot.amount  # Multipliziere mit Stack-Anzahl
+
+	max_health = base_max_health * bonus
+	current_health = min(current_health, max_health)
+
+
+# Lebensanzeige aktualisieren
+func update_health_bar() -> void:
+	# Setze den Wert der Lebensanzeige basierend auf dem aktuellen Gesundheitswert
+	health_bar.value = current_health
+	health_bar.max_value = max_health
+
+func _process(delta: float) -> void:
+	if is_landing:
+		return  # Keine Aktionen während der Lande-Animation erlauben
+
+	# Angriff ausführen, wenn die Angriffstaste gedrückt wird
+	if Input.is_action_just_pressed(\"Attack\") and not is_attacking:
+		perform_attack()
+
+	# Leuchteffekt umschalten
+	if Input.is_action_just_pressed(\"Glow\"):
+		is_glowing = !is_glowing
+		update_glow_state()
+
+	if Input.is_action_just_pressed(\"drop_item\"):  
+		drop_hotbar_item()
+		
+	if health_label:
+		health_label.text = \"HP: \" + str(current_health)  # Zeigt die HP an
+
+func _physics_process(delta: float) -> void:
+	# Bewegungseingaben verarbeiten
+	handle_input()
+	
+	# Spezielle Bewegungszustände
+	handle_dash()
+	handle_jump_mechanics(delta)
+	handle_wall_mechanics(delta)
+	
+	# Schwerkraft anwenden
+	apply_gravity(delta)
+	
+	# Bewegung ausführen
+	move_and_slide()
+	
+	# Animationen aktualisieren
+	update_animations()
+
+func handle_input():
+	# Laufen/Rennen
+	if Input.is_action_pressed(\"sprint\"):
+		current_speed = RUN_SPEED
+	else:
+		current_speed = WALK_SPEED
+	
+	# Richtungseingabe
+	direction.x = Input.get_axis(\"left\", \"right\")
+	
+	# Blickrichtung aktualisieren
+	if direction.x != 0:
+		is_facing_left = direction.x < 0
+
+func apply_gravity(delta):
+	if not is_on_floor():
+		velocity.y += GRAVITY * delta
+		velocity.y = min(velocity.y, MAX_FALL_SPEED)
+
+func handle_jump_mechanics(delta):
+	# Coyote Time (Sprung nach Verlassen der Plattform)
+	if is_on_floor():
+		coyote_time = 0.1
+	else:
+		coyote_time -= delta
+	
+	# Jump Buffer (Sprung vor dem Landen)
+	if Input.is_action_just_pressed(\"up\"):
+		jump_buffer_time = 0.1
+	else:
+		jump_buffer_time -= delta
+	
+	# Normaler Sprung
+	if (coyote_time > 0 and jump_buffer_time > 0) or (is_on_floor() and Input.is_action_just_pressed(\"up\")):
+		velocity.y = JUMP_VELOCITY
+		coyote_time = 0
+		jump_buffer_time = 0
+	
+	# Kurzer Sprung (wenn Taste losgelassen)
+	if Input.is_action_just_released(\"up\") and velocity.y < JUMP_VELOCITY * SHORT_JUMP_MULTIPLIER:
+		velocity.y = JUMP_VELOCITY * SHORT_JUMP_MULTIPLIER
+	
+	# Sofortige Sprungabbremsung
+	if Input.is_action_just_pressed(\"down\") and velocity.y < 0:
+		velocity.y *= JUMP_CUT_MULTIPLIER
+
+func handle_wall_mechanics(delta):
+	# Wandsprung
+	if is_on_wall() and not is_on_floor():
+		is_wall_sliding = true
+		velocity.y = min(velocity.y, WALL_SLIDE_SPEED)
+		wall_stick_timer = WALL_STICK_TIME
+		
+		var current_wall_normal = get_wall_normal()
+		if current_wall_normal != last_wall_normal:
+			can_wall_jump = true
+			last_wall_normal = current_wall_normal
+		
+		# Wandsprung ausführen
+		if Input.is_action_just_pressed(\"up\") and can_wall_jump:
+			var wall_normal = get_wall_normal()
+			
+			# 1. Vertikaler Sprung (nach oben)
+			velocity.y = WALL_JUMP_VELOCITY_Y
+			
+			# 2. Horizontaler Impuls (WEG von der Wand!)
+			velocity.x = -wall_normal.x * WALL_JUMP_VELOCITY_X
+			
+			# 3. Optional: Kleiner zusätzlicher \"Push\" für mehr Kontrolle
+			position.x += -wall_normal.x * 5
+			
+			can_wall_jump = false
+			$Camera2D.shake(0.1, 5)
+			
+			# Wenn der Spieler während des Wall-Jumps eine Richtungstaste drückt, setze x-Velocity auf 0
+			if Input.is_action_pressed(\"left\") or Input.is_action_pressed(\"right\"):
+				velocity.x = 0
+	else:
+		is_wall_sliding = false
+		if is_on_floor():
+			can_wall_jump = true
+		
+		if wall_stick_timer > 0:
+			wall_stick_timer -= delta
+
+func handle_dash():
+	if Input.is_action_just_pressed(\"dash_left\") and can_dash:
+		dash(Vector2.LEFT)
+	elif Input.is_action_just_pressed(\"dash_right\") and can_dash:
+		dash(Vector2.RIGHT)
+	elif Input.is_action_just_pressed(\"dash_up\") and can_dash:
+		dash(Vector2.UP)
+	
+	if is_dashing:
+		velocity = dash_direction * DASH_SPEED
+		move_and_slide()
+		return
+	
+	# Horizontale Bewegung mit unterschiedlicher Beschleunigung in Luft/Boden
+	var target_speed = direction.x * current_speed
+	var acceleration = ACCELERATION if is_on_floor() else AIR_ACCELERATION
+	var deceleration = DECELERATION if is_on_floor() else AIR_DECELERATION
+	
+	if direction.x != 0:
+		velocity.x = move_toward(velocity.x, target_speed, acceleration * get_physics_process_delta_time())
+	else:
+		velocity.x = move_toward(velocity.x, 0, deceleration * get_physics_process_delta_time())
+
+func dash(dir: Vector2):
+	if is_dashing or not can_dash:
+		return
+	
+	is_dashing = true
+	can_dash = false
+	dash_direction = dir.normalized()
+	
+	# Effekte
+	$Camera2D.shake(0.3, 15)
+	
+	# Timer starten
+	dash_timer.start()
+	
+	# Nachbilder erstellen
+	create_afterimages()
+
+func _on_dash_timer_timeout():
+	is_dashing = false
+	dash_cooldown_timer.start()
+
+func _on_dash_cooldown_timer_timeout():
+	can_dash = true
+
+func create_afterimages():
+	for i in range(3):
+		var afterimage = Sprite2D.new()
+		afterimage.texture = $PlayerSprite.texture
+		afterimage.global_position = global_position
+		afterimage.flip_h = $PlayerSprite.flip_h
+		afterimage.modulate = Color(1, 1, 1, 0.5)  # Halbtransparent
+		afterimage.z_index = -1  # Hinter dem Haupt-Sprite
+		
+		# Leicht zufällige Skalierung für dynamischeren Effekt
+		afterimage.scale = Vector2.ONE * randf_range(0.9, 1.1)
+		
+		get_parent().add_child(afterimage)
+		
+		# Tween für das Ausblenden
+		var tween = create_tween()
+		tween.tween_property(afterimage, \"modulate:a\", 0.0, 0.2)
+		tween.parallel().tween_property(afterimage, \"scale\", Vector2.ONE * 1.2, 0.2)
+		tween.tween_callback(afterimage.queue_free)
+		
+		await get_tree().create_timer(DASH_DURATION / 3.0).timeout
+
+func update_animations():
+	if is_dashing:
+		$AnimationPlayer.play(\"dash\")
+		return
+	
+	if is_wall_sliding:
+		$AnimationPlayer.play(\"wall_slide\")
+		$PlayerSprite.flip_h = last_wall_normal.x > 0
+	elif not is_on_floor():
+		if velocity.y < 0:
+			$AnimationPlayer.play(\"jump_up\")
+		else:
+			$AnimationPlayer.play(\"jump_down\")
+	else:
+		if abs(velocity.x) > 10:
+			$AnimationPlayer.play(\"run\" if current_speed == RUN_SPEED else \"walk\")
+			$PlayerSprite.flip_h = velocity.x < 0
+		else:
+			$AnimationPlayer.play(\"idle\")
+
+# Verbesserte Kollisionserkennung
+func _on_floor_entered():
+	$LandingParticles.emitting = true
+	$LandingSound.play()
+	
+	if abs(velocity.y) > 300:
+		$Camera2D.shake(0.2, 10, 0.1)
+
+func _on_wall_entered():
+	$WallSlideParticles.emitting = true
+	$WallSlideSound.play()
+
+
+
+func _create_afterimages_during_dash() -> void:
+	if is_dashing:
+		create_afterimage()
+		# Erstelle einen neuen Timer für das nächste Nachbild
+		var afterimage_timer = get_tree().create_timer(0.05)
+		afterimage_timer.timeout.connect(_create_afterimages_during_dash)
+
+
+
+func create_afterimage() -> void:
+	var afterimage = Sprite2D.new()
+	afterimage.texture = $PlayerSprite.texture
+	afterimage.global_position = global_position
+	afterimage.flip_h = $PlayerSprite.flip_h
+	afterimage.modulate = Color(0.5, 0.5, 1, 0.5)  # Blauer Schimmer
+	afterimage.scale = Vector2(0.1, 0.1)  # Etwas kleiner
+	afterimage.rotation = randf_range(-0.1, 0.1)  # Leichte Rotation
+	
+	get_parent().add_child(afterimage)
+	
+	var tween = create_tween()
+	tween.tween_property(afterimage, \"modulate:a\", 0.0, 0.5)
+	tween.tween_callback(afterimage.queue_free)
+
+func _on_heal_timer_timeout() -> void:
+	# Nur heilen, wenn Heilung aktiv ist und der Spieler nicht voll geheilt ist
+	if is_healing_active and current_health < max_health:
+		var missing_health = max_health - current_health
+		var heal_amount = max(5, ceil(missing_health * 0.15))  # Mindestens 5 HP oder 15 % des fehlenden Lebens
+		heal_amount = min(heal_amount, 25)  # Maximal 25 HP pro Tick
+		heal(heal_amount)
+
+func play_landing_animation() -> void:
+	is_landing = true
+	$AnimationPlayer.stop()
+	$AnimationPlayer.play(\"landing\")
+	await $AnimationPlayer.animation_finished
+	is_landing = false
+
+func set_animation() -> void:
+	if is_attacking or is_landing:
+		return
+
+	if direction.x != 0:
+		$PlayerSprite.flip_h = is_facing_left
+		$AnimationPlayer.play(\"walk\")
+	else:
+		$AnimationPlayer.play(\"idle\")
+
+	if is_in_air():
+		$AnimationPlayer.play(\"jump\")
+
+func is_in_air() -> bool:
+	return not is_on_floor()
+
+# Angriffskollisionsbehandlung
+func _on_attack_area_body_entered(body) -> void:
+	if body.is_in_group(\"enemies\"):
+		body.take_damage(attack_damage)
+		$Camera2D.shake(3.0, 0.2)
+		
+
+func die() -> void:
+	print(\"Der Spieler ist gestorben!\")
+	# Kollisionsabfrage deaktivieren, damit Items nicht aufgesammelt werden
+	$ColisionArea.set_deferred(\"disabled\", true) 
+	# Inventar droppen
+	drop_inventory_items()
+	save_game()
+	# Spieler unsichtbar machen
+	var save_file = FileAccess.open(\"user://inventory.save\", FileAccess.WRITE)
+	if FileAccess.file_exists(\"user://inventory.save\"):
+		DirAccess.remove_absolute(\"user://inventory.save\")
+		print(\"❌ Inventory-Datei gelöscht – Items werden nicht erneut geladen!\")
+	
+	self.visible = false  
+	# Prozesse stoppen
+	set_process(false)
+	set_physics_process(false)
+
+	# Death Screen anzeigen
+	death_screen.show_death_screen()
+	
+func drop_inventory_items() -> void:
+	if not inv or inv.slots.size() == 0:
+		return
+
+	for slot in inv.slots:
+		if slot.item and slot.amount > 0:
+			for i in range(slot.amount): 
+				var item_scene = load(\"res://Scenes/Items/\" + slot.item.name + \".tscn\")
+				var dropped_item = item_scene.instantiate()
+				dropped_item.global_position = global_position  
+				get_tree().current_scene.add_child(dropped_item)
+				
+				# Speichern der Position und des Item-Namens
+				dropped_items.append({
+					\"name\": slot.item.name,
+					\"position\": dropped_item.global_position
+				})
+		
+		slot.item = null
+		slot.amount = 0
+
+	inv.update.emit()
+	save_dropped_items()  # Speichere die Items
+
+
+func save_dropped_items():
+	var save_file = FileAccess.open(\"user://dropped_items.save\", FileAccess.WRITE)
+	
+	var formatted_data = []
+	for item in dropped_items:
+		formatted_data.append({
+			\"name\": item[\"name\"],
+			\"position\": [item[\"position\"].x, item[\"position\"].y]  # Speichern als Array
+		})
+	
+	save_file.store_string(JSON.stringify(formatted_data))
+	save_file.close()
+
+func load_dropped_items():
+	print(\"Lade gespeicherte Items...\")  # Debugging
+
+	if not FileAccess.file_exists(\"user://dropped_items.save\"):
+		print(\"Keine gespeicherte Datei gefunden!\")
+		return
+
+	var save_file = FileAccess.open(\"user://dropped_items.save\", FileAccess.READ)
+	var json_data = save_file.get_as_text()
+	save_file.close()
+
+	var parsed_data = JSON.parse_string(json_data)
+	if parsed_data is Array:
+		for item_data in parsed_data:
+			var item_scene = load(\"res://Scenes/Items/\" + item_data[\"name\"] + \".tscn\")
+			var dropped_item = item_scene.instantiate()
+
+			# Position setzen und zufälligen Offset hinzufügen
+			dropped_item.global_position = Vector2(item_data[\"position\"][0], item_data[\"position\"][1])
+			var random_offset = Vector2(randf_range(-10, 10), randf_range(-10, 10))
+			dropped_item.global_position += random_offset
+
+			# Sichtbarkeit setzen und Item zur Szene hinzufügen
+			dropped_item.visible = true
+			get_tree().current_scene.add_child(dropped_item)
+
+			# Leichte Verzögerung, um Lag zu vermeiden
+			await get_tree().create_timer(0.02).timeout
+
+	# ✅ Nach dem Laden die Speicherdatei löschen, damit Items nicht erneut gespawnt werden
+	if FileAccess.file_exists(\"user://dropped_items.save\"):
+		DirAccess.remove_absolute(\"user://dropped_items.save\")
+		print(\"❌ Drop-Datei gelöscht – Items werden nicht erneut geladen!\")
+
+# Angriff ausführen
+func perform_attack() -> void:
+	if is_attacking or is_stunned:
+		return
+	
+	stop_healing()
+	is_attacking = true
+	$PlayerSprite/AttackSprite.flip_h = is_facing_left
+	$PlayerSprite/AttackSprite.play(\"swing\")
+	attack_area.monitoring = true
+	await get_tree().create_timer(0.5).timeout
+	is_attacking = false
+	attack_area.monitoring = false
+	damage_timer.start()
+
+# Leuchteffekt aktualisieren
+func update_glow_state() -> void:
+	glow_effect.visible = is_glowing
+	if is_glowing:
+		$PlayerSprite.material.set_shader_parameter(\"glow_intensity\", 1.5)
+		$PlayerSprite.material.set_shader_parameter(\"glow_blur\", 3.0)
+		$PlayerSprite.material.set_shader_parameter(\"flare_strength\", 0.5)
+	else:
+		$PlayerSprite.material.set_shader_parameter(\"glow_intensity\", 0.0), 0.0)
+
+# Importiere diese Zeile in deine `take_damage`-Funktion, um den Partikel-Effekt zu aktivieren
+func take_damage(amount: int, hit_source: Vector2) -> void:
+	current_health -= amount
+	show_damage_text(amount, false)  
+	flash_damage_color()
+
+	# Knockback und Stun wie bisher
+	is_stunned = true
+	stun_timer.start()  
+
+	# Setze Heilung zurück und verlängere Verzögerung
+	stop_healing()
+	damage_timer.wait_time = 3.0  # Erhöhe Verzögerung vor Heilung
+	damage_timer.start()
+
+	# Falls der Spieler stirbt
+	if current_health <= 0:
+		current_health = 0
+		die()
+	
+	update_health_bar()
+
+func _on_stun_timer_timeout() -> void:
+	is_stunned = false  # Spieler kann sich wieder bewegen
+
+func stop_healing() -> void:
+	is_healing_active = false
+	damage_timer.stop()
+
+
+func _on_damage_timer_timeout() -> void:
+	# Heilung starten, wenn 3 Sekunden ohne Schaden vergangen sind
+	is_healing_active = true
+	print(\"Heilung beginnt!\")
+
+# Funktion, um die Farbe des Leuchteffekts bei Schaden zu ändern
+func flash_damage_color() -> void:
+	if !glow_effect.visible:
+		glow_effect.visible = true
+		glow_effect.color = COLOR_DAMAGE
+		await get_tree().create_timer(0.3).timeout  # Warten für 0,3 Sekunden
+		glow_effect.color = COLOR_NORMAL
+		glow_effect.visible = false
+		
+	if glow_effect.visible:
+		glow_effect.color = COLOR_DAMAGE
+		await get_tree().create_timer(0.3).timeout  # Warten für 0,3 Sekunden
+		glow_effect.color = COLOR_NORMAL
+
+# Zeigt den Schadens-Text an
+func show_damage_text(amount: int, is_heal: bool) -> void:
+	# Bedingte Text- und Farbauswahl
+	if is_heal:
+		damage_label.text = \"+\" + str(amount)
+		damage_label.modulate = Color(0.62, 1.0, 0.58)  # Farbe für Heilung
+	else:
+		damage_label.text = \"-\" + str(amount)
+		damage_label.modulate = COLOR_DAMAGE  # Farbe für Schaden
+
+	# Positioniere den Text über dem Spieler
+	# Beispiel: Positioniere das Schadens-Label in der Mitte des Bildschirms
+	damage_label.visible = true  # Text sichtbar machen
+
+	# Warte 1 Sekunde, dann den Text unsichtbar machen
+	await get_tree().create_timer(1.0).timeout
+	damage_label.visible = false
+
+
+func heal(amount: int) -> void:
+	current_health += amount
+	show_damage_text(amount, true)  # Zeigt die Heilung an
+	if current_health > max_health:
+		current_health = max_health  # Stelle sicher, dass max_health nicht überschritten wird
+	update_health_bar()
+
+func collect(item):
+	inv.Insert(item)
+		
+
+func save_game():
+	var bats = get_tree().get_nodes_in_group(\"bats\")  # 🦇 Alle Fledermäuse holen
+	save_load.save_game(self, bats)  # Spieler & Fledermäuse speichern
+
+func load_game():
+	var bat_scene = preload(\"res://Scenes/bat.tscn\")  # 🦇 Vorlage für Fle	dermäuse
+	save_load.load_game(self, bat_scene)  # Spieler & Fledermäuse laden
+
+func _exit_tree():
+	save_game()  # Speichert das Spiel, wenn das Spiel beendet wird
+
+func drop_hotbar_item():
+	# Stelle sicher, dass ein Hotbar-Slot aktiv ist
+	if selected_hotbar_index < 0 or selected_hotbar_index > 8:
+		return
+	
+	# Berechne den tatsächlichen Inventar-Slot
+	var inv_index = inv.slots.size() - 9 + selected_hotbar_index  
+	var slot = inv.slots[inv_index]
+
+	# Überprüfen, ob ein Item im Slot vorhanden ist
+	if slot.item and slot.amount > 0:
+		print(\"Dropping:\", slot.item.name)  # Debugging-Info
+
+		# Item in die Welt spawnen
+		var item_scene = load(\"res://Scenes/Items/\" + slot.item.name + \".tscn\")
+		var dropped_item = item_scene.instantiate()
+
+		# Stelle sicher, dass das Item eine RigidBody2D ist
+		if dropped_item is RigidBody2D:
+			# Spieler-Blickrichtung berechnen (Wurf-Richtung)
+			var direction = (get_global_mouse_position() - global_position).normalized()
+
+			# Setze die Startposition etwas vor den Spieler
+			var drop_offset = direction * 25  # Item etwas nach vorne setzen
+			dropped_item.global_position = global_position + drop_offset
+
+			# **Hier kommt der Wurf-Impuls!**
+			var throw_force = direction * 400 + Vector2(0, -200)  # Starke Wurfkraft + Auftrieb
+			dropped_item.apply_central_impulse(throw_force)
+
+			# **Drehung für realistisches Fliegen**
+			dropped_item.angular_velocity = randf_range(-8, 8)  
+
+		# Item zur Szene hinzufügen
+		get_tree().current_scene.add_child(dropped_item)
+
+		# Ein Item entfernen, nicht den ganzen Stack
+		slot.amount -= 1
+		if slot.amount == 0:
+			slot.item = null  # Slot leeren
+
+		inv.update.emit()  # UI sofort aktualisieren
+
+func get_selected_hotbar_index() -> int:
+	# Falls du eine Variable hast, die den aktiven Hotbar-Slot speichert:
+	return selected_hotbar_index  
+
+func _input(event):
+	if event is InputEventKey and event.pressed:
+		if event.keycode >= KEY_1 and event.keycode <= KEY_9:
+			selected_hotbar_index = event.keycode - KEY_1  # 1 = Index 0, 2 = Index 1, etc.
+			print(\"Hotbar Slot gewechselt zu:\", selected_hotbar_index)  # Debugging
+"
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_uwm2o"]
+size = Vector2(255, 386.667)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_sgnk3"]
+animations = [{
+"frames": [{
+"duration": 1.5,
+"texture": ExtResource("3_ubp3h")
+}, {
+"duration": 1.5,
+"texture": ExtResource("4_6hcqa")
+}, {
+"duration": 1.5,
+"texture": ExtResource("5_eo1jl")
+}, {
+"duration": 1.5,
+"texture": ExtResource("6_whfsg")
+}, {
+"duration": 1.5,
+"texture": ExtResource("7_ojgk2")
+}, {
+"duration": 1.5,
+"texture": ExtResource("8_efps6")
+}, {
+"duration": 1.5,
+"texture": ExtResource("9_obsdn")
+}, {
+"duration": 1.0,
+"texture": ExtResource("10_2w1s5")
+}],
+"loop": false,
+"name": &"swing",
+"speed": 60.0
+}]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_jxxud"]
+size = Vector2(369.351, 264.603)
+
+[sub_resource type="Animation" id="Animation_chcy3"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("PlayerSprite:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [0]
+}
+
+[sub_resource type="Animation" id="Animation_uuvvo"]
+resource_name = "idle"
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("PlayerSprite:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.5),
+"transitions": PackedFloat32Array(1, 1),
+"update": 1,
+"values": [0, 1]
+}
+
+[sub_resource type="Animation" id="Animation_smtgq"]
+resource_name = "jump"
+length = 0.5
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("PlayerSprite:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.2, 0.4),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 0,
+"values": [5, 6, 7]
+}
+
+[sub_resource type="Animation" id="Animation_28ebo"]
+resource_name = "landing"
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("PlayerSprite:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [8, 11]
+}
+
+[sub_resource type="Animation" id="Animation_wvi70"]
+resource_name = "walk"
+length = 0.5
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("PlayerSprite:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.5),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [0, 4]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_1fd5i"]
+_data = {
+&"RESET": SubResource("Animation_chcy3"),
+&"idle": SubResource("Animation_uuvvo"),
+&"jump": SubResource("Animation_smtgq"),
+&"landing": SubResource("Animation_28ebo"),
+&"walk": SubResource("Animation_wvi70")
+}
+
+[node name="PlayerModel" type="CharacterBody2D"]
+position = Vector2(291, 687)
+scale = Vector2(0.07, 0.07)
+collision_mask = 3
+script = SubResource("GDScript_381hh")
+inv = ExtResource("1_e7ml4")
+
+[node name="ColisionArea" type="CollisionShape2D" parent="."]
+position = Vector2(0.000167847, 0.00012207)
+rotation = 1.5708
+scale = Vector2(0.999999, 0.999999)
+shape = SubResource("RectangleShape2D_uwm2o")
+
+[node name="PlayerGlow" type="PointLight2D" parent="."]
+position = Vector2(0.000183105, 0)
+color = Color(0.586285, 1, 0.540279, 1)
+energy = 0.9
+shadow_enabled = true
+shadow_filter = 1
+shadow_filter_smooth = 64.0
+texture = ExtResource("1_p71sj")
+texture_scale = 2.5
+
+[node name="PlayerSprite" type="Sprite2D" parent="."]
+position = Vector2(0.000183105, -71.4286)
+texture = ExtResource("1_4yq4u")
+hframes = 5
+vframes = 3
+
+[node name="AttackSprite" type="AnimatedSprite2D" parent="PlayerSprite"]
+position = Vector2(-0.000110626, 71.4288)
+scale = Vector2(2.1, 1.994)
+sprite_frames = SubResource("SpriteFrames_sgnk3")
+animation = &"swing"
+frame = 7
+frame_progress = 1.0
+speed_scale = 2.0
+
+[node name="AttackArea" type="Area2D" parent="PlayerSprite/AttackSprite"]
+position = Vector2(-8.10623e-06, 1.38283e-05)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="PlayerSprite/AttackSprite/AttackArea"]
+scale = Vector2(0.8, 0.8)
+shape = SubResource("RectangleShape2D_jxxud")
+
+[node name="HitParticles" type="CPUParticles2D" parent="PlayerSprite"]
+emitting = false
+amount = 200
+lifetime = 1.5
+one_shot = true
+explosiveness = 0.79
+randomness = 1.0
+lifetime_randomness = 1.0
+emission_shape = 1
+emission_sphere_radius = 11.35
+spread = 180.0
+gravity = Vector2(0, 400)
+initial_velocity_min = 200.0
+initial_velocity_max = 300.0
+color = Color(1, 0.11, 0.11, 1)
+
+[node name="CanvasLayer2" type="CanvasLayer" parent="PlayerSprite"]
+
+[node name="DamageLabel" type="Label" parent="PlayerSprite/CanvasLayer2"]
+clip_contents = true
+anchors_preset = -1
+anchor_left = 4.07813
+anchor_top = 2.13393
+anchor_right = 4.1565
+anchor_bottom = 2.18539
+offset_left = -7536.01
+offset_top = -2282.64
+offset_right = -7555.47
+offset_bottom = -2288.22
+text = "1"
+metadata/_edit_use_anchors_ = true
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+libraries = {
+&"": SubResource("AnimationLibrary_1fd5i")
+}
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position = Vector2(7.62939e-06, 5.34058e-05)
+scale = Vector2(5, 5)
+zoom = Vector2(4, 4)
+limit_left = -14
+limit_top = 500
+limit_right = 3450
+limit_bottom = 1545
+position_smoothing_enabled = true
+position_smoothing_speed = 6.0
+editor_draw_limits = true
+editor_draw_drag_margin = true
+script = ExtResource("12_4e8m4")
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+script = ExtResource("11_4apbi")
+
+[node name="ProgressBar" type="ProgressBar" parent="CanvasLayer"]
+visible = false
+offset_left = 47.0
+offset_top = 53.0
+offset_right = 229.0
+offset_bottom = 80.0
+
+[node name="TextureProgressBar" type="TextureProgressBar" parent="CanvasLayer"]
+offset_left = 33.0
+offset_top = 47.0
+offset_right = 330.0
+offset_bottom = 76.0
+nine_patch_stretch = true
+texture_under = ExtResource("12_tc5iy")
+texture_progress = ExtResource("13_d3fsm")
+
+[node name="GameOver" parent="CanvasLayer" instance=ExtResource("16_g18uv")]
+offset_left = 2.0
+offset_top = -13.0
+offset_right = 2.0
+offset_bottom = -13.0
+
+[node name="InvUI" parent="CanvasLayer" instance=ExtResource("15_qbc48")]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -477.0
+offset_top = -268.0
+offset_right = -269.0
+offset_bottom = -170.0
+grow_horizontal = 2
+grow_vertical = 2
+scale = Vector2(6, 6)
+
+[node name="HotBar" type="Control" parent="CanvasLayer"]
+modulate = Color(1, 1, 1, 0.717647)
+custom_minimum_size = Vector2(40, 40)
+layout_mode = 3
+anchors_preset = 0
+offset_left = 665.0
+offset_top = 517.0
+offset_right = 705.0
+offset_bottom = 557.0
+scale = Vector2(4, 4)
+script = ExtResource("17_1u0f7")
+
+[node name="NinePatchRect2" type="NinePatchRect" parent="CanvasLayer/HotBar"]
+layout_mode = 0
+offset_top = 90.0
+offset_right = 164.0
+offset_bottom = 118.0
+texture = ExtResource("18_4ugw6")
+
+[node name="HotBarSlots" type="GridContainer" parent="CanvasLayer/HotBar/NinePatchRect2"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -77.0
+offset_top = -9.0
+offset_right = 77.0
+offset_bottom = 9.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/h_separation = -1
+columns = 9
+
+[node name="Slot_hotbar" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
+layout_mode = 2
+
+[node name="Slot_hotbar2" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
+layout_mode = 2
+
+[node name="Slot_hotbar3" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
+layout_mode = 2
+
+[node name="Slot_hotbar4" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
+layout_mode = 2
+
+[node name="Slot_hotbar5" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
+layout_mode = 2
+
+[node name="Slot_hotbar6" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
+layout_mode = 2
+
+[node name="Slot_hotbar7" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
+layout_mode = 2
+
+[node name="Slot_hotbar8" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
+layout_mode = 2
+
+[node name="Slot_hotbar9" parent="CanvasLayer/HotBar/NinePatchRect2/HotBarSlots" instance=ExtResource("19_jqgo5")]
+layout_mode = 2
+
+[node name="HealthLabel" type="Label" parent="CanvasLayer"]
+offset_left = 39.0
+offset_top = 20.0
+offset_right = 169.0
+offset_bottom = 43.0
+text = "HP: 0000"
+
+[node name="HTTPRequest" type="HTTPRequest" parent="."]

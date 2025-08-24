@@ -1,0 +1,45 @@
+[gd_scene load_steps=4 format=3 uid="uid://c8bjyoq5oxoup"]
+
+[ext_resource type="Texture2D" uid="uid://c16sqqdoo3rg" path="res://Assets/Door/door.png" id="1_lomnf"]
+
+[sub_resource type="GDScript" id="GDScript_8kysj"]
+resource_name = "DoorHandler"
+script/source = "extends Node2D
+
+@onready var area: Area2D = $Area2D
+@export var level: String = \"\"
+
+func _physics_process(_delta: float) -> void:
+	for body in area.get_overlapping_bodies():
+		if body.name == \"PlayerModel\" and Input.is_action_just_pressed(\"Interact\"):
+			if level.is_empty():
+				push_warning(\"Kein Level für diese Tür gesetzt!\")
+				return
+			
+			var transition = preload(\"res://Scenes/transition.tscn\").instantiate()
+			get_tree().root.add_child(transition)
+			
+			var scene_path = \"res://Scenes/%s.tscn\" % level
+			transition.play_transition(scene_path)
+			await transition.transition_completed
+			
+			# Ab hier ist die Transition bereits im Begriff sich selbst zu entfernen
+			# und die neue Szene ist geladen
+"
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_hvas2"]
+size = Vector2(6, 2)
+
+[node name="Door" type="Node2D"]
+script = SubResource("GDScript_8kysj")
+
+[node name="Sprite" type="Sprite2D" parent="."]
+position = Vector2(0, -16)
+texture = ExtResource("1_lomnf")
+
+[node name="Area2D" type="Area2D" parent="."]
+position = Vector2(0, -16)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Area2D"]
+position = Vector2(0, 15)
+shape = SubResource("RectangleShape2D_hvas2")

@@ -1,0 +1,68 @@
+[gd_scene load_steps=6 format=3 uid="uid://btd70wfyuwmhw"]
+
+[ext_resource type="Script" uid="uid://bkak5mpvteei8" path="res://Scripts/pause_menu.gd" id="1_m6jhc"]
+[ext_resource type="Texture2D" uid="uid://by5nnsktymsb6" path="res://Assets/GUI/Back/button.png" id="2_b6mxw"]
+[ext_resource type="Texture2D" uid="uid://ckkm2wypcxoa0" path="res://Assets/GUI/Back/hover.png" id="3_e7ffm"]
+[ext_resource type="Texture2D" uid="uid://chol4j55hl3wo" path="res://Assets/GUI/Back/pressed.png" id="4_bhnl6"]
+[ext_resource type="FontFile" uid="uid://c2wsertwqrai5" path="res://Assets/GUI/Font/PixelatedEleganceRegular-ovyAA.ttf" id="5_vypvj"]
+
+[node name="CanvasLayer" type="CanvasLayer"]
+process_mode = 3
+layer = 0
+script = ExtResource("1_m6jhc")
+
+[node name="ColorRect" type="ColorRect" parent="."]
+offset_right = 1960.0
+offset_bottom = 1113.0
+color = Color(0, 0, 0, 0.494118)
+
+[node name="VBoxContainer" type="VBoxContainer" parent="ColorRect"]
+layout_mode = 2
+offset_left = 800.0
+offset_top = 400.0
+offset_right = 1200.0
+offset_bottom = 609.0
+
+[node name="ContinueButton" type="TextureButton" parent="ColorRect/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+texture_normal = ExtResource("2_b6mxw")
+texture_pressed = ExtResource("3_e7ffm")
+texture_hover = ExtResource("4_bhnl6")
+stretch_mode = 0
+
+[node name="Label" type="Label" parent="ColorRect/VBoxContainer/ContinueButton"]
+layout_mode = 0
+offset_left = 38.0
+offset_top = 19.0
+offset_right = 360.0
+offset_bottom = 70.0
+theme_override_fonts/font = ExtResource("5_vypvj")
+theme_override_font_sizes/font_size = 25
+text = "Resume"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="MainMenuButton" type="TextureButton" parent="ColorRect/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+texture_normal = ExtResource("2_b6mxw")
+texture_pressed = ExtResource("3_e7ffm")
+texture_hover = ExtResource("4_bhnl6")
+stretch_mode = 0
+
+[node name="Label2" type="Label" parent="ColorRect/VBoxContainer/MainMenuButton"]
+layout_mode = 0
+offset_left = 39.0
+offset_top = 20.0
+offset_right = 361.0
+offset_bottom = 71.0
+theme_override_fonts/font = ExtResource("5_vypvj")
+theme_override_font_sizes/font_size = 25
+text = "Main Menu"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[connection signal="go_to_main_menu" from="." to="." method="_on_go_to_main_menu"]
+[connection signal="pressed" from="ColorRect/VBoxContainer/ContinueButton" to="." method="_on_continue_button_pressed"]
+[connection signal="pressed" from="ColorRect/VBoxContainer/MainMenuButton" to="." method="_on_main_menu_button_pressed"]

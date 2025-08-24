@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://k32hx7k88gui"]
+
+[ext_resource type="Script" path="res://API.gd" id="1_ayobp"]
+
+[node name="Node2D" type="Node2D"]
+script = ExtResource("1_ayobp")
+
+[node name="HTTPRequest" type="HTTPRequest" parent="."]
