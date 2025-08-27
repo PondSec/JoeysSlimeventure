@@ -78,9 +78,6 @@ func show_tooltip(item: InvItem, position: Vector2):
 		# Trennlinie nur anzeigen wenn Stats vorhanden sind
 		separator.visible = stats_text != \"[color=#AAAAAA]Keine besonderen Eigenschaften[/color]\"
 		
-		# Sichtbar machen
-		visible = true
-		
 		# Warte einen Frame damit die Größe berechnet werden kann
 		await get_tree().process_frame
 		
@@ -99,6 +96,9 @@ func show_tooltip(item: InvItem, position: Vector2):
 			global_position.x = 10
 		if global_position.y < 10:
 			global_position.y = 10
+		
+		# Sichtbar machen
+		visible = true
 
 func determine_rarity_color(item: InvItem) -> Color:
 	# Basis-Seltenheitswert basierend auf den Stats
@@ -166,6 +166,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+scale = Vector2(0.5, 0.5)
 script = SubResource("GDScript_v2krb")
 
 [node name="Panel" type="Panel" parent="."]
@@ -199,5 +200,5 @@ layout_mode = 2
 custom_minimum_size = Vector2(106, 90)
 layout_mode = 2
 theme_override_fonts/normal_font = ExtResource("1_4yqfq")
-theme_override_font_sizes/normal_font_size = 14
+theme_override_font_sizes/normal_font_size = 16
 bbcode_enabled = true

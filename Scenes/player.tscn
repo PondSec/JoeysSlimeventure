@@ -1865,6 +1865,7 @@ offset_right = 2.0
 offset_bottom = -13.0
 
 [node name="InvUI" parent="CanvasLayer" instance=ExtResource("15_qbc48")]
+modulate = Color(1, 1, 1, 0.705882)
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
@@ -1879,7 +1880,7 @@ grow_vertical = 2
 scale = Vector2(6, 6)
 
 [node name="HotBar" type="Control" parent="CanvasLayer"]
-modulate = Color(1, 1, 1, 0.717647)
+modulate = Color(1, 1, 1, 0.705882)
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 3
 anchors_preset = 0
