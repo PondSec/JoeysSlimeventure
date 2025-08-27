@@ -5,7 +5,8 @@
 
 [sub_resource type="GDScript" id="GDScript_8jn70"]
 resource_name = "bat_claw"
-script/source = "extends RigidBody2D
+script/source = "# item.gd
+extends RigidBody2D
 
 @export var lifetime: float = 120.0  # Das Item verschwindet nach 10 Sekunden
 @export var item: InvItem  # Das tatsächliche Item-Objekt
