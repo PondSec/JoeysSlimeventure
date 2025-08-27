@@ -29,6 +29,9 @@ var config := ConfigFile.new()
 @onready var ip_input: LineEdit = $MultiPlayer/VBoxContainer/IPInput
 @onready var port_input: LineEdit = $MultiPlayer/VBoxContainer/PortInput
 
+# Referenz zum Lautstärke-Slider hinzufügen
+@onready var volume_slider: HSlider = $SettingsPanel/VBoxContainer/VolumeSlider
+
 # ---------------------------------------------------
 # 🔒 Hash & ID-Funktionen
 # ---------------------------------------------------
@@ -89,6 +92,12 @@ func load_settings() -> void:
 	var volume = config.get_value(\"audio\", \"volume\", 0.0)
 	AudioServer.set_bus_volume_db(0, volume)
 	
+	# Lautstärke-Slider auf den korrekten Wert setzen
+	if volume_slider:
+		# Konvertiere dB-Wert zu einem linearen Wert zwischen 0 und 1
+		var linear_volume = db_to_linear(volume)
+		volume_slider.value = linear_volume
+	
 	var mute = config.get_value(\"audio\", \"mute\", false)
 	AudioServer.set_bus_mute(0, mute)
 	
@@ -106,6 +115,18 @@ func set_resolution(index: int) -> void:
 	]
 	if index >= 0 and index < resolutions.size():
 		DisplayServer.window_set_size(resolutions[index])
+
+# ---------------------------------------------------
+# 🔊 Lautstärke-Funktionen
+# ---------------------------------------------------
+func _on_volume_slider_value_changed(value: float) -> void:
+	# Konvertiere linearen Wert (0-1) zu dB
+	var db_value = linear_to_db(value)
+	AudioServer.set_bus_volume_db(0, db_value)
+	
+	# Speichere den dB-Wert, nicht den linearen Wert
+	config.set_value(\"audio\", \"volume\", db_value)
+	config.save(CONFIG_PATH)
 
 # ---------------------------------------------------
 # 🔘 Buttons

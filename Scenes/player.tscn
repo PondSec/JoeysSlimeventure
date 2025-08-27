@@ -203,6 +203,9 @@ var is_swimming := false
 func _ready() -> void:
 	if OS.has_feature(\"mobile\") or OS.has_feature(\"web\"):
 		setup_touch_controls()
+	var gm = get_node(\"/root/GameManager\")
+	if gm.is_multiplayer:
+		$GPUParticles2D.emitting = false
 	if is_multiplayer_authority():
 		$Camera2D.enabled = true
 		set_process_input(true)

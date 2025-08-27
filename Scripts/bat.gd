@@ -81,11 +81,17 @@ func _ready() -> void:
 	randomize()
 	add_to_group("enemies")
 	add_to_group("bats")
+	
+	# Automatisch Player aus der Gruppe finden, falls nicht zugewiesen
+	if player == null:
+		find_player()
+	
 	bat_position = get_random_spawn_position()
 	health_bar.visible = false
 	alert_icon.visible = false
 	alert_icon.text = "!"  # Stelle sicher, dass das Symbol ein ! ist
 	generate_patrol_points()
+	
 	# Verbinde Area-Signale
 	detection_area.body_entered.connect(_on_player_detected)
 	detection_area.body_exited.connect(_on_player_lost)
@@ -115,7 +121,11 @@ func get_loot_table() -> Array:
 	return table
 
 func _physics_process(delta: float) -> void:
-	
+	if player == null:
+		find_player()
+		if player == null:  # Immer noch kein Player gefunden
+			return  # Nichts tun, bis ein Player existiert
+			
 	if normal_hit_streak > 0:
 		streak_timer += delta
 		if streak_timer >= streak_reset_time:
@@ -162,10 +172,7 @@ func _physics_process(delta: float) -> void:
 	set_animation()
 
 func find_player() -> void:
-	# Warte einen Frame, damit der Player sicher geladen ist
-	await get_tree().process_frame
-	# Finde den Player in der Szene
-	var players = get_tree().get_nodes_in_group("player")
+	var players = get_tree().get_nodes_in_group("players")
 	if players.size() > 0:
 		player = players[0]
 	else:
