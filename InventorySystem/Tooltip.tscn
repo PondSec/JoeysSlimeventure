@@ -1,0 +1,203 @@
+[gd_scene load_steps=5 format=3 uid="uid://pdm8tmhu3gg6"]
+
+[ext_resource type="FontFile" uid="uid://c2wsertwqrai5" path="res://Assets/GUI/Font/PixelatedEleganceRegular-ovyAA.ttf" id="1_4yqfq"]
+
+[sub_resource type="GDScript" id="GDScript_v2krb"]
+script/source = "extends Control
+
+@onready var panel = $Panel
+@onready var item_name_label = $Panel/MarginContainer/VBoxContainer/ItemName
+@onready var separator = $Panel/MarginContainer/VBoxContainer/HSeparator
+@onready var stats_label = $Panel/MarginContainer/VBoxContainer/StatsLabel
+
+func _ready():
+	# Initial verstecken
+	visible = false
+	# Stelle sicher, dass der Tooltip über anderen UI-Elementen liegt
+	z_index = 100
+
+func show_tooltip(item: InvItem, position: Vector2):
+	if item:
+		# Item-Namen mit stylischem Format anzeigen
+		item_name_label.text = item.name
+		
+		# Bestimme die Farbe basierend auf der Item-Stärke
+		var name_color = determine_rarity_color(item)
+		item_name_label.modulate = name_color
+		
+		# Stats-Text mit BBCode für cooles Formatting
+		var stats_text = \"\"
+		
+		# Drop Chance anzeigen (immer, falls vorhanden)
+		if item.drop_chance > 0:
+			var drop_chance_percent = item.drop_chance * 100
+			stats_text += \"[img=16]res://InventorySystem/Icons/drop_chance_icon.png[/img] [color=#4ECB71]\" + str(drop_chance_percent) + \"%[/color] Drop Chance\\n\"
+		
+		# Gesundheit
+		if item.health_bonus != 0:
+			var value = item.health_bonus * 100
+			var sign = \"+\" if value > 0 else \"\"
+			var color = \"#4ECB71\" if value > 0 else \"#CB4E4E\"
+			stats_text += \"[img=16]res://InventorySystem/Icons/heart_icon.png[/img] [color=\" + color + \"]\" + sign + str(value) + \"%[/color] Gesundheit\\n\"
+		
+		# Schaden
+		if item.damage_bonus != 0:
+			var value = item.damage_bonus * 100
+			var sign = \"+\" if value > 0 else \"\"
+			var color = \"#4ECB71\" if value > 0 else \"#CB4E4E\"
+			stats_text += \"[img=16]res://InventorySystem/Icons/sword_icon.png[/img] [color=\" + color + \"]\" + sign + str(value) + \"%[/color] Schaden\\n\"
+		
+		# Wurfschaden
+		if item.throw_damage != 0:
+			var value = item.throw_damage
+			var sign = \"+\" if value > 0 else \"\"
+			var color = \"#4ECB71\" if value > 0 else \"#CB4E4E\"
+			stats_text += \"[img=16]res://InventorySystem/Icons/throw_icon.png[/img] [color=\" + color + \"]\" + sign + str(value) + \"[/color] Wurfschaden\\n\"
+		
+		# Crit-Chance
+		if item.crit_chance_bonus != 0:
+			var value = item.crit_chance_bonus * 100
+			var sign = \"+\" if value > 0 else \"\"
+			var color = \"#4ECB71\" if value > 0 else \"#CB4E4E\"
+			stats_text += \"[img=16]res://InventorySystem/Icons/crit_icon.png[/img] [color=\" + color + \"]\" + sign + str(value) + \"%[/color] Crit-Chance\\n\"
+		
+		# Crit-Schaden
+		if item.crit_damage_bonus != 0:
+			var value = item.crit_damage_bonus * 100
+			var sign = \"+\" if value > 0 else \"\"
+			var color = \"#4ECB71\" if value > 0 else \"#CB4E4E\"
+			stats_text += \"[img=16]res://InventorySystem/Icons/crit_damage_icon.png[/img] [color=\" + color + \"]\" + sign + str(value) + \"%[/color] Crit-Schaden\\n\"
+			
+		# Wenn keine Stats vorhanden sind
+		if stats_text == \"\":
+			stats_text = \"[color=#AAAAAA]Keine besonderen Eigenschaften[/color]\"
+		
+		stats_label.text = stats_text
+		stats_label.bbcode_enabled = true
+		
+		# Trennlinie nur anzeigen wenn Stats vorhanden sind
+		separator.visible = stats_text != \"[color=#AAAAAA]Keine besonderen Eigenschaften[/color]\"
+		
+		# Sichtbar machen
+		visible = true
+		
+		# Warte einen Frame damit die Größe berechnet werden kann
+		await get_tree().process_frame
+		
+		# Positionieren
+		global_position = position + Vector2(20, 20)
+		
+		# Begrenze die Position auf den Bildschirm
+		var viewport_size = get_viewport().get_visible_rect().size
+		var tooltip_size = size
+		
+		if global_position.x + tooltip_size.x > viewport_size.x:
+			global_position.x = viewport_size.x - tooltip_size.x - 10
+		if global_position.y + tooltip_size.y > viewport_size.y:
+			global_position.y = viewport_size.y - tooltip_size.y - 10
+		if global_position.x < 10:
+			global_position.x = 10
+		if global_position.y < 10:
+			global_position.y = 10
+
+func determine_rarity_color(item: InvItem) -> Color:
+	# Basis-Seltenheitswert basierend auf den Stats
+	var weighted_throw_damage = abs(item.throw_damage) / 90.0
+	var stats_value = (abs(item.health_bonus) + abs(item.damage_bonus) + 
+					  weighted_throw_damage + abs(item.crit_chance_bonus) + 
+					  abs(item.crit_damage_bonus))
+	
+	# Drop-Chance als Hauptfaktor für Seltenheit - je niedriger die Chance, desto seltener
+	var drop_chance_value = 0.0
+	if item.drop_chance > 0:
+		# Umrechnung: 1% Drop-Chance = 0.5 Wert, 0.1% = 5.0 Wert
+		drop_chance_value = (1.0 / item.drop_chance) * 0.08
+	
+	# Kombiniere beide Werte (Stats und Drop-Chance)
+	var total_value = stats_value + drop_chance_value
+	
+	# DEBUG-Ausgabe zur Kontrolle
+	print(\"Item: \", item.name)
+	print(\"Stats-Wert: \", stats_value)
+	print(\"Drop-Chance-Wert (1/drop_chance * 0.5): \", drop_chance_value)
+	print(\"Gesamtwert: \", total_value)
+	
+	# Seltenheits-Schwellenwerte anpassen
+	if total_value > 5.0:
+		print(\"Seltenheit: Legendär (Orange)\")
+		return Color(\"#FF6B00\")
+	elif total_value > 2.0:
+		print(\"Seltenheit: Episch (Lila)\")
+		return Color(\"#9D4EDD\")
+	elif total_value > 0.5:
+		print(\"Seltenheit: Selten (Blau)\")
+		return Color(\"#4CC9F0\")
+	elif total_value > 0.1:
+		print(\"Seltenheit: Ungewöhnlich (Grün)\")
+		return Color(\"#4ECB71\")
+	else:
+		print(\"Seltenheit: Normal (Weiß)\")
+		return Color(\"#FFFFFF\")
+
+func hide_tooltip():
+	visible = false
+"
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_v2krb"]
+bg_color = Color(0.1, 0.1, 0.1, 0.95)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.3, 3, 0.3, 1)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+
+[sub_resource type="LabelSettings" id="LabelSettings_4yqfq"]
+font = ExtResource("1_4yqfq")
+font_size = 18
+
+[node name="Tooltip" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = SubResource("GDScript_v2krb")
+
+[node name="Panel" type="Panel" parent="."]
+layout_mode = 0
+offset_right = 222.0
+offset_bottom = 130.0
+scale = Vector2(0.5, 0.5)
+theme_override_styles/panel = SubResource("StyleBoxFlat_v2krb")
+
+[node name="MarginContainer" type="MarginContainer" parent="Panel"]
+layout_mode = 0
+offset_left = 6.0
+offset_top = 6.0
+offset_right = 216.0
+offset_bottom = 124.0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Panel/MarginContainer"]
+layout_mode = 2
+
+[node name="ItemName" type="Label" parent="Panel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 0
+label_settings = SubResource("LabelSettings_4yqfq")
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="HSeparator" type="HSeparator" parent="Panel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="StatsLabel" type="RichTextLabel" parent="Panel/MarginContainer/VBoxContainer"]
+custom_minimum_size = Vector2(106, 90)
+layout_mode = 2
+theme_override_fonts/normal_font = ExtResource("1_4yqfq")
+theme_override_font_sizes/normal_font_size = 14
+bbcode_enabled = true

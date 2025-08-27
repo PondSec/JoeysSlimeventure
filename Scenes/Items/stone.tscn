@@ -6,21 +6,29 @@
 resource_name = "bat_claw"
 script/source = "extends RigidBody2D
 
-@export var lifetime: float = 2.0  # Das Item verschwindet nach 120 Sekunden
-@export var damage: int = 15  # Schaden, den der Stein verursacht
+@export var lifetime: float = 120.0  # Das Item verschwindet nach 10 Sekunden
+@export var item: InvItem  # Das tatsächliche Item-Objekt
+var damage_amount: float = 0  # Wird aus dem Item bezogen
+@export var is_critical: bool = false  # Ob es ein kritischer Treffer ist
 var player = null
 
 func _ready():
-	# Timer für die Lebensdauer des Steins
+	# Wurfschaden aus dem Item übernehmen
+	if item:
+		damage_amount = item.throw_damage
+	
 	await get_tree().create_timer(lifetime).timeout
 	queue_free()
 
 func _on_area_2d_body_entered(body: Node2D) -> void:
-	if body.is_in_group(\"players\"):  # Prüfen, ob der Spieler den Stein berührt
-		var hit_source = global_position  # Position des Steins als Ursprung des Schadens
-		body.take_damage(damage, hit_source)
-		print(\"Spieler wurde getroffen und hat Schaden erhalten!\")
-		queue_free()
+	if body.is_in_group(\"players\"):  # Prüfen, ob der Spieler das Item berührt
+		body.collect(item)  # Item dem Inventar hinzufügen
+		queue_free()  # Item aus der Welt entfernen
+	elif body.is_in_group(\"enemies\"):  # Prüfen, ob ein Gegner das Item berührt
+		# Schaden verursachen und dann verschwinden
+		var direction = (body.global_position - global_position).normalized()
+		body.take_damage(damage_amount, direction, is_critical)
+		queue_free()  # Item aus der Welt entfernen
 "
 
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_8qekl"]

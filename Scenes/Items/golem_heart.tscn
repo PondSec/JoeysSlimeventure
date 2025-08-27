@@ -1,7 +1,7 @@
 [gd_scene load_steps=6 format=3 uid="uid://c5gf7gixygiky"]
 
 [ext_resource type="Resource" uid="uid://by734ky61leyb" path="res://InventorySystem/items/golem_heart.tres" id="1_gik10"]
-[ext_resource type="Texture2D" uid="uid://d31jtevxfrlb4" path="res://Assets/Items/GolemHeart.png" id="2_svco1"]
+[ext_resource type="Texture2D" uid="uid://dbyduk0m52u4j" path="res://Assets/Items/golem_heart.png" id="2_q3aeb"]
 
 [sub_resource type="GDScript" id="GDScript_8jn70"]
 resource_name = "bat_claw"
@@ -9,9 +9,15 @@ script/source = "extends RigidBody2D
 
 @export var lifetime: float = 120.0  # Das Item verschwindet nach 10 Sekunden
 @export var item: InvItem  # Das tatsächliche Item-Objekt
+var damage_amount: float = 0  # Wird aus dem Item bezogen
+@export var is_critical: bool = false  # Ob es ein kritischer Treffer ist
 var player = null
 
 func _ready():
+	# Wurfschaden aus dem Item übernehmen
+	if item:
+		damage_amount = item.throw_damage
+	
 	await get_tree().create_timer(lifetime).timeout
 	queue_free()
 
@@ -19,11 +25,16 @@ func _on_area_2d_body_entered(body: Node2D) -> void:
 	if body.is_in_group(\"players\"):  # Prüfen, ob der Spieler das Item berührt
 		body.collect(item)  # Item dem Inventar hinzufügen
 		queue_free()  # Item aus der Welt entfernen
+	elif body.is_in_group(\"enemies\"):  # Prüfen, ob ein Gegner das Item berührt
+		# Schaden verursachen und dann verschwinden
+		var direction = (body.global_position - global_position).normalized()
+		body.take_damage(damage_amount, direction, is_critical)
+		queue_free()  # Item aus der Welt entfernen
 "
 
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_8qekl"]
 radius = 4.0
-height = 8.0
+height = 11.5972
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_038e2"]
 size = Vector2(9.61539, 10)
@@ -33,11 +44,12 @@ script = SubResource("GDScript_8jn70")
 item = ExtResource("1_gik10")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+rotation = 0.645772
 shape = SubResource("CapsuleShape2D_8qekl")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 scale = Vector2(0.5, 0.5)
-texture = ExtResource("2_svco1")
+texture = ExtResource("2_q3aeb")
 
 [node name="Area2D" type="Area2D" parent="."]
 

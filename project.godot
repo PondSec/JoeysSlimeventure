@@ -11,9 +11,10 @@ config_version=5
 [application]
 
 config/name="JoeysSlimeventure"
+config/version="0.0.3.0"
 run/main_scene="uid://lud4ledapwml"
 config/features=PackedStringArray("4.4", "Mobile")
-config/icon="res://icon.svg"
+config/icon="uid://rxhajrw8d7m7"
 
 [autoload]
 
