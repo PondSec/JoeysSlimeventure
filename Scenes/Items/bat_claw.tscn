@@ -10,11 +10,15 @@ extends RigidBody2D
 
 @export var lifetime: float = 120.0  # Das Item verschwindet nach 10 Sekunden
 @export var item: InvItem  # Das tatsächliche Item-Objekt
-@export var damage_amount: int = 10  # Wie viel Schaden das Item verursacht
+var damage_amount: float = 0  # Wird aus dem Item bezogen
 @export var is_critical: bool = false  # Ob es ein kritischer Treffer ist
 var player = null
 
 func _ready():
+	# Wurfschaden aus dem Item übernehmen
+	if item:
+		damage_amount = item.throw_damage
+	
 	await get_tree().create_timer(lifetime).timeout
 	queue_free()
 

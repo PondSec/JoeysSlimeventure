@@ -68,6 +68,7 @@ var streak_timer := 0.0
 @onready var detection_area = $DetectionArea
 @onready var alert_icon = $AlertIcon
 @onready var sprite = $Sprite2D
+@onready var item = InvItem
 @export var current_speed := SPEED  # Standardwert ist SPEED
 
 # Sound-Effekte
@@ -75,16 +76,6 @@ var streak_timer := 0.0
 var death_sound = preload("res://Assets/Sounds/Bat_death.ogg")
 var hurt_sound = preload("res://Assets/Sounds/Bat_hurt2.ogg.mp3")
 var dodge_sound = preload("res://Assets/Sounds/Bat_takeoff.ogg")
-
-# Loot-Tabelle
-var loot_table = [
-	{ "scene": preload("res://Scenes/Items/bat_claw.tscn"), "chance": 0.08 },
-	{ "scene": preload("res://Scenes/Items/copper_nugget.tscn"), "chance": 0.15 },
-	{ "scene": preload("res://Scenes/Items/iron_nugget.tscn"), "chance": 0.05 },
-	{ "scene": preload("res://Scenes/Items/gold_nugget.tscn"), "chance": 0.01 },
-	{ "scene": preload("res://Scenes/Items/bat_artefact.tscn"), "chance": 0.005 }, #0.005
-	{ "scene": null, "chance": 0.70 }
-]
 
 func _ready() -> void:
 	randomize()
@@ -103,6 +94,25 @@ func _ready() -> void:
 	sound_player = AudioStreamPlayer.new()
 	sound_player.name = "SoundPlayer"  # Optional: Name für Debugging
 	add_child(sound_player)  # WICHTIG: Node hinzufügen
+
+func get_loot_table() -> Array:
+	# Lade die InvItem Resources direkt
+	var bat_claw_data: InvItem = preload("res://InventorySystem/items/bat_claw.tres")
+	var copper_nugget_data: InvItem = preload("res://InventorySystem/items/copper_nugget.tres")
+	var iron_nugget_data: InvItem = preload("res://InventorySystem/items/iron_nugget.tres")
+	var gold_nugget_data: InvItem = preload("res://InventorySystem/items/gold_nugget.tres")
+	var bat_artefact_data: InvItem = preload("res://InventorySystem/items/bat_artefact.tres")
+	
+	var table = [
+		{ "scene": preload("res://Scenes/Items/bat_claw.tscn"), "chance": bat_claw_data.drop_chance },
+		{ "scene": preload("res://Scenes/Items/copper_nugget.tscn"), "chance": copper_nugget_data.drop_chance },
+		{ "scene": preload("res://Scenes/Items/iron_nugget.tscn"), "chance": iron_nugget_data.drop_chance },
+		{ "scene": preload("res://Scenes/Items/gold_nugget.tscn"), "chance": gold_nugget_data.drop_chance },
+		{ "scene": preload("res://Scenes/Items/bat_artefact.tscn"), "chance": bat_artefact_data.drop_chance },
+		{ "scene": null, "chance": 0.70 }
+	]
+	
+	return table
 
 func _physics_process(delta: float) -> void:
 	
@@ -616,6 +626,7 @@ func die() -> void:
 	respawn()
 
 func drop_loot() -> void:
+	var loot_table = get_loot_table()  # Holt die aktuelle Loot-Table
 	var roll = randf()
 	var cumulative_chance = 0.0
 	
