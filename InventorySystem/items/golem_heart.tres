@@ -11,3 +11,5 @@ health_bonus = 0.5
 damage_bonus = 0.0
 crit_chance_bonus = 0.0
 crit_damage_bonus = 0.0
+throw_damage = 2.0
+drop_chance = 0.001

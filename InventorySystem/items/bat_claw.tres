@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="InvItem" load_steps=3 format=3 uid="uid://bn5g1pesjtq6k"]
 
-[ext_resource type="Script" uid="uid://bf3a2juv1orwt" path="res://InventorySystem/inventory_item.gd" id="1_5vje5"]
+[ext_resource type="Script" uid="uid://g8qoas1goouj" path="res://InventorySystem/inventory_item.gd" id="1_5vje5"]
 [ext_resource type="Texture2D" uid="uid://deh5b2tl5etl3" path="res://Assets/Items/bat_claw.png" id="2_0pvw6"]
 
 [resource]
@@ -8,3 +8,8 @@ script = ExtResource("1_5vje5")
 name = "bat_claw"
 texture = ExtResource("2_0pvw6")
 health_bonus = 0.0
+damage_bonus = 0.0
+crit_chance_bonus = 0.0
+crit_damage_bonus = 0.0
+throw_damage = 10.0
+drop_chance = 0.25

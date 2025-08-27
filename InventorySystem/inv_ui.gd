@@ -3,16 +3,17 @@ extends Control
 @onready var inv: Inv = preload("res://InventorySystem/playerinv.tres")
 @onready var slots: Array = $NinePatchRect/GridContainer.get_children()
 @onready var spind_ui = $SpindUI
+@onready var tooltip = preload("res://InventorySystem/Tooltip.tscn").instantiate()
 
 var is_open = false
 var dragging_item = null
 var dragging_sprite = null
 var dragging_slot_index = -1
 var detected_slot_index = -1
-var dragging_item_scale = 0.5  # Skalierungsfaktor
+var dragging_item_scale = 0.5
+var hovered_slot_index = -1
+var is_hovering = false
 
-
-# Speicherpfad
 var save_path = "user://inventory.save"
 
 func _ready() -> void:
@@ -21,65 +22,77 @@ func _ready() -> void:
 	inv.load_inventory(save_path)
 	close()
 	
+	# Tooltip als Child hinzufügen
+	add_child(tooltip)
+	tooltip.visible = false
 
 func _process(delta: float) -> void:
 	if Input.is_action_just_pressed("inventory"):
 		if is_open:
 			close()
-			inv.save_inventory(save_path)  # Speichere das Inventar beim Schließen
+			inv.save_inventory(save_path)
 		else:
 			open()
-	# Nur wenn ein Item "gezogen" wird, folge der Maus
+			
 	if dragging_item:
 		dragging_item.position = get_global_mouse_position()
 
 	if Input.is_action_just_pressed("Attack"):
 		if !dragging_item:
-			# Klicken auf einen Slot, um das Item zu ziehen
 			detected_slot_index = get_slot_index_under_mouse()
 			if detected_slot_index != -1:
 				_on_slot_pressed(detected_slot_index)
 		else:
-			# Wenn ein Item bereits gezogen wird, dann wird es abgelegt
 			detected_slot_index = get_slot_index_under_mouse()
 			_on_slot_released(detected_slot_index)
 
-	# Verwende "mouse_right" für den Rechtsklick
 	if Input.is_action_just_pressed("mouse_right"):
 		detected_slot_index = get_slot_index_under_mouse()
 		if detected_slot_index != -1:
 			_on_right_click(detected_slot_index)
+	
+	# Hover-Erkennung mit Timer für bessere Performance
+	if is_open:
+		var current_hovered_slot = get_slot_index_under_mouse()
+		if current_hovered_slot != hovered_slot_index:
+			hovered_slot_index = current_hovered_slot
+			_update_tooltip()
 
-# Öffne das Inventar
+func _update_tooltip():
+	if hovered_slot_index != -1 and is_open:
+		var slot = inv.slots[hovered_slot_index]
+		if slot and slot.item:
+			await get_tree().create_timer(0.3).timeout
+			if hovered_slot_index != -1 and is_open:
+				tooltip.show_tooltip(slot.item, get_global_mouse_position())
+		else:
+			tooltip.hide_tooltip()
+	else:
+		tooltip.hide_tooltip()
+
 func open():
 	visible = true
 	is_open = true
 	update_slots()
 
-# Schließe das Inventar
 func close():
 	visible = false
 	is_open = false
 	update_slots()
+	tooltip.hide_tooltip()
 	
-	# Wenn ein Item gezogen wird, lege es zurück in den ursprünglichen Slot
 	if dragging_item:
 		var source_slot = inv.slots[dragging_slot_index]
 		if source_slot:
-			# Zeige das ursprüngliche Item wieder im Slot
 			var item_display = slots[dragging_slot_index].get_node("CenterContainer/Panel/ItemDisplay") if slots[dragging_slot_index].has_node("CenterContainer/Panel/ItemDisplay") else null
 			if item_display:
 				item_display.visible = true
 
-		# Entferne das gezogene Item und setze die Variablen zurück
 		dragging_item.queue_free()
 		dragging_item = null
 		dragging_sprite = null
 		dragging_slot_index = -1
-		
-		# Aktualisiere die Slots, um die Sichtbarkeit sicherzustellen
 		update_slots()
-
 
 func update_slots():
 	for i in range(min(inv.slots.size(), slots.size())):
