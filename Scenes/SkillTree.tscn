@@ -1,0 +1,543 @@
+[gd_scene load_steps=4 format=3 uid="uid://dwcb5l2ylkk5d"]
+
+[ext_resource type="FontFile" uid="uid://c2wsertwqrai5" path="res://Assets/GUI/Font/PixelatedEleganceRegular-ovyAA.ttf" id="1_t13jq"]
+
+[sub_resource type="GDScript" id="GDScript_t13jq"]
+script/source = "extends Control
+class_name SkillTree
+
+# Texturen für die Skill-Knoten
+var node_texture = preload(\"res://Assets/SkillTree/SkillNodeActive.png\")
+var node_active_texture = preload(\"res://Assets/SkillTree/SkillNodeActive.png\")
+var node_hover_texture = preload(\"res://Assets/SkillTree/SkillNodeHover.png\")
+var node_locked_texture = preload(\"res://Assets/SkillTree/SkillNode.png\")
+
+# Vergrößerungsfaktor für bessere Sichtbarkeit
+var scale_factor := 3
+
+# Referenz zum Player-Skript
+@export var player: CharacterBody2D
+
+# Skill-Definitionen
+var skills = {
+	\"glow\": {
+		\"pos\": Vector2(200, 100) * scale_factor,  # Höher positionieren
+		\"unlocked\": false, 
+		\"requires\": [], 
+		\"required_levels\": [\"level1\"],
+		\"description\": \"Erlaubt das Ausleuchten in dunklen Umgebungen\",  # Korrigierte Beschreibung
+		\"icon\": null
+	},
+	\"wall_slide\": {
+		\"pos\": Vector2(200, 300) * scale_factor,  # Tiefer positionieren
+		\"unlocked\": false, 
+		\"requires\": [], 
+		\"required_levels\": [\"level1\"],
+		\"description\": \"Erlaubt das Herunterrutschen an Wänden\",  # Korrigierte Beschreibung
+		\"icon\": null
+	},
+	\"ult\": {
+		\"pos\": Vector2(400, 200) * scale_factor,  # In der Mitte zwischen beiden
+		\"unlocked\": false, 
+		\"requires\": [\"glow\", \"wall_slide\"], 
+		\"required_levels\": [\"Game\"],
+		\"description\": \"Spezialfähigkeit mit großer Wirkung\",
+		\"icon\": null
+	}
+}
+
+# Verbindungen zwischen Skills - beide führen zu ult
+var connections = [
+	[\"glow\", \"ult\"],
+	[\"wall_slide\", \"ult\"]
+]
+
+var hovered_node = null
+var skill_tooltip_visible := false
+var skill_tooltip_text := \"\"
+
+# Signal, das ausgelöst wird, wenn ein Skill freigeschaltet wird
+signal skill_unlocked(skill_name)
+
+func _ready():
+	# Vollbild einstellen
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	
+	self.visible = false
+	await get_tree().process_frame
+	
+	if player:
+		skill_unlocked.connect(player._on_skill_unlocked)
+	
+	create_tooltip()
+	connect_to_doors()
+	load_skills()
+	update_skill_tree()
+
+func connect_to_doors():
+	# Verbinde Level-Abschluss-Signale von Türen
+	var doors = get_tree().get_nodes_in_group(\"doors\")
+	for door in doors:
+		if door.has_signal(\"level_completed\"):
+			door.level_completed.connect(_on_level_completed)
+
+func _on_level_completed(level_name: String):
+	print(\"Level abgeschlossen: \", level_name, \" - Aktualisiere Skillbaum\")
+	queue_redraw()
+
+func _draw():
+	draw_background_panel()
+	draw_connections()
+	draw_skill_nodes()
+
+func draw_background_panel():
+	# Verwende die gesamte Bildschirmgröße
+	var screen_size = get_viewport_rect().size
+	var panel_rect = Rect2(Vector2.ZERO, screen_size)
+	
+	# Panel mit hellgrüner Umrandung zeichnen
+	var panel_color = Color(0.1, 0.1, 0.1, 0.9)  # Dunkler Hintergrund
+	var border_color = Color(0.4, 1.0, 0.4, 0.9)  # Hellgrüne Umrandung
+	var border_width = 4.0  # Pixelart-freundliche Dicke
+	
+	# Panel-Hintergrund
+	draw_rect(panel_rect, panel_color, true)
+	
+	# Pixelart-Umrandung (4 Seiten separat zeichnen)
+	draw_rect(Rect2(panel_rect.position.x, panel_rect.position.y, panel_rect.size.x, border_width), border_color, true)  # Oben
+	draw_rect(Rect2(panel_rect.position.x, panel_rect.end.y - border_width, panel_rect.size.x, border_width), border_color, true)  # Unten
+	draw_rect(Rect2(panel_rect.position.x, panel_rect.position.y, border_width, panel_rect.size.y), border_color, true)  # Links
+	draw_rect(Rect2(panel_rect.end.x - border_width, panel_rect.position.y, border_width, panel_rect.size.y), border_color, true)  # Rechts
+
+func draw_connections():
+	# Zeichne Verbindungslinien zwischen Skills
+	for connection in connections:
+		var from_node = skills[connection[0]]
+		var to_node = skills[connection[1]]
+		
+		var line_color
+		var line_width
+		
+		if from_node.unlocked and to_node.unlocked:
+			line_color = Color.GREEN
+			line_width = 3.0
+		elif can_unlock_skill(connection[0]) and can_unlock_skill(connection[1]):
+			line_color = Color.YELLOW
+			line_width = 2.5
+		else:
+			line_color = Color.DARK_GRAY
+			line_width = 2.0
+		
+		if not (from_node.unlocked and to_node.unlocked):
+			draw_custom_dashed_line(from_node.pos, to_node.pos, line_color, line_width, 10.0)
+		else:
+			draw_line(from_node.pos, to_node.pos, line_color, line_width)
+
+func draw_skill_nodes():
+	# Zentriere den Skillbaum auf dem Bildschirm
+	var screen_center = get_viewport_rect().size / 2
+	var skilltree_center = calculate_skilltree_center()
+	var offset = screen_center - skilltree_center
+	
+	# Zeichne alle Skill-Knoten
+	for skill_name in skills:
+		var skill = skills[skill_name]
+		var node_size = calculate_node_size(skill, skill_name)
+		var draw_pos = skill.pos + offset - node_size / 2
+		
+		# Bestimme Textur und Farbe basierend auf Status
+		var texture = determine_node_texture(skill, skill_name)
+		var node_color = determine_node_color(skill, skill_name)
+		
+		# Zeichne den Knoten
+		draw_texture_rect(texture, Rect2(draw_pos, node_size), false, node_color)
+		
+		# Zeichne optionales Icon
+		if skill.get(\"icon\"):
+			draw_skill_icon(skill, offset)
+		
+		# Zeichne Level-Anforderungen
+		draw_level_requirements(skill, node_size, offset)
+
+func calculate_skilltree_center() -> Vector2:
+	# Berechne das Zentrum aller Skills
+	var min_pos = Vector2.INF
+	var max_pos = -Vector2.INF
+	
+	for skill_name in skills:
+		var skill = skills[skill_name]
+		min_pos = min_pos.min(skill.pos)
+		max_pos = max_pos.max(skill.pos)
+	
+	return (min_pos + max_pos) / 2
+
+func calculate_node_size(skill, skill_name):
+	var base_texture = node_active_texture if skill.unlocked else node_texture
+	var base_size = base_texture.get_size() * scale_factor
+	
+	if hovered_node == skill_name:
+		return base_size * 1.1  # Vergrößere bei Hover
+	
+	return base_size
+
+func determine_node_texture(skill, skill_name):
+	if hovered_node == skill_name:
+		return node_hover_texture
+	elif skill.unlocked:
+		return node_active_texture
+	elif can_unlock_skill(skill_name):
+		return node_texture
+	else:
+		return node_locked_texture if node_locked_texture else node_texture
+
+func determine_node_color(skill, skill_name):
+	if skill.unlocked:
+		return Color.WHITE
+	elif can_unlock_skill(skill_name):
+		return Color(0.9, 0.9, 0.9, 0.9)
+	else:
+		return Color(0.3, 0.3, 0.3, 0.7)
+
+func draw_skill_icon(skill, offset):
+	var icon_texture = skill.icon
+	var icon_size = icon_texture.get_size() * 0.7
+	var icon_pos = skill.pos + offset - icon_size / 2
+	draw_texture_rect(icon_texture, Rect2(icon_pos, icon_size), false, Color.WHITE)
+
+func draw_level_requirements(skill, node_size, offset):
+	# Lade Pixelart-Font
+	var font = load(\"res://Assets/GUI/Font/PixelatedEleganceRegular-ovyAA.ttf\")
+	var font_size = 10 * scale_factor
+	var levels_text = \"Benötigt: \" + \", \".join(skill.required_levels)
+	
+	# Berechne die Textgröße für die korrekte Positionierung
+	var text_size = font.get_string_size(levels_text, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size)
+	
+	# Zentrierte Position unterhalb des Nodes
+	var text_pos = Vector2(
+		skill.pos.x + offset.x,  # X-Position zentriert zum Node
+		skill.pos.y + offset.y + node_size.y / 2 + 60  # Y-Position mit Abstand unter dem Node
+	)
+	
+	# Textfarbe basierend auf Status
+	var text_color
+	if skill.unlocked:
+		text_color = Color.LIGHT_GREEN
+	elif can_unlock_skill_by_data(skill):
+		text_color = Color.LIGHT_YELLOW
+	else:
+		text_color = Color.GRAY
+	
+	# Hintergrund-Rechteck zentriert zeichnen
+	var bg_rect = Rect2(
+		text_pos - Vector2(text_size.x / 2, text_size.y / 2) - Vector2(4, 4),  # Zentriert mit Padding
+		text_size + Vector2(8, 8)  # Größe mit Padding
+	)
+	draw_rect(bg_rect, Color(0, 0, 0, 0.8), true)
+	
+	# Text zentriert zeichnen
+	draw_string(
+		font, 
+		text_pos - Vector2(text_size.x / 2, -font_size / 2),  # Korrigierte Position für Zentrierung
+		levels_text, 
+		HORIZONTAL_ALIGNMENT_LEFT,  # Auf LEFT ändern für präzise Positionierung
+		-1, 
+		font_size, 
+		text_color
+	)
+
+func can_unlock_skill_by_data(skill_data) -> bool:
+	# Überprüfe Level-Anforderungen
+	var completed_levels = load_completed_levels()
+	for required_level in skill_data.required_levels:
+		if not required_level in completed_levels:
+			return false
+	
+	# Überprüfe Skill-Voraussetzungen
+	for req in skill_data.requires:
+		if not skills[req].unlocked:
+			return false
+	
+	return true
+
+func draw_custom_dashed_line(from: Vector2, to: Vector2, color: Color, width: float, dash_length: float):
+	var direction = (to - from).normalized()
+	var distance = from.distance_to(to)
+	var steps = floor(distance / dash_length)
+	
+	for i in range(steps):
+		var start = from + direction * dash_length * i
+		var end = start + direction * dash_length * 0.5
+		
+		if i % 2 == 0:
+			draw_line(start, end, color, width)
+
+func _input(event):
+	if event is InputEventMouseMotion:
+		handle_mouse_motion(event)
+	
+	if event is InputEventMouseButton and event.pressed:
+		try_unlock_skill()
+
+func handle_mouse_motion(event):
+	var mouse_pos = get_local_mouse_position()
+	hovered_node = null
+	skill_tooltip_visible = false
+	
+	# Zentriere den Skillbaum auf dem Bildschirm
+	var screen_center = get_viewport_rect().size / 2
+	var skilltree_center = calculate_skilltree_center()
+	var offset = screen_center - skilltree_center
+	
+	# Prüfe, ob Maus über einem Skill-Knoten ist
+	for skill_name in skills:
+		var skill = skills[skill_name]
+		var texture = node_active_texture if skill.unlocked else node_texture
+		var rect_size = texture.get_size() * scale_factor
+		var rect = Rect2(skill.pos + offset - rect_size / 2, rect_size)
+		
+		if rect.has_point(mouse_pos):
+			hovered_node = skill_name
+			skill_tooltip_visible = true
+			update_tooltip_text(skill)
+			break
+	
+	queue_redraw()
+
+func update_tooltip_text(skill):
+	# Erstelle Tooltip-Text
+	var levels_text = \"Benötigte Level: \" + \", \".join(skill.required_levels)
+	skill_tooltip_text = skill.description + \"\\n\" + levels_text
+	
+	# Füge Info über fehlende Level hinzu
+	var completed_levels = load_completed_levels()
+	var missing_levels = []
+	
+	for req_level in skill.required_levels:
+		if not req_level in completed_levels:
+			missing_levels.append(req_level)
+	
+	if missing_levels.size() > 0:
+		skill_tooltip_text += \"\\n\\nFehlende Level: \" + \", \".join(missing_levels)
+	else:
+		skill_tooltip_text += \"\\n\\nAlle Level abgeschlossen!\"
+
+func try_unlock_skill():
+	if not hovered_node or skills[hovered_node].unlocked:
+		return
+	
+	var skill = skills[hovered_node]
+	
+	# Prüfe Voraussetzungen
+	var can_unlock = true
+	for req in skill.requires:
+		if not skills[req].unlocked:
+			can_unlock = false
+			break
+	
+	# Prüfe Level-Anforderung
+	if can_unlock and player and can_unlock_skill(hovered_node):
+		unlock_skill(hovered_node)
+
+func unlock_skill(skill_name):
+	skills[skill_name].unlocked = true
+	skill_unlocked.emit(skill_name)
+	
+	# Aktiviere den Skill im Player
+	if player:
+		match skill_name:
+			\"wall_slide\":
+				player.has_wall_slide_skill = true
+				print(\"Wall Slide aktiviert\")
+			\"ult\":
+				player.has_ult_skill = true
+				print(\"Ultimate aktiviert\")
+	
+	save_skills()
+	queue_redraw()
+
+func queue_update():
+	queue_redraw()
+
+func update_skill_tree():
+	queue_redraw()
+
+func can_unlock_skill(skill_name: String) -> bool:
+	var skill_data = skills.get(skill_name)
+	if not skill_data:
+		return false
+	
+	return can_unlock_skill_by_data(skill_data)
+
+func create_tooltip():
+	# Erstelle Tooltip-Label
+	var tooltip = Label.new()
+	tooltip.name = \"Tooltip\"
+	tooltip.visible = false
+	tooltip.z_index = 100
+	tooltip.add_theme_color_override(\"font_color\", Color.WHITE)
+	
+	# Verwende Pixelart-Font
+	var font = load(\"res://Assets/GUI/Font/PixelatedEleganceRegular-ovyAA.ttf\")  # Passe den Pfad an
+	tooltip.add_theme_font_override(\"font\", font)
+	tooltip.add_theme_font_size_override(\"font_size\", 16)  # Pixelart-gerechte Größe
+	
+	tooltip.add_theme_stylebox_override(\"normal\", create_tooltip_stylebox())
+	tooltip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	tooltip.custom_minimum_size = Vector2(250, 100)  # Angepasste Größe
+	add_child(tooltip)
+
+func create_tooltip_stylebox() -> StyleBoxFlat:
+	var stylebox = StyleBoxFlat.new()
+	stylebox.bg_color = Color(0.1, 0.1, 0.1, 0.95)
+	stylebox.border_color = Color.GREEN  # Grüne Outline statt blau
+	stylebox.border_width_left = 4
+	stylebox.border_width_right = 4
+	stylebox.border_width_top = 4
+	stylebox.border_width_bottom = 4
+	stylebox.corner_radius_top_left = 12  # Größere Eckenradius
+	stylebox.corner_radius_top_right = 12
+	stylebox.corner_radius_bottom_right = 12
+	stylebox.corner_radius_bottom_left = 12
+	stylebox.content_margin_left = 15  # Größere Abstände
+	stylebox.content_margin_right = 15
+	stylebox.content_margin_top = 15
+	stylebox.content_margin_bottom = 15
+	stylebox.shadow_color = Color(0, 0, 0, 0.6)
+	stylebox.shadow_size = 12  # Größerer Schatten
+	return stylebox
+
+func _process(_delta):
+	handle_skill_tree_toggle()
+	update_tooltip_position()
+
+func handle_skill_tree_toggle():
+	if Input.is_action_just_pressed(\"skill_tree\"):
+		self.visible = !self.visible
+		if self.visible:
+			# Setze die Position auf (0,0), da wir jetzt Vollbild sind
+			self.position = Vector2.ZERO
+
+func update_tooltip_position():
+	if skill_tooltip_visible and hovered_node:
+		var tooltip = $Tooltip
+		if tooltip:
+			tooltip.text = skill_tooltip_text
+			tooltip.visible = true
+			tooltip.position = get_global_mouse_position() + Vector2(20, 20)
+	else:
+		var tooltip = $Tooltip
+		if tooltip:
+			tooltip.visible = false
+
+# Speichern und Laden
+func save_skills():
+	var save_data = {}
+	for skill_name in skills:
+		save_data[skill_name] = {
+			\"unlocked\": skills[skill_name].unlocked,
+			\"required_levels\": skills[skill_name].required_levels
+		}
+	
+	var save_game = FileAccess.open(\"user://skills.save\", FileAccess.WRITE)
+	if save_game:
+		save_game.store_string(JSON.stringify(save_data))
+		save_game.close()
+
+func load_skills():
+	if not FileAccess.file_exists(\"user://skills.save\"):
+		return
+	
+	var save_game = FileAccess.open(\"user://skills.save\", FileAccess.READ)
+	if save_game:
+		var json_data = save_game.get_as_text()
+		save_game.close()
+		
+		var save_data = JSON.parse_string(json_data)
+		if save_data:
+			for skill_name in save_data:
+				if skills.has(skill_name):
+					skills[skill_name].unlocked = save_data[skill_name].unlocked
+					
+					if \"required_levels\" in save_data[skill_name]:
+						skills[skill_name].required_levels = save_data[skill_name].required_levels
+					
+					# Aktiviere Skill im Player, wenn freigeschaltet
+					if save_data[skill_name].unlocked and player and can_unlock_skill(skill_name):
+						match skill_name:
+							\"wall_slide\":
+								player.has_wall_slide_skill = true
+							\"ult\":
+								player.has_ult_skill = true
+	
+	queue_redraw()
+
+func load_completed_levels() -> Array:
+	if not FileAccess.file_exists(\"user://completed_levels.save\"):
+		return []
+	
+	var file = FileAccess.open(\"user://completed_levels.save\", FileAccess.READ)
+	var data = JSON.parse_string(file.get_as_text())
+	file.close()
+	
+	if data is Array:
+		return data
+	
+	return []
+
+# Debug-Funktionen
+func debug_unlock_skill(skill_name: String):
+	if skills.has(skill_name):
+		skills[skill_name].unlocked = true
+		skill_unlocked.emit(skill_name)
+		save_skills()
+		queue_redraw()
+
+func debug_reset_skills():
+	for skill_name in skills:
+		skills[skill_name].unlocked = false
+	
+	if FileAccess.file_exists(\"user://skills.save\"):
+		DirAccess.remove_absolute(\"user://skills.save\")
+	
+	queue_redraw()
+"
+
+[sub_resource type="LabelSettings" id="LabelSettings_o3ipy"]
+font = ExtResource("1_t13jq")
+font_size = 40
+
+[node name="SkillTree" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = SubResource("GDScript_t13jq")
+
+[node name="Background" type="ColorRect" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.861)
+
+[node name="Label" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -419.0
+offset_top = 39.0
+offset_right = 421.0
+offset_bottom = 122.0
+grow_horizontal = 2
+text = "Skill Tree
+"
+label_settings = SubResource("LabelSettings_o3ipy")
+horizontal_alignment = 1
+vertical_alignment = 2

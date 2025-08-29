@@ -1,8 +1,7 @@
-[gd_scene load_steps=7 format=3 uid="uid://ccep15ieo6o6o"]
+[gd_scene load_steps=8 format=3 uid="uid://ccep15ieo6o6o"]
 
 [ext_resource type="Texture2D" uid="uid://dexg2cvhympay" path="res://Assets/Light/torch.png" id="1_p3o0k"]
 [ext_resource type="Script" uid="uid://dmd5ujalccwna" path="res://Scripts/torch.gd" id="2_5d5xy"]
-[ext_resource type="Texture2D" uid="uid://c771vveh0silu" path="res://Assets/Light/light_white.png" id="2_sr0ye"]
 
 [sub_resource type="Animation" id="Animation_d6o2g"]
 loop_mode = 1
@@ -41,6 +40,20 @@ _data = {
 &"torch": SubResource("Animation_ll24q")
 }
 
+[sub_resource type="Gradient" id="Gradient_h1t0l"]
+interpolation_mode = 2
+interpolation_color_space = 2
+colors = PackedColorArray(1, 1, 1, 1, 0, 0, 0, 1)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_beu3c"]
+gradient = SubResource("Gradient_h1t0l")
+width = 1028
+height = 1028
+use_hdr = true
+fill = 1
+fill_from = Vector2(0.481651, 0.518349)
+fill_to = Vector2(0.146789, 0.169725)
+
 [node name="Torch" type="Sprite2D"]
 position = Vector2(324, 974)
 scale = Vector2(0.3, 0.264)
@@ -63,7 +76,7 @@ scale = Vector2(0.105793, 0.105368)
 color = Color(0.811765, 0.772549, 0.34902, 1)
 energy = 1.5
 shadow_enabled = true
-shadow_filter = 1
-shadow_filter_smooth = 64.0
-texture = ExtResource("2_sr0ye")
+shadow_filter = 2
+shadow_filter_smooth = 3.0
+texture = SubResource("GradientTexture2D_beu3c")
 texture_scale = 5.0

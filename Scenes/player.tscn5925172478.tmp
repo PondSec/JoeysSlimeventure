@@ -1,7 +1,8 @@
-[gd_scene load_steps=50 format=3 uid="uid://b6ublycstdj8n"]
+[gd_scene load_steps=49 format=3 uid="uid://b6ublycstdj8n"]
 
 [ext_resource type="Texture2D" uid="uid://cildswtcj7qrc" path="res://Assets/slime-sprite.png" id="1_4yq4u"]
 [ext_resource type="Resource" uid="uid://0rntjh2xt5s5" path="res://InventorySystem/playerinv.tres" id="1_e7ml4"]
+[ext_resource type="Texture2D" uid="uid://c771vveh0silu" path="res://Assets/Light/light_white.png" id="1_p71sj"]
 [ext_resource type="Texture2D" uid="uid://quh4mac3hef1" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame0.png" id="3_ubp3h"]
 [ext_resource type="Texture2D" uid="uid://cjb4nq6aeftnv" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame1.png" id="4_6hcqa"]
 [ext_resource type="Texture2D" uid="uid://dq3ow8oywurgq" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame2.png" id="5_eo1jl"]
@@ -158,7 +159,6 @@ var wall_jump_buffer = 0.0
 const WALL_JUMP_BUFFER_TIME = 0.1
 const WALL_JUMP_FORGIVENESS = 0.15
 
-var has_glow_skill := false
 var has_wall_slide_skill := false
 var has_ult_skill := false
 var player_level := 1
@@ -240,7 +240,6 @@ func _ready() -> void:
 	
 	load_charge_cooldown()
 	glow_effect = $PlayerGlow
-	glow_effect.visible = false
 	# Initialisiere Angriffsknoten
 	attack_sprite = $PlayerSprite/AttackSprite
 	attack_area = $PlayerSprite/AttackSprite/AttackArea
@@ -1146,10 +1145,6 @@ func perform_attack() -> void:
 
 # Leuchteffekt aktualisieren
 func update_glow_state() -> void:
-	if not has_glow_skill:
-		# Deaktiviere Wall Slide, wenn der Skill nicht freigeschaltet ist
-		is_glowing = false
-		return
 	glow_effect.visible = is_glowing  # Lokale Aktualisierung
 
 # Importiere diese Zeile in deine `take_damage`-Funktion, um den Partikel-Effekt zu aktivieren
@@ -1577,9 +1572,6 @@ func set_joystick_output(value: Vector2):
 # Funktion, die aufgerufen wird, wenn ein Skill freigeschaltet wird
 func _on_skill_unlocked(skill_name: String):
 	match skill_name:
-		\"glow\":
-			has_glow_skill = true
-			print(\"Glow freigeschaltet!\")
 		\"wall_slide\":
 			has_wall_slide_skill = true
 			print(\"Wall Slide freigeschaltet!\")
@@ -1615,18 +1607,6 @@ func load_completed_levels() -> Array:
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_uwm2o"]
 size = Vector2(242.855, 386.667)
-
-[sub_resource type="Gradient" id="Gradient_p1odr"]
-interpolation_mode = 2
-colors = PackedColorArray(1, 1, 1, 1, 0, 0, 0, 1)
-
-[sub_resource type="GradientTexture2D" id="GradientTexture2D_0gysh"]
-gradient = SubResource("Gradient_p1odr")
-width = 1200
-height = 1200
-fill = 1
-fill_from = Vector2(0.481651, 0.513761)
-fill_to = Vector2(0.816514, 0.188073)
 
 [sub_resource type="SpriteFrames" id="SpriteFrames_sgnk3"]
 animations = [{
@@ -1841,9 +1821,9 @@ position = Vector2(0.000183105, 0)
 color = Color(0.586285, 1, 0.540279, 1)
 energy = 0.9
 shadow_enabled = true
-shadow_filter = 2
-shadow_filter_smooth = 2.3
-texture = SubResource("GradientTexture2D_0gysh")
+shadow_filter = 1
+shadow_filter_smooth = 64.0
+texture = ExtResource("1_p71sj")
 texture_scale = 2.5
 
 [node name="PlayerSprite" type="Sprite2D" parent="."]
@@ -2066,12 +2046,4 @@ process_material = SubResource("ParticleProcessMaterial_ypfnu")
 position = Vector2(0, 14.2891)
 shape = SubResource("RectangleShape2D_p1odr")
 
-[node name="SkillTreeUI" type="CanvasLayer" parent="."]
-layer = 20
-
-[node name="SkillTree" parent="SkillTreeUI" node_paths=PackedStringArray("player") instance=ExtResource("26_0gysh")]
-offset_left = 2.0
-offset_top = -11.0
-offset_right = 2.0
-offset_bottom = -11.0
-player = NodePath("../..")
+[node name="SkillTree" parent="." instance=ExtResource("26_0gysh")]

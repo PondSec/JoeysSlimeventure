@@ -1,0 +1,280 @@
+[gd_scene load_steps=3 format=3 uid="uid://dwcb5l2ylkk5d"]
+
+[sub_resource type="GDScript" id="GDScript_t13jq"]
+script/source = "extends CanvasLayer
+
+func _ready():
+	self.visible = false
+
+func _process(delta: float) -> void:
+	if Input.is_action_just_pressed(\"skill_tree\"):
+		self.visible = !self.visible
+"
+
+[sub_resource type="GDScript" id="GDScript_d8ypo"]
+script/source = "extends Control
+
+class_name SkillTree
+
+# Texturen für die Nodes
+var node_texture = preload(\"res://Assets/SkillTree/SkillNode.png\")
+var node_active_texture = preload(\"res://Assets/SkillTree/SkillNodeActive.png\")
+var node_hover_texture = preload(\"res://Assets/SkillTree/SkillNodeHover.png\")
+var node_locked_texture = preload(\"res://Assets/SkillTree/SkillNode.png\")  # Gleiche wie inaktiv
+
+# Referenz zum Player-Skript
+var player: Node
+
+# Skill-Definitionen: [Name, Position, Voraussetzungen, Level-Anforderung, Beschreibung]
+var skills = {
+	\"grundlage\": {
+		\"pos\": Vector2(200, 200), 
+		\"unlocked\": true, 
+		\"requires\": [], 
+		\"level_required\": 1,
+		\"description\": \"Basis-Fähigkeit\",
+		\"texture\": null
+	},
+	\"wall_slide\": {
+		\"pos\": Vector2(300, 150), 
+		\"unlocked\": false, 
+		\"requires\": [\"grundlage\"], 
+		\"level_required\": 2,
+		\"description\": \"Erlaubt das Herunterrutschen an Wänden\",
+		\"texture\": null
+	},
+	\"dash\": {
+		\"pos\": Vector2(300, 250), 
+		\"unlocked\": false, 
+		\"requires\": [\"grundlage\"], 
+		\"level_required\": 3,
+		\"description\": \"Schneller Vorwärtsdash\",
+		\"texture\": null
+	},
+	\"ult\": {
+		\"pos\": Vector2(400, 200), 
+		\"unlocked\": false, 
+		\"requires\": [\"wall_slide\", \"dash\"], 
+		\"level_required\": 5,
+		\"description\": \"Spezialfähigkeit mit großer Wirkung\",
+		\"texture\": null
+	}
+}
+
+var connections = [
+	[\"grundlage\", \"wall_slide\"],
+	[\"grundlage\", \"dash\"],
+	[\"wall_slide\", \"ult\"],
+	[\"dash\", \"ult\"]
+]
+
+var hovered_node = null
+var is_visible = false
+
+# Font für Text
+var font: Font
+var font_size: int = 16
+
+# Signal für freigeschaltete Skills
+signal skill_unlocked(skill_name)
+
+func _ready():
+	# Lade den Player
+	player = get_tree().get_first_node_in_group(\"players\")
+	
+	# Lade Font
+	font = ThemeDB.fallback_font
+	font_size = ThemeDB.fallback_font_size
+	
+	# Lade gespeicherte Skills
+	load_skills()
+	
+	# Verstecke initial
+	visible = false
+	update_skill_tree()
+
+func _input(event):
+	if event.is_action_pressed(\"skill_tree\"):
+		toggle_visibility()
+	
+	if !is_visible:
+		return
+		
+	if event is InputEventMouseMotion:
+		var mouse_pos = get_local_mouse_position()
+		hovered_node = null
+		
+		for skill_name in skills:
+			var skill = skills[skill_name]
+			var texture = get_texture_for_skill(skill_name)
+			var rect = Rect2(skill.pos - texture.get_size() / 2, texture.get_size())
+			
+			if rect.has_point(mouse_pos):
+				hovered_node = skill_name
+				break
+		
+		queue_redraw()
+	
+	if event is InputEventMouseButton and event.pressed:
+		if hovered_node and !skills[hovered_node].unlocked:
+			try_unlock_skill(hovered_node)
+
+func _draw():
+	# Verbindungen zeichnen
+	for connection in connections:
+		var from_node = skills[connection[0]]
+		var to_node = skills[connection[1]]
+		
+		if from_node.unlocked or to_node.unlocked:
+			draw_line(from_node.pos, to_node.pos, Color.WHITE, 2)
+		else:
+			draw_line(from_node.pos, to_node.pos, Color.GRAY, 2)
+	
+	# Nodes zeichnen
+	for skill_name in skills:
+		var skill = skills[skill_name]
+		var texture = get_texture_for_skill(skill_name)
+		
+		if hovered_node == skill_name:
+			texture = node_hover_texture
+		
+		draw_texture(texture, skill.pos - texture.get_size() / 2)
+		
+		# Zeige Level-Anforderung
+		if !skill.unlocked:
+			var level_text = \"Lv. \" + str(skill.level_required)
+			var text_size = font.get_string_size(level_text, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size)
+			var text_pos = skill.pos + Vector2(0, texture.get_size().y / 2 + 10)
+			draw_string(font, text_pos - Vector2(text_size.x / 2, 0), level_text, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size)
+		
+		# Zeige Tooltip für hovered node
+		if hovered_node == skill_name:
+			draw_tooltip(skill_name)
+
+func get_texture_for_skill(skill_name: String) -> Texture2D:
+	var skill = skills[skill_name]
+	
+	if skill.unlocked:
+		return node_active_texture
+	elif can_unlock_skill(skill_name):
+		return node_texture  # Kann freigeschaltet werden
+	else:
+		return node_locked_texture  # Noch nicht verfügbar
+
+func can_unlock_skill(skill_name: String) -> bool:
+	if !player:
+		return false
+		
+	var skill_data = skills.get(skill_name)
+	if skill_data:
+		# Prüfe Level-Anforderung
+		if player.player_level < skill_data.level_required:
+			return false
+		
+		# Prüfe Voraussetzungen
+		for req in skill_data.requires:
+			if !skills[req].unlocked:
+				return false
+		
+		return true
+	return false
+
+func try_unlock_skill(skill_name: String):
+	if !player:
+		return
+		
+	var skill_data = skills.get(skill_name)
+	if skill_data and can_unlock_skill(skill_name):
+		skills[skill_name].unlocked = true
+		skill_unlocked.emit(skill_name)
+		save_skills()
+		queue_redraw()
+
+func draw_tooltip(skill_name: String):
+	var skill = skills[skill_name]
+	var mouse_pos = get_local_mouse_position()
+	var tooltip_pos = mouse_pos + Vector2(20, 20)
+	
+	# Tooltip Hintergrund
+	var description = skill.description + \"\\nBenötigt Level: \" + str(skill.level_required)
+	var text_size = font.get_string_size(description, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
+	var padding = Vector2(10, 10)
+	var rect_size = text_size + padding * 2
+	
+	draw_rect(Rect2(tooltip_pos - padding, rect_size), Color(0.1, 0.1, 0.1, 0.9))
+	draw_rect(Rect2(tooltip_pos - padding, rect_size), Color(0.5, 0.5, 0.5, 0.9), false)
+	
+	# Tooltip Text
+	draw_string(font, tooltip_pos, description, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
+
+func toggle_visibility():
+	is_visible = !is_visible
+	visible = is_visible
+	set_process_input(is_visible)
+	
+	if is_visible:
+		get_tree().paused = true
+	else:
+		get_tree().paused = false
+
+func update_skill_tree():
+	queue_redraw()
+
+func save_skills():
+	var save_data = {}
+	for skill_name in skills:
+		save_data[skill_name] = skills[skill_name].unlocked
+	
+	var save_game = FileAccess.open(\"user://skills.save\", FileAccess.WRITE)
+	if save_game:
+		save_game.store_string(JSON.stringify(save_data))
+		save_game.close()
+
+func load_skills():
+	if FileAccess.file_exists(\"user://skills.save\"):
+		var save_game = FileAccess.open(\"user://skills.save\", FileAccess.READ)
+		if save_game:
+			var save_data = JSON.parse_string(save_game.get_as_text())
+			save_game.close()
+			
+			if save_data:
+				for skill_name in save_data:
+					if skills.has(skill_name):
+						skills[skill_name].unlocked = save_data[skill_name]
+	
+	queue_redraw()
+
+# Wird aufgerufen, wenn ein Skill freigeschaltet wird
+func _on_skill_unlocked(skill_name: String):
+	if player:
+		match skill_name:
+			\"wall_slide\":
+				player.has_wall_slide_skill = true
+				print(\"Wall Slide freigeschaltet!\")
+			\"dash\":
+				player.has_dash_skill = true
+				print(\"Dash freigeschaltet!\")
+			\"ult\":
+				player.has_ult_skill = true
+				print(\"Ultimate Fähigkeit freigeschaltet!\")
+"
+
+[node name="SkillTree" type="CanvasLayer"]
+script = SubResource("GDScript_t13jq")
+
+[node name="Background" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.615686)
+
+[node name="SkillTree" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = SubResource("GDScript_d8ypo")

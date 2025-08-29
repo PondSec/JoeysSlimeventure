@@ -1,4 +1,4 @@
-[gd_scene load_steps=34 format=4 uid="uid://cmdh8rpdo8fb2"]
+[gd_scene load_steps=38 format=4 uid="uid://cmdh8rpdo8fb2"]
 
 [ext_resource type="Texture2D" uid="uid://82opar247kat" path="res://Assets/Tiles/platformertiles.png" id="1_lx4yj"]
 [ext_resource type="Script" uid="uid://hrb3bfkpp2mn" path="res://Scripts/game.gd" id="1_wyx84"]
@@ -18,42 +18,70 @@
 [ext_resource type="PackedScene" uid="uid://dx4m8ks5y31ax" path="res://Scenes/vine.tscn" id="17_4q8tf"]
 [ext_resource type="FontFile" uid="uid://c2wsertwqrai5" path="res://Assets/GUI/Font/PixelatedEleganceRegular-ovyAA.ttf" id="17_x3xnh"]
 
+[sub_resource type="OccluderPolygon2D" id="OccluderPolygon2D_4q8tf"]
+polygon = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+
+[sub_resource type="OccluderPolygon2D" id="OccluderPolygon2D_x3xnh"]
+polygon = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+
+[sub_resource type="OccluderPolygon2D" id="OccluderPolygon2D_8r6kd"]
+polygon = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+
+[sub_resource type="OccluderPolygon2D" id="OccluderPolygon2D_tfod6"]
+polygon = PackedVector2Array(-9.21199, -16, -9.11726, -14.0666, -8.26474, -14.0666, -7.9332, -11.0828, -7.03332, -10.9881, -6.89123, -8.09897, -6.03871, -8.14633, -6.03871, -9.99347, -5.09146, -9.94611, -4.99674, -7.10436, -4.19157, -7.15172, -4.04949, -10.9881, -3.33905, -10.9407, -3.05488, -12.9299, -2.0129, -13.1667, -1.96554, -9.18831, -1.06565, -9.18831, -1.01829, -12.0774, -0.118406, -11.9827, 0.260493, -10.0408, 0.97093, -10.2303, 0.97093, -12.0774, 1.96554, -11.9827, 2.10763, -6.10975, 3.00751, -6.06239, 3.00751, -8.14633, 3.9074, -8.09897, 4.00212, -10.9881, 4.94937, -11.0354, 5.13882, -7.34117, 5.94398, -7.15172, 6.03871, -10.0882, 6.79651, -9.99347, 6.93859, -12.9773, 7.83848, -13.0247, 7.9332, -14.8244, 7.88584, -14.9192, 8.97518, -15.1086, 9.02254, -16)
+
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_83pvq"]
 texture = ExtResource("1_lx4yj")
 texture_region_size = Vector2i(32, 32)
 3:2/next_alternative_id = 3
 3:2/0 = 0
 1:0/0 = 0
+1:0/0/occlusion_layer_0/polygon_0/polygon = SubResource("OccluderPolygon2D_4q8tf")
 1:0/0/physics_layer_1/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
 1:1/0 = 0
+1:1/0/occlusion_layer_0/polygon_0/polygon = SubResource("OccluderPolygon2D_4q8tf")
 1:1/0/physics_layer_1/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
 2:1/0 = 0
+2:1/0/occlusion_layer_0/polygon_0/polygon = SubResource("OccluderPolygon2D_4q8tf")
 2:1/0/physics_layer_1/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
 2:2/0 = 0
+2:2/0/occlusion_layer_0/polygon_0/polygon = SubResource("OccluderPolygon2D_4q8tf")
 2:2/0/physics_layer_1/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
 2:0/0 = 0
+2:0/0/occlusion_layer_0/polygon_0/polygon = SubResource("OccluderPolygon2D_4q8tf")
 2:0/0/physics_layer_1/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
 0:0/0 = 0
+0:0/0/occlusion_layer_0/polygon_0/polygon = SubResource("OccluderPolygon2D_4q8tf")
 0:0/0/physics_layer_1/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
 0:1/0 = 0
+0:1/0/occlusion_layer_0/polygon_0/polygon = SubResource("OccluderPolygon2D_4q8tf")
 0:1/0/physics_layer_1/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
 1:2/0 = 0
+1:2/0/occlusion_layer_0/polygon_0/polygon = SubResource("OccluderPolygon2D_4q8tf")
 1:2/0/physics_layer_1/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
 0:2/0 = 0
+0:2/0/occlusion_layer_0/polygon_0/polygon = SubResource("OccluderPolygon2D_4q8tf")
 0:2/0/physics_layer_1/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
 4:0/0 = 0
+4:0/0/occlusion_layer_0/polygon_0/polygon = SubResource("OccluderPolygon2D_x3xnh")
 4:0/0/physics_layer_1/polygon_0/points = PackedVector2Array(-16, 16, 16, 16, 16, -16, -16, -16)
 4:1/0 = 0
+4:1/0/occlusion_layer_0/polygon_0/polygon = SubResource("OccluderPolygon2D_x3xnh")
 4:1/0/physics_layer_1/polygon_0/points = PackedVector2Array(-16, 16, 16, 16, 16, -16, -16, -16)
 4:2/0 = 0
+4:2/0/occlusion_layer_0/polygon_0/polygon = SubResource("OccluderPolygon2D_x3xnh")
 4:2/0/physics_layer_1/polygon_0/points = PackedVector2Array(-16, 16, 16, 16, 16, -16, -16, -16)
 5:0/0 = 0
+5:0/0/occlusion_layer_0/polygon_0/polygon = SubResource("OccluderPolygon2D_8r6kd")
 5:0/0/physics_layer_1/polygon_0/points = PackedVector2Array(-16, 16, 16, 16, 16, -16, -16, -16)
 6:0/0 = 0
+6:0/0/occlusion_layer_0/polygon_0/polygon = SubResource("OccluderPolygon2D_8r6kd")
 6:0/0/physics_layer_1/polygon_0/points = PackedVector2Array(-16, 16, 16, 16, 16, -16, -16, -16)
 7:0/0 = 0
+7:0/0/occlusion_layer_0/polygon_0/polygon = SubResource("OccluderPolygon2D_8r6kd")
 7:0/0/physics_layer_1/polygon_0/points = PackedVector2Array(-16, 16, 16, 16, 16, -16, -16, -16)
 7:2/0 = 0
+7:2/0/occlusion_layer_0/polygon_0/polygon = SubResource("OccluderPolygon2D_tfod6")
 6:1/0 = 0
 5:1/0 = 0
 5:2/0 = 0
@@ -112,6 +140,7 @@ texture = ExtResource("3_khj2t")
 
 [sub_resource type="TileSet" id="TileSet_jgi20"]
 tile_size = Vector2i(32, 32)
+occlusion_layer_0/light_mask = 1
 physics_layer_0/collision_layer = 3
 physics_layer_0/collision_mask = 3
 physics_layer_1/collision_layer = 3
@@ -331,6 +360,13 @@ _data = {
 [node name="Game" type="Node2D"]
 script = ExtResource("1_wyx84")
 
+[node name="Shadow" type="CanvasModulate" parent="."]
+modulate = Color(0, 0, 0, 1)
+self_modulate = Color(0, 0, 0, 1)
+light_mask = 2
+position = Vector2(-14, 10)
+color = Color(0.103744, 0.103744, 0.103744, 1)
+
 [node name="Background" type="TileMap" parent="."]
 tile_set = SubResource("TileSet_jgi20")
 collision_animatable = true
@@ -343,7 +379,7 @@ tile_set = SubResource("TileSet_jgi20")
 collision_enabled = false
 
 [node name="Door" parent="Background" instance=ExtResource("16_alh3a")]
-position = Vector2(3106, 1355)
+position = Vector2(355, 1034)
 level = "level1"
 
 [node name="wall" type="TileMapLayer" parent="Background"]
@@ -414,12 +450,6 @@ position = Vector2(612, 1455)
 
 [node name="Torch7" parent="Background/LightSystem" instance=ExtResource("3_d07bp")]
 position = Vector2(529, 1455)
-
-[node name="Shadow" type="CanvasModulate" parent="Background/LightSystem"]
-modulate = Color(0, 0, 0, 1)
-self_modulate = Color(0, 0, 0, 1)
-position = Vector2(-14, 10)
-color = Color(0, 0, 0, 1)
 
 [node name="TextureRect3" type="TextureRect" parent="Background"]
 modulate = Color(0.74978, 0.74978, 0.74978, 0.627451)
@@ -504,7 +534,7 @@ spawn_zone_container = NodePath("../CollisionShape2D")
 position = Vector2(262, 767)
 
 [node name="player_spawn" type="Marker2D" parent="."]
-position = Vector2(3119, 1342)
+position = Vector2(366, 1020)
 
 [node name="DialogBox" type="CanvasLayer" parent="."]
 

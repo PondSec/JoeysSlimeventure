@@ -137,11 +137,13 @@ libraries = {
 speed_scale = 2.0
 
 [node name="AttackArea" type="Area2D" parent="."]
+visible = false
 
 [node name="Body" type="CollisionShape2D" parent="AttackArea"]
 shape = SubResource("CircleShape2D_p57rr")
 
 [node name="Collision" type="CollisionShape2D" parent="."]
+visible = false
 shape = SubResource("RectangleShape2D_chl00")
 
 [node name="NavigationAgent2D" type="NavigationAgent2D" parent="."]
@@ -166,6 +168,7 @@ offset_right = 4.0
 offset_bottom = -11.0
 
 [node name="DetectionArea" type="Area2D" parent="."]
+visible = false
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="DetectionArea"]
 shape = SubResource("CircleShape2D_50dnf")

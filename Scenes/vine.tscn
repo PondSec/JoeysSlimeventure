@@ -25,5 +25,6 @@ color = Color(0.593189, 1, 0.602958, 1)
 energy = 0.3
 shadow_enabled = true
 shadow_filter = 2
+shadow_filter_smooth = 2.3
 texture = ExtResource("2_krw3f")
 texture_scale = 6.0
