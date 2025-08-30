@@ -12,6 +12,21 @@ var node_active_texture = preload(\"res://Assets/SkillTree/SkillNodeActive.png\"
 var node_hover_texture = preload(\"res://Assets/SkillTree/SkillNodeHover.png\")
 var node_locked_texture = preload(\"res://Assets/SkillTree/SkillNodeActive.png\")
 
+var notification_visible := false
+var notification_timer := 0.0
+var notification_duration := 3.0  # Wie lange die Notification sichtbar bleibt
+var notification_text := \"\"
+var available_skills := []
+
+var zoom_level := 1.0
+var min_zoom := 0.5
+var max_zoom := 3.0
+var zoom_step := 0.1
+var camera_offset := Vector2.ZERO
+var is_dragging := false
+var drag_start := Vector2.ZERO
+var camera_start := Vector2.ZERO
+
 # Vergrößerungsfaktor für bessere Sichtbarkeit
 var scale_factor := 3
 
@@ -21,35 +36,189 @@ var scale_factor := 3
 # Skill-Definitionen
 var skills = {
 	\"glow\": {
-		\"pos\": Vector2(200, 100) * scale_factor,  # Höher positionieren
-		\"unlocked\": false, 
-		\"requires\": [], 
-		\"required_levels\": [\"level1\"],
-		\"description\": \"Erlaubt das Ausleuchten in dunklen Umgebungen\",  # Korrigierte Beschreibung
+		\"pos\": Vector2(100, 200) * scale_factor,
+		\"unlocked\": false,
+		\"requires\": [],
+		\"required_levels\": [\"level0\"],
+		\"description\": \"Joey entfesselt eine uralte, unbekannte Magie, die ihn selbst zum Leuchten bringt und die Dunkelheit vertreibt.\",
 		\"icon\": null
 	},
+
+	# OBERER STRANG (Mobilität / Movement)
 	\"wall_slide\": {
-		\"pos\": Vector2(200, 300) * scale_factor,  # Tiefer positionieren
-		\"unlocked\": false, 
-		\"requires\": [], 
+		\"pos\": Vector2(250, 100) * scale_factor,
+		\"unlocked\": false,
+		\"requires\": [\"glow\"],
 		\"required_levels\": [\"level1\"],
-		\"description\": \"Erlaubt das Herunterrutschen an Wänden\",  # Korrigierte Beschreibung
+		\"description\": \"Mit seiner schleimigen Oberfläche kann Joey an Wänden hinabrutschen und mächtige Wall Jumps ausführen.\",
+		\"icon\": null
+	},
+	\"double_jump\": {
+		\"pos\": Vector2(400, 80) * scale_factor,
+		\"unlocked\": false,
+		\"requires\": [\"wall_slide\"],
+		\"required_levels\": [\"level3\"],
+		\"description\": \"Joey sammelt magische Energie in seiner elastischen Hülle und führt einen zusätzlichen Sprung in der Luft aus.\",
+		\"icon\": null
+	},
+	\"dash\": {
+		\"pos\": Vector2(550, 100) * scale_factor,
+		\"unlocked\": false,
+		\"requires\": [\"double_jump\"],
+		\"required_levels\": [\"level5\"],
+		\"description\": \"Ein explosiver Schleimstoß katapultiert Joey blitzschnell nach vorne und durchbricht Hindernisse.\",
+		\"icon\": null
+	},
+	\"wall_run\": {
+		\"pos\": Vector2(550, 40) * scale_factor,
+		\"unlocked\": false,
+		\"requires\": [\"double_jump\"],
+		\"required_levels\": [\"level6\"],
+		\"description\": \"Joey kann an Wänden entlanglaufen und so vertikale Abgründe meistern.\",
+		\"icon\": null
+	},
+	\"air_dash\": {
+		\"pos\": Vector2(700, 80) * scale_factor,
+		\"unlocked\": false,
+		\"requires\": [\"dash\"],
+		\"required_levels\": [\"level7\"],
+		\"description\": \"Joey kann seinen Dash auch in der Luft einsetzen, um große Abgründe zu überwinden.\",
+		\"icon\": null
+	},
+	\"teleport\": {
+		\"pos\": Vector2(850, 100) * scale_factor,
+		\"unlocked\": false,
+		\"requires\": [\"air_dash\"],
+		\"required_levels\": [\"level12\"],
+		\"description\": \"Joey nutzt uralte Magie, um sich über kurze Distanz sofort zu teleportieren.\",
+		\"icon\": null
+	},
+
+	# UNTERER STRANG (Überleben / Magie)
+	\"regeneration\": {
+		\"pos\": Vector2(250, 300) * scale_factor,
+		\"unlocked\": false,
+		\"requires\": [\"glow\"],
+		\"required_levels\": [\"level4\"],
+		\"description\": \"Magische Partikel sammeln sich um Joey und lassen ihn im Laufe der Zeit verlorene Energie zurückgewinnen.\",
+		\"icon\": null
+	},
+	\"mana_shield\": {
+		\"pos\": Vector2(400, 320) * scale_factor,
+		\"unlocked\": false,
+		\"requires\": [\"regeneration\"],
+		\"required_levels\": [\"level6\"],
+		\"description\": \"Joey hüllt sich in eine schimmernde Barriere aus Schleim und Magie, die Schaden absorbiert, bis sie zerbricht.\",
+		\"icon\": null
+	},
+	\"heal_burst\": {
+		\"pos\": Vector2(400, 260) * scale_factor,
+		\"unlocked\": false,
+		\"requires\": [\"regeneration\"],
+		\"required_levels\": [\"level6\"],
+		\"description\": \"Joey entlädt Heilenergie auf einmal und stellt sofort einen Teil seiner Lebenspunkte wieder her.\",
+		\"icon\": null
+	},
+	\"thorns\": {
+		\"pos\": Vector2(550, 340) * scale_factor,
+		\"unlocked\": false,
+		\"requires\": [\"mana_shield\"],
+		\"required_levels\": [\"level8\"],
+		\"description\": \"Angreifer nehmen Schaden, wenn sie Joey direkt treffen, da seine Schleimhaut spitze Magiepartikel absondert.\",
 		\"icon\": null
 	},
 	\"ult\": {
-		\"pos\": Vector2(400, 200) * scale_factor,  # In der Mitte zwischen beiden
-		\"unlocked\": false, 
-		\"requires\": [\"glow\", \"wall_slide\"], 
-		\"required_levels\": [\"Game\"],
-		\"description\": \"Spezialfähigkeit mit großer Wirkung\",
+		\"pos\": Vector2(700, 300) * scale_factor,
+		\"unlocked\": false,
+		\"requires\": [\"thorns\"],
+		\"required_levels\": [\"level10\"],
+		\"description\": \"Joey setzt seine uralte Magie frei und entfesselt einen gewaltigen Energiestoß: Alle Gegner erleiden 130 Schaden, während Joey vollständig geheilt wird.\",
+		\"icon\": null
+	},
+	\"phoenix_slime\": {
+		\"pos\": Vector2(850, 320) * scale_factor,
+		\"unlocked\": false,
+		\"requires\": [\"ult\"],
+		\"required_levels\": [\"level15\"],
+		\"description\": \"Joey kehrt nach dem Tod einmalig mit halber Lebensenergie zurück. Abklingzeit: Sehr lang.\",
+		\"icon\": null
+	},
+
+	# ZWEIG VON GLOW (Utility / Exploration)
+	\"sticky_form\": {
+		\"pos\": Vector2(250, 200) * scale_factor,
+		\"unlocked\": false,
+		\"requires\": [\"glow\"],
+		\"required_levels\": [\"level2\"],
+		\"description\": \"Joey verfestigt kurzzeitig seine schleimige Oberfläche, kann an Decken kleben und schwer erreichbare Orte erforschen.\",
+		\"icon\": null
+	},
+	\"slime_trap\": {
+		\"pos\": Vector2(400, 200) * scale_factor,
+		\"unlocked\": false,
+		\"requires\": [\"sticky_form\"],
+		\"required_levels\": [\"level5\"],
+		\"description\": \"Joey hinterlässt eine klebrige Schleimspur, die Gegner verlangsamt und kampfunfähig macht.\",
+		\"icon\": null
+	},
+	\"slime_minion\": {
+		\"pos\": Vector2(550, 200) * scale_factor,
+		\"unlocked\": false,
+		\"requires\": [\"slime_trap\"],
+		\"required_levels\": [\"level8\"],
+		\"description\": \"Joey erschafft einen kleinen Schleimableger, der Gegner attackiert und Joey im Kampf unterstützt.\",
+		\"icon\": null
+	},
+	\"acid_spit\": {
+		\"pos\": Vector2(700, 200) * scale_factor,
+		\"unlocked\": false,
+		\"requires\": [\"slime_minion\"],
+		\"required_levels\": [\"level11\"],
+		\"description\": \"Joey speit ätzenden Schleim auf Gegner, der kontinuierlich Schaden verursacht.\",
+		\"icon\": null
+	},
+	\"gravity_slime\": {
+		\"pos\": Vector2(850, 200) * scale_factor,
+		\"unlocked\": false,
+		\"requires\": [\"acid_spit\"],
+		\"required_levels\": [\"level14\"],
+		\"description\": \"Joey verändert durch uralte Magie die Schwerkraft um sich herum und zieht Gegner in seinen Kern.\",
+		\"icon\": null
+	},
+	\"slime_wings\": {
+		\"pos\": Vector2(700, 140) * scale_factor,
+		\"unlocked\": false,
+		\"requires\": [\"slime_minion\"],
+		\"required_levels\": [\"level11\"],
+		\"description\": \"Joey bildet schleimige Flügel aus und kann langsam über Abgründe gleiten.\",
 		\"icon\": null
 	}
 }
 
-# Verbindungen zwischen Skills - beide führen zu ult
 var connections = [
-	[\"glow\", \"ult\"],
-	[\"wall_slide\", \"ult\"]
+	# Oberer Strang
+	[\"glow\", \"wall_slide\"],
+	[\"wall_slide\", \"double_jump\"],
+	[\"double_jump\", \"dash\"],
+	[\"double_jump\", \"wall_run\"],
+	[\"dash\", \"air_dash\"],
+	[\"air_dash\", \"teleport\"],
+
+	# Unterer Strang
+	[\"glow\", \"regeneration\"],
+	[\"regeneration\", \"mana_shield\"],
+	[\"regeneration\", \"heal_burst\"],
+	[\"mana_shield\", \"thorns\"],
+	[\"thorns\", \"ult\"],
+	[\"ult\", \"phoenix_slime\"],
+
+	# Utility Strang
+	[\"glow\", \"sticky_form\"],
+	[\"sticky_form\", \"slime_trap\"],
+	[\"slime_trap\", \"slime_minion\"],
+	[\"slime_minion\", \"acid_spit\"],
+	[\"slime_minion\", \"slime_wings\"],
+	[\"acid_spit\", \"gravity_slime\"]
 ]
 
 var hovered_node = null
@@ -73,6 +242,10 @@ func _ready():
 	connect_to_doors()
 	load_skills()
 	update_skill_tree()
+	check_available_skills()
+	
+	# Debug: Teste die Notification
+	# show_skill_notification(\"glow\")
 
 func connect_to_doors():
 	# Verbinde Level-Abschluss-Signale von Türen
@@ -83,6 +256,7 @@ func connect_to_doors():
 
 func _on_level_completed(level_name: String):
 	print(\"Level abgeschlossen: \", level_name, \" - Aktualisiere Skillbaum\")
+	check_available_skills()
 	queue_redraw()
 
 func _draw():
@@ -110,40 +284,45 @@ func draw_background_panel():
 	draw_rect(Rect2(panel_rect.end.x - border_width, panel_rect.position.y, border_width, panel_rect.size.y), border_color, true)  # Rechts
 
 func draw_connections():
+	# Berücksichtige Zoom und Offset für die Positionierung
+	var screen_center = get_viewport_rect().size / 2
+	var skilltree_center = calculate_skilltree_center()
+	var offset = screen_center - skilltree_center * zoom_level + camera_offset * zoom_level
+	
 	# Zeichne Verbindungslinien zwischen Skills
 	for connection in connections:
 		var from_node = skills[connection[0]]
 		var to_node = skills[connection[1]]
 		
+		var from_pos = from_node.pos * zoom_level + offset
+		var to_pos = to_node.pos * zoom_level + offset
+		
 		var line_color
-		var line_width
+		var line_width = 2.0 * zoom_level
 		
 		if from_node.unlocked and to_node.unlocked:
 			line_color = Color.GREEN
-			line_width = 3.0
 		elif can_unlock_skill(connection[0]) and can_unlock_skill(connection[1]):
 			line_color = Color.YELLOW
-			line_width = 2.5
 		else:
 			line_color = Color.DARK_GRAY
-			line_width = 2.0
 		
 		if not (from_node.unlocked and to_node.unlocked):
-			draw_custom_dashed_line(from_node.pos, to_node.pos, line_color, line_width, 10.0)
+			draw_custom_dashed_line(from_pos, to_pos, line_color, line_width, 10.0 * zoom_level)
 		else:
-			draw_line(from_node.pos, to_node.pos, line_color, line_width)
+			draw_line(from_pos, to_pos, line_color, line_width)
 
 func draw_skill_nodes():
-	# Zentriere den Skillbaum auf dem Bildschirm
+	# Zentriere den Skillbaum auf dem Bildschirm mit Zoom und Offset
 	var screen_center = get_viewport_rect().size / 2
 	var skilltree_center = calculate_skilltree_center()
-	var offset = screen_center - skilltree_center
+	var offset = screen_center - skilltree_center * zoom_level + camera_offset * zoom_level
 	
 	# Zeichne alle Skill-Knoten
 	for skill_name in skills:
 		var skill = skills[skill_name]
-		var node_size = calculate_node_size(skill, skill_name)
-		var draw_pos = skill.pos + offset - node_size / 2
+		var node_size = calculate_node_size(skill, skill_name) * zoom_level
+		var draw_pos = skill.pos * zoom_level + offset - node_size / 2
 		
 		# Bestimme Textur und Farbe basierend auf Status
 		var texture = determine_node_texture(skill, skill_name)
@@ -152,12 +331,50 @@ func draw_skill_nodes():
 		# Zeichne den Knoten
 		draw_texture_rect(texture, Rect2(draw_pos, node_size), false, node_color)
 		
-		# Zeichne optionales Icon
-		if skill.get(\"icon\"):
-			draw_skill_icon(skill, offset)
-		
-		# Zeichne Level-Anforderungen
-		draw_level_requirements(skill, node_size, offset)
+		# Zeichne Skill-Namen statt Level-Anforderungen
+		draw_skill_name(skill, skill_name, node_size, offset)
+
+func draw_skill_name(skill, skill_name: String, node_size: Vector2, offset: Vector2):
+	# Lade Pixelart-Font
+	var font = load(\"res://Assets/GUI/Font/PixelatedEleganceRegular-ovyAA.ttf\")
+	var font_size = 10 * scale_factor * zoom_level
+	
+	# Verwende den Skill-Namen als Text
+	var display_name = skill_name.replace(\"_\", \" \").capitalize()
+	var text_size = font.get_string_size(display_name, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size)
+	
+	# Zentrierte Position unterhalb des Nodes
+	var text_pos = Vector2(
+		skill.pos.x * zoom_level + offset.x,  # X-Position zentriert zum Node
+		skill.pos.y * zoom_level + offset.y + node_size.y / 2 + 10 * zoom_level  # Y-Position mit Abstand
+	)
+	
+	# Textfarbe basierend auf Status
+	var text_color
+	if skill.unlocked:
+		text_color = Color.LIGHT_GREEN
+	elif can_unlock_skill_by_data(skill):
+		text_color = Color.LIGHT_YELLOW
+	else:
+		text_color = Color.GRAY
+	
+	# Hintergrund-Rechteck zentriert zeichnen
+	var bg_rect = Rect2(
+		text_pos - Vector2(text_size.x / 2, text_size.y / 2) - Vector2(4, 4) * zoom_level,
+		text_size + Vector2(8, 8) * zoom_level
+	)
+	draw_rect(bg_rect, Color(0, 0, 0, 0.8), true)
+	
+	# Text zentriert zeichnen
+	draw_string(
+		font, 
+		text_pos - Vector2(text_size.x / 2, -font_size / 2),
+		display_name, 
+		HORIZONTAL_ALIGNMENT_LEFT,
+		-1, 
+		font_size, 
+		text_color
+	)
 
 func calculate_skilltree_center() -> Vector2:
 	# Berechne das Zentrum aller Skills
@@ -273,28 +490,61 @@ func draw_custom_dashed_line(from: Vector2, to: Vector2, color: Color, width: fl
 			draw_line(start, end, color, width)
 
 func _input(event):
+	# Bestehende Event-Behandlung um Zoom und Drag erweitern
 	if event is InputEventMouseMotion:
 		handle_mouse_motion(event)
+		handle_dragging(event)
 	
-	if event is InputEventMouseButton and event.pressed:
-		try_unlock_skill()
+	if event is InputEventMouseButton:
+		if event.pressed:
+			# Zoom mit Mausrad
+			if event.button_index == MOUSE_BUTTON_WHEEL_UP:
+				zoom_camera(zoom_step)
+			elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+				zoom_camera(-zoom_step)
+			# Drag starten
+			elif event.button_index == MOUSE_BUTTON_LEFT:
+				is_dragging = true
+				drag_start = event.position
+				camera_start = camera_offset
+		else:
+			# Drag beenden
+			if event.button_index == MOUSE_BUTTON_LEFT:
+				is_dragging = false
+				try_unlock_skill()
+	
+	if event is InputEventKey and event.pressed:
+		if event.keycode == KEY_R:  # Reset-Zoom mit R
+			zoom_level = 1.0
+			camera_offset = Vector2.ZERO
+			queue_redraw()
+
+func zoom_camera(amount: float):
+	zoom_level = clamp(zoom_level + amount, min_zoom, max_zoom)
+	queue_redraw()
+
+func handle_dragging(event: InputEventMouseMotion):
+	if is_dragging:
+		# Richtung umkehren für intuitives Ziehen
+		camera_offset = camera_start + (event.position - drag_start) / zoom_level
+		queue_redraw()
 
 func handle_mouse_motion(event):
 	var mouse_pos = get_local_mouse_position()
 	hovered_node = null
 	skill_tooltip_visible = false
 	
-	# Zentriere den Skillbaum auf dem Bildschirm
+	# Berücksichtige Zoom und Offset für die Positionierung
 	var screen_center = get_viewport_rect().size / 2
 	var skilltree_center = calculate_skilltree_center()
-	var offset = screen_center - skilltree_center
+	var offset = screen_center - skilltree_center * zoom_level + camera_offset * zoom_level
 	
 	# Prüfe, ob Maus über einem Skill-Knoten ist
 	for skill_name in skills:
 		var skill = skills[skill_name]
 		var texture = node_active_texture if skill.unlocked else node_texture
-		var rect_size = texture.get_size() * scale_factor
-		var rect = Rect2(skill.pos + offset - rect_size / 2, rect_size)
+		var rect_size = texture.get_size() * scale_factor * zoom_level
+		var rect = Rect2(skill.pos * zoom_level + offset - rect_size / 2, rect_size)
 		
 		if rect.has_point(mouse_pos):
 			hovered_node = skill_name
@@ -343,6 +593,10 @@ func unlock_skill(skill_name):
 	skills[skill_name].unlocked = true
 	skill_unlocked.emit(skill_name)
 	
+	# Entferne den Skill aus der verfügbaren Liste
+	if available_skills.has(skill_name):
+		available_skills.erase(skill_name)
+	
 	# Aktiviere den Skill im Player
 	if player:
 		match skill_name:
@@ -353,7 +607,7 @@ func unlock_skill(skill_name):
 				player.has_ult_skill = true
 				print(\"Ultimate aktiviert\")
 	
-	player.save_skills()  # Speichere die Skills im Player
+	player.save_skills()
 	save_skills()
 	queue_redraw()
 
@@ -411,6 +665,39 @@ func create_tooltip_stylebox() -> StyleBoxFlat:
 func _process(_delta):
 	handle_skill_tree_toggle()
 	update_tooltip_position()
+	
+	# Prüfe regelmäßig auf verfügbare Skills (nicht zu oft, um Performance zu sparen)
+	if Engine.get_frames_drawn() % 60 == 0:  # Nur alle 60 Frames prüfen
+		check_available_skills()
+
+func check_available_skills():
+	var newly_available_skills := []
+	
+	# Prüfe alle Skills
+	for skill_name in skills:
+		var skill = skills[skill_name]
+		
+		# Wenn Skill noch nicht freigeschaltet ist aber verfügbar wäre
+		if not skill.unlocked and can_unlock_skill(skill_name):
+			# Wenn dieser Skill noch nicht in der available_skills Liste ist
+			if not available_skills.has(skill_name):
+				newly_available_skills.append(skill_name)
+				available_skills.append(skill_name)
+				
+				# Sende Notification für neu verfügbaren Skill
+				show_skill_notification(skill_name)
+
+# Funktion zum Anzeigen der Skill-Notification
+func show_skill_notification(skill_name: String):
+	var skill = skills[skill_name]
+	var notification_text = \"Neuer Skill verfügbar: \" + skill_name + \"\\n\" + skill.description
+	
+	# Zugriff auf den CanvasLayer (SkillTreeUI)
+	var canvas_layer = get_parent()
+	if canvas_layer and canvas_layer.has_method(\"show_notification\"):
+		canvas_layer.show_notification(notification_text)
+	else:
+		print(\"Could not find SkillTreeUI to show notification\")
 
 func handle_skill_tree_toggle():
 	if Input.is_action_just_pressed(\"skill_tree\"):
@@ -418,6 +705,16 @@ func handle_skill_tree_toggle():
 		if self.visible:
 			# Setze die Position auf (0,0), da wir jetzt Vollbild sind
 			self.position = Vector2.ZERO
+			# Zentriere den Skill-Baum und setze Zoom zurück
+			reset_view()
+
+func reset_view():
+	# Zoom zurücksetzen
+	zoom_level = 1.0
+	# Kamera-Offset zurücksetzen (zentriert die Ansicht)
+	camera_offset = Vector2.ZERO
+	# Neu zeichnen
+	queue_redraw()
 
 func update_tooltip_position():
 	if skill_tooltip_visible and hovered_node:
@@ -425,7 +722,21 @@ func update_tooltip_position():
 		if tooltip:
 			tooltip.text = skill_tooltip_text
 			tooltip.visible = true
-			tooltip.position = get_global_mouse_position() + Vector2(20, 20)
+			
+			# Tooltip-Position relativ zur Maus, aber innerhalb des Bildschirms halten
+			var mouse_pos = get_global_mouse_position()
+			var tooltip_size = tooltip.get_minimum_size()
+			var viewport_size = get_viewport_rect().size
+			
+			var tooltip_pos = mouse_pos + Vector2(20, 20)
+			
+			# Stelle sicher, dass der Tooltip nicht aus dem Bildschirm herausragt
+			if tooltip_pos.x + tooltip_size.x > viewport_size.x:
+				tooltip_pos.x = viewport_size.x - tooltip_size.x - 10
+			if tooltip_pos.y + tooltip_size.y > viewport_size.y:
+				tooltip_pos.y = viewport_size.y - tooltip_size.y - 10
+			
+			tooltip.position = tooltip_pos
 	else:
 		var tooltip = $Tooltip
 		if tooltip:

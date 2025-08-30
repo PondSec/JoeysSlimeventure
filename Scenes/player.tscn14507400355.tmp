@@ -160,7 +160,6 @@ const WALL_JUMP_FORGIVENESS = 0.15
 
 var has_glow_skill := false
 var has_wall_slide_skill := false
-var has_regeneration_skill := false
 var has_ult_skill := false
 var player_level := 1
 @onready var skill_tree = $SkillTree
@@ -206,6 +205,11 @@ var water_surface_y := 0.0  # Y-Position der Wasseroberfläche
 var last_out_of_water_time := 0.0
 var water_enter_velocity := 0.0
 var is_swimming := false
+
+var notification_visible := false
+var notification_timer := 0.0
+var notification_duration := 3.0
+var notification_text := \"\"
 
 func _ready() -> void:
 	if OS.has_feature(\"mobile\") or OS.has_feature(\"web\"):
@@ -1234,12 +1238,9 @@ func show_damage_text(amount: int, is_heal: bool) -> void:
 
 @rpc(\"any_peer\", \"call_local\", \"reliable\")
 func heal(amount: int):
-	if !has_regeneration_skill:
-		return
-		
 	if !is_multiplayer_authority():
 		return
-	
+		
 	current_health += amount
 	show_damage_text(amount, true)
 	if current_health > max_health:
@@ -1589,9 +1590,6 @@ func _on_skill_unlocked(skill_name: String):
 		\"wall_slide\":
 			has_wall_slide_skill = true
 			print(\"Wall Slide freigeschaltet!\")
-		\"regeneration\":
-			has_regeneration_skill = true
-			print(\"Regeneration freigeschaltet!\")
 		\"ult\":
 			has_ult_skill = true
 			print(\"Ultimate Fähigkeit freigeschaltet!\")
@@ -1627,7 +1625,6 @@ func save_skills():
 	var save_data = {
 		\"has_glow_skill\": has_glow_skill,
 		\"has_wall_slide_skill\": has_wall_slide_skill,
-		\"has_regeneration_skill\": has_regeneration_skill,
 		\"has_ult_skill\": has_ult_skill,
 		\"player_level\": player_level
 	}
@@ -1646,7 +1643,6 @@ func load_skills():
 	
 	has_glow_skill = save_data.get(\"has_glow_skill\", false)
 	has_wall_slide_skill = save_data.get(\"has_wall_slide_skill\", false)
-	has_regeneration_skill = save_data.get(\"has_regeneration_skill\", false)
 	has_ult_skill = save_data.get(\"has_ult_skill\", false)
 	player_level = save_data.get(\"player_level\", 1)
 	
@@ -1654,7 +1650,6 @@ func load_skills():
 	if skill_tree:
 		skill_tree.skills[\"glow\"].unlocked = has_glow_skill
 		skill_tree.skills[\"wall_slide\"].unlocked = has_wall_slide_skill
-		skill_tree.skills[\"regeneration\"].unlocked = has_regeneration_skill
 		skill_tree.skills[\"ult\"].unlocked = has_ult_skill
 		skill_tree.queue_redraw()
 "
