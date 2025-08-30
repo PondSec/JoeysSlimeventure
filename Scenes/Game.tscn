@@ -1,4 +1,4 @@
-[gd_scene load_steps=38 format=4 uid="uid://cmdh8rpdo8fb2"]
+[gd_scene load_steps=39 format=4 uid="uid://cmdh8rpdo8fb2"]
 
 [ext_resource type="Texture2D" uid="uid://82opar247kat" path="res://Assets/Tiles/platformertiles.png" id="1_lx4yj"]
 [ext_resource type="Script" uid="uid://hrb3bfkpp2mn" path="res://Scripts/game.gd" id="1_wyx84"]
@@ -19,6 +19,9 @@
 [ext_resource type="FontFile" uid="uid://c2wsertwqrai5" path="res://Assets/GUI/Font/PixelatedEleganceRegular-ovyAA.ttf" id="17_x3xnh"]
 
 [sub_resource type="OccluderPolygon2D" id="OccluderPolygon2D_4q8tf"]
+polygon = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+
+[sub_resource type="OccluderPolygon2D" id="OccluderPolygon2D_rajel"]
 polygon = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
 
 [sub_resource type="OccluderPolygon2D" id="OccluderPolygon2D_x3xnh"]
@@ -60,7 +63,7 @@ texture_region_size = Vector2i(32, 32)
 1:2/0/occlusion_layer_0/polygon_0/polygon = SubResource("OccluderPolygon2D_4q8tf")
 1:2/0/physics_layer_1/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
 0:2/0 = 0
-0:2/0/occlusion_layer_0/polygon_0/polygon = SubResource("OccluderPolygon2D_4q8tf")
+0:2/0/occlusion_layer_0/polygon_0/polygon = SubResource("OccluderPolygon2D_rajel")
 0:2/0/physics_layer_1/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
 4:0/0 = 0
 4:0/0/occlusion_layer_0/polygon_0/polygon = SubResource("OccluderPolygon2D_x3xnh")
@@ -365,7 +368,7 @@ modulate = Color(0, 0, 0, 1)
 self_modulate = Color(0, 0, 0, 1)
 light_mask = 2
 position = Vector2(-14, 10)
-color = Color(0.103744, 0.103744, 0.103744, 1)
+color = Color(0.181798, 0.181798, 0.181798, 1)
 
 [node name="Background" type="TileMap" parent="."]
 tile_set = SubResource("TileSet_jgi20")

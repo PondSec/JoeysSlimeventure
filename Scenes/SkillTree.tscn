@@ -10,7 +10,7 @@ class_name SkillTree
 var node_texture = preload(\"res://Assets/SkillTree/SkillNodeActive.png\")
 var node_active_texture = preload(\"res://Assets/SkillTree/SkillNodeActive.png\")
 var node_hover_texture = preload(\"res://Assets/SkillTree/SkillNodeHover.png\")
-var node_locked_texture = preload(\"res://Assets/SkillTree/SkillNode.png\")
+var node_locked_texture = preload(\"res://Assets/SkillTree/SkillNodeActive.png\")
 
 # Vergrößerungsfaktor für bessere Sichtbarkeit
 var scale_factor := 3
@@ -353,6 +353,7 @@ func unlock_skill(skill_name):
 				player.has_ult_skill = true
 				print(\"Ultimate aktiviert\")
 	
+	player.save_skills()  # Speichere die Skills im Player
 	save_skills()
 	queue_redraw()
 

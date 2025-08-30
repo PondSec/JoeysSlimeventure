@@ -316,7 +316,7 @@ func _ready() -> void:
 	if skill_tree:
 		skill_tree.connect(\"skill_unlocked\", Callable(self, \"_on_skill_unlocked\"))
 	print(\"Wall Slide Skill status: \", has_wall_slide_skill)
-	
+	load_skills()
 	check_level_completion()
 
 func _on_api_timer_timeout():
@@ -1251,16 +1251,18 @@ func save_game():
 	if gm.is_multiplayer:
 		print(\"⚠ Multiplayer aktiv → kein Speichern erlaubt\")
 		return
-	var bats = get_tree().get_nodes_in_group(\"bats\")  # 🦇 Alle Fledermäuse holen
-	save_load.save_game(self, bats)  # Spieler & Fledermäuse speichern
+	var bats = get_tree().get_nodes_in_group(\"bats\")
+	save_load.save_game(self, bats)
+	save_skills()  # Speichere auch die Skills
 
 func load_game():
 	var gm = get_node(\"/root/GameManager\")
 	if gm.is_multiplayer:
 		print(\"⚠ Multiplayer aktiv → kein Laden erlaubt\")
 		return
-	var bat_scene = preload(\"res://Scenes/bat.tscn\")  # 🦇 Vorlage für Fle	dermäuse
-	save_load.load_game(self, bat_scene)  # Spieler & Fledermäuse laden
+	var bat_scene = preload(\"res://Scenes/bat.tscn\")
+	save_load.load_game(self, bat_scene)
+	load_skills()  # Lade auch die Skills
 
 func _exit_tree():
 	save_game()  # Speichert das Spiel, wenn das Spiel beendet wird
@@ -1586,6 +1588,8 @@ func _on_skill_unlocked(skill_name: String):
 		\"ult\":
 			has_ult_skill = true
 			print(\"Ultimate Fähigkeit freigeschaltet!\")
+	
+	save_skills()  # Speichere die Skills nach dem Freischalten
 
 # Überprüfe Level-Anforderungen für Skills
 func can_unlock_skill(skill_name: String) -> bool:
@@ -1611,6 +1615,38 @@ func load_completed_levels() -> Array:
 		if data is Array:
 			return data
 	return []
+
+func save_skills():
+	var save_data = {
+		\"has_glow_skill\": has_glow_skill,
+		\"has_wall_slide_skill\": has_wall_slide_skill,
+		\"has_ult_skill\": has_ult_skill,
+		\"player_level\": player_level
+	}
+	
+	var file = FileAccess.open(\"user://player_skills.save\", FileAccess.WRITE)
+	file.store_var(save_data)
+	file.close()
+
+func load_skills():
+	if not FileAccess.file_exists(\"user://player_skills.save\"):
+		return
+	
+	var file = FileAccess.open(\"user://player_skills.save\", FileAccess.READ)
+	var save_data = file.get_var()
+	file.close()
+	
+	has_glow_skill = save_data.get(\"has_glow_skill\", false)
+	has_wall_slide_skill = save_data.get(\"has_wall_slide_skill\", false)
+	has_ult_skill = save_data.get(\"has_ult_skill\", false)
+	player_level = save_data.get(\"player_level\", 1)
+	
+	# Aktualisiere die Skills im SkillTree
+	if skill_tree:
+		skill_tree.skills[\"glow\"].unlocked = has_glow_skill
+		skill_tree.skills[\"wall_slide\"].unlocked = has_wall_slide_skill
+		skill_tree.skills[\"ult\"].unlocked = has_ult_skill
+		skill_tree.queue_redraw()
 "
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_uwm2o"]
@@ -1839,12 +1875,12 @@ shape = SubResource("RectangleShape2D_uwm2o")
 [node name="PlayerGlow" type="PointLight2D" parent="."]
 position = Vector2(0.000183105, 0)
 color = Color(0.586285, 1, 0.540279, 1)
-energy = 0.9
+energy = 0.5
 shadow_enabled = true
 shadow_filter = 2
-shadow_filter_smooth = 2.3
+shadow_filter_smooth = 1.0
 texture = SubResource("GradientTexture2D_0gysh")
-texture_scale = 2.5
+texture_scale = 3.0
 
 [node name="PlayerSprite" type="Sprite2D" parent="."]
 position = Vector2(0.000183105, -71.4286)
