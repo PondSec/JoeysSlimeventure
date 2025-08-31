@@ -1,7 +1,6 @@
-[gd_scene load_steps=6 format=3 uid="uid://yj7nu0nlliiq"]
+[gd_scene load_steps=4 format=3 uid="uid://yj7nu0nlliiq"]
 
 [ext_resource type="Texture2D" uid="uid://bvwwd308eutv2" path="res://Assets/Tiles/spikes.png" id="1_agh12"]
-[ext_resource type="Texture2D" uid="uid://c771vveh0silu" path="res://Assets/Light/light_white.png" id="2_nuopa"]
 
 [sub_resource type="GDScript" id="GDScript_agh12"]
 script/source = "extends Sprite2D
@@ -19,31 +18,19 @@ func _physics_process(_delta: float) -> void:
 			body.take_damage(2, global_position)
 "
 
-[sub_resource type="OccluderPolygon2D" id="OccluderPolygon2D_nuopa"]
-polygon = PackedVector2Array(-3, -3, -3, -2, -4, -2, -4, -1, -6, -1, -6, 0, -7, 0, -7, 1, -8, 1, -8, 6, -9, 6, -9, 11, -10, 11, -10, 14, -11, 14, -11, 16, 11, 16, 11, 13, 10, 13, 10, 8, 9, 8, 9, 3, 8, 3, 8, 2, 7, 2, 7, 1, 6, 1, 6, 0, 5, 0, 5, -1, 4, -1, 4, 0, 3, 0, 3, 1, 2, 1, 2, 2, 1, 2, 1, 3, 0, 3, 0, -1, -1, -1, -1, -2, -2, -2, -2, -3)
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_agh12"]
-size = Vector2(18, 11)
+[sub_resource type="ConvexPolygonShape2D" id="ConvexPolygonShape2D_nuopa"]
+points = PackedVector2Array(-9, 5.5, -9, 3.5, -8, 3.5, -8, 0.5, -7, 0.5, -7, -4.5, -6, -4.5, -6, -9.5, -5, -9.5, -5, -2.5, -4, -2.5, -4, -7.5, -3, -7.5, -3, -11.5, -2, -11.5, -2, -1.5, -1, -1.5, -1, -4.5, 0, -4.5, 0, -1.5, 1, -1.5, 1, -6.5, 2, -6.5, 2, 0.5, 3, 0.5, 3, -2.5, 4, -2.5, 4, -9.5, 5, -9.5, 5, -4.5, 6, -4.5, 6, -7.5, 7, -7.5, 7, -2.5, 8, -2.5, 8, 2.5, 9, 2.5, 9, 5.5)
 
 [node name="Spike" type="Sprite2D"]
 position = Vector2(0, -16)
 texture = ExtResource("1_agh12")
 script = SubResource("GDScript_agh12")
 
-[node name="LightOccluder2D" type="LightOccluder2D" parent="."]
-visible = false
-occluder = SubResource("OccluderPolygon2D_nuopa")
-
 [node name="Area2D" type="Area2D" parent="."]
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Area2D"]
+visible = false
 position = Vector2(0, 10.5)
-shape = SubResource("RectangleShape2D_agh12")
-
-[node name="PointLight2D" type="PointLight2D" parent="."]
-position = Vector2(0, -4)
-color = Color(0.705882, 1, 0.580392, 1)
-texture = ExtResource("2_nuopa")
-texture_scale = 0.04
+shape = SubResource("ConvexPolygonShape2D_nuopa")
 
 [connection signal="body_entered" from="Area2D" to="." method="_on_area_2d_body_entered"]
