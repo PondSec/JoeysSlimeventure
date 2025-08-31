@@ -1148,10 +1148,13 @@ func perform_attack() -> void:
 # Leuchteffekt aktualisieren
 func update_glow_state() -> void:
 	if not has_glow_skill:
-		# Deaktiviere Wall Slide, wenn der Skill nicht freigeschaltet ist
 		is_glowing = false
 		return
-	glow_effect.visible = is_glowing  # Lokale Aktualisierung
+		
+	glow_effect.visible = is_glowing
+	# Sende Signal über Glow-Statusänderung
+	get_tree().call_group(\"spikes\", \"_on_player_glow_changed\", is_glowing)
+	sync_glow_state.rpc(is_glowing)  # Bereits vorhanden
 
 # Importiere diese Zeile in deine `take_damage`-Funktion, um den Partikel-Effekt zu aktivieren
 @rpc(\"any_peer\", \"call_local\", \"reliable\")
