@@ -34,6 +34,7 @@ var scale_factor := 3
 @export var player: CharacterBody2D
 
 # Skill-Definitionen
+# Skill-Definitionen
 var skills = {
 	\"glow\": {
 		\"pos\": Vector2(100, 200) * scale_factor,
@@ -57,38 +58,31 @@ var skills = {
 		\"pos\": Vector2(400, 80) * scale_factor,
 		\"unlocked\": false,
 		\"requires\": [\"wall_slide\"],
-		\"required_levels\": [\"Level 8\"],
+		\"required_levels\": [\"level0\"],
 		\"description\": \"Joey sammelt magische Energie in seiner elastischen Hülle und führt einen zusätzlichen Sprung in der Luft aus.\",
 		\"icon\": null
 	},
-	\"dash\": {
-		\"pos\": Vector2(550, 100) * scale_factor,
-		\"unlocked\": false,
-		\"requires\": [\"double_jump\"],
-		\"required_levels\": [\"level9\"],
-		\"description\": \"Ein explosiver Schleimstoß katapultiert Joey blitzschnell nach vorne und durchbricht Hindernisse.\",
-		\"icon\": null
-	},
 	\"wall_run\": {
-		\"pos\": Vector2(550, 40) * scale_factor,
+		\"pos\": Vector2(400, 40) * scale_factor,
 		\"unlocked\": false,
-		\"requires\": [\"double_jump\"],
-		\"required_levels\": [\"level14\"],
+		\"requires\": [\"wall_slide\"],
+		\"required_levels\": [\"level1\"],
 		\"description\": \"Joey kann an Wänden entlanglaufen und so vertikale Abgründe meistern.\",
 		\"icon\": null
 	},
-	\"air_dash\": {
-		\"pos\": Vector2(700, 80) * scale_factor,
+	# DASH WURDE ENTFERNT
+	\"dash\": {
+		\"pos\": Vector2(550, 80) * scale_factor, # Position angepasst (früher war dash hier)
 		\"unlocked\": false,
-		\"requires\": [\"dash\"],
+		\"requires\": [\"double_jump\"], # ÄNDERUNG: Braucht jetzt double_jump statt dash
 		\"required_levels\": [\"level19\"],
-		\"description\": \"Joey kann seinen Dash auch in der Luft einsetzen, um große Abgründe zu überwinden.\",
+		\"description\": \"Joey kann sich ruckartig in eine Richtung bewegen, um große Abgründe zu überwinden.\",
 		\"icon\": null
 	},
 	\"teleport\": {
-		\"pos\": Vector2(850, 100) * scale_factor,
+		\"pos\": Vector2(700, 100) * scale_factor, # Position angepasst
 		\"unlocked\": false,
-		\"requires\": [\"air_dash\"],
+		\"requires\": [\"dash\"],
 		\"required_levels\": [\"level26\"],
 		\"description\": \"Joey nutzt uralte Magie, um sich über kurze Distanz sofort zu teleportieren.\",
 		\"icon\": null
@@ -196,13 +190,12 @@ var skills = {
 }
 
 var connections = [
-	# Oberer Strang
+	# Oberer Strang - MIT SPLT UND OHNE DASH
 	[\"glow\", \"wall_slide\"],
 	[\"wall_slide\", \"double_jump\"],
-	[\"double_jump\", \"dash\"],
-	[\"double_jump\", \"wall_run\"],
-	[\"dash\", \"air_dash\"],
-	[\"air_dash\", \"teleport\"],
+	[\"wall_slide\", \"wall_run\"],
+	[\"double_jump\", \"dash\"], # ÄNDERUNG: Verbindet jetzt direkt zu air_dash
+	[\"dash\", \"teleport\"],    # Verbindung bleibt gleich
 
 	# Unterer Strang
 	[\"glow\", \"regeneration\"],

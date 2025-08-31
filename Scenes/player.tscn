@@ -51,6 +51,16 @@ const DECELERATION = 2400.0
 const AIR_ACCELERATION = 1200.0  # Vorher vielleicht 900.0
 const AIR_DECELERATION = 800.0   # Vorher vielleicht 600.0
 
+# Wall Run Variablen
+var is_wall_running := false
+var wall_run_direction := 0
+var wall_run_vertical_speed := 150.0  # Reduzierte Geschwindigkeit
+var wall_run_timer: float = 0.0
+var wall_run_active: bool = false
+var current_wall_normal: Vector2
+var wall_run_cooldown: float = 0.0
+var was_on_wall: bool = false
+
 var base_crit_chance: float = 0.15  # 15% base crit chance
 var crit_damage_multiplier: float = 1.5  # 50% extra damage on crit
 
@@ -81,6 +91,14 @@ const DASH_SPEED = 350.0
 const DASH_DURATION = 0.15
 const DASH_COOLDOWN = 3.0
 const DASH_INVULNERABILITY_TIME = 0.2
+
+# Teleportation Variablen
+var is_teleporting: bool = false
+const TELEPORT_COOLDOWN = 5.0  # Cooldown in Sekunden
+const TELEPORT_DISTANCE = 300.0  # Maximale Teleportdistanz
+var can_teleport := true
+var teleport_cooldown_timer: Timer
+var teleport_particles: GPUParticles2D
 
 # Bewegung und Status
 var current_speed = WALK_SPEED
@@ -166,6 +184,8 @@ var has_wall_slide_skill := false
 var has_regeneration_skill := false
 var has_ult_skill := false
 var has_double_jump_skill := false
+var has_wall_run_skill := false
+var has_dash_skill := false
 var player_level := 1
 @onready var skill_tree = $SkillTree
 
@@ -324,6 +344,20 @@ func _ready() -> void:
 	max_air_jumps = 1
 	load_skills()
 	check_level_completion()
+	
+	# Teleportation Timer initialisieren
+	teleport_cooldown_timer = Timer.new()
+	teleport_cooldown_timer.one_shot = true
+	teleport_cooldown_timer.wait_time = TELEPORT_COOLDOWN
+	teleport_cooldown_timer.connect(\"timeout\", Callable(self, \"_on_teleport_cooldown_timeout\"))
+	add_child(teleport_cooldown_timer)
+
+	# Teleport Partikel-Effekt (optional)
+	teleport_particles = GPUParticles2D.new()
+	teleport_particles.emitting = false
+	teleport_particles.one_shot = true
+	teleport_particles.explosiveness = 0.8
+	add_child(teleport_particles)
 
 func _on_api_timer_timeout():
 	api_script.send_request()
@@ -454,7 +488,7 @@ func _physics_process(delta: float) -> void:
 		
 		# Schwerkraft anwenden
 		apply_gravity(delta)
-		
+		handle_wall_run(delta)
 		# Animationen aktualisieren
 		update_animations()
 		
@@ -832,6 +866,8 @@ func handle_dash():
 		velocity.x = move_toward(velocity.x, 0, deceleration * get_physics_process_delta_time())
 
 func dash(dir: Vector2):
+	if !has_dash_skill:
+		return
 	if is_dashing or not can_dash:
 		return
 	
@@ -930,7 +966,8 @@ func _on_floor_entered():
 	$LandingParticles.emitting = true
 	$LandSound.play()
 	play_landing_animation()
-	
+	if is_wall_running:
+		end_wall_run()
 
 func _on_wall_entered():
 	$WallSlideParticles.emitting = true
@@ -1368,6 +1405,9 @@ func _input(event):
 			print(\"Hotbar Slot gewechselt zu:\", selected_hotbar_index)  # Debugging
 	if event.is_action_pressed(\"open_transfer\"):
 		open_transfer_dialog()
+	
+	if event.is_action_pressed(\"teleport\"):  # Du musst diese Action in den Input Map settings hinzufügen
+		perform_teleport()
 
 func open_transfer_dialog():
 	var dialog = transfer_dialog_scene.instantiate()
@@ -1634,6 +1674,12 @@ func _on_skill_unlocked(skill_name: String):
 		\"double_jump\":
 			has_double_jump_skill = true
 			print(\"Double Jump Fähigkeit freigeschaltet!\")
+		\"wall_run\":
+			has_wall_run_skill = true
+			print(\"Wall Run Fähigkeit freigeschaltet!\")
+		\"dash\":
+			has_dash_skill = true
+			print(\"Dash Fähigkeit freigeschaltet!\")
 	
 	save_skills()  # Speichere die Skills nach dem Freischalten
 
@@ -1669,6 +1715,8 @@ func save_skills():
 		\"has_regeneration_skill\": has_regeneration_skill,
 		\"has_ult_skill\": has_ult_skill,
 		\"has_double_jump_skill\": has_double_jump_skill,
+		\"has_wall_run_skill\": has_wall_run_skill,
+		\"has_dash_skill\": has_dash_skill,
 		\"player_level\": player_level
 	}
 	
@@ -1689,6 +1737,8 @@ func load_skills():
 	has_regeneration_skill = save_data.get(\"has_regeneration_skill\", false)
 	has_ult_skill = save_data.get(\"has_ult_skill\", false)
 	has_double_jump_skill = save_data.get(\"has_double_jump_skill\", false)
+	has_wall_run_skill = save_data.get(\"has_wall_run_skill\", false)
+	has_dash_skill = save_data.get(\"has_dash_skill\", false)
 	player_level = save_data.get(\"player_level\", 1)
 	
 	# Aktualisiere die Skills im SkillTree
@@ -1698,7 +1748,234 @@ func load_skills():
 		skill_tree.skills[\"regeneration\"].unlocked = has_regeneration_skill
 		skill_tree.skills[\"ult\"].unlocked = has_ult_skill
 		skill_tree.skills[\"double_jump\"].unlocked = has_double_jump_skill
+		skill_tree.skills[\"wall_run\"].unlocked = has_wall_run_skill
+		skill_tree.skills[\"dash\"].unlocked = has_dash_skill
 		skill_tree.queue_redraw()
+
+func handle_wall_run(delta: float) -> void:
+	if !has_wall_run_skill:
+		return
+	# Cooldown Timer aktualisieren
+	if wall_run_cooldown > 0.0:
+		wall_run_cooldown -= delta
+	
+	# Prüfen ob Wand gerade verlassen wurde
+	if was_on_wall and not is_on_wall():
+		# Wand wurde verlassen, starte Cooldown
+		wall_run_cooldown = 2.0  # 1 Sekunde Cooldown
+		print(\"Wand verlassen - Cooldown gestartet: 1s\")
+	
+	# Aktuellen Wand-Status speichern
+	was_on_wall = is_on_wall()
+	
+	if can_wall_run() and is_on_wall() and not is_on_floor():
+		start_wall_run()
+	
+	if is_wall_running:
+		update_wall_run(delta)
+		
+		# Timer überprüfen und Wall Run beenden wenn abgelaufen
+		if wall_run_timer <= 0.0:
+			end_wall_run()
+	
+	# Wall Run beenden wenn Bedingungen nicht mehr erfüllt
+	if is_wall_running and should_end_wall_run():
+		end_wall_run()
+
+func can_wall_run() -> bool:
+	# Prüfe ob Sprint gedrückt wird während up/down Bewegung
+	var vertical_input = Input.get_axis(\"up_walk\", \"down\")
+	var sprint_pressed = Input.is_action_pressed(\"sprint\")
+	
+	return (not is_wall_running and 
+			wall_run_timer <= 0.0 and
+			wall_run_cooldown <= 0.0 and  # Cooldown muss abgelaufen sein
+			vertical_input != 0 and
+			sprint_pressed)
+
+func should_end_wall_run() -> bool:
+	return (not is_on_wall() or 
+			is_on_floor() or 
+			not Input.is_action_pressed(\"sprint\") or
+			Input.get_axis(\"up_walk\", \"down\") == 0)
+
+func start_wall_run() -> void:
+	is_wall_running = true
+	wall_run_active = true
+	wall_run_timer = 1.5  # 3 Sekunden Timer
+	wall_run_cooldown = 0.0  # Cooldown zurücksetzen
+	current_wall_normal = get_wall_normal()
+	wall_run_direction = -current_wall_normal.x
+	
+	# Starte an der Wand zu laufen
+	velocity.y = 0  # Stoppe Fallgeschwindigkeit
+	#$AnimationPlayer.play(\"wall_run\")
+	print(\"Wall Run gestartet! Timer: \", wall_run_timer, \"s\")
+
+func update_wall_run(delta: float) -> void:
+	if wall_run_active:
+		# Timer aktualisieren
+		wall_run_timer -= delta
+		
+		# Wall Run Bewegung basierend auf Input
+		var vertical_input = Input.get_axis(\"up_walk\", \"down\")
+		velocity.y = vertical_input * wall_run_vertical_speed
+		
+		# Sanft an der Wand halten
+		velocity.x = current_wall_normal.x * -30
+		
+		#print(\"Wall Run Timer: \", wall_run_timer)  # Debug
+
+func end_wall_run() -> void:
+	if is_wall_running:
+		is_wall_running = false
+		wall_run_active = false
+		
+		# Leichten Schub von der Wand geben
+		if is_on_wall():
+			velocity.x = -wall_run_direction * 100
+		
+		# Timer zurücksetzen
+		wall_run_timer = 0.0
+		#$AnimationPlayer.stop()
+		print(\"Wall Run beendet!\")
+
+# Cooldown Status für UI anzeigen (optional)
+func get_wall_run_cooldown_percentage() -> float:
+	return clamp(wall_run_cooldown / 1.0, 0.0, 1.0) if wall_run_cooldown > 0.0 else 0.0
+
+func perform_teleport() -> void:
+	if not can_teleport or is_dashing or is_attacking or is_stunned or is_teleporting:
+		return
+	
+	# Hole die exakte Mausposition in der Welt
+	var mouse_pos = get_global_mouse_position()
+	
+	# Berechne die Distanz zur Maus
+	var distance_to_mouse = global_position.distance_to(mouse_pos)
+	
+	# Begrenze die Teleport-Distanz auf das Maximum
+	var actual_distance = min(distance_to_mouse, TELEPORT_DISTANCE)
+	
+	# Wenn die Distanz begrenzt wird, berechne die begrenzte Position
+	var target_position = mouse_pos
+	if distance_to_mouse > TELEPORT_DISTANCE:
+		var direction = (mouse_pos - global_position).normalized()
+		target_position = global_position + (direction * TELEPORT_DISTANCE)
+	
+	# Prüfe nur ob die ZIELPOSITION frei ist (ignoriere den Weg)
+	var space_state = get_world_2d().direct_space_state
+	var query = PhysicsPointQueryParameters2D.new()
+	query.position = target_position
+	query.collision_mask = collision_mask
+	query.exclude = [self]
+	query.collide_with_areas = false  # Nur mit Bodies kollidieren
+	query.collide_with_bodies = true
+	
+	var results = space_state.intersect_point(query)
+	
+	if results.size() > 0:
+		# Zielposition ist blockiert, suche nahegelegene freie Position
+		print(\"Zielposition blockiert, suche alternative Position...\")
+		var free_position = find_nearby_free_position(target_position)
+		if free_position:
+			target_position = free_position
+		else:
+			print(\"Teleport abgebrochen: Keine freie Position in der Nähe gefunden\")
+			return
+	
+	# Starte den Teleportationsprozess
+	start_teleport_sequence(target_position)
+
+func start_teleport_sequence(target_position: Vector2) -> void:
+	is_teleporting = true
+	
+	# Erste Phase: Auflösen
+	var dissolve_tween = create_tween()
+	dissolve_tween.tween_property(self, \"modulate:a\", 0.0, 0.5)
+	dissolve_tween.tween_callback(finish_dissolve.bind(target_position))
+
+func finish_dissolve(target_position: Vector2) -> void:
+	# Teleport-Effekte am Ausgangspunkt
+	create_teleport_effects(global_position, false)
+	
+	# Zur (möglicherweise angepassten) Zielposition teleportieren
+	global_position = target_position
+	
+	# Zweite Phase: Wiedererscheinen
+	var appear_tween = create_tween()
+	appear_tween.tween_property(self, \"modulate:a\", 1.0, 0.5)
+	appear_tween.tween_callback(finish_teleport)
+	
+	# Teleport-Effekte am Zielpunkt
+	create_teleport_effects(global_position, true)
+	
+	# Blickrichtung zur Maus aktualisieren
+	is_facing_left = get_global_mouse_position().x < global_position.x
+	$PlayerSprite.flip_h = is_facing_left
+	$PlayerSprite/AttackSprite.flip_h = is_facing_left
+
+func finish_teleport() -> void:
+	is_teleporting = false
+	
+	# Cooldown starten
+	can_teleport = false
+	teleport_cooldown_timer.start()
+	
+	# Synchronisiere den Teleport mit anderen Clients (Multiplayer)
+	if is_multiplayer_authority():
+		sync_teleport.rpc(global_position, is_facing_left)
+	
+	print(\"Teleportiert zu: \", global_position)
+
+# Hilfsfunktion um freie Position in der Nähe zu finden
+func find_nearby_free_position(target_pos: Vector2, search_radius: float = 100.0) -> Vector2:
+	var space_state = get_world_2d().direct_space_state
+	
+	# Prüfe zuerst die exakte Position (falls doch frei)
+	var query = PhysicsPointQueryParameters2D.new()
+	query.position = target_pos
+	query.collision_mask = collision_mask
+	query.exclude = [self]
+	query.collide_with_areas = false
+	query.collide_with_bodies = true
+	
+	if space_state.intersect_point(query).size() == 0:
+		return target_pos
+	
+	# Suche in konzentrischen Kreisen um die Zielposition
+	for radius in range(20, int(search_radius) + 1, 20):
+		for angle in range(0, 360, 30):  # Alle 30 Grad prüfen
+			var check_pos = target_pos + Vector2(radius, 0).rotated(deg_to_rad(angle))
+			
+			query.position = check_pos
+			if space_state.intersect_point(query).size() == 0:
+				return check_pos
+	
+	return Vector2.ZERO  # Keine freie Position gefunden
+
+func _on_teleport_cooldown_timeout() -> void:
+	can_teleport = true
+	# Optional: Sound oder visuelles Feedback dass Teleport wieder verfügbar ist
+
+func create_teleport_effects(position: Vector2, is_arrival: bool) -> void:
+	# Partikel-Effekt
+	teleport_particles.global_position = position
+	teleport_particles.emitting = true
+
+	# Bildschirm-Shake
+	$Camera2D.shake(0.2, 10)
+
+@rpc(\"any_peer\", \"call_local\", \"reliable\")
+func sync_teleport(target_pos: Vector2, facing_left: bool) -> void:
+	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
+		return
+	
+	global_position = target_pos
+	is_facing_left = facing_left
+	$PlayerSprite.flip_h = is_facing_left
+	$PlayerSprite/AttackSprite.flip_h = is_facing_left
+	create_teleport_effects(target_pos, true)
 "
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_uwm2o"]
