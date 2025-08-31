@@ -1739,7 +1739,7 @@ func _on_skill_unlocked(skill_name: String):
 			has_dash_skill = true
 			print(\"Dash Fähigkeit freigeschaltet!\")
 		\"mana_shield\":
-			has_dash_skill = true
+			has_mana_shield_skill = true
 			print(\"Mana Shield Fähigkeit freigeschaltet!\")
 	
 	save_skills()  # Speichere die Skills nach dem Freischalten
