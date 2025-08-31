@@ -1,8 +1,9 @@
-[gd_scene load_steps=51 format=3 uid="uid://b6ublycstdj8n"]
+[gd_scene load_steps=53 format=3 uid="uid://b6ublycstdj8n"]
 
 [ext_resource type="Texture2D" uid="uid://cildswtcj7qrc" path="res://Assets/slime-sprite.png" id="1_4yq4u"]
 [ext_resource type="Resource" uid="uid://0rntjh2xt5s5" path="res://InventorySystem/playerinv.tres" id="1_e7ml4"]
 [ext_resource type="Texture2D" uid="uid://quh4mac3hef1" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame0.png" id="3_ubp3h"]
+[ext_resource type="Texture2D" uid="uid://bfhvfvveasr1l" path="res://Assets/Light/torch_light.png" id="3_vfarp"]
 [ext_resource type="Texture2D" uid="uid://cjb4nq6aeftnv" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame1.png" id="4_6hcqa"]
 [ext_resource type="Texture2D" uid="uid://dq3ow8oywurgq" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame2.png" id="5_eo1jl"]
 [ext_resource type="Texture2D" uid="uid://b8fkvpdoglnlv" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame3.png" id="6_whfsg"]
@@ -25,6 +26,7 @@
 [ext_resource type="AudioStream" uid="uid://c4t47qbmuxikx" path="res://Assets/Sounds/walk.mp3" id="24_2ijsl"]
 [ext_resource type="Texture2D" uid="uid://cllwmov7ffejk" path="res://Assets/Particles#/dust.png" id="25_p1odr"]
 [ext_resource type="PackedScene" uid="uid://dwcb5l2ylkk5d" path="res://Scenes/SkillTree.tscn" id="26_0gysh"]
+[ext_resource type="Texture2D" uid="uid://gxr5xin814o6" path="res://Assets/sphere.png" id="26_vfarp"]
 
 [sub_resource type="GDScript" id="GDScript_381hh"]
 resource_name = "Player"
@@ -85,6 +87,14 @@ const WALL_JUMP_VELOCITY_Y = -400.0  # Etwas geringere vertikale Geschwindigkeit
 const WALL_JUMP_PUSH_AWAY = 200.0  # Zusätzlicher Abstoß-Effekt
 const WALL_SLIDE_SPEED = 50.0
 const WALL_STICK_TIME = 0.15       # Zeit, in der man sich noch vom Wand abstoßen kann
+
+var mana_shield_active := false
+var mana_shield_health := 0
+var max_mana_shield_health := 100
+var mana_shield_regen_rate := 5.0
+var mana_shield_regen_timer := 0.0
+var shield_particles_initial_params = {}
+var original_particle_settings: Dictionary = {}
 
 # Dash-Einstellungen
 const DASH_SPEED = 350.0
@@ -186,6 +196,7 @@ var has_ult_skill := false
 var has_double_jump_skill := false
 var has_wall_run_skill := false
 var has_dash_skill := false
+var has_mana_shield_skill := false
 var player_level := 1
 @onready var skill_tree = $SkillTree
 
@@ -199,7 +210,8 @@ var url = \"https://api.joeysslimeventure.com/\"
 @export var inv: Inv
 @onready var health_label = $CanvasLayer/HealthLabel
 @onready var api_script = preload(\"res://Scenes/api.tscn\").instantiate()
-
+@onready var shield_sprite = $ShieldSprite  # Ein Sprite2D-Node
+@onready var shield_light = $ShieldSprite/ShieldLight  # Dein vorhandener Light2D-Node
 @onready var particles: GPUParticles2D = $GPUParticles2D
 
 var is_walking := false
@@ -358,6 +370,23 @@ func _ready() -> void:
 	teleport_particles.one_shot = true
 	teleport_particles.explosiveness = 0.8
 	add_child(teleport_particles)
+	
+	save_initial_particle_settings()
+
+
+func save_initial_particle_settings():
+	# Speichere die ursprünglichen Partikeleinstellungen
+	if particles and particles.process_material:
+		var material = particles.process_material.duplicate()
+		shield_particles_initial_params = {
+			\"process_material\": material,
+			\"amount\": particles.amount,
+			\"emitting\": particles.emitting,
+			\"one_shot\": particles.one_shot,
+			\"explosiveness\": particles.explosiveness,
+			\"position\": particles.position,
+			\"global_position\": particles.global_position
+		}
 
 func _on_api_timer_timeout():
 	api_script.send_request()
@@ -499,6 +528,13 @@ func _physics_process(delta: float) -> void:
 		apply_water_physics(delta)
 	# Bewegung ausführen
 	#move_and_slide()
+	
+	# Mana-Schild Regeneration
+	if mana_shield_active and mana_shield_health < max_mana_shield_health:
+		mana_shield_regen_timer += delta
+		if mana_shield_regen_timer >= 1.0:  # Jede Sekunde regenerieren
+			mana_shield_health = min(mana_shield_health + mana_shield_regen_rate, max_mana_shield_health)
+			mana_shield_regen_timer = 0.0
 	
 
 @rpc(\"unreliable\")  
@@ -1061,7 +1097,8 @@ func _on_attack_area_body_entered(body) -> void:
 			if body.is_in_group(\"players\"):
 				body.take_damage.rpc(damage, knockback_direction)
 			else:
-				body.take_damage(damage, knockback_direction)
+				# Füge den is_crit Parameter hinzu
+				body.take_damage(damage, knockback_direction, is_crit)  # Hier wird is_crit übergeben
 			
 			$Camera2D.shake(3.0, 0.2)
 		
@@ -1226,13 +1263,28 @@ func update_glow_state() -> void:
 	get_tree().call_group(\"spikes\", \"_on_player_glow_changed\", is_glowing)
 	sync_glow_state.rpc(is_glowing)  # Bereits vorhanden
 
-# Importiere diese Zeile in deine `take_damage`-Funktion, um den Partikel-Effekt zu aktivieren
 @rpc(\"any_peer\", \"call_local\", \"reliable\")
 func take_damage(amount: int, hit_source: Vector2):
 	if !is_multiplayer_authority():
 		return
 	
-	# Eigenen Schaden verarbeiten
+	# Mana-Schild absorbiert Schaden
+	if mana_shield_active and mana_shield_health > 0:
+		var absorbed_damage = min(amount, mana_shield_health)
+		mana_shield_health -= absorbed_damage
+		amount -= absorbed_damage
+		
+		# Schild-Effekt bei Treffer
+		shield_hit_effect()
+		
+		# Schild deaktivieren wenn leer
+		if mana_shield_health <= 0:
+			deactivate_mana_shield()
+		
+		if amount <= 0:
+			return  # Aller Schaden absorbiert
+	
+	# Restlicher Schaden geht an Lebenspunkte
 	current_health -= amount
 	show_damage_text(amount, false)
 	flash_damage_color()
@@ -1241,9 +1293,9 @@ func take_damage(amount: int, hit_source: Vector2):
 	$HitSound.pitch_scale = randf_range(0.8, 1.2)
 	$HitSound.play()
 
-	# Knockback in Richtung der Trefferquelle
+	# Knockback
 	var knockback_dir = (global_position - hit_source).normalized()
-	velocity = knockback_dir * 200  # Mäßiger Knockback
+	velocity = knockback_dir * 200
 
 	# Stun-Effekt
 	is_stunned = true
@@ -1408,6 +1460,12 @@ func _input(event):
 	
 	if event.is_action_pressed(\"teleport\"):  # Du musst diese Action in den Input Map settings hinzufügen
 		perform_teleport()
+	
+	if event.is_action_pressed(\"mana_shield\"):  # Füge diese Action in Input Map hinzu
+		if mana_shield_active:
+			deactivate_mana_shield()
+		else:
+			activate_mana_shield()
 
 func open_transfer_dialog():
 	var dialog = transfer_dialog_scene.instantiate()
@@ -1680,6 +1738,9 @@ func _on_skill_unlocked(skill_name: String):
 		\"dash\":
 			has_dash_skill = true
 			print(\"Dash Fähigkeit freigeschaltet!\")
+		\"mana_shield\":
+			has_dash_skill = true
+			print(\"Mana Shield Fähigkeit freigeschaltet!\")
 	
 	save_skills()  # Speichere die Skills nach dem Freischalten
 
@@ -1717,6 +1778,7 @@ func save_skills():
 		\"has_double_jump_skill\": has_double_jump_skill,
 		\"has_wall_run_skill\": has_wall_run_skill,
 		\"has_dash_skill\": has_dash_skill,
+		\"has_mana_shield_skill\": has_mana_shield_skill,
 		\"player_level\": player_level
 	}
 	
@@ -1739,6 +1801,7 @@ func load_skills():
 	has_double_jump_skill = save_data.get(\"has_double_jump_skill\", false)
 	has_wall_run_skill = save_data.get(\"has_wall_run_skill\", false)
 	has_dash_skill = save_data.get(\"has_dash_skill\", false)
+	has_mana_shield_skill = save_data.get(\"has_mana_shield_skill\", false)
 	player_level = save_data.get(\"player_level\", 1)
 	
 	# Aktualisiere die Skills im SkillTree
@@ -1750,6 +1813,7 @@ func load_skills():
 		skill_tree.skills[\"double_jump\"].unlocked = has_double_jump_skill
 		skill_tree.skills[\"wall_run\"].unlocked = has_wall_run_skill
 		skill_tree.skills[\"dash\"].unlocked = has_dash_skill
+		skill_tree.skills[\"mana_shield\"].unlocked = has_mana_shield_skill
 		skill_tree.queue_redraw()
 
 func handle_wall_run(delta: float) -> void:
@@ -1976,6 +2040,81 @@ func sync_teleport(target_pos: Vector2, facing_left: bool) -> void:
 	$PlayerSprite.flip_h = is_facing_left
 	$PlayerSprite/AttackSprite.flip_h = is_facing_left
 	create_teleport_effects(target_pos, true)
+
+func activate_mana_shield():
+	if !has_mana_shield_skill:
+		return
+	if mana_shield_active:
+		return
+	
+	mana_shield_active = true
+	mana_shield_health = max_mana_shield_health
+	
+	# Sprite und Licht aktivieren
+	shield_sprite.visible = true
+	shield_light.enabled = true
+	
+	# Animation für das Erscheinen des Schildes
+	var tween = create_tween()
+	tween.tween_property(shield_sprite, \"scale\", Vector2(1, 1), 0.3).from(Vector2(0.5, 0.5))
+	tween.parallel().tween_property(shield_sprite, \"modulate:a\", 1.0, 0.3).from(0.0)
+	tween.parallel().tween_property(shield_light, \"energy\", 1.0, 0.3).from(0.0)
+	
+	# Synchronisiere mit anderen Clients
+	sync_mana_shield_state.rpc(true, max_mana_shield_health)
+
+func deactivate_mana_shield():
+	if not mana_shield_active:
+		return
+	
+	mana_shield_active = false
+	mana_shield_health = 0
+	
+	# Animation für das Verschwinden des Schildes
+	var tween = create_tween()
+	tween.tween_property(shield_sprite, \"scale\", Vector2(0.5, 0.5), 0.3)
+	tween.parallel().tween_property(shield_sprite, \"modulate:a\", 0.0, 0.3)
+	tween.parallel().tween_property(shield_light, \"energy\", 0.0, 0.3)
+	tween.tween_callback(finalize_deactivation)
+	
+	# Synchronisiere mit anderen Clients
+	sync_mana_shield_state.rpc(false, 0)
+
+func finalize_deactivation():
+	shield_sprite.visible = false
+	shield_light.enabled = false
+
+func shield_hit_effect():
+	# Kamera-Shake für Feedback
+	$Camera2D.shake(0.1, 8)
+	
+	# Schild-Treffer-Sound
+	#$ShieldHitSound.play()
+	
+	# Blitz-Effekt bei Treffer
+	var tween = create_tween()
+	tween.tween_property(shield_sprite, \"modulate\", Color(2, 2, 2, 1), 0.05)
+	tween.tween_property(shield_sprite, \"modulate\", Color(1, 1, 1, 1), 0.15)
+	tween.parallel().tween_property(shield_light, \"energy\", 2.0, 0.05)
+	tween.tween_property(shield_light, \"energy\", 1.0, 0.15)
+
+@rpc(\"any_peer\", \"call_local\", \"reliable\")
+func sync_mana_shield_state(active: bool, health: float):
+	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
+		return
+		
+	mana_shield_active = active
+	mana_shield_health = health
+	
+	if active:
+		shield_sprite.visible = true
+		shield_light.enabled = true
+		shield_sprite.scale = Vector2(1, 1)
+		shield_sprite.modulate.a = 1.0
+		shield_light.energy = 1.0
+	else:
+		shield_sprite.visible = false
+		shield_light.enabled = false
 "
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_uwm2o"]
@@ -2283,6 +2422,15 @@ shadow_filter = 2
 shadow_filter_smooth = 3.0
 texture = SubResource("GradientTexture2D_0gysh")
 texture_scale = 3.0
+
+[node name="ShieldSprite" type="Sprite2D" parent="."]
+visible = false
+texture = ExtResource("26_vfarp")
+
+[node name="ShieldLight" type="PointLight2D" parent="ShieldSprite"]
+color = Color(0.564706, 1, 1, 1)
+energy = 0.8
+texture = ExtResource("3_vfarp")
 
 [node name="PlayerSprite" type="Sprite2D" parent="."]
 position = Vector2(0.000183105, -71.4286)

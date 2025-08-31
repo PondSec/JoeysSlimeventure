@@ -75,7 +75,7 @@ var skills = {
 		\"pos\": Vector2(550, 80) * scale_factor, # Position angepasst (früher war dash hier)
 		\"unlocked\": false,
 		\"requires\": [\"double_jump\"], # ÄNDERUNG: Braucht jetzt double_jump statt dash
-		\"required_levels\": [\"level19\"],
+		\"required_levels\": [\"Game\"],
 		\"description\": \"Joey kann sich ruckartig in eine Richtung bewegen, um große Abgründe zu überwinden.\",
 		\"icon\": null
 	},
@@ -83,7 +83,7 @@ var skills = {
 		\"pos\": Vector2(700, 100) * scale_factor, # Position angepasst
 		\"unlocked\": false,
 		\"requires\": [\"dash\"],
-		\"required_levels\": [\"level26\"],
+		\"required_levels\": [\"Game\"],
 		\"description\": \"Joey nutzt uralte Magie, um sich über kurze Distanz sofort zu teleportieren.\",
 		\"icon\": null
 	},
@@ -93,7 +93,7 @@ var skills = {
 		\"pos\": Vector2(250, 300) * scale_factor,
 		\"unlocked\": false,
 		\"requires\": [\"glow\"],
-		\"required_levels\": [\"Level3\"],
+		\"required_levels\": [\"level1\"],
 		\"description\": \"Magische Partikel sammeln sich um Joey und lassen ihn im Laufe der Zeit verlorene Energie zurückgewinnen.\",
 		\"icon\": null
 	},
@@ -101,7 +101,7 @@ var skills = {
 		\"pos\": Vector2(400, 320) * scale_factor,
 		\"unlocked\": false,
 		\"requires\": [\"regeneration\"],
-		\"required_levels\": [\"level9\"],
+		\"required_levels\": [\"Game\"],
 		\"description\": \"Joey hüllt sich in eine schimmernde Barriere aus Schleim und Magie, die Schaden absorbiert, bis sie zerbricht.\",
 		\"icon\": null
 	},
