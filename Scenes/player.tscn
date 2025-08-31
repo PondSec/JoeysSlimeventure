@@ -65,6 +65,7 @@ var current_crit_multiplier: float = 1.5
 const GRAVITY = 1200.0
 const MAX_FALL_SPEED = 800.0
 const JUMP_VELOCITY = -430.0
+const AIR_JUMP_VELOCITY = -380.0
 const SHORT_JUMP_MULTIPLIER = 0.6  # Für kürzere Sprünge bei losgelassener Taste
 const JUMP_CUT_MULTIPLIER = 0.4    # Für sofortige Sprungabbremsung
 
@@ -90,6 +91,8 @@ var last_wall_normal := Vector2.ZERO
 var wall_stick_timer := 0.0
 var coyote_time := 0.0
 var jump_buffer_time := 0.0
+var air_jumps_available := 0  # Zähler für verfügbare Luftsprünge
+var max_air_jumps := 1
 var is_dashing := false
 var can_dash := true
 var dash_direction := Vector2.ZERO
@@ -162,6 +165,7 @@ var has_glow_skill := false
 var has_wall_slide_skill := false
 var has_regeneration_skill := false
 var has_ult_skill := false
+var has_double_jump_skill := false
 var player_level := 1
 @onready var skill_tree = $SkillTree
 
@@ -317,6 +321,7 @@ func _ready() -> void:
 	if skill_tree:
 		skill_tree.connect(\"skill_unlocked\", Callable(self, \"_on_skill_unlocked\"))
 	print(\"Wall Slide Skill status: \", has_wall_slide_skill)
+	max_air_jumps = 1
 	load_skills()
 	check_level_completion()
 
@@ -703,9 +708,11 @@ func handle_jump_mechanics(delta):
 	else:
 		if is_charging:
 			return
+		
 		# Coyote Time (Sprung nach Verlassen der Plattform)
 		if is_on_floor():
 			coyote_time = 0.1
+			air_jumps_available = max_air_jumps  # Setze Luftsprünge zurück, wenn am Boden
 		else:
 			coyote_time -= delta
 		
@@ -715,6 +722,7 @@ func handle_jump_mechanics(delta):
 		else:
 			jump_buffer_time -= delta
 		
+		# Normalsprung vom Boden
 		if (coyote_time > 0 and jump_buffer_time > 0) or (is_on_floor() and Input.is_action_just_pressed(\"up\")):
 			velocity.y = JUMP_VELOCITY
 			coyote_time = 0
@@ -722,6 +730,9 @@ func handle_jump_mechanics(delta):
 			$JumpSound.pitch_scale = randf_range(1.3, 1.75)  # Leichte Tonhöhen-Variation
 			$JumpSound.play()
 			$AnimationPlayer.play(\"jump\")
+		# Luftsprung, wenn verfügbar
+		elif Input.is_action_just_pressed(\"up\") and air_jumps_available > 0 and not is_on_floor():
+			perform_air_jump()
 		
 		# Kurzer Sprung (wenn Taste losgelassen)
 		if Input.is_action_just_released(\"up\") and velocity.y < JUMP_VELOCITY * SHORT_JUMP_MULTIPLIER:
@@ -730,6 +741,28 @@ func handle_jump_mechanics(delta):
 		# Sofortige Sprungabbremsung
 		if Input.is_action_just_pressed(\"down\") and velocity.y < 0:
 			velocity.y *= JUMP_CUT_MULTIPLIER
+
+# Führe einen Luftsprung aus
+func perform_air_jump():
+	if !has_double_jump_skill:
+		return
+	if air_jumps_available <= 0:
+		return
+	
+	velocity.y = AIR_JUMP_VELOCITY
+	air_jumps_available -= 1
+	
+	# Effekte für den Luftsprung
+	$JumpSound.pitch_scale = randf_range(1.5, 1.8)  # Höherer Ton für Luftsprung
+	$JumpSound.play()
+	
+	# Partikeleffekt für Luftsprung
+	var air_jump_particles = $AirJumpParticles
+	if air_jump_particles:
+		air_jump_particles.emitting = true
+	
+	# Animation für Luftsprung
+	$AnimationPlayer.play(\"air_jump\")
 
 func handle_wall_mechanics(delta):
 	if not has_wall_slide_skill:
@@ -1598,6 +1631,9 @@ func _on_skill_unlocked(skill_name: String):
 		\"ult\":
 			has_ult_skill = true
 			print(\"Ultimate Fähigkeit freigeschaltet!\")
+		\"double_jump\":
+			has_double_jump_skill = true
+			print(\"Double Jump Fähigkeit freigeschaltet!\")
 	
 	save_skills()  # Speichere die Skills nach dem Freischalten
 
@@ -1632,6 +1668,7 @@ func save_skills():
 		\"has_wall_slide_skill\": has_wall_slide_skill,
 		\"has_regeneration_skill\": has_regeneration_skill,
 		\"has_ult_skill\": has_ult_skill,
+		\"has_double_jump_skill\": has_double_jump_skill,
 		\"player_level\": player_level
 	}
 	
@@ -1651,6 +1688,7 @@ func load_skills():
 	has_wall_slide_skill = save_data.get(\"has_wall_slide_skill\", false)
 	has_regeneration_skill = save_data.get(\"has_regeneration_skill\", false)
 	has_ult_skill = save_data.get(\"has_ult_skill\", false)
+	has_double_jump_skill = save_data.get(\"has_double_jump_skill\", false)
 	player_level = save_data.get(\"player_level\", 1)
 	
 	# Aktualisiere die Skills im SkillTree
@@ -1659,6 +1697,7 @@ func load_skills():
 		skill_tree.skills[\"wall_slide\"].unlocked = has_wall_slide_skill
 		skill_tree.skills[\"regeneration\"].unlocked = has_regeneration_skill
 		skill_tree.skills[\"ult\"].unlocked = has_ult_skill
+		skill_tree.skills[\"double_jump\"].unlocked = has_double_jump_skill
 		skill_tree.queue_redraw()
 "
 

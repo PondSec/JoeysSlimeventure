@@ -1,4 +1,4 @@
-[gd_scene load_steps=50 format=4 uid="uid://cmdh8rpdo8fb2"]
+[gd_scene load_steps=52 format=4 uid="uid://cmdh8rpdo8fb2"]
 
 [ext_resource type="Texture2D" uid="uid://82opar247kat" path="res://Assets/Tiles/platformertiles.png" id="1_lx4yj"]
 [ext_resource type="Script" uid="uid://hrb3bfkpp2mn" path="res://Scripts/game.gd" id="1_wyx84"]
@@ -323,6 +323,12 @@ size = Vector2(1680, 259)
 [sub_resource type="StyleBoxTexture" id="StyleBoxTexture_8r6kd"]
 texture = ExtResource("16_x3xnh")
 
+[sub_resource type="LabelSettings" id="LabelSettings_tfod6"]
+font = ExtResource("17_x3xnh")
+
+[sub_resource type="LabelSettings" id="LabelSettings_8r6kd"]
+font = ExtResource("17_x3xnh")
+
 [sub_resource type="Animation" id="Animation_alh3a"]
 length = 0.001
 tracks/0/type = "value"
@@ -595,7 +601,6 @@ position = Vector2(262, 767)
 position = Vector2(366, 1020)
 
 [node name="DialogBox" type="CanvasLayer" parent="."]
-visible = false
 
 [node name="Panel" type="Panel" parent="DialogBox"]
 custom_minimum_size = Vector2(600, 150)
@@ -611,6 +616,15 @@ offset_bottom = -247.295
 grow_horizontal = 2
 grow_vertical = 0
 theme_override_styles/panel = SubResource("StyleBoxTexture_8r6kd")
+
+[node name="Label" type="Label" parent="DialogBox/Panel"]
+layout_mode = 2
+offset_left = 541.19
+offset_top = 24.855
+offset_right = 572.19
+offset_bottom = 39.855
+text = "[E]"
+label_settings = SubResource("LabelSettings_tfod6")
 
 [node name="MarginContainer" type="MarginContainer" parent="DialogBox/Panel"]
 custom_minimum_size = Vector2(550, 100)
@@ -636,6 +650,7 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0, 0, 0, 1)
 theme_override_fonts/font = ExtResource("17_x3xnh")
 theme_override_font_sizes/font_size = 20
+label_settings = SubResource("LabelSettings_8r6kd")
 horizontal_alignment = 1
 vertical_alignment = 1
 autowrap_mode = 1
@@ -645,5 +660,5 @@ libraries = {
 &"": SubResource("AnimationLibrary_x3xnh")
 }
 
-[connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_canvas_layer_go_to_main_menu"]
 [connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_pause_menu_go_to_main_menu"]
+[connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_canvas_layer_go_to_main_menu"]

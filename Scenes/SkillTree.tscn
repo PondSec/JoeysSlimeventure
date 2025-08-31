@@ -57,7 +57,7 @@ var skills = {
 		\"pos\": Vector2(400, 80) * scale_factor,
 		\"unlocked\": false,
 		\"requires\": [\"wall_slide\"],
-		\"required_levels\": [\"level3\"],
+		\"required_levels\": [\"Level 8\"],
 		\"description\": \"Joey sammelt magische Energie in seiner elastischen Hülle und führt einen zusätzlichen Sprung in der Luft aus.\",
 		\"icon\": null
 	},
@@ -65,7 +65,7 @@ var skills = {
 		\"pos\": Vector2(550, 100) * scale_factor,
 		\"unlocked\": false,
 		\"requires\": [\"double_jump\"],
-		\"required_levels\": [\"level5\"],
+		\"required_levels\": [\"level9\"],
 		\"description\": \"Ein explosiver Schleimstoß katapultiert Joey blitzschnell nach vorne und durchbricht Hindernisse.\",
 		\"icon\": null
 	},
@@ -73,7 +73,7 @@ var skills = {
 		\"pos\": Vector2(550, 40) * scale_factor,
 		\"unlocked\": false,
 		\"requires\": [\"double_jump\"],
-		\"required_levels\": [\"level6\"],
+		\"required_levels\": [\"level14\"],
 		\"description\": \"Joey kann an Wänden entlanglaufen und so vertikale Abgründe meistern.\",
 		\"icon\": null
 	},
@@ -81,7 +81,7 @@ var skills = {
 		\"pos\": Vector2(700, 80) * scale_factor,
 		\"unlocked\": false,
 		\"requires\": [\"dash\"],
-		\"required_levels\": [\"level7\"],
+		\"required_levels\": [\"level19\"],
 		\"description\": \"Joey kann seinen Dash auch in der Luft einsetzen, um große Abgründe zu überwinden.\",
 		\"icon\": null
 	},
@@ -89,7 +89,7 @@ var skills = {
 		\"pos\": Vector2(850, 100) * scale_factor,
 		\"unlocked\": false,
 		\"requires\": [\"air_dash\"],
-		\"required_levels\": [\"level12\"],
+		\"required_levels\": [\"level26\"],
 		\"description\": \"Joey nutzt uralte Magie, um sich über kurze Distanz sofort zu teleportieren.\",
 		\"icon\": null
 	},
@@ -99,7 +99,7 @@ var skills = {
 		\"pos\": Vector2(250, 300) * scale_factor,
 		\"unlocked\": false,
 		\"requires\": [\"glow\"],
-		\"required_levels\": [\"Game\"],
+		\"required_levels\": [\"Level3\"],
 		\"description\": \"Magische Partikel sammeln sich um Joey und lassen ihn im Laufe der Zeit verlorene Energie zurückgewinnen.\",
 		\"icon\": null
 	},
@@ -107,7 +107,7 @@ var skills = {
 		\"pos\": Vector2(400, 320) * scale_factor,
 		\"unlocked\": false,
 		\"requires\": [\"regeneration\"],
-		\"required_levels\": [\"level6\"],
+		\"required_levels\": [\"level9\"],
 		\"description\": \"Joey hüllt sich in eine schimmernde Barriere aus Schleim und Magie, die Schaden absorbiert, bis sie zerbricht.\",
 		\"icon\": null
 	},
@@ -115,7 +115,7 @@ var skills = {
 		\"pos\": Vector2(400, 260) * scale_factor,
 		\"unlocked\": false,
 		\"requires\": [\"regeneration\"],
-		\"required_levels\": [\"level6\"],
+		\"required_levels\": [\"level14\"],
 		\"description\": \"Joey entlädt Heilenergie auf einmal und stellt sofort einen Teil seiner Lebenspunkte wieder her.\",
 		\"icon\": null
 	},
@@ -123,7 +123,7 @@ var skills = {
 		\"pos\": Vector2(550, 340) * scale_factor,
 		\"unlocked\": false,
 		\"requires\": [\"mana_shield\"],
-		\"required_levels\": [\"level8\"],
+		\"required_levels\": [\"level17\"],
 		\"description\": \"Angreifer nehmen Schaden, wenn sie Joey direkt treffen, da seine Schleimhaut spitze Magiepartikel absondert.\",
 		\"icon\": null
 	},
@@ -131,7 +131,7 @@ var skills = {
 		\"pos\": Vector2(700, 300) * scale_factor,
 		\"unlocked\": false,
 		\"requires\": [\"thorns\"],
-		\"required_levels\": [\"level10\"],
+		\"required_levels\": [\"level19\"],
 		\"description\": \"Joey setzt seine uralte Magie frei und entfesselt einen gewaltigen Energiestoß: Alle Gegner erleiden 130 Schaden, während Joey vollständig geheilt wird.\",
 		\"icon\": null
 	},
@@ -139,7 +139,7 @@ var skills = {
 		\"pos\": Vector2(850, 320) * scale_factor,
 		\"unlocked\": false,
 		\"requires\": [\"ult\"],
-		\"required_levels\": [\"level15\"],
+		\"required_levels\": [\"level27\"],
 		\"description\": \"Joey kehrt nach dem Tod einmalig mit halber Lebensenergie zurück. Abklingzeit: Sehr lang.\",
 		\"icon\": null
 	},
@@ -149,7 +149,7 @@ var skills = {
 		\"pos\": Vector2(250, 200) * scale_factor,
 		\"unlocked\": false,
 		\"requires\": [\"glow\"],
-		\"required_levels\": [\"level2\"],
+		\"required_levels\": [\"level8\"],
 		\"description\": \"Joey verfestigt kurzzeitig seine schleimige Oberfläche, kann an Decken kleben und schwer erreichbare Orte erforschen.\",
 		\"icon\": null
 	},
@@ -157,7 +157,7 @@ var skills = {
 		\"pos\": Vector2(400, 200) * scale_factor,
 		\"unlocked\": false,
 		\"requires\": [\"sticky_form\"],
-		\"required_levels\": [\"level5\"],
+		\"required_levels\": [\"level14\"],
 		\"description\": \"Joey hinterlässt eine klebrige Schleimspur, die Gegner verlangsamt und kampfunfähig macht.\",
 		\"icon\": null
 	},
@@ -165,7 +165,7 @@ var skills = {
 		\"pos\": Vector2(550, 200) * scale_factor,
 		\"unlocked\": false,
 		\"requires\": [\"slime_trap\"],
-		\"required_levels\": [\"level8\"],
+		\"required_levels\": [\"level18\"],
 		\"description\": \"Joey erschafft einen kleinen Schleimableger, der Gegner attackiert und Joey im Kampf unterstützt.\",
 		\"icon\": null
 	},
@@ -173,7 +173,7 @@ var skills = {
 		\"pos\": Vector2(700, 200) * scale_factor,
 		\"unlocked\": false,
 		\"requires\": [\"slime_minion\"],
-		\"required_levels\": [\"level11\"],
+		\"required_levels\": [\"level21\"],
 		\"description\": \"Joey speit ätzenden Schleim auf Gegner, der kontinuierlich Schaden verursacht.\",
 		\"icon\": null
 	},
@@ -181,7 +181,7 @@ var skills = {
 		\"pos\": Vector2(850, 200) * scale_factor,
 		\"unlocked\": false,
 		\"requires\": [\"acid_spit\"],
-		\"required_levels\": [\"level14\"],
+		\"required_levels\": [\"level25\"],
 		\"description\": \"Joey verändert durch uralte Magie die Schwerkraft um sich herum und zieht Gegner in seinen Kern.\",
 		\"icon\": null
 	},
@@ -189,7 +189,7 @@ var skills = {
 		\"pos\": Vector2(700, 140) * scale_factor,
 		\"unlocked\": false,
 		\"requires\": [\"slime_minion\"],
-		\"required_levels\": [\"level11\"],
+		\"required_levels\": [\"level31\"],
 		\"description\": \"Joey bildet schleimige Flügel aus und kann langsam über Abgründe gleiten.\",
 		\"icon\": null
 	}
@@ -827,16 +827,6 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = SubResource("GDScript_t13jq")
-
-[node name="Background" type="ColorRect" parent="."]
-visible = false
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-color = Color(0, 0, 0, 0.861)
 
 [node name="Label" type="Label" parent="."]
 layout_mode = 1
