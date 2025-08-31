@@ -1,4 +1,4 @@
-[gd_scene load_steps=17 format=4 uid="uid://cmdu13w35epv0"]
+[gd_scene load_steps=18 format=4 uid="uid://cmdu13w35epv0"]
 
 [ext_resource type="Texture2D" uid="uid://82opar247kat" path="res://Assets/Tiles/platformertiles.png" id="1_x6kbu"]
 [ext_resource type="PackedScene" uid="uid://c8bjyoq5oxoup" path="res://Scenes/door.tscn" id="2_gdcnv"]
@@ -6,6 +6,7 @@
 [ext_resource type="PackedScene" uid="uid://dx4m8ks5y31ax" path="res://Scenes/vine.tscn" id="4_y4o00"]
 [ext_resource type="PackedScene" uid="uid://b6ublycstdj8n" path="res://Scenes/player.tscn" id="5_v84nj"]
 [ext_resource type="PackedScene" uid="uid://btd70wfyuwmhw" path="res://Scenes/PauseMenu.tscn" id="6_uralf"]
+[ext_resource type="PackedScene" uid="uid://yj7nu0nlliiq" path="res://Scenes/Spike.tscn" id="7_gdcnv"]
 
 [sub_resource type="GDScript" id="GDScript_y4dr7"]
 script/source = "extends Node2D
@@ -296,7 +297,7 @@ tile_set = SubResource("TileSet_y4dr7")
 modulate = Color(0, 0, 0, 1)
 self_modulate = Color(0, 0, 0, 1)
 position = Vector2(-14, 10)
-color = Color(0.101961, 0.101961, 0.101961, 1)
+color = Color(0.239216, 0.239216, 0.239216, 1)
 
 [node name="Torch" parent="Level" instance=ExtResource("3_pca0e")]
 position = Vector2(-119, -40)
@@ -372,6 +373,9 @@ rotation = 3.14159
 [node name="Vine16" parent="Level" instance=ExtResource("4_y4o00")]
 position = Vector2(812, -149)
 
+[node name="Spike" parent="Level" instance=ExtResource("7_gdcnv")]
+position = Vector2(758.925, -16)
+
 [node name="PlayerModel" parent="." instance=ExtResource("5_v84nj")]
 position = Vector2(-75, -19)
 
@@ -381,3 +385,7 @@ script = SubResource("GDScript_didp7")
 
 [node name="PauseMenu" parent="." instance=ExtResource("6_uralf")]
 visible = false
+
+[node name="Spike2" parent="." instance=ExtResource("7_gdcnv")]
+position = Vector2(443, -144)
+rotation = -3.14159

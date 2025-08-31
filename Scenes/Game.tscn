@@ -1,4 +1,4 @@
-[gd_scene load_steps=48 format=4 uid="uid://cmdh8rpdo8fb2"]
+[gd_scene load_steps=49 format=4 uid="uid://cmdh8rpdo8fb2"]
 
 [ext_resource type="Texture2D" uid="uid://82opar247kat" path="res://Assets/Tiles/platformertiles.png" id="1_lx4yj"]
 [ext_resource type="Script" uid="uid://hrb3bfkpp2mn" path="res://Scripts/game.gd" id="1_wyx84"]
@@ -17,6 +17,7 @@
 [ext_resource type="Texture2D" uid="uid://biudf3lou32hd" path="res://Assets/GUI/TextBox.png" id="16_x3xnh"]
 [ext_resource type="PackedScene" uid="uid://dx4m8ks5y31ax" path="res://Scenes/vine.tscn" id="17_4q8tf"]
 [ext_resource type="FontFile" uid="uid://c2wsertwqrai5" path="res://Assets/GUI/Font/PixelatedEleganceRegular-ovyAA.ttf" id="17_x3xnh"]
+[ext_resource type="PackedScene" uid="uid://yj7nu0nlliiq" path="res://Scenes/Spike.tscn" id="18_x3xnh"]
 
 [sub_resource type="OccluderPolygon2D" id="OccluderPolygon2D_rajel"]
 polygon = PackedVector2Array(-16, -11.0682, -15.0651, -10.9613, -15.0116, -12.0039, -14.0492, -12.0039, -14.0224, -12.9931, -13.0867, -12.9931, -12.9798, -14.0091, -11.9638, -14.0091, -12.0173, -16, -10.0122, -16, -10.0122, -14.9982, -9.04974, -15.0517, -8.99627, -16, -8.03382, -16, -7.98035, -15.025, -5.01278, -14.9982, -5.01278, -16, -0.0133667, -16, -0.0133672, -14.9982, 2.04522, -15.025, 1.99174, -16, 5.03952, -16, 4.98605, -14.9715, 5.97524, -15.025, 6.00197, -16, 7.98035, -16, 7.98035, -15.025, 9.98546, -15.025, 9.95873, -16, 14.9849, -16, 14.9581, -15.1052, 16, -15.025, 16, 16, -16, 16, -16, 14.0395, -15.0262, 13.9748, -15.0262, 12.972, -16, 12.9397, -16, 7.01977, -15.0262, 7.01977, -15.0262, 4.98177, -16, 4.98177, -16, -2.07035, -15.0262, -2.1027, -15.0585, -5.98459, -16, -5.98459)
@@ -395,7 +396,7 @@ modulate = Color(0, 0, 0, 1)
 self_modulate = Color(0, 0, 0, 1)
 light_mask = 2
 position = Vector2(-14, 10)
-color = Color(0.118581, 0.118581, 0.118581, 1)
+color = Color(0.239216, 0.239216, 0.239216, 1)
 
 [node name="Background" type="TileMap" parent="."]
 tile_set = SubResource("TileSet_jgi20")
@@ -549,6 +550,13 @@ position = Vector2(273, 727)
 
 [node name="Vine2" parent="Deko" instance=ExtResource("17_4q8tf")]
 position = Vector2(228, 750)
+
+[node name="Spike" parent="Deko" instance=ExtResource("18_x3xnh")]
+position = Vector2(450, 954)
+rotation = -3.14159
+
+[node name="Spike2" parent="Deko" instance=ExtResource("18_x3xnh")]
+position = Vector2(1664, 1338)
 
 [node name="SpawnArea" type="Area2D" parent="."]
 

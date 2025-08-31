@@ -99,7 +99,7 @@ var skills = {
 		\"pos\": Vector2(250, 300) * scale_factor,
 		\"unlocked\": false,
 		\"requires\": [\"glow\"],
-		\"required_levels\": [\"level4\"],
+		\"required_levels\": [\"Game\"],
 		\"description\": \"Magische Partikel sammeln sich um Joey und lassen ihn im Laufe der Zeit verlorene Energie zurückgewinnen.\",
 		\"icon\": null
 	},
