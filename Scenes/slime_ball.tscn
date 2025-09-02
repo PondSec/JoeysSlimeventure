@@ -1,0 +1,57 @@
+[gd_scene load_steps=5 format=3 uid="uid://boa0bok16i3n"]
+
+[ext_resource type="PackedScene" uid="uid://c45wtjmv4nlux" path="res://Scenes/slime_minion.tscn" id="1_pv478"]
+[ext_resource type="Texture2D" uid="uid://cmrslokkaqij5" path="res://Assets/star_particle.png" id="1_r6lpt"]
+
+[sub_resource type="GDScript" id="GDScript_i84ng"]
+script/source = "extends RigidBody2D
+
+@export var minion_scene: PackedScene
+var lifetime: float = 5.0
+
+func _ready():
+	# Warte 5 Sekunden, dann spawn Minion
+	$LifetimeTimer.wait_time = lifetime
+	$LifetimeTimer.start()
+	
+	# Verbinde das Timeout-Signal
+	$LifetimeTimer.timeout.connect(_on_lifetime_timer_timeout)
+	
+	# Verbinde die Kollisions-Signale
+	body_entered.connect(_on_body_entered)
+
+func throw(force: Vector2):
+	linear_velocity = force  # Für RigidBody2D
+	# oder: velocity = force  # Für CharacterBody2D
+
+func _on_lifetime_timer_timeout():
+	spawn_minion()
+	queue_free()
+
+func _on_body_entered(body):
+	# Spawne den Minion sofort bei Kollision mit etwas
+	if not body.is_in_group(\"players\"):  # Nicht bei Kollision mit dem Spieler
+		spawn_minion()
+		queue_free()
+
+func spawn_minion():
+	if minion_scene:
+		var minion = minion_scene.instantiate()
+		get_parent().add_child(minion)
+		minion.global_position = global_position
+		print(\"Slime Minion gespawnt!\")
+"
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_r6lpt"]
+
+[node name="RigidBody2D" type="RigidBody2D"]
+script = SubResource("GDScript_i84ng")
+minion_scene = ExtResource("1_pv478")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_r6lpt")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("1_r6lpt")
+
+[node name="LifetimeTimer" type="Timer" parent="."]

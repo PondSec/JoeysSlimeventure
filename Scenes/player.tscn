@@ -1,7 +1,8 @@
-[gd_scene load_steps=53 format=3 uid="uid://b6ublycstdj8n"]
+[gd_scene load_steps=54 format=3 uid="uid://b6ublycstdj8n"]
 
 [ext_resource type="Texture2D" uid="uid://cildswtcj7qrc" path="res://Assets/slime-sprite.png" id="1_4yq4u"]
 [ext_resource type="Resource" uid="uid://0rntjh2xt5s5" path="res://InventorySystem/playerinv.tres" id="1_e7ml4"]
+[ext_resource type="PackedScene" uid="uid://boa0bok16i3n" path="res://Scenes/slime_ball.tscn" id="2_y6uwr"]
 [ext_resource type="Texture2D" uid="uid://quh4mac3hef1" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame0.png" id="3_ubp3h"]
 [ext_resource type="Texture2D" uid="uid://bfhvfvveasr1l" path="res://Assets/Light/torch_light.png" id="3_vfarp"]
 [ext_resource type="Texture2D" uid="uid://cjb4nq6aeftnv" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame1.png" id="4_6hcqa"]
@@ -222,6 +223,8 @@ var url = \"https://api.joeysslimeventure.com/\"
 @onready var shield_sprite = $ShieldSprite  # Ein Sprite2D-Node
 @onready var shield_light = $ShieldSprite/ShieldLight  # Dein vorhandener Light2D-Node
 @onready var particles: GPUParticles2D = $GPUParticles2D
+@export var slimeball_scene: PackedScene
+@export var throw_force: float = 300.0
 
 var is_walking := false
 const WALK_STEP_INTERVAL := 0.2
@@ -490,6 +493,9 @@ func _process(delta: float) -> void:
 	# Angriff ausführen, wenn die Angriffstaste gedrückt wird
 	if Input.is_action_just_pressed(\"Attack\") and not is_attacking:
 		perform_attack()
+	
+	if Input.is_action_just_pressed(\"throw_slimeball\") and slimeball_scene:
+		throw_slimeball()
 
 	# Leuchteffekt umschalten
 	if Input.is_action_just_pressed(\"Glow\"):
@@ -520,9 +526,6 @@ func _physics_process(delta: float) -> void:
 		handle_dash()
 		handle_jump_mechanics(delta)
 		handle_wall_mechanics(delta)
-		print(\"Wall Slide Skill: \", has_wall_slide_skill)
-		print(\"Is on wall: \", is_on_wall())
-		print(\"Is wall sliding: \", is_wall_sliding)
 		
 		# Schwerkraft anwenden
 		apply_gravity(delta)
@@ -2264,6 +2267,20 @@ func sync_sticky_form_state(active: bool, duration: float):
 	else:
 		var tween = create_tween()
 		tween.tween_property($PlayerSprite, \"modulate\", Color(1, 1, 1, 1), 0.3)
+
+func throw_slimeball():
+	if slimeball_scene:
+		var slimeball = slimeball_scene.instantiate()
+		get_parent().add_child(slimeball)
+		
+		# Positioniere den Slimeball vor dem Spieler
+		var throw_direction = Vector2.RIGHT if not is_facing_left else Vector2.LEFT
+		slimeball.global_position = global_position + throw_direction * 20
+		
+		# Werfe den Slimeball
+		if slimeball.has_method(\"throw\"):
+			slimeball.throw(throw_direction * throw_force)
+			print(\"Slimeball geworfen!\")
 "
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_uwm2o"]
@@ -2556,6 +2573,7 @@ scale = Vector2(0.07, 0.07)
 collision_mask = 3
 script = SubResource("GDScript_381hh")
 inv = ExtResource("1_e7ml4")
+slimeball_scene = ExtResource("2_y6uwr")
 
 [node name="ColisionArea" type="CollisionShape2D" parent="."]
 position = Vector2(0, 7.14551)

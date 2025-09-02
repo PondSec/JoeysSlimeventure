@@ -1,0 +1,378 @@
+[gd_scene load_steps=8 format=3 uid="uid://c45wtjmv4nlux"]
+
+[ext_resource type="Texture2D" uid="uid://cildswtcj7qrc" path="res://Assets/slime-sprite.png" id="1_sr26v"]
+
+[sub_resource type="GDScript" id="GDScript_n4hx3"]
+script/source = "extends CharacterBody2D
+
+@export_category(\"Movement Settings\")
+@export var speed: float = 150.0
+@export var acceleration: float = 15.0
+@export var friction: float = 10.0
+@export var jump_velocity: float = -350.0
+@export var wall_jump_force: Vector2 = Vector2(300, -300)
+@export var wall_slide_speed: float = 50.0
+
+@export_category(\"Combat Settings\")
+@export var attack_range: float = 80.0
+@export var detection_range: float = 300.0
+@export var attack_damage: int = 15
+@export var attack_cooldown: float = 0.8
+@export var special_ability_cooldown: float = 5.0
+
+@export_category(\"Advanced Settings\")
+@export var max_health: int = 100
+@export var can_wall_run: bool = true
+@export var can_double_jump: bool = true
+@export var loyalty_distance: float = 400.0
+@export var min_follow_distance: float = 80.0
+@export var max_follow_distance: float = 150.0
+
+var gravity = ProjectSettings.get_setting(\"physics/2d/default_gravity\")
+var health: int
+var target: Node2D = null
+var can_attack: bool = true
+var can_use_ability: bool = true
+var has_double_jump: bool = false
+var is_wall_running: bool = false
+var last_wall_normal: Vector2 = Vector2.ZERO
+var player_last_position: Vector2 = Vector2.ZERO
+
+# Zustandsmaschine für bessere KI
+enum State {IDLE, FOLLOWING, COMBAT, SUPPORT, SPECIAL}
+var current_state: State = State.IDLE
+
+@onready var player: Node2D = get_tree().get_first_node_in_group(\"players\")
+@onready var animation_player: AnimationPlayer = $AnimationPlayer
+@onready var ray_cast_2d: RayCast2D = $RayCast2D
+@onready var detection_area: Area2D = $DetectionArea
+@onready var wall_detection: RayCast2D = $WallDetection
+@onready var attack_cooldown_timer: Timer = $AttackCooldownTimer
+
+func _ready():
+	health = max_health
+	add_to_group(\"minions\")
+	
+	# Detection Area einrichten
+	detection_area.set_collision_mask_value(2, true)  # Enemy layer
+	var collision_shape = CollisionShape2D.new()
+	var circle_shape = CircleShape2D.new()
+	circle_shape.radius = detection_range
+	collision_shape.shape = circle_shape
+	detection_area.add_child(collision_shape)
+	
+	detection_area.connect(\"body_entered\", _on_detection_area_body_entered)
+	detection_area.connect(\"body_exited\", _on_detection_area_body_exited)
+	
+	# Attack Cooldown Timer einrichten
+	attack_cooldown_timer.wait_time = attack_cooldown
+	attack_cooldown_timer.one_shot = true
+	attack_cooldown_timer.connect(\"timeout\", _on_attack_cooldown_timer_timeout)
+
+func _physics_process(delta):
+	if not is_instance_valid(player):
+		return
+	
+	# Zustandsmaschine aktualisieren
+	update_state()
+	
+	# Schwerkraft anwenden, wenn nicht an Wand
+	if not is_on_floor() and not is_wall_running:
+		velocity.y += gravity * delta
+	elif is_on_floor():
+		has_double_jump = true
+	
+	# Zustandsabhängiges Verhalten
+	match current_state:
+		State.IDLE:
+			idle_behavior(delta)
+		State.FOLLOWING:
+			follow_behavior(delta)
+		State.COMBAT:
+			combat_behavior(delta)
+		State.SUPPORT:
+			support_behavior(delta)
+		State.SPECIAL:
+			special_ability_behavior(delta)
+	
+	# Animationen aktualisieren
+	update_animations()
+	
+	move_and_slide()
+	handle_wall_mechanics()
+
+func update_state():
+	# Wenn kein Ziel existiert oder ungültig ist, suche ein neues
+	if target == null or not is_instance_valid(target):
+		find_new_target()
+	
+	# Wenn wir ein Ziel haben, entscheide den Zustand basierend auf Entfernung
+	if target and is_instance_valid(target):
+		var distance_to_target = global_position.distance_to(target.global_position)
+		
+		if distance_to_target <= attack_range:
+			current_state = State.COMBAT
+		elif distance_to_target <= detection_range:
+			current_state = State.FOLLOWING
+		else:
+			current_state = State.IDLE
+			target = null  # Ziel ist zu weit entfernt
+	
+	# Wenn wir kein Ziel haben, folge dem Spieler
+	else:
+		var distance_to_player = global_position.distance_to(player.global_position)
+		
+		if distance_to_player > max_follow_distance:
+			current_state = State.FOLLOWING
+			player_last_position = player.global_position
+		else:
+			current_state = State.IDLE
+			
+			# Gelegentlich nach neuen Zielen suchen
+			if randf() < 0.05:  # 5% Chance pro Frame
+				find_new_target()
+
+func idle_behavior(delta):
+	# Sanft zum Stillstand kommen
+	velocity.x = move_toward(velocity.x, 0, friction)
+
+func follow_behavior(delta):
+	var target_position = player_last_position if target == null else target.global_position
+	var direction = (target_position - global_position).normalized()
+	
+	# Intelligentes Folgen mit Abstandshaltung
+	var distance_to_target = global_position.distance_to(target_position)
+	if distance_to_target > max_follow_distance:
+		# Dem Ziel folgen
+		velocity.x = move_toward(velocity.x, direction.x * speed, acceleration)
+	elif distance_to_target < min_follow_distance:
+		# Abstand halten
+		velocity.x = move_toward(velocity.x, -direction.x * speed * 0.5, acceleration)
+	else:
+		# In Position bleiben
+		velocity.x = move_toward(velocity.x, 0, friction)
+	
+	# Über Abgründe springen
+	if is_at_edge() and is_on_floor():
+		velocity.y = jump_velocity
+
+func combat_behavior(delta):
+	if target and is_instance_valid(target):
+		var direction = (target.global_position - global_position).normalized()
+		var distance = global_position.distance_to(target.global_position)
+		
+		if distance <= attack_range:
+			# Angriff durchführen
+			velocity.x = move_toward(velocity.x, 0, friction * 2)
+			try_attack()
+		else:
+			# Zum Ziel bewegen
+			velocity.x = move_toward(velocity.x, direction.x * speed, acceleration)
+		
+		# Spezialfähigkeit einsetzen
+		if can_use_ability and distance < attack_range * 1.5:
+			try_special_ability()
+
+func support_behavior(delta):
+	# Unterstützungsverhalten (kann erweitert werden)
+	# Zum Beispiel: Heiltrank werfen, Schutzschild errichten, etc.
+	pass
+
+func special_ability_behavior(delta):
+	# Spezialfähigkeiten ausführen
+	pass
+
+func handle_wall_mechanics():
+	if can_wall_run and is_on_wall() and not is_on_floor():
+		var wall_normal = get_wall_normal()
+		
+		# Wandlaufen
+		if Input.is_action_pressed(\"move_left\") or Input.is_action_pressed(\"move_right\"):
+			is_wall_running = true
+			velocity.y = clamp(velocity.y, -wall_slide_speed, wall_slide_speed)
+			last_wall_normal = wall_normal
+		else:
+			is_wall_running = false
+		
+		# Wandspringen
+		if Input.is_action_just_pressed(\"jump\"):
+			velocity.x = last_wall_normal.x * wall_jump_force.x
+			velocity.y = wall_jump_force.y
+			is_wall_running = false
+	else:
+		is_wall_running = false
+
+func try_attack():
+	if can_attack and target and is_instance_valid(target):
+		attack()
+		can_attack = false
+		attack_cooldown_timer.start(attack_cooldown)
+
+func attack():
+	if target.has_method(\"take_damage\"):
+		target.take_damage(attack_damage, global_position)
+		animation_player.play(\"attack\")
+		# Effekte hier hinzufügen
+
+func try_special_ability():
+	if can_use_ability:
+		# Beispiel für eine Spezialfähigkeit: Bereichsschaden
+		var enemies = get_tree().get_nodes_in_group(\"enemies\")
+		for enemy in enemies:
+			if global_position.distance_to(enemy.global_position) < attack_range * 2:
+				if enemy.has_method(\"take_damage\"):
+					enemy.take_damage((attack_damage * 0.5), global_position)
+		
+		can_use_ability = false
+		#$SpecialAbilityCooldownTimer.start(special_ability_cooldown)
+		#animation_player.play(\"special_ability\")
+
+func find_new_target():
+	var enemies = get_tree().get_nodes_in_group(\"enemies\")
+	var closest_enemy = null
+	var closest_distance = INF
+	
+	for enemy in enemies:
+		if is_instance_valid(enemy):
+			var distance = global_position.distance_to(enemy.global_position)
+			if distance < closest_distance and distance < detection_range:
+				closest_distance = distance
+				closest_enemy = enemy
+	
+	target = closest_enemy
+
+func are_enemies_nearby():
+	var enemies = get_tree().get_nodes_in_group(\"enemies\")
+	for enemy in enemies:
+		if is_instance_valid(enemy) and global_position.distance_to(enemy.global_position) < detection_range:
+			return true
+	return false
+
+func is_at_edge():
+	if not is_on_floor():
+		return false
+	
+	# Prüfe, ob vor uns ein Abgrund ist
+	ray_cast_2d.target_position = Vector2(20, 30)
+	ray_cast_2d.force_raycast_update()
+	return not ray_cast_2d.is_colliding()
+
+func update_animations():
+	if is_wall_running:
+		animation_player.play(\"wall_run\")
+	elif not is_on_floor():
+		animation_player.play(\"jump\" if velocity.y < 0 else \"fall\")
+	else:
+		if abs(velocity.x) > 10:
+			animation_player.play(\"run\")
+		else:
+			animation_player.play(\"idle\")
+
+func take_damage(damage: int):
+	health -= damage
+	# Schadensanimation oder -effekt
+	#$DamageAnimationPlayer.play(\"take_damage\")
+	
+	if health <= 0:
+		die()
+
+func die():
+	# Sterbeanimation und Effekte
+	animation_player.play(\"die\")
+	await animation_player.animation_finished
+	queue_free()
+
+func _on_detection_area_body_entered(body):
+	if body.is_in_group(\"enemies\") and target == null:
+		target = body
+
+func _on_detection_area_body_exited(body):
+	if body == target:
+		target = null
+		find_new_target()
+
+func _on_attack_cooldown_timer_timeout():
+	can_attack = true
+
+func _on_special_ability_cooldown_timer_timeout():
+	can_use_ability = true
+"
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_sr26v"]
+radius = 131.0
+height = 394.0
+
+[sub_resource type="Animation" id="Animation_m3exa"]
+resource_name = "attack"
+length = 0.6
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Sprite2D:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.3, 0.6),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 0,
+"values": [2, 5, 8]
+}
+
+[sub_resource type="Animation" id="Animation_hf5ij"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Sprite2D:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [2]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_ty4pi"]
+_data = {
+&"RESET": SubResource("Animation_hf5ij"),
+&"attack": SubResource("Animation_m3exa")
+}
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_sr26v"]
+radius = 322.49
+
+[node name="SlimeMinion" type="CharacterBody2D"]
+scale = Vector2(0.05, 0.05)
+script = SubResource("GDScript_n4hx3")
+speed = 200.0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, 64)
+rotation = 1.5708
+shape = SubResource("CapsuleShape2D_sr26v")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+position = Vector2(2, -16)
+texture = ExtResource("1_sr26v")
+hframes = 5
+vframes = 3
+frame = 2
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+libraries = {
+&"": SubResource("AnimationLibrary_ty4pi")
+}
+
+[node name="AttackCooldownTimer" type="Timer" parent="."]
+
+[node name="DetectionArea" type="Area2D" parent="."]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="DetectionArea"]
+position = Vector2(0, 60)
+shape = SubResource("CircleShape2D_sr26v")
+
+[node name="RayCast2D" type="RayCast2D" parent="."]
+
+[node name="WallDetection" type="RayCast2D" parent="."]
+scale = Vector2(1, 1)
