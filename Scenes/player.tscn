@@ -154,6 +154,13 @@ var inventory = {}  # Ein Dictionary für das Inventar
 var dropped_items = []  # Liste für persistente Speicherung
 var selected_hotbar_index: int = 0  # Standardmäßig der erste Slot
 
+var is_sticky_form_active := false
+var sticky_form_timer := 0.0
+const STICKY_FORM_DURATION := 2.0  # 2 Sekunden Haftzeit
+const STICKY_FORM_COOLDOWN := 5.0  # 5 Sekunden Cooldown
+var sticky_form_cooldown_timer := 0.0
+var has_sticky_form_skill := false
+
 # Timer Nodes
 var dash_timer: Timer
 var dash_cooldown_timer: Timer
@@ -197,6 +204,7 @@ var has_double_jump_skill := false
 var has_wall_run_skill := false
 var has_dash_skill := false
 var has_mana_shield_skill := false
+var has_heal_burst_skill := false
 var player_level := 1
 @onready var skill_tree = $SkillTree
 
@@ -520,6 +528,12 @@ func _physics_process(delta: float) -> void:
 		handle_wall_run(delta)
 		# Animationen aktualisieren
 		update_animations()
+		
+		# Sticky Form Timer aktualisieren
+		handle_sticky_form_timers(delta)
+		
+		# Sticky Form Mechanik anwenden
+		handle_sticky_form_mechanics(delta)
 		
 	# Bewegungseingaben verarbeiten
 	#handle_input()
@@ -1466,6 +1480,10 @@ func _input(event):
 			deactivate_mana_shield()
 		else:
 			activate_mana_shield()
+	if event.is_action_pressed(\"heal\"):
+		perform_heal_burst()
+	if event.is_action_pressed(\"sticky_form\"):  # Diese Action in Input Map hinzufügen
+		perform_sticky_form()
 
 func open_transfer_dialog():
 	var dialog = transfer_dialog_scene.instantiate()
@@ -1741,6 +1759,12 @@ func _on_skill_unlocked(skill_name: String):
 		\"mana_shield\":
 			has_mana_shield_skill = true
 			print(\"Mana Shield Fähigkeit freigeschaltet!\")
+		\"heal_burst\":
+			has_heal_burst_skill = true
+			print(\"Heal Burst Fähigkeit freigeschaltet!\")
+		\"sticky_form\":
+			has_sticky_form_skill = true
+			print(\"Sticky Form freigeschaltet!\")
 	
 	save_skills()  # Speichere die Skills nach dem Freischalten
 
@@ -1779,6 +1803,8 @@ func save_skills():
 		\"has_wall_run_skill\": has_wall_run_skill,
 		\"has_dash_skill\": has_dash_skill,
 		\"has_mana_shield_skill\": has_mana_shield_skill,
+		\"has_heal_burst_skill\": has_heal_burst_skill,
+		\"has_sticky_form_skill\": has_sticky_form_skill,
 		\"player_level\": player_level
 	}
 	
@@ -1802,6 +1828,8 @@ func load_skills():
 	has_wall_run_skill = save_data.get(\"has_wall_run_skill\", false)
 	has_dash_skill = save_data.get(\"has_dash_skill\", false)
 	has_mana_shield_skill = save_data.get(\"has_mana_shield_skill\", false)
+	has_heal_burst_skill = save_data.get(\"has_heal_burst_skill\", false)
+	has_sticky_form_skill = save_data.get(\"has_sticky_form_skill\", false)
 	player_level = save_data.get(\"player_level\", 1)
 	
 	# Aktualisiere die Skills im SkillTree
@@ -1814,6 +1842,7 @@ func load_skills():
 		skill_tree.skills[\"wall_run\"].unlocked = has_wall_run_skill
 		skill_tree.skills[\"dash\"].unlocked = has_dash_skill
 		skill_tree.skills[\"mana_shield\"].unlocked = has_mana_shield_skill
+		skill_tree.skills[\"heal_burst\"].unlocked = has_heal_burst_skill
 		skill_tree.queue_redraw()
 
 func handle_wall_run(delta: float) -> void:
@@ -2115,6 +2144,103 @@ func sync_mana_shield_state(active: bool, health: float):
 	else:
 		shield_sprite.visible = false
 		shield_light.enabled = false
+
+func perform_heal_burst():
+	if !has_heal_burst_skill:
+		return
+	if current_health < 100:
+		heal(max_health/2)
+		update_health_bar()
+
+
+# Neue Funktionen für Sticky Form
+func handle_sticky_form_timers(delta: float):
+	if sticky_form_timer > 0.0:
+		sticky_form_timer -= delta
+		if sticky_form_timer <= 0.0:
+			end_sticky_form()
+	
+	if sticky_form_cooldown_timer > 0.0:
+		sticky_form_cooldown_timer -= delta
+
+func handle_sticky_form_mechanics(delta: float):
+	if is_sticky_form_active and is_on_wall():
+		# Spieler haftet an der Wand - keine Schwerkraft und kein Herunterrutschen
+		velocity.y = 0
+		velocity.x = 0
+		
+		# Sanft an der Wand halten
+		var wall_normal = get_wall_normal()
+		position += wall_normal * -2 * delta  # Leicht von der Wand wegdrücken für bessere Kollision
+
+func perform_sticky_form():
+	if !has_sticky_form_skill:
+		print(\"Sticky Form Fähigkeit nicht freigeschaltet!\")
+		return
+	
+	if sticky_form_cooldown_timer > 0.0:
+		print(\"Sticky Form ist im Cooldown! Noch \", sticky_form_cooldown_timer, \" Sekunden\")
+		return
+	
+	if not is_on_wall():
+		print(\"Kann Sticky Form nur an einer Wand aktivieren!\")
+		return
+	
+	if is_sticky_form_active:
+		end_sticky_form()
+		return
+	
+	start_sticky_form()
+
+func start_sticky_form():
+	is_sticky_form_active = true
+	sticky_form_timer = STICKY_FORM_DURATION
+	sticky_form_cooldown_timer = STICKY_FORM_COOLDOWN
+	
+	# Effekte für Sticky Form Start
+	$Camera2D.shake(0.1, 5)
+	
+	# Visueller Effekt - Spieler wird etwas durchsichtig
+	var tween = create_tween()
+	tween.tween_property($PlayerSprite, \"modulate\", Color(1, 1, 1, 0.7), 0.3)
+	
+	# Soundeffekt
+	# $StickyFormSound.play()
+	
+	print(\"Sticky Form aktiviert! Haftet für \", STICKY_FORM_DURATION, \" Sekunden an der Wand\")
+	
+	# Synchronisiere mit anderen Clients
+	sync_sticky_form_state.rpc(true, STICKY_FORM_DURATION)
+
+func end_sticky_form():
+	if not is_sticky_form_active:
+		return
+	
+	is_sticky_form_active = false
+	
+	# Effekte zurücksetzen
+	var tween = create_tween()
+	tween.tween_property($PlayerSprite, \"modulate\", Color(1, 1, 1, 1), 0.3)
+	
+	print(\"Sticky Form beendet\")
+	
+	# Synchronisiere mit anderen Clients
+	sync_sticky_form_state.rpc(false, 0.0)
+
+# RPC für Synchronisation
+@rpc(\"any_peer\", \"call_local\", \"reliable\")
+func sync_sticky_form_state(active: bool, duration: float):
+	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
+		return
+		
+	is_sticky_form_active = active
+	if active:
+		sticky_form_timer = duration
+		var tween = create_tween()
+		tween.tween_property($PlayerSprite, \"modulate\", Color(1, 1, 1, 0.7), 0.3)
+	else:
+		var tween = create_tween()
+		tween.tween_property($PlayerSprite, \"modulate\", Color(1, 1, 1, 1), 0.3)
 "
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_uwm2o"]

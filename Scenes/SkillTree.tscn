@@ -34,7 +34,6 @@ var scale_factor := 3
 @export var player: CharacterBody2D
 
 # Skill-Definitionen
-# Skill-Definitionen
 var skills = {
 	\"glow\": {
 		\"pos\": Vector2(100, 200) * scale_factor,
@@ -147,18 +146,10 @@ var skills = {
 		\"description\": \"Joey verfestigt kurzzeitig seine schleimige Oberfläche, kann an Decken kleben und schwer erreichbare Orte erforschen.\",
 		\"icon\": null
 	},
-	\"slime_trap\": {
-		\"pos\": Vector2(400, 200) * scale_factor,
-		\"unlocked\": false,
-		\"requires\": [\"sticky_form\"],
-		\"required_levels\": [\"level14\"],
-		\"description\": \"Joey hinterlässt eine klebrige Schleimspur, die Gegner verlangsamt und kampfunfähig macht.\",
-		\"icon\": null
-	},
 	\"slime_minion\": {
 		\"pos\": Vector2(550, 200) * scale_factor,
 		\"unlocked\": false,
-		\"requires\": [\"slime_trap\"],
+		\"requires\": [\"sticky_form\"],
 		\"required_levels\": [\"level18\"],
 		\"description\": \"Joey erschafft einen kleinen Schleimableger, der Gegner attackiert und Joey im Kampf unterstützt.\",
 		\"icon\": null
@@ -207,8 +198,7 @@ var connections = [
 
 	# Utility Strang
 	[\"glow\", \"sticky_form\"],
-	[\"sticky_form\", \"slime_trap\"],
-	[\"slime_trap\", \"slime_minion\"],
+	[\"sticky_form\", \"slime_minion\"],
 	[\"slime_minion\", \"acid_spit\"],
 	[\"slime_minion\", \"slime_wings\"],
 	[\"acid_spit\", \"gravity_slime\"]
