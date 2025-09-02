@@ -6,55 +6,69 @@
 script/source = "extends CharacterBody2D
 
 @export_category(\"Movement Settings\")
-@export var speed: float = 150.0
-@export var acceleration: float = 15.0
-@export var friction: float = 10.0
-@export var jump_velocity: float = -350.0
-@export var wall_jump_force: Vector2 = Vector2(300, -300)
-@export var wall_slide_speed: float = 50.0
+@export var speed: float = 180.0
+@export var acceleration: float = 25.0
+@export var friction: float = 20.0
+@export var jump_velocity: float = -380.0
+@export var wall_jump_force: Vector2 = Vector2(350, -320)
+@export var wall_slide_speed: float = 60.0
+@export var wall_climb_speed: float = 120.0
 
 @export_category(\"Combat Settings\")
-@export var attack_range: float = 80.0
-@export var detection_range: float = 300.0
-@export var attack_damage: int = 15
-@export var attack_cooldown: float = 0.8
-@export var special_ability_cooldown: float = 5.0
+@export var attack_range: float = 40.0  # Muss den Gegner berühren
+@export var detection_range: float = 400.0
+@export var attack_damage: int = 20
+@export var attack_cooldown: float = 0.6
 
 @export_category(\"Advanced Settings\")
-@export var max_health: int = 100
-@export var can_wall_run: bool = true
-@export var can_double_jump: bool = true
-@export var loyalty_distance: float = 400.0
-@export var min_follow_distance: float = 80.0
-@export var max_follow_distance: float = 150.0
+@export var max_health: int = 120
+@export var loyalty_distance: float = 500.0
+@export var min_follow_distance: float = 60.0
+@export var max_follow_distance: float = 120.0
+@export var teleport_cooldown: float = 2.5
+@export var prediction_time: float = 0.3  # Wie weit in die Zukunft schaut der Minion
 
 var gravity = ProjectSettings.get_setting(\"physics/2d/default_gravity\")
 var health: int
 var target: Node2D = null
 var can_attack: bool = true
-var can_use_ability: bool = true
 var has_double_jump: bool = false
-var is_wall_running: bool = false
+var is_wall_climbing: bool = false
 var last_wall_normal: Vector2 = Vector2.ZERO
-var player_last_position: Vector2 = Vector2.ZERO
+var can_teleport: bool = true
+var is_teleporting: bool = false
+var last_known_player_position: Vector2 = Vector2.ZERO
+var player_velocity: Vector2 = Vector2.ZERO
+var obstacle_detection_cooldown: float = 0.0
 
-# Zustandsmaschine für bessere KI
-enum State {IDLE, FOLLOWING, COMBAT, SUPPORT, SPECIAL}
+# Zustandsmaschine für KI
+enum State {IDLE, FOLLOWING, COMBAT, TELEPORTING}
 var current_state: State = State.IDLE
 
 @onready var player: Node2D = get_tree().get_first_node_in_group(\"players\")
 @onready var animation_player: AnimationPlayer = $AnimationPlayer
-@onready var ray_cast_2d: RayCast2D = $RayCast2D
-@onready var detection_area: Area2D = $DetectionArea
-@onready var wall_detection: RayCast2D = $WallDetection
 @onready var attack_cooldown_timer: Timer = $AttackCooldownTimer
+@onready var teleport_cooldown_timer: Timer = $TeleportCooldownTimer
+@onready var sprite: Sprite2D = $Sprite2D
+@onready var front_ray: RayCast2D = $FrontRay
+@onready var floor_ray: RayCast2D = $FloorRay
+@onready var obstacle_ray: RayCast2D = $ObstacleRay
+@onready var detection_area: Area2D = $DetectionArea
 
 func _ready():
 	health = max_health
 	add_to_group(\"minions\")
 	
+	# Timer einrichten
+	attack_cooldown_timer.wait_time = attack_cooldown
+	attack_cooldown_timer.one_shot = true
+	attack_cooldown_timer.connect(\"timeout\", _on_attack_cooldown_timer_timeout)
+	
+	teleport_cooldown_timer.wait_time = teleport_cooldown
+	teleport_cooldown_timer.one_shot = true
+	teleport_cooldown_timer.connect(\"timeout\", _on_teleport_cooldown_timer_timeout)
+	
 	# Detection Area einrichten
-	detection_area.set_collision_mask_value(2, true)  # Enemy layer
 	var collision_shape = CollisionShape2D.new()
 	var circle_shape = CircleShape2D.new()
 	circle_shape.radius = detection_range
@@ -63,21 +77,24 @@ func _ready():
 	
 	detection_area.connect(\"body_entered\", _on_detection_area_body_entered)
 	detection_area.connect(\"body_exited\", _on_detection_area_body_exited)
-	
-	# Attack Cooldown Timer einrichten
-	attack_cooldown_timer.wait_time = attack_cooldown
-	attack_cooldown_timer.one_shot = true
-	attack_cooldown_timer.connect(\"timeout\", _on_attack_cooldown_timer_timeout)
 
 func _physics_process(delta):
 	if not is_instance_valid(player):
 		return
 	
+	# Cooldown aktualisieren
+	if obstacle_detection_cooldown > 0:
+		obstacle_detection_cooldown -= delta
+	
+	# Spielergeschwindigkeit für Vorhersagen verfolgen
+	player_velocity = (player.global_position - last_known_player_position) / delta
+	last_known_player_position = player.global_position
+	
 	# Zustandsmaschine aktualisieren
 	update_state()
 	
-	# Schwerkraft anwenden, wenn nicht an Wand
-	if not is_on_floor() and not is_wall_running:
+	# Schwerkraft anwenden, wenn nicht an Wand oder teleportierend
+	if not is_on_floor() and not is_wall_climbing and not is_teleporting:
 		velocity.y += gravity * delta
 	elif is_on_floor():
 		has_double_jump = true
@@ -90,18 +107,58 @@ func _physics_process(delta):
 			follow_behavior(delta)
 		State.COMBAT:
 			combat_behavior(delta)
-		State.SUPPORT:
-			support_behavior(delta)
-		State.SPECIAL:
-			special_ability_behavior(delta)
+		State.TELEPORTING:
+			teleport_behavior()
 	
 	# Animationen aktualisieren
 	update_animations()
 	
 	move_and_slide()
 	handle_wall_mechanics()
+	handle_wall_climbing()
+
+# Neue Funktion für KI-gesteuertes Wandklettern
+func handle_wall_climbing():
+	if is_on_wall() and not is_on_floor():
+		var wall_normal = get_wall_normal()
+		last_wall_normal = wall_normal
+		
+		# Automatisch Wände hochklettern, wenn der Spieler oben ist
+		if player.global_position.y < global_position.y and abs(wall_normal.x) > 0.8:
+			is_wall_climbing = true
+			velocity.y = -wall_climb_speed
+		else:
+			is_wall_climbing = false
+			# An der Wand rutschen
+			velocity.y = min(velocity.y, wall_slide_speed)
+	else:
+		is_wall_climbing = false
+
+# Überarbeitete handle_wall_mechanics ohne Input-Check
+func handle_wall_mechanics():
+	# Nur für Wand-Sprung-Mechanik verwenden
+	if is_on_wall() and not is_on_floor():
+		var wall_normal = get_wall_normal()
+		last_wall_normal = wall_normal
+		
+		# Von der Wand abspringen, wenn nötig (für KI-Logik)
+		if should_wall_jump():
+			velocity.x = last_wall_normal.x * wall_jump_force.x
+			velocity.y = wall_jump_force.y
+			is_wall_climbing = false
+
+# Hilfsfunktion um zu entscheiden, wann von der Wand gesprungen werden soll
+func should_wall_jump() -> bool:
+	# Einfache Implementierung: Springe nach einer zufälligen Zeit
+	return randf() < 0.01  # 1% Chance pro Frame
 
 func update_state():
+	# Prüfen, ob wir zu weit vom Spieler entfernt sind
+	var distance_to_player = global_position.distance_to(player.global_position)
+	if distance_to_player > loyalty_distance and can_teleport and not is_teleporting:
+		current_state = State.TELEPORTING
+		return
+	
 	# Wenn kein Ziel existiert oder ungültig ist, suche ein neues
 	if target == null or not is_instance_valid(target):
 		find_new_target()
@@ -120,112 +177,154 @@ func update_state():
 	
 	# Wenn wir kein Ziel haben, folge dem Spieler
 	else:
-		var distance_to_player = global_position.distance_to(player.global_position)
-		
 		if distance_to_player > max_follow_distance:
 			current_state = State.FOLLOWING
-			player_last_position = player.global_position
 		else:
 			current_state = State.IDLE
-			
-			# Gelegentlich nach neuen Zielen suchen
-			if randf() < 0.05:  # 5% Chance pro Frame
-				find_new_target()
 
 func idle_behavior(delta):
 	# Sanft zum Stillstand kommen
 	velocity.x = move_toward(velocity.x, 0, friction)
+	
+	# Leicht in Spielerrichtung schauen
+	if abs(player.global_position.x - global_position.x) > 10:
+		sprite.flip_h = player.global_position.x < global_position.x
 
 func follow_behavior(delta):
-	var target_position = player_last_position if target == null else target.global_position
-	var direction = (target_position - global_position).normalized()
+	if is_teleporting:
+		return
 	
-	# Intelligentes Folgen mit Abstandshaltung
-	var distance_to_target = global_position.distance_to(target_position)
-	if distance_to_target > max_follow_distance:
-		# Dem Ziel folgen
-		velocity.x = move_toward(velocity.x, direction.x * speed, acceleration)
-	elif distance_to_target < min_follow_distance:
-		# Abstand halten
-		velocity.x = move_toward(velocity.x, -direction.x * speed * 0.5, acceleration)
-	else:
-		# In Position bleiben
-		velocity.x = move_toward(velocity.x, 0, friction)
+	var target_position = player.global_position
+	if target:
+		target_position = target.global_position
 	
-	# Über Abgründe springen
-	if is_at_edge() and is_on_floor():
-		velocity.y = jump_velocity
+	# Vorhersage, wo der Spieler/Feind in Zukunft sein wird
+	var predicted_position = target_position + player_velocity * prediction_time
+	
+	var direction = (predicted_position - global_position).normalized()
+	
+	# Wenn wir an einer Wand klettern, x-Bewegung anpassen
+	if is_wall_climbing:
+		# In Wandrichtung bewegen
+		direction.x = last_wall_normal.x * -1  # Gegenüberliegende Richtung der Wand
+	
+	# Raycasts aktualisieren
+	update_raycasts(direction)
+	
+	# Hinderniserkennung und Umgehungslogik
+	if obstacle_detection_cooldown <= 0 and (is_obstacle_ahead() or is_cliff_ahead()):
+		# Hindernis umgehen
+		if can_jump_over_obstacle():
+			velocity.y = jump_velocity * 0.8
+		else:
+			# Richtung umkehren und kurz warten
+			direction.x *= -1
+			obstacle_detection_cooldown = 0.5
+	
+	# Bewegung anwenden
+	velocity.x = move_toward(velocity.x, direction.x * speed, acceleration)
+	
+	# Automatisches Springen über kleine Hindernisse
+	if is_on_floor() and is_small_obstacle_ahead() and obstacle_detection_cooldown <= 0:
+		velocity.y = jump_velocity * 0.6
 
 func combat_behavior(delta):
-	if target and is_instance_valid(target):
-		var direction = (target.global_position - global_position).normalized()
-		var distance = global_position.distance_to(target.global_position)
-		
-		if distance <= attack_range:
-			# Angriff durchführen
-			velocity.x = move_toward(velocity.x, 0, friction * 2)
-			try_attack()
-		else:
-			# Zum Ziel bewegen
-			velocity.x = move_toward(velocity.x, direction.x * speed, acceleration)
-		
-		# Spezialfähigkeit einsetzen
-		if can_use_ability and distance < attack_range * 1.5:
-			try_special_ability()
-
-func support_behavior(delta):
-	# Unterstützungsverhalten (kann erweitert werden)
-	# Zum Beispiel: Heiltrank werfen, Schutzschild errichten, etc.
-	pass
-
-func special_ability_behavior(delta):
-	# Spezialfähigkeiten ausführen
-	pass
-
-func handle_wall_mechanics():
-	if can_wall_run and is_on_wall() and not is_on_floor():
-		var wall_normal = get_wall_normal()
-		
-		# Wandlaufen
-		if Input.is_action_pressed(\"move_left\") or Input.is_action_pressed(\"move_right\"):
-			is_wall_running = true
-			velocity.y = clamp(velocity.y, -wall_slide_speed, wall_slide_speed)
-			last_wall_normal = wall_normal
-		else:
-			is_wall_running = false
-		
-		# Wandspringen
-		if Input.is_action_just_pressed(\"jump\"):
-			velocity.x = last_wall_normal.x * wall_jump_force.x
-			velocity.y = wall_jump_force.y
-			is_wall_running = false
-	else:
-		is_wall_running = false
-
-func try_attack():
-	if can_attack and target and is_instance_valid(target):
+	if not target or not is_instance_valid(target):
+		current_state = State.IDLE
+		return
+	
+	# Direkt zum Ziel bewegen für physischen Kontakt
+	var direction = (target.global_position - global_position).normalized()
+	
+	# Wenn wir an einer Wand klettern, x-Bewegung anpassen
+	if is_wall_climbing:
+		# In Wandrichtung bewegen
+		direction.x = last_wall_normal.x * -1  # Gegenüberliegende Richtung der Wand
+	
+	velocity.x = move_toward(velocity.x, direction.x * speed, acceleration)
+	
+	# Nur angreifen, wenn wir den Gegner tatsächlich berühren
+	if can_attack and is_colliding_with_target():
 		attack()
 		can_attack = false
-		attack_cooldown_timer.start(attack_cooldown)
+		attack_cooldown_timer.start()
+
+func update_raycasts(direction: Vector2):
+	# Raycasts in Bewegungsrichtung ausrichten
+	var ray_distance = 50.0
+	
+	# Front-Ray (für Hindernisse)
+	front_ray.target_position = Vector2(direction.x * ray_distance, 0)
+	front_ray.force_raycast_update()
+	
+	# Floor-Ray (für Abgründe)
+	floor_ray.target_position = Vector2(direction.x * ray_distance * 1.5, ray_distance)
+	floor_ray.force_raycast_update()
+	
+	# Obstacle-Ray (für höhere Hindernisse)
+	obstacle_ray.target_position = Vector2(direction.x * ray_distance * 0.8, -ray_distance * 0.7)
+	obstacle_ray.force_raycast_update()
+
+func is_obstacle_ahead() -> bool:
+	return front_ray.is_colliding() and not front_ray.get_collider().is_in_group(\"players\")
+
+func is_cliff_ahead() -> bool:
+	return not floor_ray.is_colliding() and is_on_floor()
+
+func is_small_obstacle_ahead() -> bool:
+	return obstacle_ray.is_colliding() and not obstacle_ray.get_collider().is_in_group(\"players\")
+
+func can_jump_over_obstacle() -> bool:
+	if not is_on_floor():
+		return false
+	
+	# Prüfen, ob das Hindernis überwindbar ist
+	var space_state = get_world_2d().direct_space_state
+	var check_start = global_position + Vector2(front_ray.target_position.x * 0.5, 0)
+	var check_end = check_start + Vector2(0, -120)  # Nach oben prüfen
+	
+	var params = PhysicsRayQueryParameters2D.create(check_start, check_end)
+	var result = space_state.intersect_ray(params)
+	
+	# Wenn kein Hindernis nach oben, kann gesprungen werden
+	return not result
+
+func is_colliding_with_target() -> bool:
+	if not target:
+		return false
+	
+	# Prüft, ob wir mit dem Ziel kollidieren
+	for i in get_slide_collision_count():
+		var collision = get_slide_collision(i)
+		if collision.get_collider() == target:
+			return true
+	return false
+
+func teleport_behavior():
+	if not is_teleporting:
+		is_teleporting = true
+		can_teleport = false
+		
+		# Zum Spieler teleportieren (mit etwas Abstand)
+		var offset = Vector2(randf_range(-20, 20), 0)
+		global_position = player.global_position + offset
+		
+		# Sicherstellen, dass wir auf dem Boden landen
+		var space_state = get_world_2d().direct_space_state
+		var params = PhysicsRayQueryParameters2D.create(global_position, global_position + Vector2(0, 1000))
+		var result = space_state.intersect_ray(params)
+		
+		if result:
+			global_position.y = result.position.y - 10  # Leicht über dem Boden
+		
+		is_teleporting = false
+		teleport_cooldown_timer.start()
+		current_state = State.IDLE
 
 func attack():
-	if target.has_method(\"take_damage\"):
+	if target and target.has_method(\"take_damage\"):
 		target.take_damage(attack_damage, global_position)
 		animation_player.play(\"attack\")
-		# Effekte hier hinzufügen
-
-func try_special_ability():
-	if can_use_ability:
-		# Beispiel für eine Spezialfähigkeit: Bereichsschaden
-		var enemies = get_tree().get_nodes_in_group(\"enemies\")
-		for enemy in enemies:
-			if global_position.distance_to(enemy.global_position) < attack_range * 2:
-				if enemy.has_method(\"take_damage\"):
-					enemy.take_damage((attack_damage * 0.5), global_position)
-		
-		can_use_ability = false
-		#$SpecialAbilityCooldownTimer.start(special_ability_cooldown)
-		#animation_player.play(\"special_ability\")
 
 func find_new_target():
 	var enemies = get_tree().get_nodes_in_group(\"enemies\")
@@ -241,49 +340,34 @@ func find_new_target():
 	
 	target = closest_enemy
 
-func are_enemies_nearby():
-	var enemies = get_tree().get_nodes_in_group(\"enemies\")
-	for enemy in enemies:
-		if is_instance_valid(enemy) and global_position.distance_to(enemy.global_position) < detection_range:
-			return true
-	return false
-
-func is_at_edge():
-	if not is_on_floor():
-		return false
-	
-	# Prüfe, ob vor uns ein Abgrund ist
-	ray_cast_2d.target_position = Vector2(20, 30)
-	ray_cast_2d.force_raycast_update()
-	return not ray_cast_2d.is_colliding()
-
 func update_animations():
-	if is_wall_running:
-		animation_player.play(\"wall_run\")
+	if is_teleporting:
+		animation_player.play(\"teleport\")
+	elif is_wall_climbing:
+		animation_player.play(\"wall_climb\")
 	elif not is_on_floor():
 		animation_player.play(\"jump\" if velocity.y < 0 else \"fall\")
 	else:
 		if abs(velocity.x) > 10:
 			animation_player.play(\"run\")
+			sprite.flip_h = velocity.x < 0
 		else:
 			animation_player.play(\"idle\")
 
 func take_damage(damage: int):
 	health -= damage
-	# Schadensanimation oder -effekt
-	#$DamageAnimationPlayer.play(\"take_damage\")
+	animation_player.play(\"hit\")
 	
 	if health <= 0:
 		die()
 
 func die():
-	# Sterbeanimation und Effekte
 	animation_player.play(\"die\")
 	await animation_player.animation_finished
 	queue_free()
 
 func _on_detection_area_body_entered(body):
-	if body.is_in_group(\"enemies\") and target == null:
+	if body.is_in_group(\"enemies\") and (target == null or not is_instance_valid(target)):
 		target = body
 
 func _on_detection_area_body_exited(body):
@@ -294,13 +378,28 @@ func _on_detection_area_body_exited(body):
 func _on_attack_cooldown_timer_timeout():
 	can_attack = true
 
-func _on_special_ability_cooldown_timer_timeout():
-	can_use_ability = true
+func _on_teleport_cooldown_timer_timeout():
+	can_teleport = true
 "
 
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_sr26v"]
 radius = 131.0
 height = 394.0
+
+[sub_resource type="Animation" id="Animation_hf5ij"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Sprite2D:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [2]
+}
 
 [sub_resource type="Animation" id="Animation_m3exa"]
 resource_name = "attack"
@@ -316,21 +415,6 @@ tracks/0/keys = {
 "transitions": PackedFloat32Array(1, 1, 1),
 "update": 0,
 "values": [2, 5, 8]
-}
-
-[sub_resource type="Animation" id="Animation_hf5ij"]
-length = 0.001
-tracks/0/type = "value"
-tracks/0/imported = false
-tracks/0/enabled = true
-tracks/0/path = NodePath("Sprite2D:frame")
-tracks/0/interp = 1
-tracks/0/loop_wrap = true
-tracks/0/keys = {
-"times": PackedFloat32Array(0),
-"transitions": PackedFloat32Array(1),
-"update": 1,
-"values": [2]
 }
 
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_ty4pi"]
@@ -372,7 +456,13 @@ libraries = {
 position = Vector2(0, 60)
 shape = SubResource("CircleShape2D_sr26v")
 
-[node name="RayCast2D" type="RayCast2D" parent="."]
+[node name="FrontRay" type="RayCast2D" parent="."]
+target_position = Vector2(20, 0)
 
-[node name="WallDetection" type="RayCast2D" parent="."]
-scale = Vector2(1, 1)
+[node name="FloorRay" type="RayCast2D" parent="."]
+target_position = Vector2(30, 10)
+
+[node name="ObstacleRay" type="RayCast2D" parent="."]
+target_position = Vector2(15, -15)
+
+[node name="TeleportCooldownTimer" type="Timer" parent="."]
