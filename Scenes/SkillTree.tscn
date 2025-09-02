@@ -108,7 +108,7 @@ var skills = {
 		\"pos\": Vector2(400, 260) * scale_factor,
 		\"unlocked\": false,
 		\"requires\": [\"regeneration\"],
-		\"required_levels\": [\"level14\"],
+		\"required_levels\": [\"Game\"],
 		\"description\": \"Joey entlädt Heilenergie auf einmal und stellt sofort einen Teil seiner Lebenspunkte wieder her.\",
 		\"icon\": null
 	},
@@ -116,7 +116,7 @@ var skills = {
 		\"pos\": Vector2(550, 340) * scale_factor,
 		\"unlocked\": false,
 		\"requires\": [\"mana_shield\"],
-		\"required_levels\": [\"level17\"],
+		\"required_levels\": [\"Game\"],
 		\"description\": \"Angreifer nehmen Schaden, wenn sie Joey direkt treffen, da seine Schleimhaut spitze Magiepartikel absondert.\",
 		\"icon\": null
 	},
@@ -124,7 +124,7 @@ var skills = {
 		\"pos\": Vector2(700, 300) * scale_factor,
 		\"unlocked\": false,
 		\"requires\": [\"thorns\"],
-		\"required_levels\": [\"level19\"],
+		\"required_levels\": [\"Game\"],
 		\"description\": \"Joey setzt seine uralte Magie frei und entfesselt einen gewaltigen Energiestoß: Alle Gegner erleiden 130 Schaden, während Joey vollständig geheilt wird.\",
 		\"icon\": null
 	},
@@ -142,7 +142,7 @@ var skills = {
 		\"pos\": Vector2(250, 200) * scale_factor,
 		\"unlocked\": false,
 		\"requires\": [\"glow\"],
-		\"required_levels\": [\"level8\"],
+		\"required_levels\": [\"Game\"],
 		\"description\": \"Joey verfestigt kurzzeitig seine schleimige Oberfläche, kann an Decken kleben und schwer erreichbare Orte erforschen.\",
 		\"icon\": null
 	},

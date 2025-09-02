@@ -159,7 +159,6 @@ var sticky_form_timer := 0.0
 const STICKY_FORM_DURATION := 2.0  # 2 Sekunden Haftzeit
 const STICKY_FORM_COOLDOWN := 5.0  # 5 Sekunden Cooldown
 var sticky_form_cooldown_timer := 0.0
-var has_sticky_form_skill := false
 
 # Timer Nodes
 var dash_timer: Timer
@@ -205,6 +204,8 @@ var has_wall_run_skill := false
 var has_dash_skill := false
 var has_mana_shield_skill := false
 var has_heal_burst_skill := false
+var has_sticky_form_skill := false
+var has_thorns_skill := false
 var player_level := 1
 @onready var skill_tree = $SkillTree
 
@@ -1282,6 +1283,22 @@ func take_damage(amount: int, hit_source: Vector2):
 	if !is_multiplayer_authority():
 		return
 	
+	var space_state = get_world_2d().direct_space_state
+	var query = PhysicsPointQueryParameters2D.new()
+	
+	query.position = hit_source
+	query.collide_with_areas = true
+	query.collide_with_bodies = true
+	query.collision_mask = 0xFFFFFF
+	
+	var results = space_state.intersect_point(query)
+	
+	for result in results:
+		if result.collider.is_in_group(\"enemies\") and has_thorns_skill:
+			var return_damage = int(amount * 0.1)
+			result.collider.take_damage(return_damage, global_position)
+			break
+	
 	# Mana-Schild absorbiert Schaden
 	if mana_shield_active and mana_shield_health > 0:
 		var absorbed_damage = min(amount, mana_shield_health)
@@ -1765,6 +1782,9 @@ func _on_skill_unlocked(skill_name: String):
 		\"sticky_form\":
 			has_sticky_form_skill = true
 			print(\"Sticky Form freigeschaltet!\")
+		\"thorns\":
+			has_thorns_skill = true
+			print(\"Thorns freigeschaltet!\")
 	
 	save_skills()  # Speichere die Skills nach dem Freischalten
 
@@ -1805,6 +1825,7 @@ func save_skills():
 		\"has_mana_shield_skill\": has_mana_shield_skill,
 		\"has_heal_burst_skill\": has_heal_burst_skill,
 		\"has_sticky_form_skill\": has_sticky_form_skill,
+		\"has_thorns_skill\": has_thorns_skill,
 		\"player_level\": player_level
 	}
 	
@@ -1830,6 +1851,7 @@ func load_skills():
 	has_mana_shield_skill = save_data.get(\"has_mana_shield_skill\", false)
 	has_heal_burst_skill = save_data.get(\"has_heal_burst_skill\", false)
 	has_sticky_form_skill = save_data.get(\"has_sticky_form_skill\", false)
+	has_thorns_skill = save_data.get(\"has_thorns_skill\", false)
 	player_level = save_data.get(\"player_level\", 1)
 	
 	# Aktualisiere die Skills im SkillTree
@@ -1843,6 +1865,7 @@ func load_skills():
 		skill_tree.skills[\"dash\"].unlocked = has_dash_skill
 		skill_tree.skills[\"mana_shield\"].unlocked = has_mana_shield_skill
 		skill_tree.skills[\"heal_burst\"].unlocked = has_heal_burst_skill
+		skill_tree.skills[\"thorns\"].unlocked = has_thorns_skill
 		skill_tree.queue_redraw()
 
 func handle_wall_run(delta: float) -> void:
