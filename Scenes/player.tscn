@@ -2499,21 +2499,21 @@ _limits = [0.0, 1.0, 0.215328, 1.0]
 _data = [Vector2(0.215328, 0), 0.0, 0.0, 0, 0, Vector2(0.31556, 0.996271), 0.0, 0.0, 0, 0, Vector2(0.716487, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
 point_count = 4
 
-[sub_resource type="CurveTexture" id="CurveTexture_alh3a"]
+[sub_resource type="CurveTexture" id="CurveTexture_y6uwr"]
 curve = SubResource("Curve_0gysh")
 
 [sub_resource type="Curve" id="Curve_vfarp"]
 _data = [Vector2(0, 0.0224719), 0.0, 0.0, 0, 0, Vector2(0.389706, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
 point_count = 3
 
-[sub_resource type="CurveTexture" id="CurveTexture_4q8tf"]
+[sub_resource type="CurveTexture" id="CurveTexture_83xs0"]
 curve = SubResource("Curve_vfarp")
 
 [sub_resource type="Curve" id="Curve_y6uwr"]
 _data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(0.595588, 0.786517), 0.0, 0.0, 0, 0, Vector2(1, 0.393258), 0.0, 0.0, 0, 0]
 point_count = 3
 
-[sub_resource type="CurveTexture" id="CurveTexture_x3xnh"]
+[sub_resource type="CurveTexture" id="CurveTexture_ypfnu"]
 curve = SubResource("Curve_y6uwr")
 
 [sub_resource type="Curve" id="Curve_p1odr"]
@@ -2521,14 +2521,14 @@ _limits = [0.0, 1.02439, 0.0, 1.0]
 _data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(0.445255, 1.02439), 0.0, 0.0, 0, 0, Vector2(0.718978, 0.874479), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
 point_count = 4
 
-[sub_resource type="CurveTexture" id="CurveTexture_0gysh"]
+[sub_resource type="CurveTexture" id="CurveTexture_xuaoq"]
 curve = SubResource("Curve_p1odr")
 
 [sub_resource type="Curve" id="Curve_83xs0"]
 _data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(0.466216, 1), 0.0, 0.0, 0, 0, Vector2(0.662162, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
 point_count = 4
 
-[sub_resource type="CurveTexture" id="CurveTexture_8r6kd"]
+[sub_resource type="CurveTexture" id="CurveTexture_wohnl"]
 curve = SubResource("Curve_83xs0")
 
 [sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_ypfnu"]
@@ -2544,21 +2544,21 @@ orbit_velocity_max = 9.49949e-08
 gravity = Vector3(0, 0, 0)
 scale_min = 0.0
 scale_max = 2.0
-scale_curve = SubResource("CurveTexture_0gysh")
+scale_curve = SubResource("CurveTexture_xuaoq")
 scale_over_velocity_max = 51.72
 color = Color(0.728456, 1, 0.750538, 1)
-alpha_curve = SubResource("CurveTexture_alh3a")
-emission_curve = SubResource("CurveTexture_4q8tf")
+alpha_curve = SubResource("CurveTexture_y6uwr")
+emission_curve = SubResource("CurveTexture_83xs0")
 hue_variation_min = -0.28
 hue_variation_max = 0.12
-hue_variation_curve = SubResource("CurveTexture_x3xnh")
+hue_variation_curve = SubResource("CurveTexture_ypfnu")
 anim_speed_max = 3.13
 turbulence_enabled = true
 turbulence_influence_min = 0.045
 turbulence_influence_max = 0.058
 turbulence_initial_displacement_min = -22.6
 turbulence_initial_displacement_max = 8.4
-turbulence_influence_over_life = SubResource("CurveTexture_8r6kd")
+turbulence_influence_over_life = SubResource("CurveTexture_wohnl")
 collision_mode = 2
 collision_use_scale = true
 
@@ -2719,7 +2719,6 @@ speed_scale = 2.0
 
 [node name="AttackArea" type="Area2D" parent="PlayerSprite/AttackSprite"]
 position = Vector2(-31.4635, 42.9863)
-scale = Vector2(1, 1)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="PlayerSprite/AttackSprite/AttackArea"]
 position = Vector2(102.041, -14.3291)
@@ -2895,7 +2894,6 @@ shape = SubResource("RectangleShape2D_p1odr")
 
 [node name="SkillTreeUI" type="CanvasLayer" parent="."]
 layer = 20
-visible = false
 script = SubResource("GDScript_p1odr")
 
 [node name="SkillTree" parent="SkillTreeUI" node_paths=PackedStringArray("player") instance=ExtResource("26_0gysh")]

@@ -1,4 +1,4 @@
-[gd_scene load_steps=45 format=4 uid="uid://cmdh8rpdo8fb2"]
+[gd_scene load_steps=48 format=4 uid="uid://cmdh8rpdo8fb2"]
 
 [ext_resource type="Texture2D" uid="uid://82opar247kat" path="res://Assets/Tiles/platformertiles.png" id="1_lx4yj"]
 [ext_resource type="Script" uid="uid://hrb3bfkpp2mn" path="res://Scripts/game.gd" id="1_wyx84"]
@@ -25,6 +25,9 @@
 [ext_resource type="PackedScene" uid="uid://dx4m8ks5y31ax" path="res://Scenes/vine.tscn" id="17_4q8tf"]
 [ext_resource type="FontFile" uid="uid://c2wsertwqrai5" path="res://Assets/GUI/Font/PixelatedEleganceRegular-ovyAA.ttf" id="17_x3xnh"]
 [ext_resource type="PackedScene" uid="uid://yj7nu0nlliiq" path="res://Scenes/Spike.tscn" id="18_x3xnh"]
+[ext_resource type="Texture2D" uid="uid://d3trpxb5m1hfl" path="res://Assets/Parallax Cave/3fx.png" id="19_356ba"]
+[ext_resource type="Texture2D" uid="uid://ctudbataan621" path="res://Assets/Parallax Cave/6fx.png" id="21_i4lct"]
+[ext_resource type="Texture2D" uid="uid://kd15waeydj7v" path="res://Assets/Parallax Cave/8fx.png" id="25_iyesh"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_83pvq"]
 texture = ExtResource("1_lx4yj")
@@ -589,6 +592,11 @@ motion_scale = Vector2(0.3, 0)
 texture = ExtResource("5_i0vto")
 centered = false
 
+[node name="Sprite2D2" type="Sprite2D" parent="ParallaxBackground/ParallaxLayer2"]
+modulate = Color(1, 1, 1, 0.082)
+texture = ExtResource("25_iyesh")
+centered = false
+
 [node name="ParallaxLayer3" type="ParallaxLayer" parent="ParallaxBackground"]
 motion_scale = Vector2(0.4, 0)
 
@@ -603,11 +611,21 @@ motion_scale = Vector2(0.5, 0)
 texture = ExtResource("7_356ba")
 centered = false
 
+[node name="Sprite2D2" type="Sprite2D" parent="ParallaxBackground/ParallaxLayer4"]
+modulate = Color(1, 1, 1, 0.079)
+texture = ExtResource("21_i4lct")
+centered = false
+
 [node name="ParallaxLayer5" type="ParallaxLayer" parent="ParallaxBackground"]
 motion_scale = Vector2(0.6, 0)
 
 [node name="Sprite2D" type="Sprite2D" parent="ParallaxBackground/ParallaxLayer5"]
 texture = ExtResource("8_i4lct")
+centered = false
+
+[node name="Sprite2D2" type="Sprite2D" parent="ParallaxBackground/ParallaxLayer5"]
+modulate = Color(1, 1, 1, 0.159)
+texture = ExtResource("19_356ba")
 centered = false
 
 [node name="ParallaxLayer6" type="ParallaxLayer" parent="ParallaxBackground"]
