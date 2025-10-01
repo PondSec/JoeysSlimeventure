@@ -46,6 +46,10 @@ var joystick_output := Vector2.ZERO
 
 var public_key: CryptoKey
 
+const SLIME_WINGS_GLIDE_SPEED = 200.0  # Sehr schnelles horizontales Gleiten
+const SLIME_WINGS_GRAVITY_REDUCTION = 0.08  # Sehr wenig Schwerkraft
+const SLIME_WINGS_MIN_FALL_SPEED = 20.0  # Extrem langsames Fallen
+
 # Bewegungseinstellungen
 const WALK_SPEED = 140.0
 const RUN_SPEED = 220.0
@@ -137,6 +141,7 @@ var is_charging: bool = false
 
 # Variablen für Bewegung und Status
 var is_glowing := true
+var is_gliding := false
 var is_attacking := false  # Angriffszustand
 var was_in_air := false  # Variable, um zu überprüfen, ob der Spieler gerade in der Luft war
 var is_landing := false  # Variable, um die Landeanimation zu verfolgen
@@ -517,6 +522,7 @@ func _physics_process(delta: float) -> void:
 	if is_multiplayer_authority():
 		# Nur der Besitzer des Spielers führt Bewegungscode aus
 		handle_input()
+		handle_slime_wings(delta)
 		move_and_slide()
 		# Synchronisiere Position mit allen
 		update_position.rpc(position, velocity)
@@ -528,7 +534,8 @@ func _physics_process(delta: float) -> void:
 		handle_wall_mechanics(delta)
 		
 		# Schwerkraft anwenden
-		apply_gravity(delta)
+		if not is_gliding:
+			apply_gravity(delta)
 		handle_wall_run(delta)
 		# Animationen aktualisieren
 		update_animations()
@@ -2281,6 +2288,71 @@ func throw_slimeball():
 		if slimeball.has_method(\"throw\"):
 			slimeball.throw(throw_direction * throw_force)
 			print(\"Slimeball geworfen!\")
+
+
+func handle_slime_wings(delta: float) -> void:
+	# Prüfe ob Gleiten möglich ist und aktiviert wird
+	if can_glide() and Input.is_action_pressed(\"up_walk\"):
+		start_gliding()
+	elif is_gliding and (not Input.is_action_pressed(\"up_walk\") or should_end_glide()):
+		end_gliding()
+	
+	# Gleit-Mechanik anwenden (auch wenn bereits gleitend)
+	if is_gliding:
+		apply_glide_physics(delta)
+
+func can_glide() -> bool:
+	# Einfachere Bedingung: Kann gleiten wenn in der Luft und nicht in anderen Aktionen
+	return (not is_on_floor() and 
+			not is_wall_sliding and 
+			not is_dashing and 
+			not is_attacking and 
+			not is_gliding)
+
+func start_gliding() -> void:
+	print(\"GLIDING STARTED!\")
+	is_gliding = true
+	
+	print(\"Slime Wings aktiviert - Gleiten!\")
+	
+	# Synchronisiere mit anderen Clients
+	sync_glide_state.rpc(true)
+
+func end_gliding() -> void:
+	is_gliding = false
+	
+	print(\"Gleiten beendet\")
+	
+	# Synchronisiere mit anderen Clients
+	sync_glide_state.rpc(false)
+
+func apply_glide_physics(delta: float) -> void:
+	# Reduzierte Schwerkraft beim Gleiten
+	velocity.y += GRAVITY * SLIME_WINGS_GRAVITY_REDUCTION * delta
+	
+	# Minimale Fallgeschwindigkeit begrenzen
+	velocity.y = max(velocity.y, SLIME_WINGS_MIN_FALL_SPEED)
+	
+	# Horizontale Kontrolle beim Gleiten
+	var horizontal_input = Input.get_axis(\"left\", \"right\")
+	if horizontal_input != 0:
+		velocity.x = move_toward(
+			velocity.x, 
+			horizontal_input * SLIME_WINGS_GLIDE_SPEED, 
+			AIR_ACCELERATION * delta
+		)
+
+func should_end_glide() -> bool:
+	# Beende Gleiten wenn: am Boden, an der Wand, oder andere Aktionen
+	return is_on_floor() or is_on_wall() or is_dashing or is_attacking
+
+# RPC für Synchronisation des Gleitzustands
+@rpc(\"any_peer\", \"call_local\", \"reliable\")
+func sync_glide_state(gliding: bool):
+	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
+		return
+		
+	is_gliding = gliding
 "
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_uwm2o"]
@@ -2331,7 +2403,7 @@ animations = [{
 }]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_jxxud"]
-size = Vector2(369.351, 264.603)
+size = Vector2(255.101, 255.687)
 
 [sub_resource type="Animation" id="Animation_chcy3"]
 length = 0.001
@@ -2604,22 +2676,6 @@ texture = ExtResource("1_4yq4u")
 hframes = 5
 vframes = 3
 
-[node name="AttackSprite" type="AnimatedSprite2D" parent="PlayerSprite"]
-position = Vector2(-0.000110626, 71.4288)
-scale = Vector2(2.1, 1.994)
-sprite_frames = SubResource("SpriteFrames_sgnk3")
-animation = &"swing"
-frame = 7
-frame_progress = 1.0
-speed_scale = 2.0
-
-[node name="AttackArea" type="Area2D" parent="PlayerSprite/AttackSprite"]
-position = Vector2(-8.10623e-06, 1.38283e-05)
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="PlayerSprite/AttackSprite/AttackArea"]
-scale = Vector2(0.8, 0.8)
-shape = SubResource("RectangleShape2D_jxxud")
-
 [node name="HitParticles" type="CPUParticles2D" parent="PlayerSprite"]
 emitting = false
 amount = 200
@@ -2651,6 +2707,24 @@ offset_right = -7555.47
 offset_bottom = -2288.22
 text = "1"
 metadata/_edit_use_anchors_ = true
+
+[node name="AttackSprite" type="AnimatedSprite2D" parent="PlayerSprite"]
+position = Vector2(85.7144, -14.2861)
+scale = Vector2(2.1, 1.994)
+sprite_frames = SubResource("SpriteFrames_sgnk3")
+animation = &"swing"
+frame = 7
+frame_progress = 1.0
+speed_scale = 2.0
+
+[node name="AttackArea" type="Area2D" parent="PlayerSprite/AttackSprite"]
+position = Vector2(-31.4635, 42.9863)
+scale = Vector2(1, 1)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="PlayerSprite/AttackSprite/AttackArea"]
+position = Vector2(102.041, -14.3291)
+scale = Vector2(0.8, 0.8)
+shape = SubResource("RectangleShape2D_jxxud")
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="."]
 libraries = {
@@ -2694,9 +2768,9 @@ texture_progress = ExtResource("13_d3fsm")
 
 [node name="GameOver" parent="CanvasLayer" instance=ExtResource("16_g18uv")]
 offset_left = 2.0
-offset_top = -13.0
+offset_top = -11.0
 offset_right = 2.0
-offset_bottom = -13.0
+offset_bottom = -11.0
 
 [node name="InvUI" parent="CanvasLayer" instance=ExtResource("15_qbc48")]
 visible = false
@@ -2720,9 +2794,9 @@ custom_minimum_size = Vector2(40, 40)
 layout_mode = 3
 anchors_preset = 0
 offset_left = 665.0
-offset_top = 517.0
+offset_top = 575.0
 offset_right = 705.0
-offset_bottom = 557.0
+offset_bottom = 615.0
 scale = Vector2(4, 4)
 script = ExtResource("17_1u0f7")
 
@@ -2821,6 +2895,7 @@ shape = SubResource("RectangleShape2D_p1odr")
 
 [node name="SkillTreeUI" type="CanvasLayer" parent="."]
 layer = 20
+visible = false
 script = SubResource("GDScript_p1odr")
 
 [node name="SkillTree" parent="SkillTreeUI" node_paths=PackedStringArray("player") instance=ExtResource("26_0gysh")]
