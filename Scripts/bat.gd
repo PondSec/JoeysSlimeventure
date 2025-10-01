@@ -82,9 +82,8 @@ func _ready() -> void:
 	add_to_group("enemies")
 	add_to_group("bats")
 	
-	# Automatisch Player aus der Gruppe finden, falls nicht zugewiesen
-	if player == null:
-		find_player()
+	# Automatisch Target finden (kann Player oder Minion sein)
+	find_target()
 	
 	bat_position = get_random_spawn_position()
 	health_bar.visible = false
@@ -93,13 +92,66 @@ func _ready() -> void:
 	generate_patrol_points()
 	
 	# Verbinde Area-Signale
-	detection_area.body_entered.connect(_on_player_detected)
-	detection_area.body_exited.connect(_on_player_lost)
+	detection_area.body_entered.connect(_on_target_detected)  # Geändert von _on_player_detected
+	detection_area.body_exited.connect(_on_target_lost)       # Geändert von _on_player_lost
 	
 	# AudioStreamPlayer dynamisch erstellen
 	sound_player = AudioStreamPlayer.new()
 	sound_player.name = "SoundPlayer"  # Optional: Name für Debugging
 	add_child(sound_player)  # WICHTIG: Node hinzufügen
+
+func _on_target_detected(body: Node2D) -> void:
+	if body.is_in_group("players") or body.is_in_group("minions"):
+		# Wenn wir noch kein Ziel haben oder das neue Ziel näher ist
+		if player == null or global_position.distance_to(body.global_position) < global_position.distance_to(player.global_position):
+			player = body
+			alert_icon.text = "!"
+			alert_icon.visible = true
+			var alert_tween = create_tween()
+			alert_tween.tween_property(alert_icon, "scale", Vector2(1.5, 1.5), 0.2)
+			alert_tween.tween_property(alert_icon, "scale", Vector2(1.0, 1.0), 0.1)
+			# Nach 1 Sekunde unsichtbar machen
+			await get_tree().create_timer(1.0).timeout
+			if alert_icon.text == "!":  # Nur ausblenden, wenn es noch ein "!" ist
+				alert_icon.visible = false
+
+func _on_target_lost(body: Node2D) -> void:
+	if body == player:
+		# Suche ein neues Ziel in der Nähe
+		var new_target = find_nearest_target()
+		if new_target:
+			player = new_target
+		else:
+			# Ändere das Icon zu einem Fragezeichen
+			alert_icon.text = "?"
+			alert_icon.visible = true
+			
+			# Animation für das Fragezeichen
+			var alert_tween = create_tween()
+			alert_tween.tween_property(alert_icon, "scale", Vector2(1.5, 1.5), 0.2)
+			alert_tween.tween_property(alert_icon, "scale", Vector2(1.0, 1.0), 0.1)
+			
+			# Nach 0.5 Sekunden unsichtbar machen
+			await get_tree().create_timer(0.5).timeout
+			alert_icon.visible = false
+			alert_icon.text = "!"  # Zurück zum Ausrufezeichen für das nächste Mal
+
+func find_nearest_target() -> Node2D:
+	var players = get_tree().get_nodes_in_group("players")
+	var minions = get_tree().get_nodes_in_group("minions")
+	var all_targets = players + minions
+	
+	var nearest_target = null
+	var nearest_distance = INF
+	
+	for target in all_targets:
+		if is_instance_valid(target):
+			var distance = global_position.distance_to(target.global_position)
+			if distance < nearest_distance and distance <= DETECTION_RADIUS:
+				nearest_distance = distance
+				nearest_target = target
+	
+	return nearest_target
 
 func get_loot_table() -> Array:
 	# Lade die InvItem Resources direkt
@@ -121,10 +173,10 @@ func get_loot_table() -> Array:
 	return table
 
 func _physics_process(delta: float) -> void:
-	if player == null:
-		find_player()
-		if player == null:  # Immer noch kein Player gefunden
-			return  # Nichts tun, bis ein Player existiert
+	if player == null or not is_instance_valid(player):
+		find_target()
+		if player == null:  # Immer noch kein Ziel gefunden
+			return  # Nichts tun, bis ein Ziel existiert
 			
 	if normal_hit_streak > 0:
 		streak_timer += delta
@@ -157,7 +209,7 @@ func _physics_process(delta: float) -> void:
 	update_health_bar()
 	update_stealth()
 	
-	if is_stunned or player.current_health <= 0:
+	if is_stunned or (player.has_method("current_health") and player.current_health <= 0):
 		velocity = Vector2.ZERO
 		is_attacking = false
 		set_animation()
@@ -171,16 +223,24 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	set_animation()
 
-func find_player() -> void:
+func find_target() -> void:
 	var players = get_tree().get_nodes_in_group("players")
+	var minions = get_tree().get_nodes_in_group("minions")
+	
+	# Priorität: Zuerst Spieler, dann Minions
 	if players.size() > 0:
 		player = players[0]
+	elif minions.size() > 0:
+		player = minions[0]  # Minion als Ziel setzen
 	else:
-		push_warning("Player nicht gefunden! Stelle sicher, dass der Player in der 'player' Gruppe ist.")
+		push_warning("Kein Ziel gefunden! Weder Player noch Minions in den Gruppen.")
+		player = null
 
 func handle_state_machine(delta: float) -> void:
 	var distance_to_player = global_position.distance_to(player.global_position)
-	var actual_detection_radius = DETECTION_RADIUS if player.is_glowing else BASE_DETECTION_RADIUS
+	var actual_detection_radius = BASE_DETECTION_RADIUS
+	if player.is_in_group("players") and player.is_glowing:
+		actual_detection_radius = DETECTION_RADIUS
 	
 	if bat_health < MAX_HEALTH * 0.3 && can_call_for_help && current_state == "chase":
 		if randf() < CALL_PROBABILITY:  # Zufallsprüfung
@@ -305,14 +365,27 @@ func can_attack() -> bool:
 			and not is_dead 
 			and not is_stunned 
 			and not is_dodging 
+			and is_instance_valid(player)
 			and global_position.distance_to(player.global_position) <= ATTACK_RANGE)
-
+		
 func handle_chase(delta: float, distance: float) -> void:
 	if should_attack:
 		return
-	var actual_detection_radius = DETECTION_RADIUS if player.is_glowing else BASE_DETECTION_RADIUS
 	
-	# Nicht weiter verfolgen, wenn der Spieler außerhalb des Radius ist
+	# Überprüfe ob das Ziel noch gültig ist
+	if not is_instance_valid(player):
+		find_target()
+		if player == null:
+			return
+	
+	var actual_detection_radius = DETECTION_RADIUS
+	# Nur für Spieler Stealth-Mechanik anwenden
+	if player.is_in_group("players") and player.is_glowing:
+		actual_detection_radius = DETECTION_RADIUS
+	else:
+		actual_detection_radius = BASE_DETECTION_RADIUS
+	
+	# Nicht weiter verfolgen, wenn das Ziel außerhalb des Radius ist
 	if distance > actual_detection_radius * 1.2:  # 20% Puffer
 		velocity = Vector2.ZERO
 		decide_next_state()
@@ -331,7 +404,7 @@ func handle_chase(delta: float, distance: float) -> void:
 		velocity = velocity.lerp(target_velocity, delta * 10)  # Glättung hier
 	else:
 		velocity = velocity.lerp(Vector2.ZERO, delta * 10)  # Auch beim Stoppen glätten
-
+	
 func handle_patrol(delta: float) -> void:
 	time_since_last_seen += delta
 	if time_since_last_seen > 3.0 and patrol_points.size() > 0:
@@ -437,7 +510,13 @@ func _on_attack_animation_finished(anim_name: String) -> void:
 			else:
 				show_damage_number(random_damage)
 			
-			player.take_damage(random_damage, global_position)
+			# Unterschiedliche take_damage Aufrufe je nach Zieltyp
+			if player.is_in_group("players"):
+				# Spieler erwartet 2 Argumente
+				player.take_damage(random_damage, global_position)
+			else:
+				# Minion erwartet nur 1 Argument
+				player.take_damage(random_damage)
 	
 	animation_player.disconnect("animation_finished", Callable(self, "_on_attack_animation_finished"))
 	is_attacking = false
