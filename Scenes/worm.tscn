@@ -1,0 +1,115 @@
+[gd_scene load_steps=10 format=3 uid="uid://dqcxhb7h3mjuk"]
+
+[ext_resource type="Script" uid="uid://x2scs7l5ggh" path="res://Scripts/worm.gd" id="1_l5dqu"]
+[ext_resource type="Texture2D" uid="uid://cmvsw4ae6rrxc" path="res://Assets/Enemy/Worm/worm.png" id="2_n80vc"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_x1856"]
+size = Vector2(16, 4.25)
+
+[sub_resource type="Animation" id="Animation_b7lw1"]
+resource_name = "walk"
+length = 0.5
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Sprite2D:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.5),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [0, 3]
+}
+
+[sub_resource type="Animation" id="Animation_jsk0y"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Sprite2D:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [0]
+}
+
+[sub_resource type="Animation" id="Animation_cgdv7"]
+resource_name = "jump"
+length = 0.5
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Sprite2D:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.5),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [4, 9]
+}
+
+[sub_resource type="Animation" id="Animation_wo384"]
+resource_name = "down"
+length = 0.6
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Sprite2D:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.6),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [17, 24]
+}
+
+[sub_resource type="Animation" id="Animation_211br"]
+resource_name = "is_in_body"
+length = 0.7
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Sprite2D:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.7),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [10, 16]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_20thy"]
+_data = {
+&"RESET": SubResource("Animation_jsk0y"),
+&"down": SubResource("Animation_wo384"),
+&"is_in_body": SubResource("Animation_211br"),
+&"jump": SubResource("Animation_cgdv7"),
+&"walk": SubResource("Animation_b7lw1")
+}
+
+[node name="worm" type="CharacterBody2D"]
+script = ExtResource("1_l5dqu")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, -1.875)
+shape = SubResource("RectangleShape2D_x1856")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+position = Vector2(0, -8)
+texture = ExtResource("2_n80vc")
+hframes = 5
+vframes = 5
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+libraries = {
+&"": SubResource("AnimationLibrary_20thy")
+}

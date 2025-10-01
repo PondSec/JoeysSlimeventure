@@ -33,6 +33,9 @@
 resource_name = "Player"
 script/source = "extends CharacterBody2D
 
+signal glow_changed(is_glowing: bool)
+var controls_inverted: bool = false
+
 var touch_controls: CanvasLayer
 var joystick: Control
 var jump_button: Button
@@ -626,14 +629,31 @@ func handle_swimming_input(delta: float) -> void:
 func handle_input():
 	if !is_multiplayer_authority():
 		return
-		
-	# Verwende Touch-Eingabe, wenn aktiv, sonst Tastatureingabe
+	
 	var touch_direction := Vector2.ZERO
 	
 	if joystick_active:
-		touch_direction.x = joystick_output.x
+		var joystick_x = joystick_output.x
+		# INVERTIERE JOYSTICK-EINGABE
+		if controls_inverted:
+			joystick_x = -joystick_x
+		touch_direction.x = joystick_x
 	else:
-		touch_direction.x = Input.get_axis(\"left\", \"right\")
+		var left_input = Input.is_action_pressed(\"left\")
+		var right_input = Input.is_action_pressed(\"right\")
+		
+		# INVERTIERE TASTEN-EINGABE
+		if controls_inverted:
+			left_input = Input.is_action_pressed(\"right\")
+			right_input = Input.is_action_pressed(\"left\")
+		
+		# Verwende die (möglicherweise invertierten) Eingaben
+		if left_input:
+			touch_direction.x = -1
+		elif right_input:
+			touch_direction.x = 1
+		else:
+			touch_direction.x = 0
 	
 	# Nur Eingaben verarbeiten, wenn nicht in Landeanimation
 	if not is_landing:
@@ -1284,9 +1304,14 @@ func update_glow_state() -> void:
 		return
 		
 	glow_effect.visible = is_glowing
-	# Sende Signal über Glow-Statusänderung
+	# EMITTIERE DAS SIGNAL HIER:
+	glow_changed.emit(is_glowing)
 	get_tree().call_group(\"spikes\", \"_on_player_glow_changed\", is_glowing)
-	sync_glow_state.rpc(is_glowing)  # Bereits vorhanden
+	sync_glow_state.rpc(is_glowing)
+
+func set_controls_inverted(inverted: bool):
+	controls_inverted = inverted
+	print(\"Steuerung invertiert: \", inverted)
 
 @rpc(\"any_peer\", \"call_local\", \"reliable\")
 func take_damage(amount: int, hit_source: Vector2):
