@@ -55,6 +55,7 @@ fill_from = Vector2(0.481651, 0.518349)
 fill_to = Vector2(0.146789, 0.169725)
 
 [node name="Torch" type="Sprite2D"]
+visible = false
 position = Vector2(324, 974)
 scale = Vector2(0.3, 0.264)
 texture = ExtResource("1_p3o0k")

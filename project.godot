@@ -244,5 +244,7 @@ throw_slimeball={
 [rendering]
 
 textures/canvas_textures/default_texture_filter=0
+renderer/rendering_method.mobile="forward_plus"
+renderer/rendering_method.web="forward_plus"
 textures/vram_compression/import_etc2_astc=true
 2d/snap/snap_2d_transforms_to_pixel=true
