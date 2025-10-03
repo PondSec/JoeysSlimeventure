@@ -49,7 +49,7 @@ var skills = {
 		\"pos\": Vector2(250, 100) * scale_factor,
 		\"unlocked\": false,
 		\"requires\": [\"glow\"],
-		\"required_levels\": [\"level1\"],
+		\"required_levels\": [\"level0\"],
 		\"description\": \"Mit seiner schleimigen Oberfläche kann Joey an Wänden hinabrutschen und mächtige Wall Jumps ausführen.\",
 		\"icon\": null
 	},

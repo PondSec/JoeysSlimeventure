@@ -2428,7 +2428,7 @@ animations = [{
 }]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_jxxud"]
-size = Vector2(255.101, 255.687)
+size = Vector2(530.398, 223.887)
 
 [sub_resource type="Animation" id="Animation_chcy3"]
 length = 0.001
@@ -2746,7 +2746,7 @@ speed_scale = 2.0
 position = Vector2(-31.4635, 42.9863)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="PlayerSprite/AttackSprite/AttackArea"]
-position = Vector2(102.041, -14.3291)
+position = Vector2(-8.07776, 3.58154)
 scale = Vector2(0.8, 0.8)
 shape = SubResource("RectangleShape2D_jxxud")
 
@@ -2762,8 +2762,8 @@ ignore_rotation = false
 zoom = Vector2(3.5, 3.5)
 limit_left = -14
 limit_top = 500
-limit_right = 3450
-limit_bottom = 1545
+limit_right = 3600
+limit_bottom = 1850
 limit_smoothed = true
 position_smoothing_enabled = true
 editor_draw_limits = true
