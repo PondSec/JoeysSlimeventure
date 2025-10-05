@@ -20,6 +20,7 @@ angular_damp = 2.0
 script = ExtResource("1_8bscm")
 upward_force_min = 100.0
 upward_force_max = 220.0
+lifetime = 10.0
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 scale = Vector2(0.02, 0.02)
