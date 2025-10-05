@@ -119,7 +119,7 @@ func apply_turbulence():
 	apply_torque_impulse(randf_range(-torque_force * 0.1, torque_force * 0.1))
 
 func _on_area_2d_body_entered(body: Node2D) -> void:
-	if body.is_in_group("players") or is_in_group("enemies"):
+	if body.is_in_group("players") or is_in_group("enemies") or is_in_group("minions"):
 		interact_with_player(body)
 
 func interact_with_player(player):

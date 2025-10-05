@@ -22,6 +22,7 @@
 [ext_resource type="PackedScene" uid="uid://yj7nu0nlliiq" path="res://Scenes/Spike.tscn" id="18_x3xnh"]
 [ext_resource type="Texture2D" uid="uid://d3trpxb5m1hfl" path="res://Assets/Parallax Cave/3fx.png" id="19_356ba"]
 [ext_resource type="Texture2D" uid="uid://ctudbataan621" path="res://Assets/Parallax Cave/6fx.png" id="21_i4lct"]
+[ext_resource type="Environment" uid="uid://ckqk2vtkjrjuj" path="res://Resource/enviroment.tres" id="25_8e0uq"]
 [ext_resource type="Texture2D" uid="uid://kd15waeydj7v" path="res://Assets/Parallax Cave/8fx.png" id="25_iyesh"]
 [ext_resource type="PackedScene" uid="uid://dqcxhb7h3mjuk" path="res://Scenes/worm.tscn" id="29_i4lct"]
 
@@ -256,31 +257,6 @@ texture = ExtResource("3_xdlxs")
 navigation_layer_0/layers = 1
 sources/0 = SubResource("TileSetAtlasSource_i4lct")
 
-[sub_resource type="Environment" id="Environment_acvyw"]
-background_mode = 3
-glow_enabled = true
-glow_levels/1 = 0.8
-glow_levels/2 = 0.6
-glow_levels/3 = 0.3
-glow_intensity = 1.1
-glow_bloom = 0.1
-glow_blend_mode = 0
-glow_hdr_threshold = 0.75
-fog_mode = 1
-fog_light_color = Color(0.541176, 0.666667, 0.780392, 1)
-fog_density = 0.02
-fog_height = 592.84
-fog_height_density = 11.7895
-fog_depth_begin = 0.0
-fog_depth_end = 300.0
-volumetric_fog_density = 0.2763
-volumetric_fog_emission_energy = 130.35
-volumetric_fog_length = 371.2
-volumetric_fog_ambient_inject = 1.79
-adjustment_enabled = true
-adjustment_contrast = 1.05
-adjustment_saturation = 1.2
-
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_alh3a"]
 size = Vector2(1680, 259)
 
@@ -442,9 +418,6 @@ visible = false
 
 [node name="HTTPRequest" type="HTTPRequest" parent="."]
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
-environment = SubResource("Environment_acvyw")
-
 [node name="Deko" type="Node2D" parent="."]
 
 [node name="Vine" parent="Deko" instance=ExtResource("17_4q8tf")]
@@ -505,17 +478,14 @@ position = Vector2(167, 982)
 [node name="Vine18" parent="Deko" instance=ExtResource("17_4q8tf")]
 position = Vector2(109, 993)
 rotation = 1.39626
-scale = Vector2(0.02, 0.02)
 
 [node name="Vine19" parent="Deko" instance=ExtResource("17_4q8tf")]
 position = Vector2(132, 988)
 rotation = -1.77675
-scale = Vector2(0.02, 0.02)
 
 [node name="Vine20" parent="Deko" instance=ExtResource("17_4q8tf")]
 position = Vector2(156, 985)
 rotation = 1.39626
-scale = Vector2(0.02, 0.02)
 
 [node name="Vine21" parent="Deko" instance=ExtResource("17_4q8tf")]
 position = Vector2(165, 1005)
@@ -668,5 +638,8 @@ libraries = {
 [node name="worm" parent="." instance=ExtResource("29_i4lct")]
 position = Vector2(110, 945)
 
-[connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_pause_menu_go_to_main_menu"]
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = ExtResource("25_8e0uq")
+
 [connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_canvas_layer_go_to_main_menu"]
+[connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_pause_menu_go_to_main_menu"]

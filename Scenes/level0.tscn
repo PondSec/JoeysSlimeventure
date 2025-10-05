@@ -19,6 +19,7 @@
 [ext_resource type="Texture2D" uid="uid://ctudbataan621" path="res://Assets/Parallax Cave/6fx.png" id="13_p4gcg"]
 [ext_resource type="Texture2D" uid="uid://d3trpxb5m1hfl" path="res://Assets/Parallax Cave/3fx.png" id="15_vvbs8"]
 [ext_resource type="PackedScene" uid="uid://dqykudmd26o2q" path="res://Scenes/bat.tscn" id="19_vvbs8"]
+[ext_resource type="Environment" uid="uid://ckqk2vtkjrjuj" path="res://Resource/enviroment.tres" id="20_cywlo"]
 
 [sub_resource type="GDScript" id="GDScript_y4dr7"]
 script/source = "extends Node2D
@@ -407,31 +408,6 @@ func _process(delta):
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_cywlo"]
 size = Vector2(1480, 843)
 
-[sub_resource type="Environment" id="Environment_vvbs8"]
-background_mode = 3
-glow_enabled = true
-glow_levels/1 = 0.8
-glow_levels/2 = 0.6
-glow_levels/3 = 0.3
-glow_intensity = 1.1
-glow_bloom = 0.1
-glow_blend_mode = 0
-glow_hdr_threshold = 0.75
-fog_mode = 1
-fog_light_color = Color(0.541176, 0.666667, 0.780392, 1)
-fog_density = 0.02
-fog_height = 592.84
-fog_height_density = 11.7895
-fog_depth_begin = 0.0
-fog_depth_end = 300.0
-volumetric_fog_density = 0.2763
-volumetric_fog_emission_energy = 130.35
-volumetric_fog_length = 371.2
-volumetric_fog_ambient_inject = 1.79
-adjustment_enabled = true
-adjustment_contrast = 1.05
-adjustment_saturation = 1.2
-
 [node name="Node2D" type="Node2D"]
 position = Vector2(422, 925)
 script = SubResource("GDScript_y4dr7")
@@ -798,4 +774,4 @@ player = NodePath("../../PlayerModel")
 spawn_zone_container = NodePath("../CollisionShape2D")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
-environment = SubResource("Environment_vvbs8")
+environment = ExtResource("20_cywlo")
