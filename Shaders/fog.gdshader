@@ -1,34 +1,38 @@
 shader_type canvas_item;
 
-uniform sampler2D noise_tex : source_color;
-uniform float speed_x = 0.02;
-uniform float speed_y = 0.01;
-uniform float fog_strength = 0.4;
-uniform vec4 fog_color : source_color = vec4(0.7, 0.8, 1.0, 0.35);
-uniform float contrast = 1.5;
-uniform float brightness = 0.2;
-uniform float scale = 1.0;
+// Die von uns erstellte Rausch-Textur
+uniform sampler2D noise_texture;
+// Geschwindigkeit, mit der sich der Nebel bewegt
+uniform vec2 fog_speed = vec2(10.0, 5.0);
+// Beeinflusst, wie "durchsichtig" oder "undurchsichtig" die Nebelbereiche sind
+uniform float fog_density = 0.5;
+// Die Farbe des Nebels
+uniform vec4 fog_color : source_color = vec4(0.66, 0.75, 0.78, 1.0);
 
+// Diese Funktion wird für jeden Pixel auf dem Bildschirm aufgerufen
 void fragment() {
-    vec2 uv = UV * scale;
-
-    // Zeitabhängige Verschiebung für Bewegung
-    float t = TIME * 0.1;
-    vec2 move = vec2(speed_x * t, speed_y * t);
-
-    // Zwei Noise-Ebenen überlagern für mehr Tiefe
-    float n1 = texture(noise_tex, uv + move).r;
-    float n2 = texture(noise_tex, uv - move * 0.7).r;
-
-    float n = mix(n1, n2, 0.5);
-
-    // Leichte Bewegung durch Sinus (pulsierender Nebel)
-    n += sin(TIME * 0.5 + uv.x * 2.0) * 0.05;
-
-    // Nebelkontrast verstärken
-    n = pow(n, contrast);
-    n = clamp(n + brightness, 0.0, 1.0);
-
-    // Endfarbe mischen
-    COLOR = vec4(fog_color.rgb, fog_color.a * n * fog_strength);
+    // 1. Hole die UV-Koordinaten des aktuellen Pixels.
+    // 2. Bewege sie über die Zeit, um den Nebel "fließen" zu lassen.
+    //    TIME ist eine eingebaute Variable, die ständig zunimmt.
+    vec2 moving_uv = UV + TIME * 0.1 * fog_speed;
+    
+    // 3. Sample (lies) den Rauschwert an der bewegten Position.
+    //    texture() gibt einen Vektor (vec4) zurück, wir nehmen nur den Rot-Kanal (.r),
+    //    da Graustufen-Rauschen in allen Kanälen gleich ist.
+    float noise_value = texture(noise_texture, moving_uv).r;
+    
+    // 4. Modifiziere den Rauschwert, um den Kontrast zu erhöhen.
+    //    Dies macht die hellen Bereiche heller und die dunklen dunkler,
+    //    sodass der Nebel mehr "Löcher" und "Schwaden" hat.
+    noise_value = pow(noise_value, fog_density);
+    
+    // 5. Der finale Alphawert (Durchsichtigkeit) des Nebels an diesem Pixel
+    //    basiert auf dem modifizierten Rauschwert.
+    float final_alpha = noise_value;
+    
+    // 6. Setze die Farbe des Pixels.
+    //    COLOR ist die Ausgabe des Shaders.
+    //    Wir verwenden unsere uniform fog_color, aber multiplizieren den Alpha-Wert
+    //    mit unserem berechneten final_alpha.
+    COLOR = vec4(fog_color.rgb, fog_color.a * final_alpha);
 }

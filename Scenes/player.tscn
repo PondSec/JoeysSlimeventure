@@ -2668,7 +2668,7 @@ func _input(event):
 [node name="PlayerModel" type="CharacterBody2D"]
 position = Vector2(291, 687)
 scale = Vector2(0.07, 0.07)
-collision_mask = 3
+collision_mask = 6
 script = SubResource("GDScript_381hh")
 inv = ExtResource("1_e7ml4")
 slimeball_scene = ExtResource("2_y6uwr")
@@ -2685,7 +2685,7 @@ color = Color(0.586285, 1, 0.540279, 1)
 shadow_filter = 2
 shadow_filter_smooth = 3.0
 texture = SubResource("GradientTexture2D_0gysh")
-texture_scale = 3.0
+texture_scale = 4.0
 
 [node name="ShieldSprite" type="Sprite2D" parent="."]
 visible = false

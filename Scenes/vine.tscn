@@ -1,9 +1,10 @@
-[gd_scene load_steps=6 format=3 uid="uid://dx4m8ks5y31ax"]
+[gd_scene load_steps=7 format=3 uid="uid://dx4m8ks5y31ax"]
 
 [ext_resource type="Texture2D" uid="uid://bboblgeqsyeph" path="res://Assets/Deko/vine.png" id="1_6slj2"]
 [ext_resource type="Shader" uid="uid://cmigwa3spj20f" path="res://Shaders/vine_wobble.gdshader" id="1_krw3f"]
 [ext_resource type="Texture2D" uid="uid://c771vveh0silu" path="res://Assets/Light/light_white.png" id="2_krw3f"]
 [ext_resource type="Script" uid="uid://d20ut34vmtrow" path="res://Scripts/vine.gd" id="3_xaa8b"]
+[ext_resource type="PackedScene" uid="uid://cwx8yutkfra5e" path="res://Scenes/Deko/leaf.tscn" id="4_7m2wk"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_xaa8b"]
 shader = ExtResource("1_krw3f")
@@ -19,6 +20,10 @@ material = SubResource("ShaderMaterial_xaa8b")
 scale = Vector2(0.02, 0.02)
 texture = ExtResource("1_6slj2")
 script = ExtResource("3_xaa8b")
+leaf_scene = ExtResource("4_7m2wk")
+spawn_interval_min = 5.0
+spawn_interval_max = 10.0
+max_leaves = 4
 
 [node name="PointLight2D" type="PointLight2D" parent="."]
 color = Color(0.593189, 1, 0.602958, 1)

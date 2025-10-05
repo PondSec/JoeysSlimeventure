@@ -267,7 +267,7 @@ glow_levels/1 = 0.8
 glow_levels/2 = 0.6
 glow_levels/3 = 0.3
 glow_intensity = 1.1
-glow_bloom = 0.2
+glow_bloom = 0.1
 glow_blend_mode = 0
 glow_hdr_threshold = 0.75
 fog_mode = 1
@@ -713,7 +713,7 @@ libraries = {
 }
 
 [node name="worm" parent="." instance=ExtResource("29_i4lct")]
-position = Vector2(110, 904)
+position = Vector2(110, 945)
 
-[connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_pause_menu_go_to_main_menu"]
 [connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_canvas_layer_go_to_main_menu"]
+[connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_pause_menu_go_to_main_menu"]

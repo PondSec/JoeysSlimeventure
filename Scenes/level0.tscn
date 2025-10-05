@@ -1,4 +1,4 @@
-[gd_scene load_steps=36 format=4 uid="uid://cmdu13w35epv0"]
+[gd_scene load_steps=38 format=4 uid="uid://cmdu13w35epv0"]
 
 [ext_resource type="Texture2D" uid="uid://82opar247kat" path="res://Assets/Tiles/platformertiles.png" id="1_x6kbu"]
 [ext_resource type="PackedScene" uid="uid://c8bjyoq5oxoup" path="res://Scenes/door.tscn" id="2_gdcnv"]
@@ -19,6 +19,7 @@
 [ext_resource type="Texture2D" uid="uid://ctudbataan621" path="res://Assets/Parallax Cave/6fx.png" id="13_p4gcg"]
 [ext_resource type="Texture2D" uid="uid://d3trpxb5m1hfl" path="res://Assets/Parallax Cave/3fx.png" id="15_vvbs8"]
 [ext_resource type="PackedScene" uid="uid://dqykudmd26o2q" path="res://Scenes/bat.tscn" id="19_vvbs8"]
+[ext_resource type="PackedScene" uid="uid://cwx8yutkfra5e" path="res://Scenes/Deko/leaf.tscn" id="20_cywlo"]
 
 [sub_resource type="GDScript" id="GDScript_y4dr7"]
 script/source = "extends Node2D
@@ -240,8 +241,8 @@ texture_region_size = Vector2i(32, 32)
 [sub_resource type="TileSet" id="TileSet_y4dr7"]
 tile_size = Vector2i(32, 32)
 occlusion_layer_0/light_mask = 1
-physics_layer_0/collision_layer = 3
-physics_layer_0/collision_mask = 3
+physics_layer_0/collision_layer = 4
+physics_layer_0/collision_mask = 15
 sources/0 = SubResource("TileSetAtlasSource_lyd6k")
 
 [sub_resource type="NavigationPolygon" id="NavigationPolygon_tk8gs"]
@@ -407,6 +408,31 @@ func _process(delta):
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_cywlo"]
 size = Vector2(1480, 843)
 
+[sub_resource type="Environment" id="Environment_vvbs8"]
+background_mode = 3
+glow_enabled = true
+glow_levels/1 = 0.8
+glow_levels/2 = 0.6
+glow_levels/3 = 0.3
+glow_intensity = 1.1
+glow_bloom = 0.1
+glow_blend_mode = 0
+glow_hdr_threshold = 0.75
+fog_mode = 1
+fog_light_color = Color(0.541176, 0.666667, 0.780392, 1)
+fog_density = 0.02
+fog_height = 592.84
+fog_height_density = 11.7895
+fog_depth_begin = 0.0
+fog_depth_end = 300.0
+volumetric_fog_density = 0.2763
+volumetric_fog_emission_energy = 130.35
+volumetric_fog_length = 371.2
+volumetric_fog_ambient_inject = 1.79
+adjustment_enabled = true
+adjustment_contrast = 1.05
+adjustment_saturation = 1.2
+
 [node name="Node2D" type="Node2D"]
 position = Vector2(422, 925)
 script = SubResource("GDScript_y4dr7")
@@ -554,7 +580,7 @@ tile_set = SubResource("TileSet_cywlo")
 modulate = Color(0, 0, 0, 1)
 self_modulate = Color(0, 0, 0, 1)
 position = Vector2(-14, 10)
-color = Color(0.239216, 0.239216, 0.239216, 1)
+color = Color(0, 0, 0, 1)
 
 [node name="Torch" parent="Level" instance=ExtResource("3_pca0e")]
 position = Vector2(-119, -40)
@@ -732,3 +758,42 @@ shape = SubResource("RectangleShape2D_cywlo")
 position = Vector2(2391, 729)
 player = NodePath("../../PlayerModel")
 spawn_zone_container = NodePath("../CollisionShape2D")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_vvbs8")
+
+[node name="Leaf" parent="." instance=ExtResource("20_cywlo")]
+position = Vector2(30, -9)
+player_force = 100.0
+
+[node name="Leaf2" parent="." instance=ExtResource("20_cywlo")]
+position = Vector2(-8, -22)
+player_force = 100.0
+
+[node name="Leaf3" parent="." instance=ExtResource("20_cywlo")]
+position = Vector2(69, -131)
+player_force = 100.0
+
+[node name="Leaf4" parent="." instance=ExtResource("20_cywlo")]
+position = Vector2(120, -129)
+player_force = 100.0
+
+[node name="Leaf5" parent="." instance=ExtResource("20_cywlo")]
+position = Vector2(44, -154)
+player_force = 100.0
+
+[node name="Leaf6" parent="." instance=ExtResource("20_cywlo")]
+position = Vector2(31, -147)
+player_force = 100.0
+
+[node name="Leaf7" parent="." instance=ExtResource("20_cywlo")]
+position = Vector2(36, -95)
+player_force = 100.0
+
+[node name="Leaf8" parent="." instance=ExtResource("20_cywlo")]
+position = Vector2(116, -148)
+player_force = 100.0
+
+[node name="Leaf9" parent="." instance=ExtResource("20_cywlo")]
+position = Vector2(35, -119)
+player_force = 100.0

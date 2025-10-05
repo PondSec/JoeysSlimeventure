@@ -1,0 +1,45 @@
+[gd_scene load_steps=5 format=3 uid="uid://cwx8yutkfra5e"]
+
+[ext_resource type="Script" uid="uid://0e0fyo7rxppu" path="res://Scripts/Deko/leaf.gd" id="1_8bscm"]
+[ext_resource type="Texture2D" uid="uid://vt0lb54tcg8y" path="res://Assets/Deko/leaf.png" id="1_8l2th"]
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_8bscm"]
+radius = 5.25853
+height = 24.8277
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_8bscm"]
+radius = 4.0
+
+[node name="Leaf" type="RigidBody2D"]
+collision_layer = 8
+collision_mask = 7
+gravity_scale = 0.1
+can_sleep = false
+linear_damp = 1.0
+angular_damp = 2.0
+script = ExtResource("1_8bscm")
+player_force = 20.0
+torque_force = 20.0
+upward_force_min = 10.0
+upward_force_max = 50.0
+wind_force_min = 2.0
+wind_force_max = 5.0
+turbulence_force = 2.0
+direction_change_time = 0.1
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+scale = Vector2(0.02, 0.02)
+texture = ExtResource("1_8l2th")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(-0.5, 0)
+rotation = 0.760964
+scale = Vector2(0.2, 0.2)
+shape = SubResource("CapsuleShape2D_8bscm")
+
+[node name="Area2D" type="Area2D" parent="."]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Area2D"]
+shape = SubResource("CircleShape2D_8bscm")
+
+[connection signal="body_entered" from="Area2D" to="." method="_on_area_2d_body_entered"]
