@@ -98,6 +98,7 @@ _data = {
 
 [node name="worm" type="CharacterBody2D"]
 script = ExtResource("1_l5dqu")
+spawn_chance = 0.4
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 position = Vector2(0, -1.875)
