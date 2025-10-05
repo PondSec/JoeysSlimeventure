@@ -20,6 +20,7 @@ config/icon="uid://rxhajrw8d7m7"
 
 GameManager="*res://Scripts/GameManager.gd"
 Inventory="*res://Scripts/inventory.gd"
+WindController="*res://Scripts/WindController.gd"
 
 [display]
 

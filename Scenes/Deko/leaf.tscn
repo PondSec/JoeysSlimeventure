@@ -12,20 +12,14 @@ radius = 12.0416
 
 [node name="Leaf" type="RigidBody2D"]
 collision_layer = 8
-collision_mask = 7
+collision_mask = 6
 gravity_scale = 0.1
 can_sleep = false
 linear_damp = 1.0
 angular_damp = 2.0
 script = ExtResource("1_8bscm")
-player_force = 35.0
-torque_force = 50.0
-upward_force_min = 8.0
-upward_force_max = 60.0
-wind_force_min = 2.0
-wind_force_max = 15.0
-turbulence_force = 4.0
-direction_change_time = 0.5
+upward_force_min = 100.0
+upward_force_max = 220.0
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 scale = Vector2(0.02, 0.02)
