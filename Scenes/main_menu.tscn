@@ -33,38 +33,13 @@ var message_timer: Timer
 @onready var pact_notes: Label = $PatchNotes
 @onready var volume_slider: HSlider = $SettingsPanel/VBoxContainer/VolumeSlider
 
-# ---------------------------------------------------
-# 🔒 Hash & ID-Funktionen
-# ---------------------------------------------------
-func get_signature(player_id: String) -> String:
-	var ctx := HashingContext.new()
-	ctx.start(HashingContext.HASH_SHA256)
-	ctx.update(player_id.to_utf8_buffer() + SECRET_SALT.to_utf8_buffer())
-	var hash: PackedByteArray = ctx.finish()
-	return hash.hex_encode()
-
-func save_player_id(player_id: String) -> void:
-	var sig = get_signature(player_id)
-	var file = FileAccess.open(PLAYER_ID_PATH, FileAccess.WRITE)
-	if file:
-		file.store_line(player_id)
-		file.store_line(sig)
-		file.close()
-
-func load_or_create_player_id() -> String:
-	if FileAccess.file_exists(PLAYER_ID_PATH):
-		var file = FileAccess.open(PLAYER_ID_PATH, FileAccess.READ)
-		if file:
-			var player_id = file.get_line().strip_edges()
-			var sig = file.get_line().strip_edges()
-			file.close()
-			if sig == get_signature(player_id):
-				return player_id
-			else:
-				push_warning(\"⚠ Manipulierte Player-ID entdeckt → neue ID wird generiert.\")
-	var new_id = OS.get_unique_id()
-	save_player_id(new_id)
-	return new_id
+# Dauer in Sekunden für jede Priorität
+const DISPLAY_DURATION = {
+	\"low\": 4.0,      # Tips, Info
+	\"normal\": 6.0,   # Events, Patches
+	\"high\": 8.0,     # Warnings
+	\"critical\": 0.0  # Bleibt bis geklickt (0 = unendlich)
+}
 
 # ---------------------------------------------------
 # 🎬 Lebenszyklus
@@ -153,6 +128,11 @@ func _on_game_messages_request_completed(result: int, response_code: int, header
 # 📢 Mehrere Toast-Nachrichten gleichzeitig
 # ---------------------------------------------------
 func display_game_messages(messages: Array) -> void:
+	# Nach Priorität sortieren (critical zuerst)
+	messages.sort_custom(func(a, b): 
+		return get_priority_value(a.get(\"priority\", \"normal\")) > get_priority_value(b.get(\"priority\", \"normal\"))
+	)
+	
 	for message in messages:
 		show_toast(message)
 
@@ -160,34 +140,42 @@ func show_toast(message: Dictionary) -> void:
 	var toast = create_toast(message)
 	game_messages_container.add_child(toast)
 
-	# Fade-in Animation
+	# Animation einblenden
 	toast.modulate = Color(1, 1, 1, 0)
 	toast.scale = Vector2(0.9, 0.9)
 	var tween = create_tween()
 	tween.tween_property(toast, \"modulate:a\", 1.0, 0.3).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	tween.parallel().tween_property(toast, \"scale\", Vector2(1, 1), 0.3).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 
-	# Nach 5 Sekunden wieder ausblenden
-	tween.tween_interval(5.0)
-	tween.tween_property(toast, \"modulate:a\", 0.0, 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	tween.parallel().tween_property(toast, \"scale\", Vector2(0.95, 0.95), 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	tween.tween_callback(func():
-		if is_instance_valid(toast):
-			toast.queue_free()
-	)
+	# Dauer basierend auf Priorität
+	var priority = message.get(\"priority\", \"normal\")
+	var duration = DISPLAY_DURATION.get(priority, 6.0)
+	
+	if duration > 0:  # Automatisch ausblenden
+		tween.tween_interval(duration)
+		tween.tween_property(toast, \"modulate:a\", 0.0, 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+		tween.parallel().tween_property(toast, \"scale\", Vector2(0.95, 0.95), 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+		tween.tween_callback(func():
+			if is_instance_valid(toast):
+				toast.queue_free()
+		)
+	# critical (duration = 0) bleibt bis geklickt
 
 # ---------------------------------------------------
-# 💬 Toast erstellen
+# 💬 Toast erstellen (mit Close-Button)
 # ---------------------------------------------------
 func create_toast(message: Dictionary) -> PanelContainer:
 	var toast = PanelContainer.new()
-	toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	toast.mouse_filter = Control.MOUSE_FILTER_STOP
 	toast.custom_minimum_size = Vector2(420, 0)
+	
+	var message_type = message.get(\"type\", \"info\")
+	var priority = message.get(\"priority\", \"normal\")
 
 	var style = StyleBoxFlat.new()
 	style.set_border_width_all(2)
-	style.border_color = get_message_border_color(message.get(\"type\", \"info\"))
-	style.bg_color = get_message_color(message.get(\"type\", \"info\"))
+	style.border_color = get_message_border_color(message_type)
+	style.bg_color = get_message_color(message_type)
 	style.corner_radius_top_left = 12
 	style.corner_radius_top_right = 12
 	style.corner_radius_bottom_left = 12
@@ -196,28 +184,90 @@ func create_toast(message: Dictionary) -> PanelContainer:
 	style.shadow_color = Color(0, 0, 0, 0.4)
 	toast.add_theme_stylebox_override(\"panel\", style)
 
+	# Haupt-Container
+	var hbox = HBoxContainer.new()
+	hbox.add_theme_constant_override(\"separation\", 8)
+	hbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
 	var vbox = VBoxContainer.new()
 	vbox.add_theme_constant_override(\"separation\", 4)
 	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
-	var title = Label.new()
-	title.text = get_message_icon(message.get(\"type\", \"info\")) + \" \" + str(message.get(\"title\", \"\"))
-	title.add_theme_font_size_override(\"font_size\", 16)
-	title.add_theme_color_override(\"font_color\", Color.WHITE)
+	# Titelzeile mit Icon und Close-Button
+	var title_hbox = HBoxContainer.new()
+	title_hbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
-	var text = Label.new()
-	text.text = message.get(\"text\", \"\")
-	text.autowrap_mode = TextServer.AUTOWRAP_WORD
-	text.add_theme_font_size_override(\"font_size\", 13)
-	text.add_theme_color_override(\"font_color\", Color(1, 1, 1, 0.9))
+	var title_label = Label.new()
+	var custom_title = message.get(\"title\", \"\")
+	
+	if custom_title != \"\":
+		title_label.text = get_message_icon(message_type) + \" \" + custom_title
+	else:
+		title_label.text = get_message_icon(message_type) + \" \" + get_default_title(message_type)
+	
+	title_label.add_theme_font_size_override(\"font_size\", 16)
+	title_label.add_theme_color_override(\"font_color\", Color.WHITE)
+	title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
-	vbox.add_child(title)
-	vbox.add_child(text)
-	toast.add_child(vbox)
+	# Close-Button für alle Toasts
+	var close_button = Button.new()
+	close_button.text = \"×\"
+	close_button.add_theme_font_size_override(\"font_size\", 18)
+	close_button.add_theme_color_override(\"font_color\", Color.WHITE)
+	close_button.flat = true
+	close_button.custom_minimum_size = Vector2(24, 24)
+	close_button.pressed.connect(func(): 
+		if is_instance_valid(toast):
+			animate_toast_removal(toast)
+	)
+
+	title_hbox.add_child(title_label)
+	title_hbox.add_child(close_button)
+
+	# Nachrichtentext
+	var text_label = Label.new()
+	text_label.text = message.get(\"text\", \"\")
+	text_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+	text_label.add_theme_font_size_override(\"font_size\", 13)
+	text_label.add_theme_color_override(\"font_color\", Color(1, 1, 1, 0.9))
+
+	# Prioritäts-Badge bei critical/high
+	if priority in [\"critical\", \"high\"]:
+		var priority_badge = Label.new()
+		priority_badge.text = get_priority_badge(priority)
+		priority_badge.add_theme_font_size_override(\"font_size\", 11)
+		priority_badge.add_theme_color_override(\"font_color\", get_priority_color(priority))
+		vbox.add_child(priority_badge)
+
+	vbox.add_child(title_hbox)
+	vbox.add_child(text_label)
+	hbox.add_child(vbox)
+	toast.add_child(hbox)
+
+	# Hover-Effekt: Pausiere Timer bei Hover
+	toast.mouse_entered.connect(func(): 
+		if toast.has_meta(\"tween\") and toast.get_meta(\"tween\"):
+			toast.get_meta(\"tween\").pause()
+	)
+	
+	toast.mouse_exited.connect(func(): 
+		if toast.has_meta(\"tween\") and toast.get_meta(\"tween\"):
+			toast.get_meta(\"tween\").play()
+	)
+
 	return toast
 
+func animate_toast_removal(toast: PanelContainer) -> void:
+	var tween = create_tween()
+	tween.tween_property(toast, \"modulate:a\", 0.0, 0.3).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tween.parallel().tween_property(toast, \"scale\", Vector2(0.95, 0.95), 0.3).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tween.tween_callback(func():
+		if is_instance_valid(toast):
+			toast.queue_free()
+	)
+
 # ---------------------------------------------------
-# 🎨 Farben & Icons
+# 🎨 Farben, Icons, Titel & Prioritäten
 # ---------------------------------------------------
 func get_message_icon(message_type: String) -> String:
 	match message_type:
@@ -228,6 +278,36 @@ func get_message_icon(message_type: String) -> String:
 		\"warning\": return \"⚠️\"
 		\"love\": return \"❤️\"
 		_: return \"📢\"
+
+func get_default_title(message_type: String) -> String:
+	match message_type:
+		\"info\": return \"Information\"
+		\"tip\": return \"Tipp des Tages\"
+		\"event\": return \"Aktuelles Event\"
+		\"patch\": return \"Patch Notes\"
+		\"warning\": return \"Wichtiger Hinweis\"
+		\"love\": return \"Von den Entwicklern\"
+		_: return \"Nachricht\"
+
+func get_priority_value(priority: String) -> int:
+	match priority:
+		\"critical\": return 4
+		\"high\": return 3
+		\"normal\": return 2
+		\"low\": return 1
+		_: return 2
+
+func get_priority_badge(priority: String) -> String:
+	match priority:
+		\"critical\": return \"🚨 DRINGEND\"
+		\"high\": return \"⚠️ WICHTIG\"
+		_: return \"\"
+
+func get_priority_color(priority: String) -> Color:
+	match priority:
+		\"critical\": return Color(1.0, 0.3, 0.3)
+		\"high\": return Color(1.0, 0.8, 0.3)
+		_: return Color.WHITE
 
 func get_message_color(message_type: String) -> Color:
 	match message_type:
@@ -250,7 +330,7 @@ func get_message_border_color(message_type: String) -> Color:
 		_: return Color(0.2, 0.8, 1.0)
 
 # ---------------------------------------------------
-# ⚙️ Settings
+# ⚙️ Settings (unverändert)
 # ---------------------------------------------------
 func load_settings() -> void:
 	if config.load(CONFIG_PATH) != OK:
@@ -277,7 +357,7 @@ func set_resolution(index: int) -> void:
 		DisplayServer.window_set_size(resolutions[index])
 
 # ---------------------------------------------------
-# 🔊 Lautstärke
+# 🔊 Lautstärke & Buttons (unverändert)
 # ---------------------------------------------------
 func _on_volume_slider_value_changed(value: float) -> void:
 	var db_value = linear_to_db(value)
@@ -285,12 +365,8 @@ func _on_volume_slider_value_changed(value: float) -> void:
 	config.set_value(\"audio\", \"volume\", db_value)
 	config.save(CONFIG_PATH)
 
-# ---------------------------------------------------
-# 🔘 Buttons
-# ---------------------------------------------------
 func _on_play_button_pressed() -> void:
 	var level_scene_path = \"res://Scenes/Game.tscn\"
-	# Falls du ein gespeichertes Level hast, lade es
 	var level_resource = load(\"user://current_level.res\")
 	if level_resource and level_resource.has_method(\"get\"):
 		level_scene_path = level_resource.unlocked_level
@@ -326,6 +402,39 @@ func change_scene(scene_path: String) -> void:
 		get_tree().current_scene.queue_free()
 	get_tree().root.add_child(scene_instance)
 	get_tree().current_scene = scene_instance
+
+# ---------------------------------------------------
+# 🔒 Hash & ID-Funktionen (unverändert)
+# ---------------------------------------------------
+func get_signature(player_id: String) -> String:
+	var ctx := HashingContext.new()
+	ctx.start(HashingContext.HASH_SHA256)
+	ctx.update(player_id.to_utf8_buffer() + SECRET_SALT.to_utf8_buffer())
+	var hash: PackedByteArray = ctx.finish()
+	return hash.hex_encode()
+
+func save_player_id(player_id: String) -> void:
+	var sig = get_signature(player_id)
+	var file = FileAccess.open(PLAYER_ID_PATH, FileAccess.WRITE)
+	if file:
+		file.store_line(player_id)
+		file.store_line(sig)
+		file.close()
+
+func load_or_create_player_id() -> String:
+	if FileAccess.file_exists(PLAYER_ID_PATH):
+		var file = FileAccess.open(PLAYER_ID_PATH, FileAccess.READ)
+		if file:
+			var player_id = file.get_line().strip_edges()
+			var sig = file.get_line().strip_edges()
+			file.close()
+			if sig == get_signature(player_id):
+				return player_id
+			else:
+				push_warning(\"⚠ Manipulierte Player-ID entdeckt → neue ID wird generiert.\")
+	var new_id = OS.get_unique_id()
+	save_player_id(new_id)
+	return new_id
 "
 
 [sub_resource type="Animation" id="Animation_jnf7q"]
