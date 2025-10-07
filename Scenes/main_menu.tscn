@@ -22,14 +22,15 @@ script/source = "extends Control
 
 const CONFIG_PATH = \"user://settings.cfg\"
 const PLAYER_ID_PATH = \"user://player_id.save\"
-const SECRET_SALT = \"X7!d9$#_MySaltHere_2025\"  # geheim, für Signatur
-var config := ConfigFile.new()
+const SECRET_SALT = \"X7!d9$#_MySaltHere_2025\"
 
-# Neue Referenzen für Multiplayer-Elemente
+var config := ConfigFile.new()
+var game_messages_container: VBoxContainer
+var message_timer: Timer
+
 @onready var ip_input: LineEdit = $MultiPlayer/VBoxContainer/IPInput
 @onready var port_input: LineEdit = $MultiPlayer/VBoxContainer/PortInput
-
-# Referenz zum Lautstärke-Slider hinzufügen
+@onready var pact_notes: Label = $PatchNotes
 @onready var volume_slider: HSlider = $SettingsPanel/VBoxContainer/VolumeSlider
 
 # ---------------------------------------------------
@@ -57,12 +58,10 @@ func load_or_create_player_id() -> String:
 			var player_id = file.get_line().strip_edges()
 			var sig = file.get_line().strip_edges()
 			file.close()
-
 			if sig == get_signature(player_id):
 				return player_id
 			else:
 				push_warning(\"⚠ Manipulierte Player-ID entdeckt → neue ID wird generiert.\")
-	# Falls keine Datei existiert oder sie manipuliert ist → neue ID
 	var new_id = OS.get_unique_id()
 	save_player_id(new_id)
 	return new_id
@@ -71,36 +70,197 @@ func load_or_create_player_id() -> String:
 # 🎬 Lebenszyklus
 # ---------------------------------------------------
 func _ready() -> void:
-	$BackgroundSprite/AnimationPlayer.play(\"loop\")  
-	load_settings()  
+	$BackgroundSprite/AnimationPlayer.play(\"loop\")
+	load_settings()
 	set_uuid_label()
-	
-	# Initialisiere Multiplayer-UI (optional ausblenden)
-	#$VBoxContainer.visible = false
+	create_game_messages_ui()
+	fetch_game_messages()
 
 func set_uuid_label() -> void:
 	var player_id = load_or_create_player_id()
 	$UUID.text = \"UUID: \" + player_id
 
 # ---------------------------------------------------
-# ⚙️ Settings laden
+# 🆕 Game Messages Funktionen
+# ---------------------------------------------------
+func create_game_messages_ui() -> void:
+	game_messages_container = VBoxContainer.new()
+	game_messages_container.name = \"ToastsContainer\"
+
+	game_messages_container.anchor_left = 1.0
+	game_messages_container.anchor_top = 1.0
+	game_messages_container.anchor_right = 1.0
+	game_messages_container.anchor_bottom = 1.0
+	game_messages_container.offset_right = -30
+	game_messages_container.offset_bottom = -30
+	game_messages_container.offset_left = -430
+	game_messages_container.offset_top = -500
+
+	game_messages_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	game_messages_container.alignment = BoxContainer.ALIGNMENT_END
+	game_messages_container.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	game_messages_container.size_flags_vertical = Control.SIZE_SHRINK_END
+	game_messages_container.custom_minimum_size = Vector2(400, 0)
+
+	add_child(game_messages_container)
+
+	message_timer = Timer.new()
+	message_timer.name = \"MessageTimer\"
+	message_timer.wait_time = 300.0
+	message_timer.autostart = true
+	message_timer.timeout.connect(fetch_game_messages)
+	add_child(message_timer)
+
+	print(\"✅ Toast UI unten rechts erstellt\")
+
+# ---------------------------------------------------
+# 🔁 Game Messages abrufen
+# ---------------------------------------------------
+func fetch_game_messages() -> void:
+	var http_request = HTTPRequest.new()
+	add_child(http_request)
+	http_request.request_completed.connect(_on_game_messages_request_completed.bind(http_request))
+
+	var url = \"https://api.joeysslimeventure.com/api/game-messages\"
+	var error = http_request.request(url)
+	if error != OK:
+		push_error(\"Fehler beim Abrufen der Game Messages: \" + str(error))
+	else:
+		print(\"🔄 Game Messages werden abgerufen von: \" + url)
+
+func _on_game_messages_request_completed(result: int, response_code: int, headers: PackedStringArray, body: PackedByteArray, http_request: HTTPRequest) -> void:
+	http_request.queue_free()
+	if result != HTTPRequest.RESULT_SUCCESS:
+		push_error(\"HTTP Request fehlgeschlagen: \" + str(result))
+		return
+	if response_code != 200:
+		push_error(\"Server Fehler: \" + str(response_code))
+		return
+
+	var json = JSON.new()
+	var parse_result = json.parse(body.get_string_from_utf8())
+	if parse_result != OK:
+		push_error(\"JSON Parse Fehler: \" + str(parse_result))
+		return
+
+	var response = json.get_data()
+	if response and response.has(\"messages\"):
+		display_game_messages(response[\"messages\"])
+	else:
+		print(\"❌ Keine Nachrichten erhalten oder ungültige Antwort\")
+
+# ---------------------------------------------------
+# 📢 Mehrere Toast-Nachrichten gleichzeitig
+# ---------------------------------------------------
+func display_game_messages(messages: Array) -> void:
+	for message in messages:
+		show_toast(message)
+
+func show_toast(message: Dictionary) -> void:
+	var toast = create_toast(message)
+	game_messages_container.add_child(toast)
+
+	# Fade-in Animation
+	toast.modulate = Color(1, 1, 1, 0)
+	toast.scale = Vector2(0.9, 0.9)
+	var tween = create_tween()
+	tween.tween_property(toast, \"modulate:a\", 1.0, 0.3).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tween.parallel().tween_property(toast, \"scale\", Vector2(1, 1), 0.3).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+
+	# Nach 5 Sekunden wieder ausblenden
+	tween.tween_interval(5.0)
+	tween.tween_property(toast, \"modulate:a\", 0.0, 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tween.parallel().tween_property(toast, \"scale\", Vector2(0.95, 0.95), 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tween.tween_callback(func():
+		if is_instance_valid(toast):
+			toast.queue_free()
+	)
+
+# ---------------------------------------------------
+# 💬 Toast erstellen
+# ---------------------------------------------------
+func create_toast(message: Dictionary) -> PanelContainer:
+	var toast = PanelContainer.new()
+	toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	toast.custom_minimum_size = Vector2(420, 0)
+
+	var style = StyleBoxFlat.new()
+	style.set_border_width_all(2)
+	style.border_color = get_message_border_color(message.get(\"type\", \"info\"))
+	style.bg_color = get_message_color(message.get(\"type\", \"info\"))
+	style.corner_radius_top_left = 12
+	style.corner_radius_top_right = 12
+	style.corner_radius_bottom_left = 12
+	style.corner_radius_bottom_right = 12
+	style.shadow_size = 6
+	style.shadow_color = Color(0, 0, 0, 0.4)
+	toast.add_theme_stylebox_override(\"panel\", style)
+
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override(\"separation\", 4)
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var title = Label.new()
+	title.text = get_message_icon(message.get(\"type\", \"info\")) + \" \" + str(message.get(\"title\", \"\"))
+	title.add_theme_font_size_override(\"font_size\", 16)
+	title.add_theme_color_override(\"font_color\", Color.WHITE)
+
+	var text = Label.new()
+	text.text = message.get(\"text\", \"\")
+	text.autowrap_mode = TextServer.AUTOWRAP_WORD
+	text.add_theme_font_size_override(\"font_size\", 13)
+	text.add_theme_color_override(\"font_color\", Color(1, 1, 1, 0.9))
+
+	vbox.add_child(title)
+	vbox.add_child(text)
+	toast.add_child(vbox)
+	return toast
+
+# ---------------------------------------------------
+# 🎨 Farben & Icons
+# ---------------------------------------------------
+func get_message_icon(message_type: String) -> String:
+	match message_type:
+		\"info\": return \"💡\"
+		\"tip\": return \"✨\"
+		\"event\": return \"🎉\"
+		\"patch\": return \"🔧\"
+		\"warning\": return \"⚠️\"
+		\"love\": return \"❤️\"
+		_: return \"📢\"
+
+func get_message_color(message_type: String) -> Color:
+	match message_type:
+		\"info\": return Color(0.1, 0.2, 0.4, 0.9)
+		\"tip\": return Color(0.0, 0.3, 0.2, 0.9)
+		\"event\": return Color(0.3, 0.2, 0.0, 0.9)
+		\"patch\": return Color(0.3, 0.0, 0.3, 0.9)
+		\"warning\": return Color(0.4, 0.0, 0.0, 0.9)
+		\"love\": return Color(0.5, 0.1, 0.3, 0.9)
+		_: return Color(0.1, 0.2, 0.4, 0.9)
+
+func get_message_border_color(message_type: String) -> Color:
+	match message_type:
+		\"info\": return Color(0.2, 0.8, 1.0)
+		\"tip\": return Color(0.2, 1.0, 0.6)
+		\"event\": return Color(1.0, 0.8, 0.0)
+		\"patch\": return Color(0.8, 0.4, 1.0)
+		\"warning\": return Color(1.0, 0.2, 0.2)
+		\"love\": return Color(1.0, 0.4, 0.8)
+		_: return Color(0.2, 0.8, 1.0)
+
+# ---------------------------------------------------
+# ⚙️ Settings
 # ---------------------------------------------------
 func load_settings() -> void:
 	if config.load(CONFIG_PATH) != OK:
 		return
-	
 	var volume = config.get_value(\"audio\", \"volume\", 0.0)
 	AudioServer.set_bus_volume_db(0, volume)
-	
-	# Lautstärke-Slider auf den korrekten Wert setzen
 	if volume_slider:
-		# Konvertiere dB-Wert zu einem linearen Wert zwischen 0 und 1
-		var linear_volume = db_to_linear(volume)
-		volume_slider.value = linear_volume
-	
+		volume_slider.value = db_to_linear(volume)
 	var mute = config.get_value(\"audio\", \"mute\", false)
 	AudioServer.set_bus_mute(0, mute)
-	
 	var resolution_index = config.get_value(\"graphics\", \"resolution\", 2)
 	set_resolution(resolution_index)
 
@@ -117,42 +277,39 @@ func set_resolution(index: int) -> void:
 		DisplayServer.window_set_size(resolutions[index])
 
 # ---------------------------------------------------
-# 🔊 Lautstärke-Funktionen
+# 🔊 Lautstärke
 # ---------------------------------------------------
 func _on_volume_slider_value_changed(value: float) -> void:
-	# Konvertiere linearen Wert (0-1) zu dB
 	var db_value = linear_to_db(value)
 	AudioServer.set_bus_volume_db(0, db_value)
-	
-	# Speichere den dB-Wert, nicht den linearen Wert
 	config.set_value(\"audio\", \"volume\", db_value)
 	config.save(CONFIG_PATH)
 
 # ---------------------------------------------------
 # 🔘 Buttons
 # ---------------------------------------------------
-func _on_credits_button_pressed() -> void:
-	change_scene(\"res://Scenes/credits.tscn\")
-
 func _on_play_button_pressed() -> void:
-	var level_resource = load(\"user://current_level.res\")
 	var level_scene_path = \"res://Scenes/Game.tscn\"
-	
+	# Falls du ein gespeichertes Level hast, lade es
+	var level_resource = load(\"user://current_level.res\")
 	if level_resource and level_resource.has_method(\"get\"):
 		level_scene_path = level_resource.unlocked_level
 		if not ResourceLoader.exists(level_scene_path):
 			print(\"⚠ Level ungültig, fallback auf Startlevel\")
 			level_scene_path = \"res://Scenes/Game.tscn\"
-	
+
 	var transition = preload(\"res://Scenes/transition.tscn\").instantiate()
 	get_tree().root.add_child(transition)
 	transition.play_transition(level_scene_path, false)
 
-func _on_quit_button_pressed() -> void:
-	get_tree().quit()
-
 func _on_settings_button_pressed() -> void:
 	change_scene(\"res://Scenes/settings.tscn\")
+
+func _on_credits_button_pressed() -> void:
+	change_scene(\"res://Scenes/credits.tscn\")
+
+func _on_quit_button_pressed() -> void:
+	get_tree().quit()
 
 func _on_matchmaking_pressed() -> void:
 	var game_manager = get_node(\"/root/GameManager\")
@@ -164,11 +321,9 @@ func change_scene(scene_path: String) -> void:
 	if new_scene == null:
 		print(\"Fehler: Szene konnte nicht geladen werden.\")
 		return
-
 	var scene_instance = new_scene.instantiate()
 	if get_tree().current_scene:
 		get_tree().current_scene.queue_free()
-
 	get_tree().root.add_child(scene_instance)
 	get_tree().current_scene = scene_instance
 "
@@ -318,8 +473,10 @@ anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -100.0
-offset_top = -212.0
+offset_left = -432.0
+offset_top = -1041.0
+offset_right = -32.0
+offset_bottom = -829.0
 grow_horizontal = 0
 grow_vertical = 0
 
@@ -334,8 +491,8 @@ text = "Matchmaking"
 
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/PlayButton" to="." method="_on_play_button_pressed"]
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/SettingsButton" to="." method="_on_settings_button_pressed"]
-[connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/CreditsButton" to="." method="_on_texture_button_pressed"]
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/CreditsButton" to="." method="_on_credits_button_pressed"]
+[connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/CreditsButton" to="." method="_on_texture_button_pressed"]
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/QuitButton" to="." method="_on_quit_button_pressed"]
 [connection signal="pressed" from="MultiPlayer/VBoxContainer/matchmaking" to="." method="_on_host_game_pressed"]
 [connection signal="pressed" from="MultiPlayer/VBoxContainer/matchmaking" to="." method="_on_matchmaking_pressed"]

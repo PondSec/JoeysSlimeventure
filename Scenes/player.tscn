@@ -673,7 +673,7 @@ func charge():
 	if not has_ult_skill:
 		print(\"Ultimate Fähigkeit noch nicht freigeschaltet!\")
 		return
-	# Cooldown-Prüfung
+
 	var current_time = Time.get_ticks_msec() / 1000.0
 	if current_time - last_charge_time < charge_cooldown:
 		var remaining = charge_cooldown - (current_time - last_charge_time)
@@ -681,40 +681,54 @@ func charge():
 		return
 	
 	if is_on_floor() and !is_charging:
-		# Starte Cooldown
 		last_charge_time = current_time
 		save_charge_cooldown()
 		is_charging = true
 		direction.x = 0
 		
-		# Partikel-Effekte nur beim auslösenden Spieler anzeigen
 		if is_multiplayer_authority():
 			var material: ParticleProcessMaterial = particles.process_material
 			if not material:
 				push_error(\"Kein ParticleProcessMaterial gefunden!\")
 				is_charging = false
 				return
-				
-			# Phase 1: Sog-Effekt (2 Sekunden)
+
+			# -------------------
+			# PHASE 1: SOG (2 Sek.) – Blätter werden sanft angezogen
+			# -------------------
+			var pull_duration = 2.0
+			var elapsed = 0.0
 			material.radial_velocity = Vector2(-300, -300)
-			await get_tree().create_timer(2.0).timeout
 			
-			# Phase 2: Explosion (1 Sekunde)
+			while elapsed < pull_duration:
+				var leaves = get_tree().get_nodes_in_group(\"leaves\")
+				for leaf in leaves:
+					var dist = global_position.distance_to(leaf.global_position)
+					if dist < 400:
+						# Richtung Blatt -> Spieler, dann negiert für Sog
+						var dir = (leaf.global_position - global_position).normalized()
+						var power = clamp(1.0 - (dist / 400.0), 0.0, 1.0)
+						leaf.react_to_air_pressure(-dir, power * 0.06) # kleiner Impuls pro Frame
+				elapsed += get_process_delta_time()
+				await get_tree().process_frame
+
+			# -------------------
+			# PHASE 2: EXPLOSION (1 Sek.) – Blätter wegblasen
+			# -------------------
 			material.radial_velocity = Vector2(800, 800)
 			is_charging = false
-			
-			# 1. Spieler heilen
+
+			# Spieler heilen
 			current_health = max_health
 			update_health_bar()
 			show_damage_text(max_health - current_health, true)
 			flash_heal_effect()
-			
-			# 2. Gegner und andere Spieler schädigen
+
 			var explosion_radius = 300.0
 			var explosion_damage = 130
 			var knockback_force = 1000.0
-			
-			# Schade Gegnern
+
+			# Gegner Schaden
 			var enemies = get_tree().get_nodes_in_group(\"enemies\")
 			for enemy in enemies:
 				var distance = global_position.distance_to(enemy.global_position)
@@ -722,44 +736,49 @@ func charge():
 					var knockback_dir = (enemy.global_position - global_position).normalized()
 					var is_crit = randf() < base_crit_chance
 					var final_damage = explosion_damage * (crit_damage_multiplier if is_crit else 1.0)
-					
 					if enemy.has_method(\"take_damage\"):
 						enemy.take_damage(final_damage, knockback_dir * knockback_force, is_crit)
-			
-			# Schade anderen Spielern
+
+			# Andere Spieler
 			var players = get_tree().get_nodes_in_group(\"players\")
 			for player in players:
-				# Überspringe den Spieler, der den Charge ausgelöst hat
 				if player == self:
 					continue
-					
 				var distance = global_position.distance_to(player.global_position)
 				if distance <= explosion_radius:
 					var knockback_dir = (player.global_position - global_position).normalized()
 					var is_crit = randf() < base_crit_chance
 					var final_damage = explosion_damage * (crit_damage_multiplier if is_crit else 1.0)
-					
-					# Sende Schaden an den anderen Spieler
 					player.take_damage.rpc(final_damage, knockback_dir * knockback_force)
-			
-			# Effekte
+
+			# Blätter wegblasen
+			var leaves = get_tree().get_nodes_in_group(\"leaves\")
+			for leaf in leaves:
+				var dist = global_position.distance_to(leaf.global_position)
+				if dist < 550.0:
+					var dir = (leaf.global_position - global_position).normalized() # Richtung weg vom Spieler
+					var power = pow(1.0 - (dist / 550.0), 2.0)
+					leaf.react_to_air_pressure(dir, power * 4.0) # starker Stoß
+
+			# Kamera- und visuelle Effekte
 			$Camera2D.shake(0.3, 15)
 			await get_tree().create_timer(1.0).timeout
-			
-			# Phase 3: Ausklingen (3 Sekunden)
+
+			# -------------------
+			# PHASE 3: AUSKLINGEN (3 Sek.)
+			# -------------------
 			var fade_time = 3.0
-			var elapsed = 0.0
-			while elapsed < fade_time:
-				var progress = elapsed / fade_time
+			var fade_elapsed = 0.0
+			while fade_elapsed < fade_time:
+				var progress = fade_elapsed / fade_time
 				material.radial_velocity = Vector2.ONE * lerp(500, 0, progress * progress)
-				elapsed += get_process_delta_time()
+				fade_elapsed += get_process_delta_time()
 				await get_tree().process_frame
-			
 			material.radial_velocity = Vector2.ZERO
+
 		else:
-			# Für nicht-autoritative Clients: Warte nur die Zeit ab
 			await get_tree().create_timer(6.0).timeout
-		
+
 		is_charging = false
 
 # Speicher/Lade-Funktionen
@@ -1127,26 +1146,50 @@ func set_animation() -> void:
 func is_in_air() -> bool:
 	return not is_on_floor()
 
-# Angriffskollisionsbehandlung
-func _on_attack_area_body_entered(body) -> void:
-	if body == self:  # Verhindere Selbstschaden
+func _on_attack_area_body_entered(body):
+	if body == self:
 		return
+	
 	if body.is_in_group(\"enemies\") or body.is_in_group(\"players\"):
-		# Nur der autoritative Spieler berechnet Schaden
 		if is_multiplayer_authority():
 			var is_crit = randf() < current_crit_chance
 			var damage = attack_damage * (current_crit_multiplier if is_crit else 1.0)
 			var knockback_direction = (body.global_position - global_position).normalized()
 			
-			# Sende Schaden an den getroffenen Spieler oder Gegner
 			if body.is_in_group(\"players\"):
 				body.take_damage.rpc(damage, knockback_direction)
 			else:
-				# Füge den is_crit Parameter hinzu
-				body.take_damage(damage, knockback_direction, is_crit)  # Hier wird is_crit übergeben
+				body.take_damage(damage, knockback_direction, is_crit)
 			
 			$Camera2D.shake(3.0, 0.2)
-		
+	
+	# **Luftdruck auf Blätter anwenden**
+	apply_sword_air_pressure()
+
+func apply_sword_air_pressure():
+	var leaves = get_tree().get_nodes_in_group(\"leaves\")
+	for leaf in leaves:
+		var dist = global_position.distance_to(leaf.global_position)
+
+		# geringere Reichweite – realistischer für ein Schwertschwingen
+		var max_range = 120.0
+		if dist > max_range:
+			continue
+
+		# Richtung vom Spieler zum Blatt
+		var dir = (leaf.global_position - global_position).normalized()
+
+		# Nahbereich kräftiger, aber mit glatter Kurve
+		# power fällt exponentiell statt linear ab
+		var normalized = dist / max_range
+		var power = pow(1.0 - normalized, 2.2)  # nah = stark, weit = schwach
+
+		# Option: bei sehr nahen Blättern (unter 30px) etwas Extra-Boost
+		if dist < 30.0:
+			power *= 1.8
+
+		leaf.react_to_air_pressure(dir, power)
+
 @rpc(\"call_local\", \"reliable\")
 func die() -> void:
 	print(\"Der Spieler ist gestorben!\")

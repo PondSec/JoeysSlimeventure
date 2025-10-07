@@ -40,9 +40,11 @@ var is_fading: bool = false
 var sway_timer: float = randf() * PI * 2
 var base_gravity: float
 var last_player_pos := {}
+var lift_cooldown: float = 0.0
 
 func _ready():
 	randomize()
+	add_to_group("leaves")
 	current_wind_force = randf_range(wind_force_min, wind_force_max)
 	update_wind_direction()
 	target_wind_direction = wind_direction
@@ -60,6 +62,9 @@ func _physics_process(delta):
 			queue_free()
 
 	check_airborne_status()
+
+	if lift_cooldown > 0:
+		lift_cooldown -= delta
 
 	if is_airborne:
 		process_airborne(delta)
@@ -84,7 +89,6 @@ func process_airborne(delta):
 	var fall_mod = 1.0 + randf_range(-gravity_fluctuation, gravity_fluctuation)
 	apply_central_force(Vector2(0, base_gravity * fall_mod * delta))
 
-	# Mikro-Turbulenz für Lebendigkeit
 	if randf() < 0.15:
 		var random_turb = Vector2(randf_range(-4, 4), randf_range(-6, 2))
 		apply_central_force(random_turb)
@@ -99,17 +103,31 @@ func process_ground(delta):
 	rotation = lerp_angle(rotation, 0.0, delta * 2.0)
 
 	for body in get_tree().get_nodes_in_group("players"):
+		if not body.has_method("get_velocity"):
+			continue
+
+		var vel = body.get_velocity()
+		if vel.length() < 15.0:
+			continue # Spieler bewegt sich kaum, also kein Aufwirbeln
+
 		var dist = global_position.distance_to(body.global_position)
-		if dist < proximity_radius:
-			var dir = (global_position - body.global_position).normalized()
-			var lift_power = clamp(1.0 - (dist / proximity_radius), 0.0, 1.0)
-			if randf() < 0.05:
-				is_airborne = true
-				linear_damp = 0
-				angular_damp = 0
-				var upward = -Vector2(0, randf_range(upward_force_min * 0.3, upward_force_max * 0.6))
-				apply_central_impulse(dir * ground_push_force * lift_power + upward)
-				apply_torque_impulse(randf_range(-ground_torque_force, ground_torque_force))
+		if dist >= proximity_radius:
+			continue
+
+		if lift_cooldown > 0:
+			continue # kurze Pause nach letzter Bewegung
+
+		var dir = (global_position - body.global_position).normalized()
+		var lift_power = clamp(1.0 - (dist / proximity_radius), 0.0, 1.0)
+
+		if randf() < 0.02 and vel.length() > 30:
+			is_airborne = true
+			lift_cooldown = 0.5
+			linear_damp = 0
+			angular_damp = 0
+			var upward = Vector2(0, -randf_range(upward_force_min * 0.3, upward_force_max * 0.6))
+			apply_central_impulse(dir * ground_push_force * lift_power + upward)
+			apply_torque_impulse(randf_range(-ground_torque_force, ground_torque_force))
 
 func start_fade_out():
 	if is_fading:
@@ -153,7 +171,6 @@ func _on_area_2d_body_entered(body: Node2D) -> void:
 			var vel = body.get_velocity()
 			if vel.length() > 20:
 				interact_with_player(body)
-				# Sog-Effekt bei schneller Bewegung
 				if vel.length() > 60:
 					var trail_dir = (body.global_position - global_position).normalized()
 					apply_central_force(trail_dir * vel.length() * 0.05)
@@ -190,3 +207,19 @@ func interact_with_player(player):
 		var upward_force = randf_range(upward_force_min * 0.6, upward_force_max)
 		apply_central_impulse(swirl_force + Vector2(0, -upward_force))
 		apply_torque_impulse(randf_range(-torque_force * 0.5, torque_force * 0.5))
+
+func react_to_air_pressure(direction: Vector2, intensity: float):
+	if is_fading:
+		return
+
+	is_airborne = true
+	sleep_timer = 0.0
+	linear_damp = 0
+	angular_damp = 0
+
+	var base_force = randf_range(80.0, 160.0)
+	var upward = Vector2(0, -randf_range(40.0, 90.0))
+	var impulse = (direction * base_force * intensity) + upward
+
+	apply_central_impulse(impulse)
+	apply_torque_impulse(randf_range(-torque_force, torque_force) * intensity)
