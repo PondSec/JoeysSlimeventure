@@ -1,12 +1,12 @@
-[gd_scene load_steps=54 format=3 uid="uid://b6ublycstdj8n"]
+[gd_scene load_steps=57 format=3 uid="uid://b6ublycstdj8n"]
 
-[ext_resource type="Texture2D" uid="uid://cildswtcj7qrc" path="res://Assets/slime-sprite.png" id="1_4yq4u"]
 [ext_resource type="Resource" uid="uid://0rntjh2xt5s5" path="res://InventorySystem/playerinv.tres" id="1_e7ml4"]
 [ext_resource type="PackedScene" uid="uid://boa0bok16i3n" path="res://Scenes/slime_ball.tscn" id="2_y6uwr"]
 [ext_resource type="Texture2D" uid="uid://quh4mac3hef1" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame0.png" id="3_ubp3h"]
 [ext_resource type="Texture2D" uid="uid://bfhvfvveasr1l" path="res://Assets/Light/torch_light.png" id="3_vfarp"]
 [ext_resource type="Texture2D" uid="uid://cjb4nq6aeftnv" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame1.png" id="4_6hcqa"]
 [ext_resource type="Texture2D" uid="uid://dq3ow8oywurgq" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame2.png" id="5_eo1jl"]
+[ext_resource type="Texture2D" uid="uid://cso6s6gjvh3qk" path="res://Assets/slime-sprite2.png" id="5_y6uwr"]
 [ext_resource type="Texture2D" uid="uid://b8fkvpdoglnlv" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame3.png" id="6_whfsg"]
 [ext_resource type="Texture2D" uid="uid://bdf3l7k3ha5iw" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame4.png" id="7_ojgk2"]
 [ext_resource type="Texture2D" uid="uid://lhtf7y3rpgu1" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame5.png" id="8_efps6"]
@@ -1022,7 +1022,7 @@ func update_animations():
 		return
 	
 	if is_wall_sliding:
-		$AnimationPlayer.play(\"wall_slide\")
+		#$AnimationPlayer.play(\"wall_slide\")
 		$PlayerSprite.flip_h = last_wall_normal.x > 0
 	elif not is_on_floor():
 		# Sprunganimationen
@@ -2506,7 +2506,7 @@ tracks/0/keys = {
 
 [sub_resource type="Animation" id="Animation_smtgq"]
 resource_name = "jump"
-length = 0.5
+length = 0.3
 tracks/0/type = "value"
 tracks/0/imported = false
 tracks/0/enabled = true
@@ -2514,15 +2514,15 @@ tracks/0/path = NodePath("PlayerSprite:frame")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.1, 0.2, 0.3, 0.4, 0.5),
-"transitions": PackedFloat32Array(1, 1, 1, 1, 1, 1),
+"times": PackedFloat32Array(0, 0.1, 0.2, 0.3),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
 "update": 1,
-"values": [5, 6, 7, 8, 10, 11]
+"values": [5, 6, 7, 8]
 }
 
 [sub_resource type="Animation" id="Animation_28ebo"]
 resource_name = "landing"
-length = 0.4
+length = 0.2
 tracks/0/type = "value"
 tracks/0/imported = false
 tracks/0/enabled = true
@@ -2530,10 +2530,10 @@ tracks/0/path = NodePath("PlayerSprite:frame")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.4),
-"transitions": PackedFloat32Array(1, 8.87656),
+"times": PackedFloat32Array(0, 0.2),
+"transitions": PackedFloat32Array(1, 1),
 "update": 0,
-"values": [8, 11]
+"values": [8, 9]
 }
 
 [sub_resource type="Animation" id="Animation_wvi70"]
@@ -2553,13 +2553,65 @@ tracks/0/keys = {
 "values": [0, 4]
 }
 
+[sub_resource type="Animation" id="Animation_83xs0"]
+resource_name = "start_wall_slide"
+length = 0.1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("PlayerSprite:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [10, 11]
+}
+
+[sub_resource type="Animation" id="Animation_y6uwr"]
+resource_name = "wall_slide"
+length = 0.8
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("PlayerSprite:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.4, 0.8),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 0,
+"values": [11, 15, 11]
+}
+
+[sub_resource type="Animation" id="Animation_ypfnu"]
+resource_name = "end_wall_slide"
+length = 0.2
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("PlayerSprite:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.2),
+"transitions": PackedFloat32Array(1, 1),
+"update": 1,
+"values": [11, 10]
+}
+
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_1fd5i"]
 _data = {
 &"RESET": SubResource("Animation_chcy3"),
+&"end_wall_slide": SubResource("Animation_ypfnu"),
 &"idle": SubResource("Animation_uuvvo"),
 &"jump": SubResource("Animation_smtgq"),
 &"landing": SubResource("Animation_28ebo"),
-&"walk": SubResource("Animation_wvi70")
+&"start_wall_slide": SubResource("Animation_83xs0"),
+&"walk": SubResource("Animation_wvi70"),
+&"wall_slide": SubResource("Animation_y6uwr")
 }
 
 [sub_resource type="Curve" id="Curve_0gysh"]
@@ -2741,9 +2793,9 @@ texture = ExtResource("3_vfarp")
 
 [node name="PlayerSprite" type="Sprite2D" parent="."]
 position = Vector2(0.000183105, -71.4286)
-texture = ExtResource("1_4yq4u")
-hframes = 5
-vframes = 3
+texture = ExtResource("5_y6uwr")
+hframes = 4
+vframes = 4
 
 [node name="HitParticles" type="CPUParticles2D" parent="PlayerSprite"]
 emitting = false

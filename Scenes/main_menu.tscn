@@ -28,6 +28,22 @@ var config := ConfigFile.new()
 var game_messages_container: VBoxContainer
 var message_timer: Timer
 
+# Toast-Management
+const MAX_CONCURRENT_TOASTS = 5
+var active_toasts: Array = []
+var toast_pool: Array = []
+var toast_stats = {
+	\"shown\": 0,
+	\"clicked\": 0,
+	\"dismissed\": 0
+}
+var toast_settings = {
+	\"enabled\": true,
+	\"duration_multiplier\": 1.0,
+	\"max_count\": 5,
+	\"position\": \"bottom_right\"
+}
+
 @onready var ip_input: LineEdit = $MultiPlayer/VBoxContainer/IPInput
 @onready var port_input: LineEdit = $MultiPlayer/VBoxContainer/PortInput
 @onready var pact_notes: Label = $PatchNotes
@@ -92,6 +108,14 @@ func create_game_messages_ui() -> void:
 # 🔁 Game Messages abrufen
 # ---------------------------------------------------
 func fetch_game_messages() -> void:
+	# Cache für Offline-Betrieb prüfen
+	if not Time.get_ticks_msec() - get_last_fetch_time() < 300000:  # 5 Minuten
+		load_cached_messages()
+		return
+	
+	if not toast_settings.enabled:
+		return
+
 	var http_request = HTTPRequest.new()
 	add_child(http_request)
 	http_request.request_completed.connect(_on_game_messages_request_completed.bind(http_request))
@@ -100,56 +124,97 @@ func fetch_game_messages() -> void:
 	var error = http_request.request(url)
 	if error != OK:
 		push_error(\"Fehler beim Abrufen der Game Messages: \" + str(error))
+		load_cached_messages()
 	else:
 		print(\"🔄 Game Messages werden abgerufen von: \" + url)
+	
+	# Timeout hinzufügen
+	await get_tree().create_timer(10.0).timeout
+	if is_instance_valid(http_request):
+		http_request.queue_free()
+		load_cached_messages()
 
 func _on_game_messages_request_completed(result: int, response_code: int, headers: PackedStringArray, body: PackedByteArray, http_request: HTTPRequest) -> void:
 	http_request.queue_free()
+	
 	if result != HTTPRequest.RESULT_SUCCESS:
 		push_error(\"HTTP Request fehlgeschlagen: \" + str(result))
+		load_cached_messages()
 		return
+	
 	if response_code != 200:
 		push_error(\"Server Fehler: \" + str(response_code))
+		load_cached_messages()
 		return
 
 	var json = JSON.new()
 	var parse_result = json.parse(body.get_string_from_utf8())
 	if parse_result != OK:
 		push_error(\"JSON Parse Fehler: \" + str(parse_result))
+		load_cached_messages()
 		return
 
 	var response = json.get_data()
 	if response and response.has(\"messages\"):
+		# Nachrichten im Cache speichern
+		save_messages_to_cache(response[\"messages\"])
 		display_game_messages(response[\"messages\"])
 	else:
 		print(\"❌ Keine Nachrichten erhalten oder ungültige Antwort\")
+		load_cached_messages()
 
 # ---------------------------------------------------
 # 📢 Mehrere Toast-Nachrichten gleichzeitig
 # ---------------------------------------------------
 func display_game_messages(messages: Array) -> void:
-	# Nach Priorität sortieren (critical zuerst)
-	messages.sort_custom(func(a, b): 
-		return get_priority_value(a.get(\"priority\", \"normal\")) > get_priority_value(b.get(\"priority\", \"normal\"))
+	if not toast_settings.enabled:
+		return
+	
+	# Nachrichten gruppieren
+	var grouped_messages = group_similar_messages(messages)
+	
+	# Nach Priorität UND Zeitstempel sortieren
+	grouped_messages.sort_custom(func(a, b): 
+		var priority_a = get_priority_value(a.get(\"priority\", \"normal\"))
+		var priority_b = get_priority_value(b.get(\"priority\", \"normal\"))
+		if priority_a != priority_b:
+			return priority_a > priority_b
+		# Bei gleicher Priorität: Ältere zuerst
+		return a.get(\"timestamp\", 0) < b.get(\"timestamp\", 0)
 	)
 	
-	for message in messages:
-		show_toast(message)
+	# Verzögerung zwischen Toasts für bessere Lesbarkeit
+	for i in range(grouped_messages.size()):
+		await get_tree().create_timer(i * 0.3).timeout
+		show_toast(grouped_messages[i])
 
 func show_toast(message: Dictionary) -> void:
+	if not toast_settings.enabled:
+		return
+	
+	# Alte Toasts entfernen wenn Limit erreicht
+	if active_toasts.size() >= toast_settings.max_count:
+		var oldest_toast = active_toasts.pop_front()
+		if is_instance_valid(oldest_toast):
+			animate_toast_removal(oldest_toast)
+	
 	var toast = create_toast(message)
 	game_messages_container.add_child(toast)
+	active_toasts.append(toast)
+	toast_stats.shown += 1
 
 	# Animation einblenden
 	toast.modulate = Color(1, 1, 1, 0)
 	toast.scale = Vector2(0.9, 0.9)
 	var tween = create_tween()
+	tween.set_parallel(true)
 	tween.tween_property(toast, \"modulate:a\", 1.0, 0.3).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	tween.parallel().tween_property(toast, \"scale\", Vector2(1, 1), 0.3).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tween.tween_property(toast, \"scale\", Vector2(1, 1), 0.4).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.set_parallel(false)
 
-	# Dauer basierend auf Priorität
+	# Dauer basierend auf Priorität und Einstellungen
 	var priority = message.get(\"priority\", \"normal\")
-	var duration = DISPLAY_DURATION.get(priority, 6.0)
+	var duration = DISPLAY_DURATION.get(priority, 6.0) * toast_settings.duration_multiplier
 	
 	if duration > 0:  # Automatisch ausblenden
 		tween.tween_interval(duration)
@@ -157,14 +222,27 @@ func show_toast(message: Dictionary) -> void:
 		tween.parallel().tween_property(toast, \"scale\", Vector2(0.95, 0.95), 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 		tween.tween_callback(func():
 			if is_instance_valid(toast):
-				toast.queue_free()
+				active_toasts.erase(toast)
+				toast_stats.dismissed += 1
+				recycle_toast_to_pool(toast)
 		)
 	# critical (duration = 0) bleibt bis geklickt
 
 # ---------------------------------------------------
-# 💬 Toast erstellen (mit Close-Button)
+# 💬 Toast erstellen (mit Close-Button & Pooling)
 # ---------------------------------------------------
 func create_toast(message: Dictionary) -> PanelContainer:
+	var toast: PanelContainer
+	if toast_pool.is_empty():
+		toast = create_new_toast(message)
+	else:
+		toast = toast_pool.pop_back()
+		recycle_toast_with_message(toast, message)
+		toast.show()
+	
+	return toast
+
+func create_new_toast(message: Dictionary) -> PanelContainer:
 	var toast = PanelContainer.new()
 	toast.mouse_filter = Control.MOUSE_FILTER_STOP
 	toast.custom_minimum_size = Vector2(420, 0)
@@ -218,6 +296,7 @@ func create_toast(message: Dictionary) -> PanelContainer:
 	close_button.custom_minimum_size = Vector2(24, 24)
 	close_button.pressed.connect(func(): 
 		if is_instance_valid(toast):
+			toast_stats.dismissed += 1
 			animate_toast_removal(toast)
 	)
 
@@ -244,27 +323,138 @@ func create_toast(message: Dictionary) -> PanelContainer:
 	hbox.add_child(vbox)
 	toast.add_child(hbox)
 
-	# Hover-Effekt: Pausiere Timer bei Hover
+	# Hover-Effekte
 	toast.mouse_entered.connect(func(): 
 		if toast.has_meta(\"tween\") and toast.get_meta(\"tween\"):
 			toast.get_meta(\"tween\").pause()
+		var hover_tween = create_tween()
+		hover_tween.tween_property(toast, \"scale\", Vector2(1.02, 1.02), 0.1)
 	)
 	
 	toast.mouse_exited.connect(func(): 
 		if toast.has_meta(\"tween\") and toast.get_meta(\"tween\"):
 			toast.get_meta(\"tween\").play()
+		var hover_tween = create_tween()
+		hover_tween.tween_property(toast, \"scale\", Vector2(1, 1), 0.1)
+	)
+
+	# Klick-Handler für gesamten Toast
+	toast.gui_input.connect(func(event):
+		if event is InputEventMouseButton and event.pressed:
+			if event.button_index == MOUSE_BUTTON_LEFT:
+				toast_stats.clicked += 1
+				on_toast_clicked(message, toast)
 	)
 
 	return toast
 
+func recycle_toast_with_message(toast: PanelContainer, message: Dictionary) -> void:
+	# Toast-Inhalt aktualisieren
+	var vbox = toast.get_child(0).get_child(0) as VBoxContainer
+	var title_hbox = vbox.get_child(0) as HBoxContainer
+	var title_label = title_hbox.get_child(0) as Label
+	var text_label = vbox.get_child(1) as Label
+	
+	var message_type = message.get(\"type\", \"info\")
+	var priority = message.get(\"priority\", \"normal\")
+	var custom_title = message.get(\"title\", \"\")
+	
+	if custom_title != \"\":
+		title_label.text = get_message_icon(message_type) + \" \" + custom_title
+	else:
+		title_label.text = get_message_icon(message_type) + \" \" + get_default_title(message_type)
+	
+	text_label.text = message.get(\"text\", \"\")
+	
+	# Style aktualisieren
+	var style = StyleBoxFlat.new()
+	style.set_border_width_all(2)
+	style.border_color = get_message_border_color(message_type)
+	style.bg_color = get_message_color(message_type)
+	style.corner_radius_top_left = 12
+	style.corner_radius_top_right = 12
+	style.corner_radius_bottom_left = 12
+	style.corner_radius_bottom_right = 12
+	style.shadow_size = 6
+	style.shadow_color = Color(0, 0, 0, 0.4)
+	toast.add_theme_stylebox_override(\"panel\", style)
+
+func recycle_toast_to_pool(toast: PanelContainer) -> void:
+	toast_pool.append(toast)
+	toast.hide()
+	if toast.get_parent():
+		toast.get_parent().remove_child(toast)
+
 func animate_toast_removal(toast: PanelContainer) -> void:
 	var tween = create_tween()
+	tween.set_parallel(true)
 	tween.tween_property(toast, \"modulate:a\", 0.0, 0.3).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	tween.parallel().tween_property(toast, \"scale\", Vector2(0.95, 0.95), 0.3).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tween.tween_property(toast, \"scale\", Vector2(0.95, 0.95), 0.3).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tween.set_parallel(false)
 	tween.tween_callback(func():
 		if is_instance_valid(toast):
-			toast.queue_free()
+			active_toasts.erase(toast)
+			recycle_toast_to_pool(toast)
 	)
+
+# ---------------------------------------------------
+# 🎯 Toast-Interaktionen
+# ---------------------------------------------------
+func on_toast_clicked(message: Dictionary, toast: PanelContainer) -> void:
+	# Spezielle Aktionen basierend auf Nachrichtentyp
+	match message.get(\"action_type\", \"\"):
+		\"open_url\":
+			if message.has(\"action_data\"):
+				OS.shell_open(message[\"action_data\"])
+		\"open_settings\":
+			_on_settings_button_pressed()
+		\"copy_text\":
+			if message.has(\"text\"):
+				DisplayServer.clipboard_set(message[\"text\"])
+		\"dismiss_all\":
+			dismiss_all_toasts()
+	
+	# Toast schließen nach Klick (auch bei critical)
+	animate_toast_removal(toast)
+
+func dismiss_all_toasts() -> void:
+	for toast in active_toasts.duplicate():
+		if is_instance_valid(toast):
+			animate_toast_removal(toast)
+
+# ---------------------------------------------------
+# 🔄 Cache & Offline-Funktionalität
+# ---------------------------------------------------
+func get_last_fetch_time() -> int:
+	return config.get_value(\"toasts\", \"last_fetch\", 0)
+
+func set_last_fetch_time() -> void:
+	config.set_value(\"toasts\", \"last_fetch\", Time.get_ticks_msec())
+	config.save(CONFIG_PATH)
+
+func save_messages_to_cache(messages: Array) -> void:
+	var file = FileAccess.open(\"user://cached_messages.json\", FileAccess.WRITE)
+	if file:
+		var data = {
+			\"messages\": messages,
+			\"timestamp\": Time.get_ticks_msec()
+		}
+		file.store_string(JSON.stringify(data))
+		file.close()
+	set_last_fetch_time()
+
+func load_cached_messages() -> void:
+	var file = FileAccess.open(\"user://cached_messages.json\", FileAccess.READ)
+	if file:
+		var json = JSON.new()
+		var parse_result = json.parse(file.get_as_text())
+		if parse_result == OK:
+			var data = json.get_data()
+			if data and data.has(\"messages\"):
+				print(\"📂 Geladene Nachrichten aus Cache\")
+				display_game_messages(data[\"messages\"])
+				return
+	print(\"❌ Keine gecachten Nachrichten gefunden\")
 
 # ---------------------------------------------------
 # 🎨 Farben, Icons, Titel & Prioritäten
@@ -330,19 +520,70 @@ func get_message_border_color(message_type: String) -> Color:
 		_: return Color(0.2, 0.8, 1.0)
 
 # ---------------------------------------------------
-# ⚙️ Settings (unverändert)
+# 🎪 Toast-Gruppierung
+# ---------------------------------------------------
+func group_similar_messages(messages: Array) -> Array:
+	var grouped = []
+	var handled_ids = {}
+	
+	for message in messages:
+		var message_id = message.get(\"id\", \"\")
+		if message_id and message_id in handled_ids:
+			continue
+		
+		if message_id:
+			handled_ids[message_id] = true
+		
+		# Gruppiere ähnliche Nachrichten (gleicher Typ + ähnlicher Text)
+		var similar_found = false
+		for existing in grouped:
+			if (existing.get(\"type\") == message.get(\"type\") and 
+				existing.get(\"priority\") == message.get(\"priority\") and
+				are_messages_similar(existing.get(\"text\", \"\"), message.get(\"text\", \"\"))):
+				similar_found = true
+				break
+		
+		if not similar_found:
+			grouped.append(message)
+	
+	return grouped
+
+func are_messages_similar(text1: String, text2: String) -> bool:
+	# Einfache Ähnlichkeitsprüfung
+	var words1 = text1.to_lower().split(\" \")
+	var words2 = text2.to_lower().split(\" \")
+	var common_words = 0
+	
+	for word in words1:
+		if word in words2 and word.length() > 3:
+			common_words += 1
+	
+	return common_words >= min(words1.size(), words2.size()) * 0.6
+
+# ---------------------------------------------------
+# ⚙️ Settings (erweitert um Toast-Einstellungen)
 # ---------------------------------------------------
 func load_settings() -> void:
 	if config.load(CONFIG_PATH) != OK:
 		return
+	
+	# Audio-Einstellungen
 	var volume = config.get_value(\"audio\", \"volume\", 0.0)
 	AudioServer.set_bus_volume_db(0, volume)
 	if volume_slider:
 		volume_slider.value = db_to_linear(volume)
 	var mute = config.get_value(\"audio\", \"mute\", false)
 	AudioServer.set_bus_mute(0, mute)
+	
+	# Graphics-Einstellungen
 	var resolution_index = config.get_value(\"graphics\", \"resolution\", 2)
 	set_resolution(resolution_index)
+	
+	# Toast-Einstellungen
+	toast_settings.enabled = config.get_value(\"toasts\", \"enabled\", true)
+	toast_settings.duration_multiplier = config.get_value(\"toasts\", \"duration_multiplier\", 1.0)
+	toast_settings.max_count = config.get_value(\"toasts\", \"max_count\", 5)
+	toast_settings.position = config.get_value(\"toasts\", \"position\", \"bottom_right\")
 
 func set_resolution(index: int) -> void:
 	var resolutions = [
@@ -600,8 +841,8 @@ text = "Matchmaking"
 
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/PlayButton" to="." method="_on_play_button_pressed"]
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/SettingsButton" to="." method="_on_settings_button_pressed"]
-[connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/CreditsButton" to="." method="_on_credits_button_pressed"]
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/CreditsButton" to="." method="_on_texture_button_pressed"]
+[connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/CreditsButton" to="." method="_on_credits_button_pressed"]
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/QuitButton" to="." method="_on_quit_button_pressed"]
 [connection signal="pressed" from="MultiPlayer/VBoxContainer/matchmaking" to="." method="_on_host_game_pressed"]
 [connection signal="pressed" from="MultiPlayer/VBoxContainer/matchmaking" to="." method="_on_matchmaking_pressed"]
