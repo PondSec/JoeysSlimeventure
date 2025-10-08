@@ -1,0 +1,97 @@
+[gd_scene load_steps=7 format=3 uid="uid://7vreypkntsqt"]
+
+[ext_resource type="Texture2D" uid="uid://db4gbeca7fp8i" path="res://Assets/Stars/Lumora.png" id="1_jxmgf"]
+
+[sub_resource type="GDScript" id="GDScript_jxmgf"]
+resource_name = "Lumora"
+script/source = "extends CharacterBody2D
+
+@export var player_path: NodePath
+@export var delay_points := 25
+@export var move_speed := 180.0
+@export var float_amplitude := 6.0
+@export var float_speed := 3.0
+@export var follow_distance := 70.0
+@export var smooth_factor := 3.0
+@export var orbit_speed := 1.0           # Geschwindigkeit des Umlaufs
+@export var orbit_smooth := 0.5          # Wie stark die Umlaufbahn interpoliert wird
+
+var _player: Node2D
+var _trail: Array[Vector2] = []
+var _time := 0.0
+var _orbit_angle := 0.0
+var _orbit_radius := 0.0                 # Dynamisch geglätteter Radius
+
+func _ready() -> void:
+	if player_path:
+		_player = get_node(player_path)
+	else:
+		push_warning(\"Lumora has no player assigned!\")
+	_orbit_radius = follow_distance
+
+func _physics_process(delta: float) -> void:
+	if _player == null:
+		return
+
+	_time += delta * float_speed
+	_orbit_angle += delta * orbit_speed
+
+	# Spielerposition speichern
+	_trail.append(_player.global_position)
+	if _trail.size() > delay_points:
+		_trail.pop_front()
+
+	# Zielposition berechnen (Orbit)
+	var player_pos = _player.global_position
+	var target_orbit = follow_distance + sin(_time * 0.7) * 6.0  # leicht pulsierende Distanz
+	_orbit_radius = lerp(_orbit_radius, target_orbit, delta * orbit_smooth)
+
+	var orbit_offset = Vector2(cos(_orbit_angle), sin(_orbit_angle)) * _orbit_radius
+	var float_offset = Vector2(0, sin(_time) * float_amplitude)
+	var desired_pos = player_pos + orbit_offset + float_offset
+
+	# Sanft Richtung Ziel bewegen
+	global_position = global_position.lerp(desired_pos, delta * smooth_factor)
+
+	# Wenn Spieler sich stark bewegt → Orbit leicht hinterherziehen
+	if _trail.size() > 1:
+		var past_player_pos = _trail[0]
+		var shift = (past_player_pos - player_pos) * 0.3
+		global_position += shift * delta
+"
+
+[sub_resource type="Gradient" id="Gradient_jxmgf"]
+colors = PackedColorArray(1, 1, 1, 1, 0, 0, 0, 1)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_5x7xt"]
+gradient = SubResource("Gradient_jxmgf")
+fill = 1
+fill_from = Vector2(0.493119, 0.527523)
+fill_to = Vector2(0.889908, 0.169725)
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_5x7xt"]
+radius = 8.0
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_sthyw"]
+size = Vector2(9, 9)
+
+[node name="Lumora" type="CharacterBody2D"]
+script = SubResource("GDScript_jxmgf")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("1_jxmgf")
+
+[node name="Glow" type="PointLight2D" parent="."]
+color = Color(1, 0.862745, 1, 1)
+texture = SubResource("GradientTexture2D_5x7xt")
+texture_scale = 1.3
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_5x7xt")
+
+[node name="Area2D" type="Area2D" parent="."]
+collision_layer = 15
+collision_mask = 15
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Area2D"]
+shape = SubResource("RectangleShape2D_sthyw")

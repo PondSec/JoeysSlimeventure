@@ -1,4 +1,4 @@
-[gd_scene load_steps=44 format=4 uid="uid://cmdh8rpdo8fb2"]
+[gd_scene load_steps=45 format=4 uid="uid://cmdh8rpdo8fb2"]
 
 [ext_resource type="Texture2D" uid="uid://82opar247kat" path="res://Assets/Tiles/platformertiles.png" id="1_lx4yj"]
 [ext_resource type="Script" uid="uid://hrb3bfkpp2mn" path="res://Scripts/game.gd" id="1_wyx84"]
@@ -24,6 +24,7 @@
 [ext_resource type="Texture2D" uid="uid://ctudbataan621" path="res://Assets/Parallax Cave/6fx.png" id="21_i4lct"]
 [ext_resource type="Environment" uid="uid://ckqk2vtkjrjuj" path="res://Resource/enviroment.tres" id="25_8e0uq"]
 [ext_resource type="Texture2D" uid="uid://kd15waeydj7v" path="res://Assets/Parallax Cave/8fx.png" id="25_iyesh"]
+[ext_resource type="PackedScene" uid="uid://7vreypkntsqt" path="res://Scenes/Stars/lumora.tscn" id="26_i0vto"]
 [ext_resource type="PackedScene" uid="uid://dqcxhb7h3mjuk" path="res://Scenes/worm.tscn" id="29_i4lct"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_83pvq"]
@@ -639,6 +640,10 @@ position = Vector2(110, 945)
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = ExtResource("25_8e0uq")
+
+[node name="Lumora" parent="." instance=ExtResource("26_i0vto")]
+position = Vector2(126, 764)
+player_path = NodePath("../PlayerModel")
 
 [connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_pause_menu_go_to_main_menu"]
 [connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_canvas_layer_go_to_main_menu"]
