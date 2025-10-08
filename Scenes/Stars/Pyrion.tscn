@@ -6,6 +6,9 @@
 resource_name = "Lumora"
 script/source = "extends CharacterBody2D
 
+# --------------------
+# CONFIG / EXPORTS
+# --------------------
 @export var player_path: NodePath
 @export var delay_points := 25
 @export var move_speed := 180.0
@@ -18,11 +21,38 @@ script/source = "extends CharacterBody2D
 @export var avoid_distance := 60.0
 @export var avoid_strength := 0.6
 
-# Optional: falls du ein Light2D unter Lumora hast (z. B. \"GlowLight\")
+# Animation Einstellungen
+@export var animation_slow_speed := 0.5
+@export var animation_normal_speed := 1.0
+
+# Licht-System
 @export var light_node_path: NodePath = \"GlowLight\"
 
+# SPYRION BUFF SYSTEM - Extrem starke Buffs
+@export var attack_speed_multiplier := 1.5
+@export var critical_chance_buff := 0.3
+@export var critical_damage_multiplier := 2.0
+@export var life_steal_percent := 0.15
+@export var berserk_health_threshold := 0.3
+@export var berserk_damage_multiplier := 2.0
+@export var berserk_attack_speed_multiplier := 1.8
+
+# SPYRION SPECIAL ABILITY - Feuerschild
+@export var fire_shield_cooldown := 12.0
+@export var fire_shield_duration := 4.0
+@export var fire_shield_reflect_damage := 0.8  # 80% des Schadens reflektiert
+@export var fire_shield_invulnerability := true
+
+# SPYRION COMBO SYSTEM
+@export var combo_window := 3.0  # Zeit in Sekunden für Combo-Fenster
+@export var max_combo_stacks := 5
+@export var combo_damage_per_stack := 0.1  # +10% Schaden pro Combo-Stapel
+
+# --------------------
+# INTERN
+# --------------------
 var _player: Node2D
-var _trail: Array[Vector2] = []
+var _trail_positions: Array[Vector2] = []
 var _time := 0.0
 var _orbit_angle := 0.0
 var _orbit_radius := 0.0
@@ -30,14 +60,40 @@ var _raycast: RayCast2D
 var _random_offset := randf_range(0.85, 1.15)
 var _velocity := Vector2.ZERO
 var _light: Light2D
+var _animation_player: AnimationPlayer
 
+# Buff-System
+var _active_buffs := {}
+var _buff_particles: GPUParticles2D
+
+# Special Ability System
+var _fire_shield_ready := true
+var _fire_shield_active := false
+var _fire_shield_timer: Timer
+var _fire_shield_cooldown_timer: Timer
+
+# Combo System
+var _combo_timer: Timer
+var _current_combo_stacks := 0
+var _combo_multiplier := 1.0
+
+# --------------------
+# READY
+# --------------------
 func _ready() -> void:
+	# Spieler-Referenz
 	if player_path:
-		_player = get_node(player_path)
+		_player = get_node_or_null(player_path)
 	else:
-		push_warning(\"Lumora has no player assigned!\")
+		push_warning(\"Spyrion has no player assigned!\")
 
-	# RayCast für Kollisionsvermeidung
+	# Animation Player
+	_animation_player = get_node_or_null(\"AnimationPlayer\")
+	if _animation_player:
+		_animation_player.play(\"fly\")
+		_animation_player.speed_scale = animation_normal_speed
+
+	# Raycast für Hindernisvermeidung
 	_raycast = RayCast2D.new()
 	add_child(_raycast)
 	_raycast.enabled = true
@@ -46,12 +102,53 @@ func _ready() -> void:
 	_raycast.collision_mask = 0b1111
 	_raycast.target_position = Vector2.RIGHT * avoid_distance
 
-	# Optionales Light2D abrufen
+	# Lichtsystem - Feurige Farbe
 	if has_node(light_node_path):
 		_light = get_node(light_node_path)
+		_light.color = Color(1.0, 0.4, 0.1)  # Orange-rot für Feuer
+
+	# Trail für Feuereffekt
+	var trail_line = get_node_or_null(\"TrailLine2D\")
+	if trail_line == null:
+		trail_line = Line2D.new()
+		trail_line.name = \"TrailLine2D\"
+		add_child(trail_line)
+		trail_line.width = 6.0
+		trail_line.gradient = _create_fire_gradient()
+		trail_line.texture_mode = Line2D.LINE_TEXTURE_TILE
+
+	# Partikel für Buff-Effekte
+	_buff_particles = GPUParticles2D.new()
+	add_child(_buff_particles)
+	_buff_particles.emitting = false
+	_buff_particles.one_shot = false
+	_buff_particles.amount = 32
 
 	_orbit_radius = follow_distance
 
+	# Feuerschild Timer
+	_fire_shield_timer = Timer.new()
+	add_child(_fire_shield_timer)
+	_fire_shield_timer.one_shot = true
+	
+	_fire_shield_cooldown_timer = Timer.new()
+	add_child(_fire_shield_cooldown_timer)
+	_fire_shield_cooldown_timer.one_shot = true
+
+	# Combo Timer
+	_combo_timer = Timer.new()
+	add_child(_combo_timer)
+	_combo_timer.one_shot = true
+	_combo_timer.wait_time = combo_window
+	_combo_timer.timeout.connect(_on_combo_timeout)
+
+	# Start-Buffs aktivieren
+	_apply_standard_buffs()
+	
+
+# --------------------
+# PHYSICS
+# --------------------
 func _physics_process(delta: float) -> void:
 	if _player == null:
 		return
@@ -61,42 +158,324 @@ func _physics_process(delta: float) -> void:
 
 	var player_pos = _player.global_position
 
-	# 1. Leichte Zufallsvariation und pulsierende Orbitdistanz
+	# Orbit + Schweben
 	var target_orbit = follow_distance + sin(_time * 0.7) * 6.0 * _random_offset
 	_orbit_radius = lerp(_orbit_radius, target_orbit, delta * orbit_smooth)
 
-	# 2. Orbitale Zielposition berechnen
 	var orbit_offset = Vector2(cos(_orbit_angle), sin(_orbit_angle)) * _orbit_radius
 	var float_offset = Vector2(0, sin(_time * _random_offset) * float_amplitude)
 	var desired_pos = player_pos + orbit_offset + float_offset
 
-	# Raycast zur Kollisionsvermeidung
-	var move_dir = (desired_pos - global_position).normalized()
-	_raycast.rotation = move_dir.angle()
-	_raycast.target_position = move_dir * avoid_distance
-	_raycast.force_raycast_update()
+	# Hinderniserkennung
+	var move_dir = (desired_pos - global_position)
+	if move_dir.length() > 0.001:
+		move_dir = move_dir.normalized()
+		_raycast.rotation = move_dir.angle()
+		_raycast.target_position = move_dir * avoid_distance
+		_raycast.force_raycast_update()
 
-	if _raycast.is_colliding():
-		var normal = _raycast.get_collision_normal()
-		var avoid_angle = normal.angle() + PI / 2.0
-		var avoid_vector = Vector2(cos(avoid_angle), sin(avoid_angle)) * avoid_distance * avoid_strength
-		desired_pos += avoid_vector
+		if _raycast.is_colliding():
+			var normal = _raycast.get_collision_normal()
+			var avoid_angle = normal.angle() + PI / 2.0
+			var avoid_vector = Vector2(cos(avoid_angle), sin(avoid_angle)) * avoid_distance * avoid_strength
+			desired_pos += avoid_vector
 
-	# 3. Bewegung mit Nachschwung
+	# Bewegung glätten
 	var desired_velocity = (desired_pos - global_position) * smooth_factor
 	_velocity = _velocity.lerp(desired_velocity, delta * 2.0)
 	global_position += _velocity * delta * 0.5
 
-	# 4. Orientierung zur Bewegungsrichtung
 	if _velocity.length() > 0.1:
-		var new_rotation = _velocity.angle()
-		rotation = lerp_angle(rotation, new_rotation, delta * 5.0)
+		rotation = lerp_angle(rotation, _velocity.angle(), delta * 5.0)
+	
+	# Trail-Logik
+	_trail_positions.append(global_position)
+	if _trail_positions.size() > delay_points:
+		_trail_positions.remove_at(0)
+	
+	var trail_line = get_node_or_null(\"TrailLine2D\")
+	if trail_line:
+		trail_line.clear_points()
+		for pos in _trail_positions:
+			trail_line.add_point(pos)
+	
+	_update_light(delta, player_pos)
+	_check_berserk_condition()
+	_update_animation_speed()
+	_update_fire_shield_effects()
 
-	# 5. Leuchtintensität je nach Distanz
-	if _light:
-		var dist = global_position.distance_to(player_pos)
-		var intensity = clamp(1.0 - abs(dist - follow_distance) / 120.0, 0.6, 1.0)
-		_light.energy = lerp(_light.energy, intensity, delta * 3.0)
+# --------------------
+# SPYRION BUFF SYSTEM
+# --------------------
+func _apply_standard_buffs() -> void:
+	# Dauerhafte Buffs für den Spieler
+	_apply_buff(\"attack_speed\", attack_speed_multiplier)
+	_apply_buff(\"critical_chance\", critical_chance_buff)
+	_apply_buff(\"critical_damage\", critical_damage_multiplier)
+	_apply_buff(\"life_steal\", life_steal_percent)
+	
+	# Feurige Partikel aktivieren
+	_activate_fire_particles()
+
+func _check_berserk_condition() -> void:
+	if _player and _player.has_method(\"get_health_percentage\"):
+		var health_percentage = _player.get_health_percentage()
+		var is_berserk = health_percentage <= berserk_health_threshold
+		
+		if is_berserk and not _active_buffs.has(\"berserk\"):
+			_activate_berserk_mode()
+		elif not is_berserk and _active_buffs.has(\"berserk\"):
+			_deactivate_berserk_mode()
+
+func _activate_berserk_mode() -> void:
+	_apply_buff(\"berserk_damage\", berserk_damage_multiplier)
+	_apply_buff(\"berserk_attack_speed\", berserk_attack_speed_multiplier)
+	_activate_buff_particles(Color(1.0, 0.1, 0.1))
+	_show_buff_label(\"BERSERK!\", Color(1.0, 0.2, 0.1), 1.5, 1.0)
+
+func _deactivate_berserk_mode() -> void:
+	_remove_buff(\"berserk_damage\")
+	_remove_buff(\"berserk_attack_speed\")
+	_activate_fire_particles()
+
+# --------------------
+# PARTIKEL SYSTEM
+# --------------------
+func _activate_buff_particles(color: Color) -> void:
+	_buff_particles.emitting = true
+	var mat = ParticleProcessMaterial.new()
+	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	mat.emission_sphere_radius = 50.0
+	mat.initial_velocity = Vector2(60.0, 60.0)
+	mat.spread = 45.0
+	mat.gravity = Vector3(0, -20, 0)
+	mat.scale = Vector2(0.8, 0.8)
+	mat.color_ramp = _create_color_ramp(color)
+	_buff_particles.process_material = mat
+	_buff_particles.lifetime = 1.5
+
+func _activate_fire_particles() -> void:
+	_buff_particles.emitting = true
+	var mat = ParticleProcessMaterial.new()
+	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	mat.emission_sphere_radius = 50.0
+	mat.initial_velocity = Vector2(60.0, 60.0)
+	mat.spread = 45.0
+	mat.gravity = Vector3(0, -20, 0)
+	mat.scale = Vector2(0.8, 0.8)
+	mat.color_ramp = _create_fire_gradient()
+	_buff_particles.process_material = mat
+	_buff_particles.lifetime = 1.5
+
+# --------------------
+# SPECIAL ABILITY - FEUERSCHILD
+# --------------------
+func activate_fire_shield() -> void:
+	if not _fire_shield_ready or _fire_shield_active:
+		return
+	
+	_fire_shield_active = true
+	_fire_shield_ready = false
+	
+	# Spieler wird unverwundbar und reflektiert Schaden
+	if _player and _player.has_method(\"set_invulnerable\"):
+		_player.set_invulnerable(true)
+	
+	_apply_buff(\"damage_reflect\", fire_shield_reflect_damage)
+	_create_fire_shield_effect()
+	_show_buff_label(\"FEUERSCHILD!\", Color(1.0, 0.6, 0.1), 1.8, 1.5)
+	
+	# Schild-Dauer
+	_fire_shield_timer.wait_time = fire_shield_duration
+	_fire_shield_timer.start()
+	_fire_shield_timer.timeout.connect(_deactivate_fire_shield)
+	
+	# Cooldown
+	_fire_shield_cooldown_timer.wait_time = fire_shield_cooldown
+	_fire_shield_cooldown_timer.start()
+	_fire_shield_cooldown_timer.timeout.connect(func(): 
+		_fire_shield_ready = true
+		_show_buff_label(\"Schild bereit!\", Color(0.1, 1.0, 0.1), 1.2, 1.0)
+	)
+
+func _deactivate_fire_shield() -> void:
+	_fire_shield_active = false
+	
+	if _player and _player.has_method(\"set_invulnerable\"):
+		_player.set_invulnerable(false)
+	
+	_remove_buff(\"damage_reflect\")
+	_remove_fire_shield_effect()
+
+func _update_fire_shield_effects() -> void:
+	if _fire_shield_active and _player:
+		# Visuelle Effekte um den Spieler aktualisieren
+		var shield_particles = get_node_or_null(\"FireShieldParticles\")
+		if shield_particles:
+			shield_particles.global_position = _player.global_position
+
+# --------------------
+# COMBO SYSTEM
+# --------------------
+func add_combo_stack() -> void:
+	# Wird aufgerufen, wenn der Spieler einen Gegner besiegt
+	_combo_timer.stop()
+	_combo_timer.start()
+	
+	_current_combo_stacks = min(_current_combo_stacks + 1, max_combo_stacks)
+	_combo_multiplier = 1.0 + (_current_combo_stacks * combo_damage_per_stack)
+	
+	# Combo-Buff aktualisieren
+	_apply_buff(\"combo_damage\", _combo_multiplier)
+	
+	# Visuelles Feedback
+	var combo_color = Color(1.0, 0.8, 0.1)
+	_show_buff_label(\"COMBO x\" + str(_current_combo_stacks), combo_color, 1.3, 0.8)
+
+func _on_combo_timeout() -> void:
+	# Combo-Zeit abgelaufen
+	if _current_combo_stacks > 0:
+		_show_buff_label(\"Combo verloren!\", Color(1.0, 0.2, 0.1), 1.2, 1.0)
+	
+	_current_combo_stacks = 0
+	_combo_multiplier = 1.0
+	_remove_buff(\"combo_damage\")
+
+# --------------------
+# VISUELLE EFFECTE
+# --------------------
+func _create_fire_gradient() -> GradientTexture1D:
+	var gradient = Gradient.new()
+	gradient.set_color(0, Color(1.0, 0.9, 0.1))
+	gradient.set_color(0.5, Color(1.0, 0.5, 0.1))
+	gradient.set_color(1, Color(1.0, 0.2, 0.1, 0.0))
+	var texture = GradientTexture1D.new()
+	texture.gradient = gradient
+	return texture
+
+func _create_color_ramp(base_color: Color) -> GradientTexture1D:
+	var gradient = Gradient.new()
+	gradient.set_color(0, base_color)
+	gradient.set_color(1, Color(base_color.r, base_color.g, base_color.b, 0))
+	var texture = GradientTexture1D.new()
+	texture.gradient = gradient
+	return texture
+
+func _create_fire_shield_effect() -> void:
+	# Erstellt einen Schildeffekt um den Spieler
+	var shield_particles = GPUParticles2D.new()
+	shield_particles.name = \"FireShieldParticles\"
+	add_child(shield_particles)
+	
+	var mat = ParticleProcessMaterial.new()
+	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	mat.emission_sphere_radius = 80.0
+	mat.initial_velocity = 10.0
+	mat.spread = 180.0
+	mat.gravity = Vector3(0, 0, 0)
+	mat.scale = 1.2
+	mat.color_ramp = _create_fire_gradient()
+	shield_particles.process_material = mat
+	shield_particles.amount = 100
+	shield_particles.lifetime = 1.0
+	shield_particles.explosiveness = 0.0
+	shield_particles.emitting = true
+
+func _remove_fire_shield_effect() -> void:
+	var shield_particles = get_node_or_null(\"FireShieldParticles\")
+	if shield_particles:
+		shield_particles.queue_free()
+
+func _update_light(delta: float, player_pos: Vector2) -> void:
+	if not _light:
+		return
+
+	var dist = global_position.distance_to(player_pos)
+	var pulse = 0.15 * sin(_time * 5.0)
+	var base_intensity = clamp(1.0 - abs(dist - follow_distance) / 150.0, 0.5, 1.2)
+
+	if _fire_shield_active:
+		_light.color = Color(1.0, 0.8, 0.1)
+		_light.energy = base_intensity + pulse * 2.0
+	elif _active_buffs.has(\"berserk\"):
+		_light.color = Color(1.0, 0.2, 0.1)
+		_light.energy = base_intensity + pulse * 1.5
+	else:
+		_light.color = Color(1.0, 0.5, 0.1)
+		_light.energy = base_intensity + pulse
+
+# --------------------
+# ANIMATION & HILFSFUNKTIONEN
+# --------------------
+func _update_animation_speed() -> void:
+	if not _animation_player:
+		return
+		
+	var player_velocity = Vector2.ZERO
+	if _player and _player.has_method(\"get_velocity\"):
+		player_velocity = _player.get_velocity()
+	
+	if player_velocity.length() < 10.0:
+		_animation_player.speed_scale = animation_slow_speed
+	else:
+		_animation_player.speed_scale = animation_normal_speed
+
+func _show_buff_label(text: String, color: Color = Color(1,1,1), scale: float = 1.0, duration: float = 0.8) -> void:
+	var label = Label.new()
+	label.text = text
+	label.modulate = color
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.position = global_position - Vector2(0, 20)
+	label.scale = Vector2.ZERO
+	add_child(label)
+
+	var tween = create_tween()
+	tween.tween_property(label, \"scale\", Vector2.ONE * scale, duration * 0.4).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.tween_property(label, \"position:y\", label.position.y - 20, duration * 0.6).set_trans(Tween.TRANS_LINEAR)
+	tween.tween_property(label, \"modulate:a\", 0.0, duration * 0.6).set_delay(duration * 0.4)
+
+	tween.finished.connect(func():
+		if label.is_inside_tree():
+			label.queue_free()
+	)
+
+# --------------------
+# BUFF MANAGEMENT
+# --------------------
+func _apply_buff(buff_type: String, value: float) -> void:
+	_active_buffs[buff_type] = value
+	if _player and _player.has_method(\"apply_buff\"):
+		_player.apply_buff(buff_type, value)
+
+func _remove_buff(buff_type: String) -> void:
+	if _active_buffs.has(buff_type):
+		_active_buffs.erase(buff_type)
+		if _player and _player.has_method(\"remove_buff\"):
+			_player.remove_buff(buff_type)
+
+# --------------------
+# ÖFFENTLICHE METHODEN
+# --------------------
+func is_fire_shield_ready() -> bool:
+	return _fire_shield_ready
+
+func is_fire_shield_active() -> bool:
+	return _fire_shield_active
+
+func get_combo_stacks() -> int:
+	return _current_combo_stacks
+
+func get_combo_multiplier() -> float:
+	return _combo_multiplier
+
+# Für den Spieler, um den Feuerschild zu aktivieren
+func trigger_fire_shield() -> void:
+	activate_fire_shield()
+
+# Für den Spieler, um Combo-Stacks hinzuzufügen
+func notify_player_kill() -> void:
+	add_combo_stack()
 "
 
 [sub_resource type="Gradient" id="Gradient_jxmgf"]

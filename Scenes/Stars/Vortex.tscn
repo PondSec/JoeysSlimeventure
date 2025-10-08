@@ -1,43 +1,99 @@
-[gd_scene load_steps=6 format=3 uid="uid://ecp2xtcxc78w"]
+[gd_scene load_steps=11 format=3 uid="uid://ecp2xtcxc78w"]
 
-[ext_resource type="Texture2D" uid="uid://cpgtjwsrmrchd" path="res://Assets/Stars/Vortex.png" id="1_whiey"]
+[ext_resource type="Texture2D" uid="uid://c3ehubaqwq05c" path="res://Assets/Stars/Vortex-sheet.png" id="1_vjbta"]
+[ext_resource type="Texture2D" uid="uid://cllwmov7ffejk" path="res://Assets/Particles#/dust.png" id="2_vjbta"]
 
 [sub_resource type="GDScript" id="GDScript_jxmgf"]
 resource_name = "Lumora"
 script/source = "extends CharacterBody2D
 
+# --------------------
+# VORTEX CONFIG / EXPORTS
+# --------------------
 @export var player_path: NodePath
 @export var delay_points := 25
-@export var move_speed := 180.0
-@export var float_amplitude := 6.0
-@export var float_speed := 3.0
-@export var follow_distance := 70.0
-@export var smooth_factor := 3.0
-@export var orbit_speed := 1.0
-@export var orbit_smooth := 0.5
-@export var avoid_distance := 60.0
-@export var avoid_strength := 0.6
+@export var move_speed := 160.0  # Etwas langsamer als Lumora
+@export var float_amplitude := 8.0  # Mehr Schweben
+@export var float_speed := 2.5
+@export var follow_distance := 85.0
+@export var smooth_factor := 2.5  # Sanftere Bewegung
+@export var orbit_speed := 0.8  # Langsamere Orbit-Bewegung
+@export var orbit_smooth := 0.4
+@export var avoid_distance := 70.0
+@export var avoid_strength := 0.7
 
-# Optional: falls du ein Light2D unter Lumora hast (z. B. \"GlowLight\")
-@export var light_node_path: NodePath = \"GlowLight\"
+# Animation Einstellungen
+@export var animation_slow_speed := 0.4
+@export var animation_normal_speed := 0.9
 
+# Buff-Einstellungen (Vortex-spezifisch)
+@export var heal_amount := 4
+@export var heal_interval := 2.5
+@export var damage_reduction := 0.25
+@export var speed_buff_multiplier := 1.2
+@export var attack_speed_buff_multiplier := 1.3  # Neuer: Angriffsgeschwindigkeit
+@export var health_threshold := 0.35
+
+# Slow-Aura Einstellungen
+@export var slow_aura_radius := 120.0
+@export var slow_intensity := 0.3  # 40% Slow (1.0 - 0.6 = 0.4)
+@export var slow_duration := 0.5  # Wie lange der Slow nach Verlassen der Aura anhält
+@export var slow_unlock_points := 150.0  # Punkte die benötigt werden um Slow zu aktivieren
+
+@export var light_node_path: NodePath = \"Glow\"
+
+# VORTEX SKILL SYSTEM (NUR SLOW, KEIN DAMAGE)
+@export var skill_save_path: String = \"user://vortex_skill_data.save\"
+
+# --------------------
+# INTERN
+# --------------------
 var _player: Node2D
-var _trail: Array[Vector2] = []
+var _trail_positions: Array[Vector2] = []
 var _time := 0.0
 var _orbit_angle := 0.0
 var _orbit_radius := 0.0
 var _raycast: RayCast2D
-var _random_offset := randf_range(0.85, 1.15)
+var _random_offset := randf_range(0.8, 1.2)
 var _velocity := Vector2.ZERO
 var _light: Light2D
+var _animation_player: AnimationPlayer
 
+# Buff-System
+var _heal_timer: Timer
+var _is_player_low_health := false
+var _active_buffs := {}
+var _buff_particles: GPUParticles2D
+
+# Slow-Aura System
+var _slowed_enemies := {}  # enemy: [original_speed, slow_timer]
+var _aura_particles: GPUParticles2D
+
+# Skill System
+var current_skill_points := 0.0
+var can_slow := false  # Umbenannt von can_attack
+var slow_multiplier := 1.0  # Umbenannt von damage_multiplier
+
+var _autosave_timer: Timer
+var _slow_aura_timer: Timer
+
+# --------------------
+# READY
+# --------------------
 func _ready() -> void:
+	# Spieler-Referenz
 	if player_path:
-		_player = get_node(player_path)
+		_player = get_node_or_null(player_path)
 	else:
-		push_warning(\"Lumora has no player assigned!\")
+		push_warning(\"Vortex has no player assigned!\")
 
-	# RayCast für Kollisionsvermeidung
+	# Animation Player
+	_animation_player = get_node_or_null(\"AnimationPlayer\")
+	if _animation_player:
+		_animation_player.play(\"vortex_spin\")  # Andere Animation
+		_animation_player.speed_scale = animation_normal_speed
+
+	# Raycast für Hindernisvermeidung
 	_raycast = RayCast2D.new()
 	add_child(_raycast)
 	_raycast.enabled = true
@@ -46,12 +102,224 @@ func _ready() -> void:
 	_raycast.collision_mask = 0b1111
 	_raycast.target_position = Vector2.RIGHT * avoid_distance
 
-	# Optionales Light2D abrufen
+	# Lichtsystem
 	if has_node(light_node_path):
 		_light = get_node(light_node_path)
 
+	# Trail für Nachleuchteffekt (bläulicher)
+	var trail_line = get_node_or_null(\"TrailLine2D\")
+	if trail_line == null:
+		trail_line = Line2D.new()
+		trail_line.name = \"TrailLine2D\"
+		add_child(trail_line)
+		trail_line.width = 5.0
+		trail_line.gradient = _create_color_ramp(Color(0.4, 0.6, 1.0, 0.6))  # Bläulich
+		trail_line.texture_mode = Line2D.LINE_TEXTURE_TILE
+
+	# Heal-Timer
+	_heal_timer = Timer.new()
+	add_child(_heal_timer)
+	_heal_timer.wait_time = heal_interval
+	_heal_timer.autostart = true
+	_heal_timer.one_shot = false
+	_heal_timer.timeout.connect(_on_heal_timer_timeout)
+	_heal_timer.start()
+
+	# Partikel für Buff-Effekte
+	_buff_particles = GPUParticles2D.new()
+	add_child(_buff_particles)
+	_buff_particles.emitting = false
+	_buff_particles.one_shot = false
+	_buff_particles.amount = 28
+
+	# Slow-Aura Partikel
+	_aura_particles = GPUParticles2D.new()
+	add_child(_aura_particles)
+	_configure_slow_aura_particles()
+
 	_orbit_radius = follow_distance
 
+	# Slow-Aura Timer
+	_slow_aura_timer = Timer.new()
+	add_child(_slow_aura_timer)
+	_slow_aura_timer.wait_time = 0.3  # Prüfe alle 0.3s auf Gegner in Aura
+	_slow_aura_timer.autostart = true
+	_slow_aura_timer.one_shot = false
+	_slow_aura_timer.timeout.connect(_update_slow_aura)
+	_slow_aura_timer.start()
+
+	# --- Skill System & Persistenz ---
+	_load_skill_data()
+
+	_autosave_timer = Timer.new()
+	add_child(_autosave_timer)
+	_autosave_timer.wait_time = 2.0
+	_autosave_timer.autostart = true
+	_autosave_timer.one_shot = false
+	_autosave_timer.timeout.connect(_autosave_skill_data)
+	_autosave_timer.start()
+	
+	can_slow = true
+	
+	print(\"🎯 VORTEX INITIALISIERT:\")
+	print(\"   - slow_intensity: \", slow_intensity)
+	print(\"   - slow_multiplier: \", slow_multiplier)
+	print(\"   - slow_unlock_points: \", slow_unlock_points)
+	print(\"   - current_skill_points: \", current_skill_points)
+
+# --------------------
+# SLOW AURA SYSTEM
+# --------------------
+func _configure_slow_aura_particles() -> void:
+	var mat = ParticleProcessMaterial.new()
+	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	mat.emission_sphere_radius = slow_aura_radius * 0.9
+	mat.gravity = Vector3(0, 0, 0)
+	mat.initial_velocity = Vector2(0.0, 0.0)
+	mat.angle = Vector2(0.0, 0.0)
+	mat.spread = 0.0
+	mat.scale = Vector2(1.5, 1.5)
+	mat.color_ramp = _create_color_ramp(Color(0.3, 0.5, 0.9, 0.3))
+	mat.damping = Vector2(10.0, 10.0)
+	
+	_aura_particles.process_material = mat
+	_aura_particles.amount = 50
+	_aura_particles.lifetime = 1.5
+	_aura_particles.emitting = can_slow  # Nur emittieren wenn Slow aktiv ist
+	_aura_particles.one_shot = false
+
+func _update_slow_aura() -> void:
+	# NUR AKTIV WENN can_slow true ist (also ab 150 Punkten)
+	if not can_slow:
+		_aura_particles.emitting = false
+		return
+	
+	_aura_particles.emitting = true
+	
+	# DEBUG: Überprüfe alle Gegner
+	var enemies = get_tree().get_nodes_in_group(\"enemies\")
+	print(\"🌀 Aura scannt Gegner: \", enemies.size(), \" gefunden\")
+	
+	for i in enemies.size():
+		var enemy = enemies[i]
+		if not is_instance_valid(enemy):
+			continue
+		var distance = global_position.distance_to(enemy.global_position)
+		print(\"   - Gegner \", i, \": \", enemy.name, \" | Distanz: \", distance, \" | In Aura: \", distance <= slow_aura_radius)
+			
+	var currently_in_aura := []
+	
+	# Finde Gegner in Aura-Reichweite
+	for enemy in enemies:
+		if not is_instance_valid(enemy):
+			continue
+			
+		var distance = global_position.distance_to(enemy.global_position)
+		if distance <= slow_aura_radius:
+			currently_in_aura.append(enemy)
+			_apply_slow_to_enemy(enemy)
+	
+	# DEBUG: Zeige wie viele Gegner in Aura sind
+	print(\"🌀 Gegner in Aura: \", currently_in_aura.size())
+	
+	# Entferne Slow von Gegnern, die die Aura verlassen haben
+	var to_remove := []
+	for enemy in _slowed_enemies:
+		if not enemy in currently_in_aura or not is_instance_valid(enemy):
+			to_remove.append(enemy)
+
+func _apply_slow_to_enemy(enemy: Node) -> void:
+	if not enemy.has_method(\"get_speed\") or not enemy.has_method(\"set_speed\"):
+		return
+	
+	if not _slowed_enemies.has(enemy):
+		var original_speed = enemy.get_speed()
+		var actual_slow_intensity = slow_intensity * slow_multiplier
+		
+		print(\"🌀 Vortex wendet Slow an: \", enemy.name, \" | Intensität: \", actual_slow_intensity)
+		
+		# VISUELLES FEEDBACK: Erstelle einen Floating Text über dem Gegner
+		_create_slow_floating_text(enemy.global_position, actual_slow_intensity)
+		
+		if enemy.has_method(\"apply_slow\"):
+			enemy.apply_slow(actual_slow_intensity, slow_duration)
+		else:
+			enemy.set_speed(original_speed * actual_slow_intensity)
+		
+		# Timer für automatisches Entfernen des Slows
+		var slow_timer = Timer.new()
+		add_child(slow_timer)
+		slow_timer.wait_time = slow_duration
+		slow_timer.one_shot = true
+		slow_timer.autostart = true
+		slow_timer.timeout.connect(_on_slow_expired.bind(enemy, original_speed))
+		slow_timer.start()
+		
+		_slowed_enemies[enemy] = [original_speed, slow_timer]
+		_create_slow_effect(enemy.global_position)
+
+# NEUE METHODE: Floating Text für visuelles Feedback
+func _create_slow_floating_text(position: Vector2, intensity: float) -> void:
+	var slow_label = Label.new()
+	slow_label.text = \"SLOW! \" + str(intensity * 100) + \"%\"
+	slow_label.add_theme_color_override(\"font_color\", Color(0.3, 0.6, 1.0))
+	slow_label.add_theme_font_size_override(\"font_size\", 16)
+	slow_label.position = position - Vector2(30, 40)
+	get_parent().add_child(slow_label)
+	
+	var tween = create_tween().set_parallel(true)
+	tween.tween_property(slow_label, \"position:y\", slow_label.position.y - 50, 1.0)
+	tween.tween_property(slow_label, \"modulate:a\", 0.0, 1.0)
+	tween.tween_property(slow_label, \"scale\", Vector2(1.2, 1.2), 0.3)
+	tween.chain().tween_property(slow_label, \"scale\", Vector2(0.8, 0.8), 0.7)
+	
+	tween.finished.connect(slow_label.queue_free)
+
+func _remove_slow_from_enemy(enemy: Node) -> void:
+	if _slowed_enemies.has(enemy):
+		var data = _slowed_enemies[enemy]
+		var original_speed = data[0]
+		var slow_timer = data[1]
+		
+		if is_instance_valid(enemy) and enemy.has_method(\"set_speed\"):
+			enemy.set_speed(original_speed)
+		
+		if is_instance_valid(slow_timer):
+			slow_timer.queue_free()
+		
+		_slowed_enemies.erase(enemy)
+
+func _on_slow_expired(enemy: Node, original_speed: float) -> void:
+	if is_instance_valid(enemy) and enemy.has_method(\"set_speed\"):
+		# Prüfe ob der Gegner noch in der Aura ist
+		var distance = global_position.distance_to(enemy.global_position)
+		if distance > slow_aura_radius:
+			enemy.set_speed(original_speed)
+			_slowed_enemies.erase(enemy)
+
+func _create_slow_effect(pos: Vector2) -> void:
+	var fx = GPUParticles2D.new()
+	add_child(fx)
+	var mat = ParticleProcessMaterial.new()
+	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	mat.emission_sphere_radius = 15
+	mat.lifetime_randomness = 0.4
+	mat.spread = 45.0
+	mat.gravity = Vector3(0, -20, 0)
+	mat.initial_velocity = Vector2(60.0, 60.0)
+	mat.color_ramp = _create_color_ramp(Color(0.2, 0.4, 0.8, 0.8))
+	fx.process_material = mat
+	fx.amount = 15
+	fx.one_shot = true
+	fx.lifetime = 0.7
+	fx.global_position = pos
+	fx.emitting = true
+	await get_tree().create_timer(0.8).timeout
+	fx.queue_free()
+
+# --------------------
+# PHYSICS
+# --------------------
 func _physics_process(delta: float) -> void:
 	if _player == null:
 		return
@@ -61,42 +329,318 @@ func _physics_process(delta: float) -> void:
 
 	var player_pos = _player.global_position
 
-	# 1. Leichte Zufallsvariation und pulsierende Orbitdistanz
-	var target_orbit = follow_distance + sin(_time * 0.7) * 6.0 * _random_offset
+	# Orbit + Schweben (mehr Rotation)
+	var target_orbit = follow_distance + sin(_time * 0.5) * 10.0 * _random_offset
 	_orbit_radius = lerp(_orbit_radius, target_orbit, delta * orbit_smooth)
 
-	# 2. Orbitale Zielposition berechnen
 	var orbit_offset = Vector2(cos(_orbit_angle), sin(_orbit_angle)) * _orbit_radius
-	var float_offset = Vector2(0, sin(_time * _random_offset) * float_amplitude)
+	var float_offset = Vector2(sin(_time * _random_offset), cos(_time * _random_offset * 0.7)) * float_amplitude
 	var desired_pos = player_pos + orbit_offset + float_offset
 
-	# Raycast zur Kollisionsvermeidung
-	var move_dir = (desired_pos - global_position).normalized()
-	_raycast.rotation = move_dir.angle()
-	_raycast.target_position = move_dir * avoid_distance
-	_raycast.force_raycast_update()
+	# Hinderniserkennung
+	var move_dir = (desired_pos - global_position)
+	if move_dir.length() > 0.001:
+		move_dir = move_dir.normalized()
+		_raycast.rotation = move_dir.angle()
+		_raycast.target_position = move_dir * avoid_distance
+		_raycast.force_raycast_update()
 
-	if _raycast.is_colliding():
-		var normal = _raycast.get_collision_normal()
-		var avoid_angle = normal.angle() + PI / 2.0
-		var avoid_vector = Vector2(cos(avoid_angle), sin(avoid_angle)) * avoid_distance * avoid_strength
-		desired_pos += avoid_vector
+		if _raycast.is_colliding():
+			var normal = _raycast.get_collision_normal()
+			var avoid_angle = normal.angle() + PI / 2.0
+			var avoid_vector = Vector2(cos(avoid_angle), sin(avoid_angle)) * avoid_distance * avoid_strength
+			desired_pos += avoid_vector
 
-	# 3. Bewegung mit Nachschwung
+	# Bewegung glätten
 	var desired_velocity = (desired_pos - global_position) * smooth_factor
-	_velocity = _velocity.lerp(desired_velocity, delta * 2.0)
+	_velocity = _velocity.lerp(desired_velocity, delta * 1.8)
 	global_position += _velocity * delta * 0.5
 
-	# 4. Orientierung zur Bewegungsrichtung
+	# Sanftere Rotation
 	if _velocity.length() > 0.1:
-		var new_rotation = _velocity.angle()
-		rotation = lerp_angle(rotation, new_rotation, delta * 5.0)
+		rotation = lerp_angle(rotation, _velocity.angle(), delta * 3.0)
+	
+	# Trail-Logik
+	_trail_positions.append(global_position)
+	var trail_line = get_node(\"TrailLine2D\") as Line2D
+	trail_line.clear_points()
+	for pos in _trail_positions:
+		trail_line.add_point(pos)
+	
+	_update_light(delta, player_pos)
+	_check_player_health()
+	_update_buffs()
+	_update_aura_link()
+	_update_animation_speed()
 
-	# 5. Leuchtintensität je nach Distanz
-	if _light:
-		var dist = global_position.distance_to(player_pos)
-		var intensity = clamp(1.0 - abs(dist - follow_distance) / 120.0, 0.6, 1.0)
-		_light.energy = lerp(_light.energy, intensity, delta * 3.0)
+# ---------------------------------
+# ANIMATION SYSTEM
+# ---------------------------------
+func _update_animation_speed() -> void:
+	if not _animation_player:
+		return
+		
+	var player_velocity = Vector2.ZERO
+	if _player and _player.has_method(\"get_velocity\"):
+		player_velocity = _player.get_velocity()
+	
+	if player_velocity.length() < 10.0:
+		_animation_player.speed_scale = animation_slow_speed
+	else:
+		_animation_player.speed_scale = animation_normal_speed
+
+# ---------------------------------
+# VISUELLE SYSTEME
+# ---------------------------------
+func _update_light(delta: float, player_pos: Vector2) -> void:
+	if not _light:
+		return
+
+	var dist = global_position.distance_to(player_pos)
+	var pulse = 0.15 * sin(_time * 3.5)
+	var base_intensity = clamp(1.0 - abs(dist - follow_distance) / 150.0, 0.3, 0.9)
+
+	if _is_player_low_health:
+		_light.color = Color(0.8, 0.4, 0.4)  # Rötlicher bei niedrigem Leben
+	elif _active_buffs.size() > 0:
+		_light.color = Color(0.6, 0.8, 1.0)  # Bläulich-weiß
+	elif can_slow:
+		_light.color = Color(0.3, 0.6, 1.0)  # Intensiveres Blau wenn Slow aktiv
+	else:
+		_light.color = Color(0.4, 0.6, 1.0)  # Standard blau
+
+	_light.energy = lerp(_light.energy, base_intensity + pulse, delta * 2.0)
+
+func _update_aura_link():
+	if not _player:
+		return
+	var line = get_node_or_null(\"AuraLine2D\")
+	if line == null:
+		line = Line2D.new()
+		line.name = \"AuraLine2D\"
+		add_child(line)
+		line.width = 2.5
+		line.gradient = _create_color_ramp(Color(0.3, 0.6, 1.0))  # Bläulich
+		line.texture = _create_pixel_texture()
+		line.texture_mode = Line2D.LINE_TEXTURE_TILE
+		line.begin_cap_mode = Line2D.LINE_CAP_ROUND
+		line.end_cap_mode = Line2D.LINE_CAP_ROUND
+
+	line.clear_points()
+	var mid = (global_position + _player.global_position) / 2
+	var offset = Vector2(sin(_time * 5.0), cos(_time * 5.0)) * 6.0  # Mehr Rotation
+	line.add_point(global_position)
+	line.add_point(mid + offset)
+	line.add_point(_player.global_position)
+	line.modulate.a = 0.4 + 0.3 * sin(_time * 3.0)
+
+# ---------------------------------
+# BUFF / HEIL / STATUS
+# ---------------------------------
+func _check_player_health() -> void:
+	if _player and _player.has_method(\"get_health_percentage\"):
+		var health_percentage = _player.get_health_percentage()
+		var was_low_health = _is_player_low_health
+		_is_player_low_health = health_percentage <= health_threshold
+
+		if _is_player_low_health and not was_low_health:
+			_activate_emergency_buffs()
+		elif not _is_player_low_health and was_low_health:
+			_deactivate_emergency_buffs()
+
+func _activate_emergency_buffs() -> void:
+	_apply_buff(\"speed_boost\", speed_buff_multiplier)
+	_apply_buff(\"attack_speed_boost\", attack_speed_buff_multiplier)
+	_apply_buff(\"damage_reduction\", damage_reduction)
+	_heal_timer.wait_time = heal_interval * 0.6
+	_activate_buff_particles(Color(0.8, 0.3, 0.3))
+	_show_buff_label(\"⚡\", Color(1,0.6,0.6), 1.4, 0.9)
+
+func _deactivate_emergency_buffs() -> void:
+	_remove_buff(\"speed_boost\")
+	_remove_buff(\"attack_speed_boost\")
+	_remove_buff(\"damage_reduction\")
+	_heal_timer.wait_time = heal_interval
+	_activate_buff_particles(Color(0.4, 0.6, 1.0, 0.6))
+
+func _apply_buff(buff_type: String, value: float) -> void:
+	_active_buffs[buff_type] = value
+	if _player and _player.has_method(\"apply_buff\"):
+		_player.apply_buff(buff_type, value)
+
+func _remove_buff(buff_type: String) -> void:
+	if _active_buffs.has(buff_type):
+		_active_buffs.erase(buff_type)
+		if _player and _player.has_method(\"remove_buff\"):
+			_player.remove_buff(buff_type)
+
+func _update_buffs() -> void:
+	if _player and _player.has_method(\"has_buff\"):
+		var distance_to_player = global_position.distance_to(_player.global_position)
+		if distance_to_player < follow_distance * 2.0:
+			if not _active_buffs.has(\"constant_damage_reduction\"):
+				_apply_buff(\"constant_damage_reduction\", damage_reduction * 0.4)
+		else:
+			_remove_buff(\"constant_damage_reduction\")
+
+func _on_heal_timer_timeout() -> void:
+	if _player and _player.has_method(\"heal\"):
+		var actual_heal_amount = heal_amount
+		if _is_player_low_health:
+			actual_heal_amount *= 1.8
+		_player.heal(actual_heal_amount)
+		_create_heal_effect()
+		_show_buff_label(\"♥\", Color(0.3,0.8,1.0,0.8), 1.1, 0.7)  # Bläuliches Heal
+
+# ---------------------------------
+# VISUELLE EFFEKTE
+# ---------------------------------
+func _activate_buff_particles(color: Color) -> void:
+	_buff_particles.emitting = true
+	var mat = ParticleProcessMaterial.new()
+	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	mat.emission_sphere_radius = 55.0
+	mat.initial_velocity = Vector2(70.0, 70.0)
+	mat.spread = 40.0
+	mat.gravity = Vector3(0, -40, 0)
+	mat.scale = Vector2(0.7, 0.7)
+	mat.color_ramp = _create_color_ramp(color)
+	_buff_particles.process_material = mat
+	_buff_particles.lifetime = 1.4
+
+func _create_heal_effect() -> void:
+	var heal_particles = GPUParticles2D.new()
+	add_child(heal_particles)
+	var mat = ParticleProcessMaterial.new()
+	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	mat.emission_sphere_radius = 20.0
+	mat.gravity = Vector3(0, -25, 0)
+	mat.initial_velocity = Vector2(90.0, 90.0)
+	mat.spread = 30.0
+	mat.scale = Vector2(0.9, 0.9)
+	mat.lifetime_randomness = 0.5
+	mat.color_ramp = _create_color_ramp(Color(0.3, 0.7, 1.0, 0.7))  # Bläulicher Heal
+	heal_particles.process_material = mat
+	heal_particles.amount = 35
+	heal_particles.lifetime = 0.9
+	heal_particles.one_shot = true
+	heal_particles.emitting = true
+	if _player:
+		heal_particles.global_position = _player.global_position
+	else:
+		heal_particles.global_position = global_position
+	await get_tree().create_timer(1.0).timeout
+	heal_particles.queue_free()
+
+# ---------------------------------
+# ASCII-BUFF LABEL
+# ---------------------------------
+func _show_buff_label(text: String, color: Color = Color(1,1,1), scale: float = 1.0, duration: float = 0.8) -> void:
+	var label = Label.new()
+	label.text = text
+	label.modulate = color
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.position = global_position - Vector2(0, 25)
+	label.scale = Vector2.ZERO
+	add_child(label)
+
+	var tween = create_tween()
+	tween.tween_property(label, \"scale\", Vector2.ONE * scale, duration * 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.tween_property(label, \"position:y\", label.position.y - 25, duration * 0.7).set_trans(Tween.TRANS_LINEAR)
+	tween.tween_property(label, \"modulate:a\", 0.0, duration * 0.5).set_delay(duration * 0.5)
+
+	tween.finished.connect(func():
+		if label.is_inside_tree():
+			label.queue_free()
+	)
+
+# ---------------------------------
+# HILFSFUNKTIONEN
+# ---------------------------------
+func _create_pixel_texture() -> Texture2D:
+	var image = Image.create(4, 4, false, Image.FORMAT_RGBA8)
+	for x in 4:
+		for y in 4:
+			if (x == 0 || x == 3) and (y == 0 || y == 3):
+				image.set_pixel(x, y, Color(0, 0, 0, 0))
+			else:
+				image.set_pixel(x, y, Color(1, 1, 1, 1))
+	return ImageTexture.create_from_image(image)
+
+func _create_color_ramp(base_color: Color) -> GradientTexture1D:
+	var gradient = Gradient.new()
+	gradient.set_color(0, base_color)
+	gradient.set_color(1, Color(base_color.r, base_color.g, base_color.b, 0))
+	var texture = GradientTexture1D.new()
+	texture.gradient = gradient
+	return texture
+
+# ---------------------------------
+# ÖFFENTLICHE BUFF-METHODEN
+# ---------------------------------
+func boost_healing(multiplier: float, duration: float) -> void:
+	var original_interval = _heal_timer.wait_time
+	_heal_timer.wait_time = original_interval / multiplier
+	_apply_buff(\"healing_boost\", multiplier)
+	_get_duration_timer(duration).timeout.connect(func():
+		_heal_timer.wait_time = original_interval
+		_remove_buff(\"healing_boost\")
+	)
+
+func temporary_speed_boost(multiplier: float, duration: float) -> void:
+	_apply_buff(\"temporary_speed\", multiplier)
+	_get_duration_timer(duration).timeout.connect(func():
+		_remove_buff(\"temporary_speed\")
+	)
+
+func _get_duration_timer(duration: float) -> Timer:
+	var timer = Timer.new()
+	add_child(timer)
+	timer.wait_time = duration
+	timer.one_shot = true
+	timer.autostart = true
+	timer.start()
+	return timer
+
+# ---------------------------------
+# VORTEX: SKILL SYSTEM (NUR SLOW)
+# ---------------------------------
+func add_skill_points_from_player_damage(player_damage: float) -> void:
+	var gained = player_damage * 0.08
+	current_skill_points += gained
+
+	# ERST AB 150 PUNKTEN KANN VORTEX SLOWEN
+	if current_skill_points >= slow_unlock_points and not can_slow:
+		can_slow = true
+		_show_buff_label(\"🌀 Slow-Aura aktiv!\", Color(0.3, 0.6, 1.0), 1.4, 1.6)
+		_aura_particles.emitting = true
+
+	# Für je 200 Punkte über 150 -> Slow wird stärker
+	var extra = max(0.0, current_skill_points - slow_unlock_points)
+	var level_bonus = int(extra / 200.0)
+	slow_multiplier = max(0.3, 0.6 - (level_bonus * 0.02))  # Slow wird stärker (niedrigere Zahl = stärkerer Slow)
+
+func _autosave_skill_data() -> void:
+	var file = FileAccess.open(skill_save_path, FileAccess.ModeFlags.WRITE)
+	if file:
+		file.store_var(current_skill_points)
+		file.store_var(can_slow)
+		file.store_var(slow_multiplier)
+		file.close()
+
+func _load_skill_data() -> void:
+	if FileAccess.file_exists(skill_save_path):
+		var file = FileAccess.open(skill_save_path, FileAccess.ModeFlags.READ)
+		if file:
+			current_skill_points = float(file.get_var())
+			can_slow = bool(file.get_var())
+			slow_multiplier = float(file.get_var()) if file.get_position() < file.get_length() else 1.0
+			file.close()
+	else:
+		current_skill_points = 0.0
+		can_slow = false
+		slow_multiplier = 1.0
 "
 
 [sub_resource type="Gradient" id="Gradient_jxmgf"]
@@ -111,12 +655,74 @@ fill_to = Vector2(0.889908, 0.169725)
 [sub_resource type="CircleShape2D" id="CircleShape2D_5x7xt"]
 radius = 8.0
 
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_qre0u"]
+particle_flag_disable_z = true
+emission_shape_scale = Vector3(1, 1, 20)
+emission_shape = 6
+emission_ring_axis = Vector3(0, 0, 0)
+emission_ring_height = 0.0
+emission_ring_radius = 20.0
+emission_ring_inner_radius = 25.0
+emission_ring_cone_angle = 90.0
+angle_min = 1.07288e-05
+angle_max = 1.07288e-05
+angular_velocity_min = 0.999984
+angular_velocity_max = 0.999984
+orbit_velocity_min = 0.1
+orbit_velocity_max = 0.5
+radial_velocity_min = -2.23517e-05
+radial_velocity_max = -2.23517e-05
+gravity = Vector3(0, 0, 0)
+radial_accel_min = -2.23517e-06
+radial_accel_max = -2.23517e-06
+color = Color(0.485974, 0.582733, 0.999996, 1)
+
+[sub_resource type="Animation" id="Animation_vc35k"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Glow:energy")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [1.0]
+}
+
+[sub_resource type="Animation" id="Animation_qre0u"]
+resource_name = "vortex_spin"
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Glow:energy")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.5),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [1.0, 1.5]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_33ihc"]
+_data = {
+&"RESET": SubResource("Animation_vc35k"),
+&"vortex_spin": SubResource("Animation_qre0u")
+}
+
 [node name="Vortex" type="CharacterBody2D"]
 script = SubResource("GDScript_jxmgf")
-light_node_path = NodePath("Glow")
+slow_intensity = 0.5
+slow_duration = 3.0
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
-texture = ExtResource("1_whiey")
+texture = ExtResource("1_vjbta")
+hframes = 2
+vframes = 2
 
 [node name="Glow" type="PointLight2D" parent="."]
 color = Color(0.633831, 0.74027, 1, 1)
@@ -124,4 +730,18 @@ texture = SubResource("GradientTexture2D_5x7xt")
 texture_scale = 1.3
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+visible = false
 shape = SubResource("CircleShape2D_5x7xt")
+
+[node name="GPUParticles2D" type="GPUParticles2D" parent="."]
+amount = 100
+texture = ExtResource("2_vjbta")
+lifetime = 5.0
+fixed_fps = 144
+local_coords = true
+process_material = SubResource("ParticleProcessMaterial_qre0u")
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+libraries = {
+&"": SubResource("AnimationLibrary_33ihc")
+}

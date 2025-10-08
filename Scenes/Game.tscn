@@ -24,7 +24,7 @@
 [ext_resource type="Texture2D" uid="uid://ctudbataan621" path="res://Assets/Parallax Cave/6fx.png" id="21_i4lct"]
 [ext_resource type="Environment" uid="uid://ckqk2vtkjrjuj" path="res://Resource/enviroment.tres" id="25_8e0uq"]
 [ext_resource type="Texture2D" uid="uid://kd15waeydj7v" path="res://Assets/Parallax Cave/8fx.png" id="25_iyesh"]
-[ext_resource type="PackedScene" uid="uid://7vreypkntsqt" path="res://Scenes/Stars/lumora.tscn" id="26_i0vto"]
+[ext_resource type="PackedScene" uid="uid://xmkoy1l2kdw3" path="res://Scenes/Stars/Pyrion.tscn" id="26_i0vto"]
 [ext_resource type="PackedScene" uid="uid://dqcxhb7h3mjuk" path="res://Scenes/worm.tscn" id="29_i4lct"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_83pvq"]
@@ -507,9 +507,8 @@ shape = SubResource("RectangleShape2D_alh3a")
 position = Vector2(959, 1445)
 spawn_zone_container = NodePath("../CollisionShape2D")
 
-[node name="PlayerModel" parent="." node_paths=PackedStringArray("lumora") instance=ExtResource("5_26h23")]
+[node name="PlayerModel" parent="." instance=ExtResource("5_26h23")]
 position = Vector2(262, 767)
-lumora = NodePath("../Lumora")
 
 [node name="ParallaxBackground" type="ParallaxBackground" parent="."]
 scale = Vector2(0.3, 0.3)
@@ -642,9 +641,24 @@ position = Vector2(110, 945)
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = ExtResource("25_8e0uq")
 
-[node name="Lumora" parent="." instance=ExtResource("26_i0vto")]
-position = Vector2(126, 764)
+[node name="Bat" parent="." node_paths=PackedStringArray("player", "spawn_zone_container") instance=ExtResource("16_4q8tf")]
+position = Vector2(1513, 1452)
+player = NodePath("../PlayerModel")
+spawn_zone_container = NodePath("../SpawnArea/CollisionShape2D")
+
+[node name="Pyrion" parent="." instance=ExtResource("26_i0vto")]
+position = Vector2(1602, 1452)
 player_path = NodePath("../PlayerModel")
+
+[node name="Bat2" parent="." node_paths=PackedStringArray("player", "spawn_zone_container") instance=ExtResource("16_4q8tf")]
+position = Vector2(1473, 1411)
+player = NodePath("../PlayerModel")
+spawn_zone_container = NodePath("../SpawnArea/CollisionShape2D")
+
+[node name="Bat3" parent="." node_paths=PackedStringArray("player", "spawn_zone_container") instance=ExtResource("16_4q8tf")]
+position = Vector2(1463, 1462)
+player = NodePath("../PlayerModel")
+spawn_zone_container = NodePath("../SpawnArea/CollisionShape2D")
 
 [connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_pause_menu_go_to_main_menu"]
 [connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_canvas_layer_go_to_main_menu"]

@@ -16,6 +16,11 @@ const MAX_HEALTH = 50
 const ACCELERATION = 8.0
 const DECELERATION = 10.0
 
+var original_speed := SPEED  # Ursprüngliche Geschwindigkeit speichern
+var current_slow_multiplier := 1.0  # Aktueller Slow-Multiplikator
+var slow_timer := 0.0  # Timer für temporäre Slows
+var is_slowed := false
+
 # Variablen
 var navigation_update_timer = 0.0
 var is_dead := false
@@ -99,6 +104,7 @@ func _ready() -> void:
 	sound_player = AudioStreamPlayer.new()
 	sound_player.name = "SoundPlayer"  # Optional: Name für Debugging
 	add_child(sound_player)  # WICHTIG: Node hinzufügen
+	original_speed = SPEED
 
 func _on_target_detected(body: Node2D) -> void:
 	if body.is_in_group("players") or body.is_in_group("minions"):
@@ -209,6 +215,23 @@ func _physics_process(delta: float) -> void:
 	update_health_bar()
 	update_stealth()
 	
+	if slow_timer > 0:
+		slow_timer -= delta
+		if slow_timer <= 0:
+			_reset_speed()
+	
+   # Geschwindigkeit basierend auf Slow-Status setzen - DIESEN ABSCHNITT ERSETZEN:
+	if is_slowed:
+		current_speed = original_speed * current_slow_multiplier
+	else:
+		current_speed = original_speed	
+	
+	# Debug-Ausgabe (nur wenn tatsächlich verlangsamt)
+	if Engine.get_frames_drawn() % 60 == 0 and is_slowed:
+		print("🐌 Fledermaus ist verlangsamt: %s (Original: %s, Multiplier: %s)" % [
+			current_speed, original_speed, current_slow_multiplier
+		])
+	
 	if is_stunned or (player.has_method("current_health") and player.current_health <= 0):
 		velocity = Vector2.ZERO
 		is_attacking = false
@@ -307,8 +330,8 @@ func handle_patrol_state(delta: float) -> void:
 			current_patrol_index = (current_patrol_index + 1) % patrol_points.size()
 			target_point = patrol_points[current_patrol_index]
 		
-		# Geschwindigkeit natürlich variieren
-		var speed_variation = SPEED * randf_range(0.7, 1.3) * 0.6
+		# HIER ÄNDERN: current_speed statt SPEED verwenden
+		var speed_variation = current_speed * randf_range(0.7, 1.3) * 0.6  # <- GEÄNDERT
 		
 		# Sanftere Bewegungen mit Navigation
 		navigation_agent.target_position = target_point
@@ -400,11 +423,12 @@ func handle_chase(delta: float, distance: float) -> void:
 	
 	var direction = to_local(navigation_agent.get_next_path_position()).normalized()
 	if distance > MIN_DISTANCE:
-		var target_velocity = direction * SPEED
-		velocity = velocity.lerp(target_velocity, delta * 10)  # Glättung hier
+		# HIER ÄNDERN: current_speed statt SPEED verwenden
+		var target_velocity = direction * current_speed  # <- GEÄNDERT
+		velocity = velocity.lerp(target_velocity, delta * 10)
 	else:
-		velocity = velocity.lerp(Vector2.ZERO, delta * 10)  # Auch beim Stoppen glätten
-	
+		velocity = velocity.lerp(Vector2.ZERO, delta * 10)
+		
 func handle_patrol(delta: float) -> void:
 	time_since_last_seen += delta
 	if time_since_last_seen > 3.0 and patrol_points.size() > 0:
@@ -891,3 +915,80 @@ func get_light_influence_at_position(pos: Vector2) -> float:
 	if max_light_influence > 0:
 		return clamp(total_light / max_light_influence, 0.0, 1.0)
 	return 0.0  # No light influence
+
+
+# --- NEUE METHODEN FÜR SLOW SYSTEM ---
+
+func get_speed() -> float:
+	return original_speed
+
+func set_speed(new_speed: float) -> void:
+	# Setze die aktuelle Geschwindigkeit basierend auf dem Slow-Multiplikator
+	current_speed = new_speed
+
+func apply_slow(slow_multiplier: float, duration: float) -> void:
+	# Slow anwenden
+	current_slow_multiplier = slow_multiplier
+	current_speed = original_speed * current_slow_multiplier
+	slow_timer = duration
+	is_slowed = true  # <- WICHTIG: Status setzen
+	
+	print("🔵 Slow angewendet! Multiplier: ", slow_multiplier, " Neue Geschwindigkeit: ", current_speed)
+	
+	# Visuellen Slow-Effekt anzeigen
+	_show_slow_effect()
+
+func _reset_speed() -> void:
+	# Geschwindigkeit zurücksetzen
+	current_slow_multiplier = 1.0
+	current_speed = original_speed
+	slow_timer = 0.0
+	is_slowed = false  # <- WICHTIG: Status zurücksetzen
+	
+	print("🟢 Slow entfernt! Geschwindigkeit zurückgesetzt: ", current_speed)
+	
+	# Visuellen Effekt entfernen
+	_hide_slow_effect()
+
+func _show_slow_effect() -> void:
+	# Bläuliche Tönung für Slow-Effekt
+	var slow_tween = create_tween()
+	slow_tween.tween_property(sprite, "modulate", Color(0.7, 0.7, 1.0, 0.8), 0.3)
+	
+	# Partikel-Effekt für Slow
+	var slow_particles = GPUParticles2D.new()
+	add_child(slow_particles)
+	
+	var mat = ParticleProcessMaterial.new()
+	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	mat.emission_sphere_radius = 25.0
+	mat.gravity = Vector3(0, -20, 0)
+	mat.initial_velocity = Vector2(30.0, 30.0)
+	mat.spread = 45.0
+	mat.scale = Vector2(0.8, 0.8)
+	mat.color_ramp = _create_slow_color_ramp()
+	
+	slow_particles.process_material = mat
+	slow_particles.amount = 20
+	slow_particles.lifetime = 1.0
+	slow_particles.one_shot = false
+	slow_particles.emitting = true
+	
+	# Partikel nach Ende des Slows entfernen
+	if slow_timer > 0:
+		await get_tree().create_timer(slow_timer).timeout
+		slow_particles.emitting = false
+		slow_particles.queue_free()
+
+func _hide_slow_effect() -> void:
+	# Farbe zurück zur Normalität
+	var normal_tween = create_tween()
+	normal_tween.tween_property(sprite, "modulate", Color.WHITE, 0.3)
+
+func _create_slow_color_ramp() -> GradientTexture1D:
+	var gradient = Gradient.new()
+	gradient.set_color(0, Color(0.3, 0.5, 0.9, 0.8))  # Blau am Anfang
+	gradient.set_color(1, Color(0.3, 0.5, 0.9, 0.0))  # Transparent am Ende
+	var texture = GradientTexture1D.new()
+	texture.gradient = gradient
+	return texture
