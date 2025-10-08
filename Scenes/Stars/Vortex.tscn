@@ -1,0 +1,127 @@
+[gd_scene load_steps=6 format=3 uid="uid://ecp2xtcxc78w"]
+
+[ext_resource type="Texture2D" uid="uid://cpgtjwsrmrchd" path="res://Assets/Stars/Vortex.png" id="1_whiey"]
+
+[sub_resource type="GDScript" id="GDScript_jxmgf"]
+resource_name = "Lumora"
+script/source = "extends CharacterBody2D
+
+@export var player_path: NodePath
+@export var delay_points := 25
+@export var move_speed := 180.0
+@export var float_amplitude := 6.0
+@export var float_speed := 3.0
+@export var follow_distance := 70.0
+@export var smooth_factor := 3.0
+@export var orbit_speed := 1.0
+@export var orbit_smooth := 0.5
+@export var avoid_distance := 60.0
+@export var avoid_strength := 0.6
+
+# Optional: falls du ein Light2D unter Lumora hast (z. B. \"GlowLight\")
+@export var light_node_path: NodePath = \"GlowLight\"
+
+var _player: Node2D
+var _trail: Array[Vector2] = []
+var _time := 0.0
+var _orbit_angle := 0.0
+var _orbit_radius := 0.0
+var _raycast: RayCast2D
+var _random_offset := randf_range(0.85, 1.15)
+var _velocity := Vector2.ZERO
+var _light: Light2D
+
+func _ready() -> void:
+	if player_path:
+		_player = get_node(player_path)
+	else:
+		push_warning(\"Lumora has no player assigned!\")
+
+	# RayCast für Kollisionsvermeidung
+	_raycast = RayCast2D.new()
+	add_child(_raycast)
+	_raycast.enabled = true
+	_raycast.collide_with_areas = true
+	_raycast.collide_with_bodies = true
+	_raycast.collision_mask = 0b1111
+	_raycast.target_position = Vector2.RIGHT * avoid_distance
+
+	# Optionales Light2D abrufen
+	if has_node(light_node_path):
+		_light = get_node(light_node_path)
+
+	_orbit_radius = follow_distance
+
+func _physics_process(delta: float) -> void:
+	if _player == null:
+		return
+
+	_time += delta * float_speed * _random_offset
+	_orbit_angle += delta * orbit_speed * _random_offset
+
+	var player_pos = _player.global_position
+
+	# 1. Leichte Zufallsvariation und pulsierende Orbitdistanz
+	var target_orbit = follow_distance + sin(_time * 0.7) * 6.0 * _random_offset
+	_orbit_radius = lerp(_orbit_radius, target_orbit, delta * orbit_smooth)
+
+	# 2. Orbitale Zielposition berechnen
+	var orbit_offset = Vector2(cos(_orbit_angle), sin(_orbit_angle)) * _orbit_radius
+	var float_offset = Vector2(0, sin(_time * _random_offset) * float_amplitude)
+	var desired_pos = player_pos + orbit_offset + float_offset
+
+	# Raycast zur Kollisionsvermeidung
+	var move_dir = (desired_pos - global_position).normalized()
+	_raycast.rotation = move_dir.angle()
+	_raycast.target_position = move_dir * avoid_distance
+	_raycast.force_raycast_update()
+
+	if _raycast.is_colliding():
+		var normal = _raycast.get_collision_normal()
+		var avoid_angle = normal.angle() + PI / 2.0
+		var avoid_vector = Vector2(cos(avoid_angle), sin(avoid_angle)) * avoid_distance * avoid_strength
+		desired_pos += avoid_vector
+
+	# 3. Bewegung mit Nachschwung
+	var desired_velocity = (desired_pos - global_position) * smooth_factor
+	_velocity = _velocity.lerp(desired_velocity, delta * 2.0)
+	global_position += _velocity * delta * 0.5
+
+	# 4. Orientierung zur Bewegungsrichtung
+	if _velocity.length() > 0.1:
+		var new_rotation = _velocity.angle()
+		rotation = lerp_angle(rotation, new_rotation, delta * 5.0)
+
+	# 5. Leuchtintensität je nach Distanz
+	if _light:
+		var dist = global_position.distance_to(player_pos)
+		var intensity = clamp(1.0 - abs(dist - follow_distance) / 120.0, 0.6, 1.0)
+		_light.energy = lerp(_light.energy, intensity, delta * 3.0)
+"
+
+[sub_resource type="Gradient" id="Gradient_jxmgf"]
+colors = PackedColorArray(1, 1, 1, 1, 0, 0, 0, 1)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_5x7xt"]
+gradient = SubResource("Gradient_jxmgf")
+fill = 1
+fill_from = Vector2(0.493119, 0.527523)
+fill_to = Vector2(0.889908, 0.169725)
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_5x7xt"]
+radius = 8.0
+
+[node name="Vortex" type="CharacterBody2D"]
+script = SubResource("GDScript_jxmgf")
+light_node_path = NodePath("Glow")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("1_whiey")
+
+[node name="Glow" type="PointLight2D" parent="."]
+color = Color(0.633831, 0.74027, 1, 1)
+texture = SubResource("GradientTexture2D_5x7xt")
+texture_scale = 1.3
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_5x7xt")
