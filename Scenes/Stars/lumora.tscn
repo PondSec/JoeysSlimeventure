@@ -1,11 +1,15 @@
-[gd_scene load_steps=6 format=3 uid="uid://7vreypkntsqt"]
+[gd_scene load_steps=8 format=3 uid="uid://7vreypkntsqt"]
 
 [ext_resource type="Texture2D" uid="uid://db4gbeca7fp8i" path="res://Assets/Stars/Lumora.png" id="1_jxmgf"]
+[ext_resource type="Texture2D" uid="uid://cllwmov7ffejk" path="res://Assets/Particles#/dust.png" id="2_eor77"]
 
 [sub_resource type="GDScript" id="GDScript_jxmgf"]
 resource_name = "Lumora"
 script/source = "extends CharacterBody2D
 
+# --------------------
+# CONFIG / EXPORTS
+# --------------------
 @export var player_path: NodePath
 @export var delay_points := 25
 @export var move_speed := 180.0
@@ -19,18 +23,26 @@ script/source = "extends CharacterBody2D
 @export var avoid_strength := 0.6
 
 # Buff-Einstellungen
-@export var heal_amount := 5  # Heilung pro Tick
-@export var heal_interval := 2.0  # Heilungsintervall in Sekunden
-@export var damage_reduction := 0.3  # 30% Schadensreduktion
-@export var speed_buff_multiplier := 1.3  # 30% Geschwindigkeits-Buff
-@export var damage_buff_multiplier := 1.25  # 25% Schadens-Buff
-@export var health_threshold := 0.4  # 40% Leben für Low-Health-Buffs
+@export var heal_amount := 5
+@export var heal_interval := 2.0
+@export var damage_reduction := 0.3
+@export var speed_buff_multiplier := 1.3
+@export var damage_buff_multiplier := 1.25
+@export var health_threshold := 0.4
 
-# Optional: falls du ein Light2D unter Lumora hast (z. B. \"GlowLight\")
 @export var light_node_path: NodePath = \"GlowLight\"
 
+# LUMORA DAMAGE / SKILL SYSTEM
+@export var base_damage := 15.0
+@export var damage_interval := 1.0         # Lumora trifft alle X Sekunden
+@export var attack_radius := 150.0
+@export var skill_save_path: String = \"user://lumora_skill_data.save\"
+
+# --------------------
+# INTERN
+# --------------------
 var _player: Node2D
-var _trail: Array[Vector2] = []
+var _trail_positions: Array[Vector2] = []
 var _time := 0.0
 var _orbit_angle := 0.0
 var _orbit_radius := 0.0
@@ -45,13 +57,25 @@ var _is_player_low_health := false
 var _active_buffs := {}
 var _buff_particles: GPUParticles2D
 
+# Skill / Damage
+var current_skill_points := 0.0
+var can_attack := false
+var damage_multiplier := 1.0
+
+var _damage_timer: Timer
+var _autosave_timer: Timer
+
+# --------------------
+# READY
+# --------------------
 func _ready() -> void:
+	# Spieler-Referenz
 	if player_path:
-		_player = get_node(player_path)
+		_player = get_node_or_null(player_path)
 	else:
 		push_warning(\"Lumora has no player assigned!\")
 
-	# RayCast für Kollisionsvermeidung
+	# Raycast für Hindernisvermeidung
 	_raycast = RayCast2D.new()
 	add_child(_raycast)
 	_raycast.enabled = true
@@ -60,27 +84,60 @@ func _ready() -> void:
 	_raycast.collision_mask = 0b1111
 	_raycast.target_position = Vector2.RIGHT * avoid_distance
 
-	# Optionales Light2D abrufen
+	# Lichtsystem
 	if has_node(light_node_path):
 		_light = get_node(light_node_path)
 
-	# Heilungs-Timer
+	# Trail für Nachleuchteffekt
+	var trail_line = get_node_or_null(\"TrailLine2D\")
+	if trail_line == null:
+		trail_line = Line2D.new()
+		trail_line.name = \"TrailLine2D\"
+		add_child(trail_line)
+		trail_line.width = 4.0
+		trail_line.gradient = _create_color_ramp(Color(0.8,0.9,1.0,0.5))
+		trail_line.texture_mode = Line2D.LINE_TEXTURE_TILE
+
+	# Heal-Timer
 	_heal_timer = Timer.new()
 	add_child(_heal_timer)
 	_heal_timer.wait_time = heal_interval
 	_heal_timer.autostart = true
+	_heal_timer.one_shot = false
 	_heal_timer.timeout.connect(_on_heal_timer_timeout)
 	_heal_timer.start()
 
-	# Buff-Partikel-Effekt
+	# Partikel für Buff-Effekte
 	_buff_particles = GPUParticles2D.new()
 	add_child(_buff_particles)
 	_buff_particles.emitting = false
 	_buff_particles.one_shot = false
-	_buff_particles.explosiveness = 0.1
-	
+	_buff_particles.amount = 32
+
 	_orbit_radius = follow_distance
 
+	# --- Skill / Damage timers & Persistenz ---
+	_load_skill_data()
+
+	_damage_timer = Timer.new()
+	add_child(_damage_timer)
+	_damage_timer.wait_time = damage_interval
+	_damage_timer.autostart = true
+	_damage_timer.one_shot = false
+	_damage_timer.timeout.connect(_on_damage_timer_timeout)
+	_damage_timer.start()
+
+	_autosave_timer = Timer.new()
+	add_child(_autosave_timer)
+	_autosave_timer.wait_time = 2.0
+	_autosave_timer.autostart = true
+	_autosave_timer.one_shot = false
+	_autosave_timer.timeout.connect(_autosave_skill_data)
+	_autosave_timer.start()
+
+# --------------------
+# PHYSICS
+# --------------------
 func _physics_process(delta: float) -> void:
 	if _player == null:
 		return
@@ -90,216 +147,248 @@ func _physics_process(delta: float) -> void:
 
 	var player_pos = _player.global_position
 
-	# 1. Leichte Zufallsvariation und pulsierende Orbitdistanz
+	# Orbit + Schweben
 	var target_orbit = follow_distance + sin(_time * 0.7) * 6.0 * _random_offset
 	_orbit_radius = lerp(_orbit_radius, target_orbit, delta * orbit_smooth)
 
-	# 2. Orbitale Zielposition berechnen
 	var orbit_offset = Vector2(cos(_orbit_angle), sin(_orbit_angle)) * _orbit_radius
 	var float_offset = Vector2(0, sin(_time * _random_offset) * float_amplitude)
 	var desired_pos = player_pos + orbit_offset + float_offset
 
-	# Raycast zur Kollisionsvermeidung
-	var move_dir = (desired_pos - global_position).normalized()
-	_raycast.rotation = move_dir.angle()
-	_raycast.target_position = move_dir * avoid_distance
-	_raycast.force_raycast_update()
+	# Hinderniserkennung
+	var move_dir = (desired_pos - global_position)
+	if move_dir.length() > 0.001:
+		move_dir = move_dir.normalized()
+		_raycast.rotation = move_dir.angle()
+		_raycast.target_position = move_dir * avoid_distance
+		_raycast.force_raycast_update()
 
-	if _raycast.is_colliding():
-		var normal = _raycast.get_collision_normal()
-		var avoid_angle = normal.angle() + PI / 2.0
-		var avoid_vector = Vector2(cos(avoid_angle), sin(avoid_angle)) * avoid_distance * avoid_strength
-		desired_pos += avoid_vector
+		if _raycast.is_colliding():
+			var normal = _raycast.get_collision_normal()
+			var avoid_angle = normal.angle() + PI / 2.0
+			var avoid_vector = Vector2(cos(avoid_angle), sin(avoid_angle)) * avoid_distance * avoid_strength
+			desired_pos += avoid_vector
 
-	# 3. Bewegung mit Nachschwung
+	# Bewegung glätten
 	var desired_velocity = (desired_pos - global_position) * smooth_factor
 	_velocity = _velocity.lerp(desired_velocity, delta * 2.0)
 	global_position += _velocity * delta * 0.5
 
-	# 4. Orientierung zur Bewegungsrichtung
 	if _velocity.length() > 0.1:
-		var new_rotation = _velocity.angle()
-		rotation = lerp_angle(rotation, new_rotation, delta * 5.0)
-
-	# 5. Leuchtintensität je nach Distanz und Spielerzustand
-	if _light:
-		var dist = global_position.distance_to(player_pos)
-		var intensity = clamp(1.0 - abs(dist - follow_distance) / 120.0, 0.6, 1.0)
-		
-		# Intensiver leuchten wenn Spieler wenig Leben hat
-		if _is_player_low_health:
-			intensity *= 1.5
-			_light.color = Color(1.0, 0.3, 0.3)  # Rötliches Licht bei Gefahr
-		else:
-			_light.color = Color(1.0, 1.0, 0.8)  # Warmes weiß-gelbes Licht
-			
-		_light.energy = lerp(_light.energy, intensity, delta * 3.0)
+		rotation = lerp_angle(rotation, _velocity.angle(), delta * 5.0)
 	
-	# 6. Überprüfe Spielerzustand für Buffs
+	# Trail-Logik (begrenze Länge)
+	_trail_positions.append(global_position)
+	var trail_line = get_node(\"TrailLine2D\") as Line2D
+	trail_line.clear_points()
+	for pos in _trail_positions:
+		trail_line.add_point(pos)
+	
+	_update_light(delta, player_pos)
 	_check_player_health()
 	_update_buffs()
+	_update_aura_link()
 
+# ---------------------------------
+# VISUELLE SYSTEME
+# ---------------------------------
+func _update_light(delta: float, player_pos: Vector2) -> void:
+	if not _light:
+		return
+
+	var dist = global_position.distance_to(player_pos)
+	var pulse = 0.12 * sin(_time * 4.0)
+	var base_intensity = clamp(1.0 - abs(dist - follow_distance) / 150.0, 0.4, 1.0)
+
+	if _is_player_low_health:
+		_light.color = Color(1, 0.3, 0.3)
+	elif _active_buffs.size() > 0:
+		_light.color = Color(1.0, 0.863, 1.0)
+	else:
+		_light.color = Color(1.0, 1.0, 1.0)
+
+	_light.energy = lerp(_light.energy, base_intensity + pulse, delta * 2.0)
+
+func _update_aura_link():
+	if not _player:
+		return
+	var line = get_node_or_null(\"AuraLine2D\")
+	if line == null:
+		line = Line2D.new()
+		line.name = \"AuraLine2D\"
+		add_child(line)
+		line.width = 3.0
+		line.gradient = _create_color_ramp(Color(0.6, 0.9, 1.0))
+		line.texture = _create_pixel_texture()
+		line.texture_mode = Line2D.LINE_TEXTURE_TILE
+		line.begin_cap_mode = Line2D.LINE_CAP_ROUND
+		line.end_cap_mode = Line2D.LINE_CAP_ROUND
+
+	line.clear_points()
+	var mid = (global_position + _player.global_position) / 2
+	var offset = Vector2(0, sin(_time * 6.0) * 8)
+	line.add_point(global_position)
+	line.add_point(mid + offset)
+	line.add_point(_player.global_position)
+	line.modulate.a = 0.5 + 0.3 * sin(_time * 4.0)
+
+# ---------------------------------
+# BUFF / HEIL / STATUS
+# ---------------------------------
 func _check_player_health() -> void:
 	if _player and _player.has_method(\"get_health_percentage\"):
 		var health_percentage = _player.get_health_percentage()
 		var was_low_health = _is_player_low_health
 		_is_player_low_health = health_percentage <= health_threshold
-		
-		# Aktiviere Notfall-Buffs wenn Leben kritisch wird
+
 		if _is_player_low_health and not was_low_health:
 			_activate_emergency_buffs()
 		elif not _is_player_low_health and was_low_health:
 			_deactivate_emergency_buffs()
 
 func _activate_emergency_buffs() -> void:
-	print(\"Lumora: Spieler hat wenig Leben! Aktiviere Notfall-Buffs.\")
-	
-	# Geschwindigkeits-Buff
 	_apply_buff(\"speed_boost\", speed_buff_multiplier)
-	
-	# Schadens-Buff
 	_apply_buff(\"damage_boost\", damage_buff_multiplier)
-	
-	# Schadensreduktion
 	_apply_buff(\"damage_reduction\", damage_reduction)
-	
-	# Intensivere Heilung
-	_heal_timer.wait_time = heal_interval * 0.5  # Doppelt so schnell heilen
-	
-	# Speziellen Partikel-Effekt aktivieren
-	_activate_buff_particles(Color(1.0, 0.2, 0.2, 0.8))  # Rote Schutz-Partikel
+	_heal_timer.wait_time = heal_interval * 0.5
+	_activate_buff_particles(Color(1.0, 0.3, 0.3))
+	_show_buff_label(\"♥\", Color(1,0.5,0.5), 1.5, 0.8)
 
 func _deactivate_emergency_buffs() -> void:
-	print(\"Lumora: Spieler ist geheilt! Deaktiviere Notfall-Buffs.\")
-	
-	# Buffs entfernen
 	_remove_buff(\"speed_boost\")
 	_remove_buff(\"damage_boost\")
 	_remove_buff(\"damage_reduction\")
-	
-	# Normalen Heilungsmodus wiederherstellen
 	_heal_timer.wait_time = heal_interval
-	
-	# Normale Partikel-Effekte
-	_activate_buff_particles(Color(0.8, 0.9, 1.0, 0.6))  # Blaue Heilungs-Partikel
+	_activate_buff_particles(Color(0.8, 0.9, 1.0, 0.6))
 
 func _apply_buff(buff_type: String, value: float) -> void:
 	_active_buffs[buff_type] = value
-	
-	# Wende Buff direkt auf den Spieler an
 	if _player and _player.has_method(\"apply_buff\"):
 		_player.apply_buff(buff_type, value)
 
 func _remove_buff(buff_type: String) -> void:
 	if _active_buffs.has(buff_type):
 		_active_buffs.erase(buff_type)
-		
-		# Entferne Buff vom Spieler
 		if _player and _player.has_method(\"remove_buff\"):
 			_player.remove_buff(buff_type)
 
 func _update_buffs() -> void:
-	# Dauerhafte Buffs aktualisieren
 	if _player and _player.has_method(\"has_buff\"):
-		# Immer Schadensreduktion aktiv wenn in der Nähe
 		var distance_to_player = global_position.distance_to(_player.global_position)
 		if distance_to_player < follow_distance * 2.0:
 			if not _active_buffs.has(\"constant_damage_reduction\"):
-				_apply_buff(\"constant_damage_reduction\", damage_reduction * 0.5)  # 15% permanente Reduktion
+				_apply_buff(\"constant_damage_reduction\", damage_reduction * 0.5)
 		else:
 			_remove_buff(\"constant_damage_reduction\")
 
 func _on_heal_timer_timeout() -> void:
 	if _player and _player.has_method(\"heal\"):
 		var actual_heal_amount = heal_amount
-		
-		# Mehr heilen wenn Spieler wenig Leben hat
 		if _is_player_low_health:
 			actual_heal_amount *= 2
-		
 		_player.heal(actual_heal_amount)
-		
-		# Heilungs-Partikel-Effekt
 		_create_heal_effect()
+		_show_buff_label(\"♥\", Color(0.4,1.0,0.4,0.8), 1.2, 0.8)
 
+# ---------------------------------
+# VISUELLE EFFEKTE
+# ---------------------------------
 func _activate_buff_particles(color: Color) -> void:
 	_buff_particles.emitting = true
-	_buff_particles.global_position = _player.global_position if _player else global_position
-	
-	# Konfiguriere Partikel für Buff-Effekt
-	var material = ParticleProcessMaterial.new()
-	material.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-	material.emission_sphere_radius = 50.0
-	material.gravity = Vector3(0, -10, 0)
-	material.initial_velocity = 10.0
-	material.spread = 45.0
-	material.color = color
-	material.color_ramp = _create_color_ramp(color)
-	
-	_buff_particles.process_material = material
-	_buff_particles.amount = 32
-	_buff_particles.lifetime = 1.5
+	var mat = ParticleProcessMaterial.new()
+	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	mat.emission_sphere_radius = 60.0
+	# initial_velocity expects a float or Vector3 depending on engine version; try Vector2 for 2D
+	mat.initial_velocity = Vector2(80.0, 80.0)
+	mat.spread = 35.0
+	mat.gravity = Vector3(0, -50, 0)
+	mat.scale = Vector2(0.6, 0.6)
+	mat.color_ramp = _create_color_ramp(color)
+	_buff_particles.process_material = mat
+	_buff_particles.lifetime = 1.2
 
 func _create_heal_effect() -> void:
-	# Erstelle einen speziellen Heilungs-Partikel-Effekt
 	var heal_particles = GPUParticles2D.new()
 	add_child(heal_particles)
-	
-	var material = ParticleProcessMaterial.new()
-	material.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-	material.emission_sphere_radius = 40.0  # Größerer Emissionsbereich
-	material.gravity = Vector3(0, 25, 0)    # Stärkere Schwerkraft für mehr Bewegung
-	material.initial_velocity = Vector2(15.0, 15.0)        # Höhere Geschwindigkeit
-	material.spread = 45.0                  # Weniger Spread für fokussierteren Effekt
-	
-	# Größere Partikel-Größe
-	material.scale = Vector2(1.0, 1.0)                    # Viel größere Partikel            # Etwas Variation in der Größe
-	
-	# Hell weiß-rosa Farbe
-	material.color = Color(1.0, 0.9, 0.95, 0.9)  # Sehr helles weiß-rosa
-	material.color_ramp = _create_color_ramp(Color(1.0, 0.9, 0.95, 0.9))  # Hell weiß-rosa
-	
-	heal_particles.process_material = material
-	heal_particles.amount = 20              # Etwas mehr Partikel
-	heal_particles.lifetime = 1.2           # Etwas längere Lebensdauer
-	
-	# Partikel-Textur für weicheren Look (optional)
-	var particles_texture = SpriteFrames.new()
-	heal_particles.texture = particles_texture
-	
-	heal_particles.global_position = _player.global_position if _player else global_position
+	var mat = ParticleProcessMaterial.new()
+	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	mat.emission_sphere_radius = 25.0
+	mat.gravity = Vector3(0, -30, 0)
+	mat.initial_velocity = Vector2(100.0, 100)
+	mat.spread = 25.0
+	mat.scale = Vector2(0.8, 0.8)
+	mat.lifetime_randomness = 0.4
+	mat.color_ramp = _create_color_ramp(Color(0.4, 1.0, 0.4, 0.8))
+	heal_particles.process_material = mat
+	heal_particles.amount = 40
+	heal_particles.lifetime = 0.8
+	heal_particles.one_shot = true
 	heal_particles.emitting = true
-	
-	# Automatisch entfernen nach Ende
-	await get_tree().create_timer(1.8).timeout  # Länger warten wegen längerer Lebensdauer
+	if _player:
+		heal_particles.global_position = _player.global_position
+	else:
+		heal_particles.global_position = global_position
+	await get_tree().create_timer(0.9).timeout
 	heal_particles.queue_free()
+
+# ---------------------------------
+# ASCII-BUFF LABEL
+# ---------------------------------
+func _show_buff_label(text: String, color: Color = Color(1,1,1), scale: float = 1.0, duration: float = 0.8) -> void:
+	var label = Label.new()
+	label.text = text
+	label.modulate = color
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.position = global_position - Vector2(0, 20)
+	label.scale = Vector2.ZERO
+	add_child(label)
+
+	var tween = create_tween()
+	tween.tween_property(label, \"scale\", Vector2.ONE * scale, duration * 0.4).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.tween_property(label, \"position:y\", label.position.y - 20, duration * 0.6).set_trans(Tween.TRANS_LINEAR)
+	tween.tween_property(label, \"modulate:a\", 0.0, duration * 0.6).set_delay(duration * 0.4)
+
+	tween.finished.connect(func():
+		if label.is_inside_tree():
+			label.queue_free()
+	)
+
+# ---------------------------------
+# HILFSFUNKTIONEN
+# ---------------------------------
+func _create_pixel_texture() -> Texture2D:
+	var image = Image.create(4, 4, false, Image.FORMAT_RGBA8)
+	for x in 4:
+		for y in 4:
+			if (x == 0 || x == 3) and (y == 0 || y == 3):
+				image.set_pixel(x, y, Color(0, 0, 0, 0))
+			else:
+				image.set_pixel(x, y, Color(1, 1, 1, 1))
+	return ImageTexture.create_from_image(image)
 
 func _create_color_ramp(base_color: Color) -> GradientTexture1D:
 	var gradient = Gradient.new()
 	gradient.set_color(0, base_color)
 	gradient.set_color(1, Color(base_color.r, base_color.g, base_color.b, 0))
-	
 	var texture = GradientTexture1D.new()
 	texture.gradient = gradient
 	return texture
 
-# Öffentliche Methoden für externe Steuerung
+# ---------------------------------
+# ÖFFENTLICHE BUFF-METHODEN
+# ---------------------------------
 func boost_healing(multiplier: float, duration: float) -> void:
 	var original_interval = _heal_timer.wait_time
 	_heal_timer.wait_time = original_interval / multiplier
-	
-	# Temporären Buff für verstärkte Heilung
 	_apply_buff(\"healing_boost\", multiplier)
-	
-	# Nach Ablauf der Dauer zurücksetzen
-	_get_duration_timer(duration).timeout.connect(func(): 
+	_get_duration_timer(duration).timeout.connect(func():
 		_heal_timer.wait_time = original_interval
 		_remove_buff(\"healing_boost\")
 	)
 
 func temporary_speed_boost(multiplier: float, duration: float) -> void:
 	_apply_buff(\"temporary_speed\", multiplier)
-	
 	_get_duration_timer(duration).timeout.connect(func():
 		_remove_buff(\"temporary_speed\")
 	)
@@ -312,7 +401,133 @@ func _get_duration_timer(duration: float) -> Timer:
 	timer.autostart = true
 	timer.start()
 	return timer
+
+# ---------------------------------
+# LUMORA: SKILL / SAVE / ATTACK
+# ---------------------------------
+# Wird vom Spieler (oder Spieler-Skript) aufgerufen, wenn dieser Schaden austeilt.
+# Beispiel (im Spieler): get_node(\"Lumora\").add_skill_points_from_player_damage(damage_dealt)
+func add_skill_points_from_player_damage(player_damage: float) -> void:
+	# 10% von Spieler-Schaden werden als Skill-Punkte an Lumora gegeben
+	var gained = player_damage * 0.1
+	current_skill_points += gained
+
+	# wenn sie neu freigeschaltet wird
+	if current_skill_points >= 150.0 and not can_attack:
+		can_attack = true
+		_show_buff_label(\"⚔ Lumora erwacht!\", Color(0.7, 0.9, 1.0), 1.3, 1.5)
+
+	# Für je 200 Punkte über 150 -> +2% Damage
+	var extra = max(0.0, current_skill_points - 150.0)
+	var level_bonus = int(extra / 200.0)
+	damage_multiplier = 1.0 + (level_bonus * 0.02)
+
+func _autosave_skill_data() -> void:
+	var err = OK
+	var file = FileAccess.open(skill_save_path, FileAccess.ModeFlags.WRITE)
+	if file:
+		file.store_var(current_skill_points)
+		file.store_var(can_attack)
+		file.store_var(damage_multiplier)
+		file.close()
+	else:
+		push_warning(\"Lumora: konnte Skill-Daten nicht speichern: \" + str(skill_save_path))
+
+func _load_skill_data() -> void:
+	if FileAccess.file_exists(skill_save_path):
+		var file = FileAccess.open(skill_save_path, FileAccess.ModeFlags.READ)
+		if file:
+			current_skill_points = float(file.get_var())
+			can_attack = bool(file.get_var())
+			damage_multiplier = float(file.get_var())
+			file.close()
+		else:
+			# default falls lesen fehlschlägt
+			current_skill_points = 0.0
+			can_attack = false
+			damage_multiplier = 1.0
+	else:
+		current_skill_points = 0.0
+		can_attack = false
+		damage_multiplier = 1.0
+
+func _on_damage_timer_timeout() -> void:
+	if not can_attack:
+		return
+	_attack_nearby_enemies()
+
+func _attack_nearby_enemies() -> void:
+	print(\"=== LUMORA DIRECT SEARCH ===\")
+	print(\"Meine Position: \", global_position)
+	print(\"Attack Radius: \", attack_radius)
+	
+	# Finde alle Nodes in der Gruppe \"enemies\"
+	var enemies = get_tree().get_nodes_in_group(\"enemies\")
+	print(\"Enemies in Gruppe: \", enemies.size())
+	
+	var hit_count = 0
+	
+	for enemy in enemies:
+		if not is_instance_valid(enemy):
+			continue
+			
+		var distance = global_position.distance_to(enemy.global_position)
+		print(\"Enemy: \", enemy.name, \" | Distance: \", distance, \" | Pos: \", enemy.global_position)
+		
+		if distance <= attack_radius:
+			print(\"🎯 IN REICHWEITE: \", enemy.name)
+			if enemy.has_method(\"take_damage\"):
+				var damage = base_damage * damage_multiplier
+				var kb_dir = (enemy.global_position - global_position).normalized()
+				enemy.take_damage(damage, kb_dir)
+				_create_attack_effect(enemy.global_position)
+				hit_count += 1
+				print(\"✅ Schaden an: \", enemy.name)
+			else:
+				print(\"❌ Enemy hat keine take_damage Methode\")
+		else:
+			print(\"❌ Enemy zu weit entfernt: \", distance, \" > \", attack_radius)
+	
+	print(\"Lumora traf \", hit_count, \" Gegner\")
+	print(\"=============================\")
+
+func _create_attack_effect(pos: Vector2) -> void:
+	var fx = GPUParticles2D.new()
+	add_child(fx)
+	var mat = ParticleProcessMaterial.new()
+	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	mat.emission_sphere_radius = 25
+	mat.lifetime_randomness = 0.3
+	mat.spread = 60.0
+	mat.gravity = Vector3(0, 0, 0)
+	mat.initial_velocity = Vector2(80, 80)
+	mat.color_ramp = _create_color_ramp(Color(0.6, 0.8, 1.0, 0.9))
+	fx.process_material = mat
+	fx.amount = 30
+	fx.one_shot = true
+	fx.lifetime = 0.5
+	fx.global_position = pos
+	fx.emitting = true
+	await get_tree().create_timer(0.6).timeout
+	fx.queue_free()
 "
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_strim"]
+particle_flag_disable_z = true
+emission_shape_scale = Vector3(10, 10, 10)
+emission_shape = 1
+emission_sphere_radius = 1.0
+angle_min = -279.2
+angle_max = 18.7
+spread = 38.652
+radial_velocity_min = -2.23517e-05
+radial_velocity_max = -2.23517e-05
+gravity = Vector3(0, 98, 0)
+scale_min = 0.8
+scale_max = 1.2
+scale_over_velocity_min = 0.8
+scale_over_velocity_max = 1.2
+color = Color(0.964706, 0.882353, 0.890196, 1)
 
 [sub_resource type="Gradient" id="Gradient_jxmgf"]
 colors = PackedColorArray(1, 1, 1, 1, 0, 0, 0, 1)
@@ -328,12 +543,24 @@ radius = 8.0
 
 [node name="Lumora" type="CharacterBody2D"]
 script = SubResource("GDScript_jxmgf")
+heal_amount = 15
+damage_reduction = 0.7
+speed_buff_multiplier = 2.0
+damage_buff_multiplier = 10.0
+
+[node name="GPUParticles2D" type="GPUParticles2D" parent="."]
+amount = 50
+texture = ExtResource("2_eor77")
+lifetime = 6.0
+explosiveness = 0.1
+randomness = 0.2
+fixed_fps = 144
+process_material = SubResource("ParticleProcessMaterial_strim")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture = ExtResource("1_jxmgf")
 
-[node name="Glow" type="PointLight2D" parent="."]
-color = Color(1, 0.862745, 1, 1)
+[node name="GlowLight" type="PointLight2D" parent="."]
 texture = SubResource("GradientTexture2D_5x7xt")
 texture_scale = 1.6
 
