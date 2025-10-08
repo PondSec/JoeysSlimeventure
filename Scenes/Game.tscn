@@ -507,8 +507,9 @@ shape = SubResource("RectangleShape2D_alh3a")
 position = Vector2(959, 1445)
 spawn_zone_container = NodePath("../CollisionShape2D")
 
-[node name="PlayerModel" parent="." instance=ExtResource("5_26h23")]
+[node name="PlayerModel" parent="." node_paths=PackedStringArray("lumora") instance=ExtResource("5_26h23")]
 position = Vector2(262, 767)
+lumora = NodePath("../Lumora")
 
 [node name="ParallaxBackground" type="ParallaxBackground" parent="."]
 scale = Vector2(0.3, 0.3)

@@ -41,6 +41,7 @@ var base_walk_speed := 140.0
 var base_run_speed := 220.0
 var base_attack_damage := 15
 var damage_reduction := 0.0
+@export var lumora: CharacterBody2D
 
 var touch_controls: CanvasLayer
 var joystick: Control
@@ -698,7 +699,6 @@ func charge():
 				push_error(\"Kein ParticleProcessMaterial gefunden!\")
 				is_charging = false
 				return
-
 			# -------------------
 			# PHASE 1: SOG (2 Sek.) – Blätter werden sanft angezogen
 			# -------------------
@@ -733,6 +733,11 @@ func charge():
 			var explosion_radius = 300.0
 			var explosion_damage = 130
 			var knockback_force = 1000.0
+			
+			# LUMORA: Über Ultimate-Schaden informieren
+			if lumora and lumora.has_method(\"add_skill_points_from_player_damage\"):
+				lumora.add_skill_points_from_player_damage(explosion_damage)
+			
 
 			# Gegner Schaden
 			var enemies = get_tree().get_nodes_in_group(\"enemies\")
@@ -1162,6 +1167,10 @@ func _on_attack_area_body_entered(body):
 			var damage = attack_damage * (current_crit_multiplier if is_crit else 1.0)
 			var knockback_direction = (body.global_position - global_position).normalized()
 			
+			# LUMORA: Über verursachten Schaden informieren
+			if lumora and lumora.has_method(\"add_skill_points_from_player_damage\"):
+				lumora.add_skill_points_from_player_damage(damage)
+			
 			if body.is_in_group(\"players\"):
 				body.take_damage.rpc(damage, knockback_direction)
 			else:
@@ -1384,6 +1393,11 @@ func take_damage(amount: int, hit_source: Vector2):
 		if result.collider.is_in_group(\"enemies\") and has_thorns_skill:
 			var return_damage = int(amount * 0.1)
 			result.collider.take_damage(return_damage, global_position)
+			
+			# LUMORA: Über Thorns-Schaden informieren
+			if lumora and lumora.has_method(\"add_skill_points_from_player_damage\"):
+				lumora.add_skill_points_from_player_damage(return_damage)
+			
 			break
 	
 	# Mana-Schild absorbiert Schaden
