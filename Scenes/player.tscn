@@ -36,6 +36,12 @@ script/source = "extends CharacterBody2D
 signal glow_changed(is_glowing: bool)
 var controls_inverted: bool = false
 
+var active_buffs := {}
+var base_walk_speed := 140.0
+var base_run_speed := 220.0
+var base_attack_damage := 15
+var damage_reduction := 0.0
+
 var touch_controls: CanvasLayer
 var joystick: Control
 var jump_button: Button
@@ -54,12 +60,12 @@ const SLIME_WINGS_GRAVITY_REDUCTION = 0.08  # Sehr wenig Schwerkraft
 const SLIME_WINGS_MIN_FALL_SPEED = 20.0  # Extrem langsames Fallen
 
 # Bewegungseinstellungen
-const WALK_SPEED = 140.0
-const RUN_SPEED = 220.0
-const ACCELERATION = 1800.0
-const DECELERATION = 2400.0
-const AIR_ACCELERATION = 1200.0  # Vorher vielleicht 900.0
-const AIR_DECELERATION = 800.0   # Vorher vielleicht 600.0
+var WALK_SPEED = 140.0
+var RUN_SPEED = 220.0
+var ACCELERATION = 1800.0
+var DECELERATION = 2400.0
+var AIR_ACCELERATION = 1200.0  # Vorher vielleicht 900.0
+var AIR_DECELERATION = 800.0   # Vorher vielleicht 600.0
 
 # Wall Run Variablen
 var is_wall_running := false
@@ -74,7 +80,7 @@ var was_on_wall: bool = false
 var base_crit_chance: float = 0.15  # 15% base crit chance
 var crit_damage_multiplier: float = 1.5  # 50% extra damage on crit
 
-var base_attack_damage: int = 15
+#var base_attack_damage: int = 15
 var attack_damage: int = 15
 var damage_multiplier: float = 1.0
 var current_crit_chance: float = 0.15
@@ -1360,6 +1366,9 @@ func set_controls_inverted(inverted: bool):
 func take_damage(amount: int, hit_source: Vector2):
 	if !is_multiplayer_authority():
 		return
+	# Schadensreduktion anwenden
+	var reduced_damage = amount * (1.0 - damage_reduction)
+	reduced_damage = max(1, int(reduced_damage))  # Mindestens 1 Schaden
 	
 	var space_state = get_world_2d().direct_space_state
 	var query = PhysicsPointQueryParameters2D.new()
@@ -2421,6 +2430,51 @@ func sync_glide_state(gliding: bool):
 		return
 		
 	is_gliding = gliding
+
+
+
+# Füge diese Methoden zur Player-Klasse hinzu:
+func get_health_percentage() -> float:
+	return float(current_health) / float(max_health)
+
+func apply_buff(buff_type: String, value: float) -> void:
+	active_buffs[buff_type] = value
+	_update_stats_from_buffs()
+
+func remove_buff(buff_type: String) -> void:
+	if active_buffs.has(buff_type):
+		active_buffs.erase(buff_type)
+	_update_stats_from_buffs()
+
+func has_buff(buff_type: String) -> bool:
+	return active_buffs.has(buff_type)
+
+func _update_stats_from_buffs() -> void:
+	# Geschwindigkeits-Buffs
+	var speed_multiplier = 1.0
+	if active_buffs.has(\"speed_boost\"):
+		speed_multiplier *= active_buffs[\"speed_boost\"]
+	if active_buffs.has(\"temporary_speed\"):
+		speed_multiplier *= active_buffs[\"temporary_speed\"]
+	
+	WALK_SPEED = base_walk_speed * speed_multiplier
+	RUN_SPEED = base_run_speed * speed_multiplier
+	
+	# Schadens-Buffs
+	var damage_multiplier = damage_multiplier  # Basis von Items
+	if active_buffs.has(\"damage_boost\"):
+		damage_multiplier *= active_buffs[\"damage_boost\"]
+	
+	attack_damage = base_attack_damage * damage_multiplier
+	
+	# Schadensreduktion
+	damage_reduction = 0.0
+	if active_buffs.has(\"damage_reduction\"):
+		damage_reduction += active_buffs[\"damage_reduction\"]
+	if active_buffs.has(\"constant_damage_reduction\"):
+		damage_reduction += active_buffs[\"constant_damage_reduction\"]
+	
+	damage_reduction = clamp(damage_reduction, 0.0, 0.8)  # Max 80% Reduktion
 "
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_uwm2o"]

@@ -18,6 +18,14 @@ script/source = "extends CharacterBody2D
 @export var avoid_distance := 60.0
 @export var avoid_strength := 0.6
 
+# Buff-Einstellungen
+@export var heal_amount := 5  # Heilung pro Tick
+@export var heal_interval := 2.0  # Heilungsintervall in Sekunden
+@export var damage_reduction := 0.3  # 30% Schadensreduktion
+@export var speed_buff_multiplier := 1.3  # 30% Geschwindigkeits-Buff
+@export var damage_buff_multiplier := 1.25  # 25% Schadens-Buff
+@export var health_threshold := 0.4  # 40% Leben für Low-Health-Buffs
+
 # Optional: falls du ein Light2D unter Lumora hast (z. B. \"GlowLight\")
 @export var light_node_path: NodePath = \"GlowLight\"
 
@@ -30,6 +38,12 @@ var _raycast: RayCast2D
 var _random_offset := randf_range(0.85, 1.15)
 var _velocity := Vector2.ZERO
 var _light: Light2D
+
+# Buff-System
+var _heal_timer: Timer
+var _is_player_low_health := false
+var _active_buffs := {}
+var _buff_particles: GPUParticles2D
 
 func _ready() -> void:
 	if player_path:
@@ -50,6 +64,21 @@ func _ready() -> void:
 	if has_node(light_node_path):
 		_light = get_node(light_node_path)
 
+	# Heilungs-Timer
+	_heal_timer = Timer.new()
+	add_child(_heal_timer)
+	_heal_timer.wait_time = heal_interval
+	_heal_timer.autostart = true
+	_heal_timer.timeout.connect(_on_heal_timer_timeout)
+	_heal_timer.start()
+
+	# Buff-Partikel-Effekt
+	_buff_particles = GPUParticles2D.new()
+	add_child(_buff_particles)
+	_buff_particles.emitting = false
+	_buff_particles.one_shot = false
+	_buff_particles.explosiveness = 0.1
+	
 	_orbit_radius = follow_distance
 
 func _physics_process(delta: float) -> void:
@@ -92,11 +121,197 @@ func _physics_process(delta: float) -> void:
 		var new_rotation = _velocity.angle()
 		rotation = lerp_angle(rotation, new_rotation, delta * 5.0)
 
-	# 5. Leuchtintensität je nach Distanz
+	# 5. Leuchtintensität je nach Distanz und Spielerzustand
 	if _light:
 		var dist = global_position.distance_to(player_pos)
 		var intensity = clamp(1.0 - abs(dist - follow_distance) / 120.0, 0.6, 1.0)
+		
+		# Intensiver leuchten wenn Spieler wenig Leben hat
+		if _is_player_low_health:
+			intensity *= 1.5
+			_light.color = Color(1.0, 0.3, 0.3)  # Rötliches Licht bei Gefahr
+		else:
+			_light.color = Color(1.0, 1.0, 0.8)  # Warmes weiß-gelbes Licht
+			
 		_light.energy = lerp(_light.energy, intensity, delta * 3.0)
+	
+	# 6. Überprüfe Spielerzustand für Buffs
+	_check_player_health()
+	_update_buffs()
+
+func _check_player_health() -> void:
+	if _player and _player.has_method(\"get_health_percentage\"):
+		var health_percentage = _player.get_health_percentage()
+		var was_low_health = _is_player_low_health
+		_is_player_low_health = health_percentage <= health_threshold
+		
+		# Aktiviere Notfall-Buffs wenn Leben kritisch wird
+		if _is_player_low_health and not was_low_health:
+			_activate_emergency_buffs()
+		elif not _is_player_low_health and was_low_health:
+			_deactivate_emergency_buffs()
+
+func _activate_emergency_buffs() -> void:
+	print(\"Lumora: Spieler hat wenig Leben! Aktiviere Notfall-Buffs.\")
+	
+	# Geschwindigkeits-Buff
+	_apply_buff(\"speed_boost\", speed_buff_multiplier)
+	
+	# Schadens-Buff
+	_apply_buff(\"damage_boost\", damage_buff_multiplier)
+	
+	# Schadensreduktion
+	_apply_buff(\"damage_reduction\", damage_reduction)
+	
+	# Intensivere Heilung
+	_heal_timer.wait_time = heal_interval * 0.5  # Doppelt so schnell heilen
+	
+	# Speziellen Partikel-Effekt aktivieren
+	_activate_buff_particles(Color(1.0, 0.2, 0.2, 0.8))  # Rote Schutz-Partikel
+
+func _deactivate_emergency_buffs() -> void:
+	print(\"Lumora: Spieler ist geheilt! Deaktiviere Notfall-Buffs.\")
+	
+	# Buffs entfernen
+	_remove_buff(\"speed_boost\")
+	_remove_buff(\"damage_boost\")
+	_remove_buff(\"damage_reduction\")
+	
+	# Normalen Heilungsmodus wiederherstellen
+	_heal_timer.wait_time = heal_interval
+	
+	# Normale Partikel-Effekte
+	_activate_buff_particles(Color(0.8, 0.9, 1.0, 0.6))  # Blaue Heilungs-Partikel
+
+func _apply_buff(buff_type: String, value: float) -> void:
+	_active_buffs[buff_type] = value
+	
+	# Wende Buff direkt auf den Spieler an
+	if _player and _player.has_method(\"apply_buff\"):
+		_player.apply_buff(buff_type, value)
+
+func _remove_buff(buff_type: String) -> void:
+	if _active_buffs.has(buff_type):
+		_active_buffs.erase(buff_type)
+		
+		# Entferne Buff vom Spieler
+		if _player and _player.has_method(\"remove_buff\"):
+			_player.remove_buff(buff_type)
+
+func _update_buffs() -> void:
+	# Dauerhafte Buffs aktualisieren
+	if _player and _player.has_method(\"has_buff\"):
+		# Immer Schadensreduktion aktiv wenn in der Nähe
+		var distance_to_player = global_position.distance_to(_player.global_position)
+		if distance_to_player < follow_distance * 2.0:
+			if not _active_buffs.has(\"constant_damage_reduction\"):
+				_apply_buff(\"constant_damage_reduction\", damage_reduction * 0.5)  # 15% permanente Reduktion
+		else:
+			_remove_buff(\"constant_damage_reduction\")
+
+func _on_heal_timer_timeout() -> void:
+	if _player and _player.has_method(\"heal\"):
+		var actual_heal_amount = heal_amount
+		
+		# Mehr heilen wenn Spieler wenig Leben hat
+		if _is_player_low_health:
+			actual_heal_amount *= 2
+		
+		_player.heal(actual_heal_amount)
+		
+		# Heilungs-Partikel-Effekt
+		_create_heal_effect()
+
+func _activate_buff_particles(color: Color) -> void:
+	_buff_particles.emitting = true
+	_buff_particles.global_position = _player.global_position if _player else global_position
+	
+	# Konfiguriere Partikel für Buff-Effekt
+	var material = ParticleProcessMaterial.new()
+	material.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	material.emission_sphere_radius = 50.0
+	material.gravity = Vector3(0, -10, 0)
+	material.initial_velocity = 10.0
+	material.spread = 45.0
+	material.color = color
+	material.color_ramp = _create_color_ramp(color)
+	
+	_buff_particles.process_material = material
+	_buff_particles.amount = 32
+	_buff_particles.lifetime = 1.5
+
+func _create_heal_effect() -> void:
+	# Erstelle einen speziellen Heilungs-Partikel-Effekt
+	var heal_particles = GPUParticles2D.new()
+	add_child(heal_particles)
+	
+	var material = ParticleProcessMaterial.new()
+	material.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	material.emission_sphere_radius = 40.0  # Größerer Emissionsbereich
+	material.gravity = Vector3(0, 25, 0)    # Stärkere Schwerkraft für mehr Bewegung
+	material.initial_velocity = Vector2(15.0, 15.0)        # Höhere Geschwindigkeit
+	material.spread = 45.0                  # Weniger Spread für fokussierteren Effekt
+	
+	# Größere Partikel-Größe
+	material.scale = Vector2(1.0, 1.0)                    # Viel größere Partikel            # Etwas Variation in der Größe
+	
+	# Hell weiß-rosa Farbe
+	material.color = Color(1.0, 0.9, 0.95, 0.9)  # Sehr helles weiß-rosa
+	material.color_ramp = _create_color_ramp(Color(1.0, 0.9, 0.95, 0.9))  # Hell weiß-rosa
+	
+	heal_particles.process_material = material
+	heal_particles.amount = 20              # Etwas mehr Partikel
+	heal_particles.lifetime = 1.2           # Etwas längere Lebensdauer
+	
+	# Partikel-Textur für weicheren Look (optional)
+	var particles_texture = SpriteFrames.new()
+	heal_particles.texture = particles_texture
+	
+	heal_particles.global_position = _player.global_position if _player else global_position
+	heal_particles.emitting = true
+	
+	# Automatisch entfernen nach Ende
+	await get_tree().create_timer(1.8).timeout  # Länger warten wegen längerer Lebensdauer
+	heal_particles.queue_free()
+
+func _create_color_ramp(base_color: Color) -> GradientTexture1D:
+	var gradient = Gradient.new()
+	gradient.set_color(0, base_color)
+	gradient.set_color(1, Color(base_color.r, base_color.g, base_color.b, 0))
+	
+	var texture = GradientTexture1D.new()
+	texture.gradient = gradient
+	return texture
+
+# Öffentliche Methoden für externe Steuerung
+func boost_healing(multiplier: float, duration: float) -> void:
+	var original_interval = _heal_timer.wait_time
+	_heal_timer.wait_time = original_interval / multiplier
+	
+	# Temporären Buff für verstärkte Heilung
+	_apply_buff(\"healing_boost\", multiplier)
+	
+	# Nach Ablauf der Dauer zurücksetzen
+	_get_duration_timer(duration).timeout.connect(func(): 
+		_heal_timer.wait_time = original_interval
+		_remove_buff(\"healing_boost\")
+	)
+
+func temporary_speed_boost(multiplier: float, duration: float) -> void:
+	_apply_buff(\"temporary_speed\", multiplier)
+	
+	_get_duration_timer(duration).timeout.connect(func():
+		_remove_buff(\"temporary_speed\")
+	)
+
+func _get_duration_timer(duration: float) -> Timer:
+	var timer = Timer.new()
+	add_child(timer)
+	timer.wait_time = duration
+	timer.one_shot = true
+	timer.autostart = true
+	timer.start()
+	return timer
 "
 
 [sub_resource type="Gradient" id="Gradient_jxmgf"]
@@ -113,7 +328,6 @@ radius = 8.0
 
 [node name="Lumora" type="CharacterBody2D"]
 script = SubResource("GDScript_jxmgf")
-light_node_path = NodePath("Glow")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture = ExtResource("1_jxmgf")
@@ -121,7 +335,7 @@ texture = ExtResource("1_jxmgf")
 [node name="Glow" type="PointLight2D" parent="."]
 color = Color(1, 0.862745, 1, 1)
 texture = SubResource("GradientTexture2D_5x7xt")
-texture_scale = 1.3
+texture_scale = 1.6
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("CircleShape2D_5x7xt")
