@@ -71,7 +71,7 @@ var _aura_particles: GPUParticles2D
 
 # Skill System
 var current_skill_points := 0.0
-var can_slow := false  # Umbenannt von can_attack
+var can_slow := true  # Umbenannt von can_attack
 var slow_multiplier := 1.0  # Umbenannt von damage_multiplier
 
 var _autosave_timer: Timer

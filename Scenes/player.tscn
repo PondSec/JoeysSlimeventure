@@ -399,6 +399,10 @@ func _ready() -> void:
 	add_child(teleport_particles)
 	
 	save_initial_particle_settings()
+	
+	base_walk_speed = WALK_SPEED
+	base_run_speed = RUN_SPEED
+	base_attack_damage = 15  # Dein Basis-Schadenswert
 
 
 func save_initial_particle_settings():
@@ -532,6 +536,7 @@ func _physics_process(delta: float) -> void:
 	if is_multiplayer_authority():
 		# Nur der Besitzer des Spielers führt Bewegungscode aus
 		handle_input()
+		_check_lumora_interaction()
 		handle_slime_wings(delta)
 		move_and_slide()
 		# Synchronisiere Position mit allen
@@ -570,7 +575,6 @@ func _physics_process(delta: float) -> void:
 		if mana_shield_regen_timer >= 1.0:  # Jede Sekunde regenerieren
 			mana_shield_health = min(mana_shield_health + mana_shield_regen_rate, max_mana_shield_health)
 			mana_shield_regen_timer = 0.0
-	
 
 @rpc(\"unreliable\")  
 func update_position(new_pos: Vector2, new_vel: Vector2):
@@ -2453,42 +2457,85 @@ func get_health_percentage() -> float:
 
 func apply_buff(buff_type: String, value: float) -> void:
 	active_buffs[buff_type] = value
-	_update_stats_from_buffs()
+	_update_stats_from_buffs()  # Diese Zeile sollte bereits da sein, aber prüfe ob sie funktioniert
+	print(\"Buff angewendet: \", buff_type, \" Wert: \", value)  # Debug-Ausgabe
 
 func remove_buff(buff_type: String) -> void:
 	if active_buffs.has(buff_type):
 		active_buffs.erase(buff_type)
-	_update_stats_from_buffs()
+		_update_stats_from_buffs()  # Diese Zeile sollte bereits da sein
+	print(\"Buff entfernt: \", buff_type)  # Debug-Ausgabe
 
 func has_buff(buff_type: String) -> bool:
 	return active_buffs.has(buff_type)
 
 func _update_stats_from_buffs() -> void:
-	# Geschwindigkeits-Buffs
-	var speed_multiplier = 1.0
-	if active_buffs.has(\"speed_boost\"):
-		speed_multiplier *= active_buffs[\"speed_boost\"]
-	if active_buffs.has(\"temporary_speed\"):
-		speed_multiplier *= active_buffs[\"temporary_speed\"]
-	
-	WALK_SPEED = base_walk_speed * speed_multiplier
-	RUN_SPEED = base_run_speed * speed_multiplier
-	
-	# Schadens-Buffs
-	var damage_multiplier = damage_multiplier  # Basis von Items
-	if active_buffs.has(\"damage_boost\"):
-		damage_multiplier *= active_buffs[\"damage_boost\"]
-	
-	attack_damage = base_attack_damage * damage_multiplier
-	
-	# Schadensreduktion
+	# RESET auf Basiswerte zuerst
+	WALK_SPEED = base_walk_speed
+	RUN_SPEED = base_run_speed
+	var final_damage_multiplier = damage_multiplier  # Item-Multiplikator behalten
 	damage_reduction = 0.0
-	if active_buffs.has(\"damage_reduction\"):
-		damage_reduction += active_buffs[\"damage_reduction\"]
-	if active_buffs.has(\"constant_damage_reduction\"):
-		damage_reduction += active_buffs[\"constant_damage_reduction\"]
 	
-	damage_reduction = clamp(damage_reduction, 0.0, 0.8)  # Max 80% Reduktion
+	# JEDEN Buff-Typ verarbeiten
+	for buff_type in active_buffs:
+		var value = active_buffs[buff_type]
+		
+		match buff_type:
+			\"speed_boost\", \"temporary_speed\":
+				WALK_SPEED *= value
+				RUN_SPEED *= value
+				print(\"✅ \", buff_type, \" angewendet: \", value, \" -> Walk: \", WALK_SPEED, \" Run: \", RUN_SPEED)
+			
+			\"damage_boost\":
+				final_damage_multiplier *= value
+				print(\"✅ \", buff_type, \" angewendet: \", value, \" -> Multiplier: \", final_damage_multiplier)
+			
+			\"damage_reduction\", \"constant_damage_reduction\":
+				damage_reduction += value
+				print(\"✅ \", buff_type, \" angewendet: \", value, \" -> Reduction: \", damage_reduction)
+			
+			\"healing_boost\":
+				# Wird separat im Heal-Timer gehandled
+				pass
+	
+	# Schadensreduktion begrenzen
+	damage_reduction = clamp(damage_reduction, 0.0, 0.8)
+	
+	# Endgültigen Schaden berechnen
+	attack_damage = base_attack_damage * final_damage_multiplier
+	
+	print(\"🎯 FINAL - Walk: \", WALK_SPEED, \" Run: \", RUN_SPEED, \" Damage: \", attack_damage, \" Reduction: \", damage_reduction)
+
+
+
+func _check_lumora_interaction():
+	# Einfache Debug-Ausgabe, dass das System aktiv ist
+	if Engine.get_frames_drawn() % 180 == 0: # Alle 3 Sekunden
+		var lumoras = get_tree().get_nodes_in_group(\"lumora\")
+		for lumora in lumoras:
+			# 🔥 NEU: Prüfe ob Lumora bereits gefangen wurde
+			if lumora.has_method(\"_update_catch_system\") and not lumora.is_caught:
+				var distance = global_position.distance_to(lumora.global_position)
+				var catch_radius = lumora.catch_radius
+				if distance <= catch_radius:
+					print(\"💫 Lumora in Reichweite - bleib in der Nähe zum Fangen!\")
+					return
+			elif lumora.is_caught:
+				print(\"✅ Diese Lumora wurde bereits gefangen\")
+
+func _show_interact_prompt():
+	# UI Element für Interact-Prompt anzeigen
+	# Beispiel: 
+	if has_node(\"InteractPrompt\"):
+		$InteractPrompt.visible = true
+	else:
+		# Erstelle ein temporäres Label für Debugging
+		print(\"🔼 Drücke und halte [E] um Lumora zu fangen\")
+
+func _hide_interact_prompt():
+	# UI Element für Interact-Prompt verstecken
+	if has_node(\"InteractPrompt\"):
+		$InteractPrompt.visible = false
 "
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_uwm2o"]

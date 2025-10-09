@@ -46,12 +46,14 @@ func _ready():
 	# Aktuelles Level speichern
 	save_current_level()
 	
+	
 	# Nur Dialog starten, wenn er noch nicht abgeschlossen wurde
 	if not load_dialog_state():
 		show_next_line()
 	else:
 		# Wenn Dialog bereits abgeschlossen, direkt beenden
 		end_intro()
+	ensure_permanent_lumora()
 
 func save_dialog_state(completed: bool):
 	var config = ConfigFile.new()
@@ -133,3 +135,42 @@ func _on_pause_menu_go_to_main_menu() -> void:
 	# Füge die instanzierte MainMenu-Szene zur Root-Node des Szenenbaums hinzu
 	get_tree().root.add_child(scene_instance)  # Füge die neue Szene zur Root-Node hinzu
 	get_tree().current_scene = scene_instance  # Setze die neue Szene als aktuelle Szene
+
+# 🔥 NEUE METHODE: Stellt sicher, dass permanente Lumora existiert
+func ensure_permanent_lumora():
+	var save_path = "user://lumora_save_data.save"
+	if FileAccess.file_exists(save_path):
+		print("🔍 Überprüfe auf permanente Lumora...")
+		
+		# Prüfe ob bereits eine Lumora in der Szene ist
+		var lumoras = get_tree().get_nodes_in_group("lumora")
+		var has_permanent_lumora = false
+		
+		for lumora in lumoras:
+			if lumora.is_permanent:
+				has_permanent_lumora = true
+				print("✅ Permanente Lumora bereits in Szene")
+				break
+		
+		# Wenn Save-Datei existiert aber keine Lumora in Szene, spawn eine
+		if not has_permanent_lumora:
+			_spawn_permanent_lumora_from_save()
+
+# 🔥 NEUE METHODE: Spawne permanente Lumora aus Save-Daten
+func _spawn_permanent_lumora_from_save():
+	var lumora_scene = preload("res://Scenes/Stars/lumora.tscn")  # Passe den Pfad an
+	if lumora_scene:
+		var lumora = lumora_scene.instantiate()
+		add_child(lumora)
+		
+		# Positioniere Lumora beim Spieler
+		var player = get_tree().get_first_node_in_group("players")
+		if player:
+			lumora.global_position = player.global_position + Vector2(50, 0)
+			lumora.assign_player(player)
+		
+		# Setze permanente Eigenschaften
+		lumora.is_permanent = true
+		lumora.is_caught = true
+		
+		print("✨ Permanente Lumora aus Save-Daten gespawnt!")
