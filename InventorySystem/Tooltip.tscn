@@ -32,6 +32,10 @@ func show_tooltip(item: InvItem, position: Vector2):
 		if item.drop_chance > 0:
 			var drop_chance_percent = item.drop_chance * 100
 			stats_text += \"[img=16]res://InventorySystem/Icons/drop_chance_icon.png[/img] [color=#4ECB71]\" + str(drop_chance_percent) + \"%[/color] Drop Chance\\n\"
+
+		# Ausrüstungsslot anzeigen
+		if item.is_equipment and item.equip_slot != \"\":
+			stats_text += \"[color=#FFD166]Ausrüstung: \" + item.equip_slot.capitalize() + \"[/color]\\n\"
 		
 		# Gesundheit
 		if item.health_bonus != 0:

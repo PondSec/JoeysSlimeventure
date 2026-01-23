@@ -7,6 +7,8 @@
 script = ExtResource("1_4tvji")
 name = "bat_artefact"
 texture = ExtResource("2_6oehd")
+is_equipment = true
+equip_slot = "weapon"
 health_bonus = 0.0
 damage_bonus = 0.5
 crit_chance_bonus = 0.1

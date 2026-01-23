@@ -476,7 +476,7 @@ level = "level0"
 
 [node name="Door2" parent="Background" instance=ExtResource("5_bs12r")]
 position = Vector2(754, 960)
-level = "Game"
+level = "finale"
 
 [node name="Spike4" parent="Background" instance=ExtResource("4_esggg")]
 position = Vector2(496, 807)

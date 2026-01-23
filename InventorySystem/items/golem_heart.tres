@@ -7,6 +7,8 @@
 script = ExtResource("1_wl6qs")
 name = "golem_heart"
 texture = ExtResource("2_i7chx")
+is_equipment = true
+equip_slot = "amulet"
 health_bonus = 0.5
 damage_bonus = 0.0
 crit_chance_bonus = 0.0

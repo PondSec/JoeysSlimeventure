@@ -432,11 +432,16 @@ func _on_water_exited(body: Node):
 		is_in_water = false
 		#$SplashSound.play()
 
+func _get_bonus_slots() -> Array:
+	if inv and inv.equipment_slots.size() > 0:
+		return inv.equipment_slots
+	return inv.slots
+
 func update_crit_bonuses():
 	var total_crit_chance = base_crit_chance
 	var total_crit_damage = base_crit_multiplier
 	
-	for slot in inv.slots:
+	for slot in _get_bonus_slots():
 		if slot.item and slot.amount > 0:
 			total_crit_chance += slot.item.crit_chance_bonus * slot.amount
 			total_crit_damage += slot.item.crit_damage_bonus * slot.amount
@@ -447,7 +452,7 @@ func update_crit_bonuses():
 func update_damage_bonus():
 	var bonus = 1.0  # Startwert für Multiplikation
 
-	for slot in inv.slots:
+	for slot in _get_bonus_slots():
 		if slot.item and slot.amount > 0:  # Falls der Slot gültig ist und Items enthält
 			bonus += slot.item.damage_bonus * slot.amount  # Multipliziere mit Stack-Anzahl
 
@@ -456,7 +461,7 @@ func update_damage_bonus():
 
 func update_health_bonus():
 	var bonus = 1.0
-	for slot in inv.slots:
+	for slot in _get_bonus_slots():
 		if slot.item and slot.amount > 0:
 			bonus += slot.item.health_bonus * slot.amount
 

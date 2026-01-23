@@ -5,22 +5,18 @@ class_name Inv
 signal update
 
 @export var slots: Array[InvSlot]
+@export var equipment_slots: Array[InvSlot] = []
 
 # Speichert das Inventar in eine Datei
 func save_inventory(file_path: String) -> void:
 	var file = FileAccess.open(file_path, FileAccess.WRITE)  # Benutze FileAccess statt File
 	if file:
 		# Serialisiert die Slots und Items in die Datei
-		var data = []
-		for slot in slots:
-			var slot_data = {}
-			if slot.item:
-				slot_data["item_name"] = slot.item.name
-				slot_data["amount"] = slot.amount
-			else:
-				slot_data["item_name"] = ""
-				slot_data["amount"] = 0
-			data.append(slot_data)
+		var data = {
+			"version": 1,
+			"inventory": _serialize_slots(slots),
+			"equipment": _serialize_slots(equipment_slots)
+		}
 		file.store_var(data)
 		file.close()
 		print("Inventar gespeichert in: %s" % file_path)
@@ -38,21 +34,25 @@ func load_inventory(file_path: String) -> void:
 		var data = file.get_var()
 		file.close()
 
-		if data == null or not data is Array:  # Überprüfung, ob `data` gültig ist
+		if data == null:
 			print("Fehler: Inventardatei enthält ungültige Daten.")
 			return
 
 		# Löscht bestehende Slots und lädt neue
-		for slot in slots:
-			slot.item = null
-			slot.amount = 0
+		_reset_slots(slots)
+		_reset_slots(equipment_slots)
 
-		for i in range(min(len(data), slots.size())):
-			var slot_data = data[i]
-			if slot_data["item_name"] != "":
-				var item = load_item(slot_data["item_name"])
-				slots[i].item = item
-				slots[i].amount = slot_data["amount"]
+		if data is Dictionary:
+			var inventory_data = data.get("inventory", [])
+			var equipment_data = data.get("equipment", [])
+			_load_slots_from_data(slots, inventory_data)
+			_load_slots_from_data(equipment_slots, equipment_data)
+		elif data is Array:
+			# Legacy-Format: Nur Inventar-Slots
+			_load_slots_from_data(slots, data)
+		else:
+			print("Fehler: Inventardatei enthält ungültige Daten.")
+			return
 
 		update.emit()
 		print("Inventar geladen von: %s" % file_path)
@@ -94,3 +94,30 @@ func swap_slots(index1: int, index2: int):
 	slots[index1] = slots[index2]
 	slots[index2] = temp
 	update.emit()
+
+func _serialize_slots(slot_array: Array[InvSlot]) -> Array:
+	var data = []
+	for slot in slot_array:
+		var slot_data = {}
+		if slot and slot.item:
+			slot_data["item_name"] = slot.item.name
+			slot_data["amount"] = slot.amount
+		else:
+			slot_data["item_name"] = ""
+			slot_data["amount"] = 0
+		data.append(slot_data)
+	return data
+
+func _reset_slots(slot_array: Array[InvSlot]) -> void:
+	for slot in slot_array:
+		if slot:
+			slot.item = null
+			slot.amount = 0
+
+func _load_slots_from_data(slot_array: Array[InvSlot], data: Array) -> void:
+	for i in range(min(len(data), slot_array.size())):
+		var slot_data = data[i]
+		if slot_data.get("item_name", "") != "":
+			var item = load_item(slot_data["item_name"])
+			slot_array[i].item = item
+			slot_array[i].amount = slot_data.get("amount", 0)

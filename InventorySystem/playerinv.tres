@@ -147,6 +147,31 @@ amount = 0
 script = ExtResource("2_6ohk7")
 amount = 0
 
+[sub_resource type="Resource" id="Resource_equip_weapon"]
+script = ExtResource("2_6ohk7")
+amount = 0
+
+[sub_resource type="Resource" id="Resource_equip_head"]
+script = ExtResource("2_6ohk7")
+amount = 0
+
+[sub_resource type="Resource" id="Resource_equip_chest"]
+script = ExtResource("2_6ohk7")
+amount = 0
+
+[sub_resource type="Resource" id="Resource_equip_boots"]
+script = ExtResource("2_6ohk7")
+amount = 0
+
+[sub_resource type="Resource" id="Resource_equip_ring"]
+script = ExtResource("2_6ohk7")
+amount = 0
+
+[sub_resource type="Resource" id="Resource_equip_amulet"]
+script = ExtResource("2_6ohk7")
+amount = 0
+
 [resource]
 script = ExtResource("3_aofip")
 slots = Array[ExtResource("2_6ohk7")]([SubResource("Resource_wofib"), SubResource("Resource_8qtb1"), SubResource("Resource_md2q5"), SubResource("Resource_7sdct"), SubResource("Resource_pym4v"), SubResource("Resource_cx5pu"), SubResource("Resource_l7rge"), SubResource("Resource_uruh1"), SubResource("Resource_5a3s4"), SubResource("Resource_85662"), SubResource("Resource_ufr2e"), SubResource("Resource_mqjss"), SubResource("Resource_am8p3"), SubResource("Resource_1n154"), SubResource("Resource_u3iod"), SubResource("Resource_m8a06"), SubResource("Resource_fekb7"), SubResource("Resource_t0yyg"), SubResource("Resource_ypxov"), SubResource("Resource_5t2r3"), SubResource("Resource_w7kei"), SubResource("Resource_kxnt3"), SubResource("Resource_e5t13"), SubResource("Resource_q04di"), SubResource("Resource_kjmsf"), SubResource("Resource_e3376"), SubResource("Resource_2pj8t"), SubResource("Resource_yqjgc"), SubResource("Resource_82asr"), SubResource("Resource_icuqq"), SubResource("Resource_rtqfu"), SubResource("Resource_ayu21"), SubResource("Resource_1mdfy"), SubResource("Resource_sv7cg"), SubResource("Resource_akt5g"), SubResource("Resource_lgmc1")])
+equipment_slots = Array[ExtResource("2_6ohk7")]([SubResource("Resource_equip_weapon"), SubResource("Resource_equip_head"), SubResource("Resource_equip_chest"), SubResource("Resource_equip_boots"), SubResource("Resource_equip_ring"), SubResource("Resource_equip_amulet")])

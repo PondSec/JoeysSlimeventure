@@ -17,6 +17,10 @@ var intro_lines = [
 	"Diese Höhle... sie strahlt eine seltsame Energie aus...",
 	"Ich spüre... hier liegt ein Geheimnis verborgen...",
 	"Vielleicht... vielleicht bin ich genau deshalb hier...",
+	"Die Steine flüstern... sie nennen es den Lumora-Kern.",
+	"Wenn der Kern bricht, verstummt das Licht in dieser Welt.",
+	"Und dieser Schatten... er hat nach mir gegriffen, um mich aufzuhalten.",
+	"Vielleicht bin ich nicht nur gefallen... vielleicht wurde ich erwählt.",
 	"Ich werde Antworten finden... egal was ich jetzt bin!"
 ]
 var current_line = 0

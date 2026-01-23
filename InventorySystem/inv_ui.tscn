@@ -7,11 +7,11 @@
 
 [node name="InvUI" type="Control"]
 modulate = Color(1, 1, 1, 0.937255)
-custom_minimum_size = Vector2(208, 98)
+custom_minimum_size = Vector2(520, 220)
 layout_mode = 3
 anchors_preset = 0
-offset_right = 208.0
-offset_bottom = 98.0
+offset_right = 520.0
+offset_bottom = 220.0
 script = ExtResource("1_px203")
 
 [node name="NinePatchRect" type="NinePatchRect" parent="."]
@@ -148,3 +148,75 @@ layout_mode = 2
 
 [node name="Slot_hotbar9" parent="NinePatchRect/GridContainer" instance=ExtResource("4_6xbyo")]
 layout_mode = 2
+
+[node name="EquipmentPanel" type="NinePatchRect" parent="."]
+layout_mode = 0
+offset_left = 180.0
+offset_top = 0.0
+offset_right = 500.0
+offset_bottom = 210.0
+texture = ExtResource("2_1yy2w")
+patch_margin_left = 4
+patch_margin_top = 4
+patch_margin_right = 4
+patch_margin_bottom = 4
+
+[node name="EquipmentTitle" type="Label" parent="EquipmentPanel"]
+layout_mode = 0
+offset_left = 12.0
+offset_top = 8.0
+offset_right = 180.0
+offset_bottom = 28.0
+text = "Ausrüstung"
+
+[node name="EquipmentGrid" type="GridContainer" parent="EquipmentPanel"]
+layout_mode = 0
+offset_left = 12.0
+offset_top = 32.0
+offset_right = 308.0
+offset_bottom = 200.0
+columns = 2
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 6
+
+[node name="WeaponSlot" parent="EquipmentPanel/EquipmentGrid" instance=ExtResource("3_3kb3x")]
+layout_mode = 2
+
+[node name="WeaponLabel" type="Label" parent="EquipmentPanel/EquipmentGrid"]
+layout_mode = 2
+text = "Waffe"
+
+[node name="HeadSlot" parent="EquipmentPanel/EquipmentGrid" instance=ExtResource("3_3kb3x")]
+layout_mode = 2
+
+[node name="HeadLabel" type="Label" parent="EquipmentPanel/EquipmentGrid"]
+layout_mode = 2
+text = "Kopf"
+
+[node name="ChestSlot" parent="EquipmentPanel/EquipmentGrid" instance=ExtResource("3_3kb3x")]
+layout_mode = 2
+
+[node name="ChestLabel" type="Label" parent="EquipmentPanel/EquipmentGrid"]
+layout_mode = 2
+text = "Rüstung"
+
+[node name="BootsSlot" parent="EquipmentPanel/EquipmentGrid" instance=ExtResource("3_3kb3x")]
+layout_mode = 2
+
+[node name="BootsLabel" type="Label" parent="EquipmentPanel/EquipmentGrid"]
+layout_mode = 2
+text = "Stiefel"
+
+[node name="RingSlot" parent="EquipmentPanel/EquipmentGrid" instance=ExtResource("3_3kb3x")]
+layout_mode = 2
+
+[node name="RingLabel" type="Label" parent="EquipmentPanel/EquipmentGrid"]
+layout_mode = 2
+text = "Ring"
+
+[node name="AmuletSlot" parent="EquipmentPanel/EquipmentGrid" instance=ExtResource("3_3kb3x")]
+layout_mode = 2
+
+[node name="AmuletLabel" type="Label" parent="EquipmentPanel/EquipmentGrid"]
+layout_mode = 2
+text = "Amulett"
