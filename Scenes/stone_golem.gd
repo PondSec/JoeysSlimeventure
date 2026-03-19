@@ -1,5 +1,7 @@
 extends CharacterBody2D
 
+signal defeated(golem: Node)
+
 const SPEED = 40.0
 const DETECTION_RADIUS = 300.0
 const ATTACK_RANGE = 50.0
@@ -36,6 +38,11 @@ var loot_table = [
 	{ "scene": null, "chance": 0.70 }
 ]
 
+@export var respawn_enabled: bool = true
+@export var health_override: int = 0
+@export var guaranteed_drop_scene: PackedScene
+@export var boss_name: String = "Stone Sentinel"
+
 var player: CharacterBody2D
 @export var spawn_zone_container: Node2D
 @onready var animation_player = $Sprite2D/AnimationPlayer
@@ -46,6 +53,8 @@ var camera: Camera2D
 
 func _ready() -> void:
 	randomize()
+	if health_override > 0:
+		golem_health = health_override
 	add_to_group("enemies")
 	add_to_group("golems")
 	golem_position = global_position
@@ -238,6 +247,7 @@ func activate_stone_mantle():
 	if is_stone_mantle_active or stone_mantle_cooldown_timer > 0:
 		return
 	
+	show_status_notification("GUARD")
 	is_stone_mantle_active = true
 	is_immune = true
 
@@ -265,6 +275,7 @@ func decide_ability():
 			attack()
 
 func spit_rock():
+	show_status_notification("ROCK")
 	var rock = preload("res://Scenes/Items/stone.tscn").instantiate()
 	rock.global_position = global_position
 	var direction = (player.global_position - global_position).normalized()
@@ -273,6 +284,7 @@ func spit_rock():
 
 func attack() -> void:
 	if player and not is_dead:
+		show_status_notification("SLAM")
 		var is_critical = randf() < 0.4
 		if is_critical:
 			perform_critical_hit()
@@ -362,9 +374,18 @@ func die():
 	hide()
 
 	drop_loot()
-	
+	if guaranteed_drop_scene:
+		var reward = guaranteed_drop_scene.instantiate()
+		reward.global_position = global_position + Vector2(0, -18)
+		get_parent().add_child(reward)
+
 	set_deferred("collision_layer", 0)
-	set_deferred("collision_mask", 0)  
+	set_deferred("collision_mask", 0)
+	defeated.emit(self)
+
+	if not respawn_enabled:
+		return
+
 	await get_tree().create_timer(RESPAWN_COOLDOWN).timeout
 	spawn_near_player()
 

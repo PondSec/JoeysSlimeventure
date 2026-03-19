@@ -1,4 +1,4 @@
-[gd_scene load_steps=37 format=4 uid="uid://cmdu13w35epv0"]
+[gd_scene load_steps=37 format=4]
 
 [ext_resource type="Texture2D" uid="uid://82opar247kat" path="res://Assets/Tiles/platformertiles.png" id="1_x6kbu"]
 [ext_resource type="PackedScene" uid="uid://c8bjyoq5oxoup" path="res://Scenes/door.tscn" id="2_gdcnv"]
@@ -421,19 +421,19 @@ size = Vector2(150, 110)
 size = Vector2(220, 120)
 
 
-[node name="Node2D" type="Node2D"]
+[node name="chapter1_level5" type="Node2D"]
 position = Vector2(422, 925)
 script = ExtResource("21_chlvl")
 
 [node name="Level" type="Node2D" parent="."]
 
 [node name="DoorBack" parent="Level" instance=ExtResource("2_gdcnv")]
-position = Vector2(-104, 0)
-level = "Game"
+position = Vector2(1830, 280)
+level = "chapter1_level4"
 
 [node name="DoorLevel2" parent="Level" instance=ExtResource("2_gdcnv")]
-position = Vector2(3125, 449)
-level = "level1"
+position = Vector2(2445, 700)
+level = "chapter1_level6"
 
 [node name="Spike" parent="Level" instance=ExtResource("7_gdcnv")]
 position = Vector2(775.305, -16)
@@ -701,7 +701,7 @@ rotation = 3.14159
 position = Vector2(737, -51)
 
 [node name="player_spawn" type="Marker2D" parent="."]
-position = Vector2(-96, -15)
+position = Vector2(1894, 282)
 script = SubResource("GDScript_didp7")
 
 [node name="PauseMenu" parent="." instance=ExtResource("6_uralf")]
@@ -790,13 +790,13 @@ spawn_zone_container = NodePath("../CollisionShape2D")
 environment = ExtResource("20_cywlo")
 
 [node name="mid_checkpoint_a" type="Marker2D" parent="Level"]
-position = Vector2(1110, -36)
+position = Vector2(2140, 330)
 
 [node name="MidCheckpointA" type="Area2D" parent="Level"]
-position = Vector2(1110, -36)
+position = Vector2(2140, 330)
 script = ExtResource("22_chk")
 marker_name = "Level/mid_checkpoint_a"
-checkpoint_message = "Rastpunkt: Die ersten Fallen sind gelesen, jetzt darf das Tempo anziehen."
+checkpoint_message = "Checkpoint: Präzision vor Tempo."
 heal_ratio = 0.3
 one_shot = true
 
@@ -804,13 +804,13 @@ one_shot = true
 shape = SubResource("RectangleShape2D_ch1_l0_cp")
 
 [node name="mid_checkpoint_b" type="Marker2D" parent="Level"]
-position = Vector2(2470, 210)
+position = Vector2(2350, 618)
 
 [node name="MidCheckpointB" type="Area2D" parent="Level"]
-position = Vector2(2470, 210)
+position = Vector2(2350, 618)
 script = ExtResource("22_chk")
 marker_name = "Level/mid_checkpoint_b"
-checkpoint_message = "Letzter Rastpunkt vor dem Vorraum des Bosses."
+checkpoint_message = "Checkpoint: Der härteste Plattform-Block ist geschafft."
 heal_ratio = 0.45
 one_shot = true
 
@@ -820,7 +820,7 @@ shape = SubResource("RectangleShape2D_ch1_l0_cp")
 [node name="FlowHintA" type="Area2D" parent="Level"]
 position = Vector2(520, 30)
 script = ExtResource("23_msg")
-message = "Hier lernst du Kapitel 1 kennen: klare Sprünge, einzelne Spitzen und genug Platz, um Gegner erst zu lesen und dann zu binden."
+message = "Level 5 – Schwierigerer Plattform-Abschnitt: Die Sprünge werden präziser, bleiben aber klar lesbar und ohne blinde Landungen."
 message_type = "info"
 duration = 4.5
 
@@ -830,7 +830,7 @@ shape = SubResource("RectangleShape2D_ch1_l0_msg")
 [node name="FlowHintB" type="Area2D" parent="Level"]
 position = Vector2(2620, 250)
 script = ExtResource("23_msg")
-message = "Die Luft wird enger. Nutze kurze Stopps zwischen Fallenfeldern, bevor du den Wächterraum betrittst."
+message = "Konzentriere dich auf saubere Landungen vor dem letzten Satz enger Plattformen."
 message_type = "warning"
 duration = 4.2
 
@@ -838,16 +838,16 @@ duration = 4.2
 shape = SubResource("RectangleShape2D_ch1_l0_msg")
 
 [node name="SecretArtefact" parent="Level" instance=ExtResource("24_reward")]
-position = Vector2(1508, -282)
+position = Vector2(2060, 214)
 
 [node name="PrepIron" parent="Level" instance=ExtResource("25_iron")]
-position = Vector2(2860, 332)
+position = Vector2(2290, 566)
 
 [node name="worm2" parent="Level" instance=ExtResource("5_ms07d")]
-position = Vector2(1738, -186)
+position = Vector2(2050, 262)
 
 [node name="Bat2" parent="SpawnArea" node_paths=PackedStringArray("player", "spawn_zone_container") instance=ExtResource("19_vvbs8")]
-position = Vector2(2870, 406)
+position = Vector2(2260, 188)
 player = NodePath("../../PlayerModel")
 spawn_zone_container = NodePath("../CollisionShape2D")
 [connection signal="go_to_main_menu" from="PauseMenu" to="." method="_on_pause_menu_go_to_main_menu"]

@@ -1,4 +1,4 @@
-[gd_scene load_steps=59 format=4 uid="uid://cmdu13w35epv0"]
+[gd_scene load_steps=59 format=4]
 
 [ext_resource type="Texture2D" uid="uid://82opar247kat" path="res://Assets/Tiles/platformertiles.png" id="1_c5erv"]
 [ext_resource type="Script" uid="uid://bp7am01qxi47c" path="res://Scripts/level1.gd" id="1_lyd6k"]
@@ -477,7 +477,7 @@ size = Vector2(170, 110)
 size = Vector2(190, 150)
 
 
-[node name="level1" type="Node2D"]
+[node name="chapter1_level7" type="Node2D"]
 script = ExtResource("17_chlvl")
 
 [node name="Background" type="TileMap" parent="."]
@@ -490,11 +490,11 @@ tile_set = SubResource("TileSet_didp7")
 
 [node name="Door" parent="Background" instance=ExtResource("5_bs12r")]
 position = Vector2(595, 831)
-level = "level0"
+level = "chapter1_level6"
 
 [node name="Door2" parent="Background" instance=ExtResource("5_bs12r")]
 position = Vector2(754, 960)
-level = "Game"
+level = "main_menu"
 
 [node name="Spike4" parent="Background" instance=ExtResource("4_esggg")]
 position = Vector2(496, 807)
@@ -659,7 +659,7 @@ position = Vector2(560, 814)
 position = Vector2(560, 814)
 script = ExtResource("18_chk")
 marker_name = "boss_checkpoint"
-checkpoint_message = "Boss-Vorbereitung: Der nächste Raum ist ein klarer Höhepunkt."
+checkpoint_message = "Finaler Checkpoint vor der Arena aktiviert."
 heal_ratio = 0.6
 one_shot = true
 
@@ -669,7 +669,7 @@ shape = SubResource("RectangleShape2D_ch1_l1_cp")
 [node name="WaterHint" type="Area2D" parent="."]
 position = Vector2(300, 880)
 script = ExtResource("19_msg")
-message = "Der Vorraum mischt Wasser, enge Plattformen und eine fliegende Bedrohung – genau die Werkzeuge, die der Wächter gleich prüft."
+message = "Level 7 – Kapitelabschluss: Der Vorraum erinnert noch einmal an Wasser, enge Plattformen und Fluggegner, bevor der Stone Sentinel den Abschluss bildet."
 message_type = "info"
 duration = 4.0
 
@@ -689,7 +689,7 @@ script = ExtResource("20_bossctl")
 boss_path = NodePath("../MiniBoss")
 exit_door_path = NodePath("../Background/Door2")
 boss_checkpoint_name = "boss_checkpoint"
-encounter_message = "Der Steinwächter stampft los. Warte seine Ansage ab, weiche seitlich aus und greife nach dem Slam."
+encounter_message = "Level 7: Der Stone Sentinel telegraphiert GUARD, ROCK und SLAM. Lies die Ansage, dodge seitlich und kontere nach dem Commit."
 victory_message = "Der Steinwächter ist gefallen. Der Ausgang ist offen – Kapitel 1 endet mit einem echten Triumph."
 reward_scenes = Array[PackedScene]([ExtResource("23_gold")])
 

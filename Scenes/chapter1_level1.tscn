@@ -1,4 +1,4 @@
-[gd_scene load_steps=45 format=4 uid="uid://cmdh8rpdo8fb2"]
+[gd_scene load_steps=45 format=4]
 
 [ext_resource type="Texture2D" uid="uid://82opar247kat" path="res://Assets/Tiles/platformertiles.png" id="1_lx4yj"]
 [ext_resource type="Script" uid="uid://hrb3bfkpp2mn" path="res://Scripts/game.gd" id="1_wyx84"]
@@ -374,7 +374,7 @@ size = Vector2(180, 128)
 size = Vector2(120, 96)
 
 
-[node name="Game" type="Node2D"]
+[node name="chapter1_level1" type="Node2D"]
 script = ExtResource("30_chlvl")
 
 [node name="Shadow" type="CanvasModulate" parent="."]
@@ -391,7 +391,7 @@ format = 2
 
 [node name="Door" parent="Background" instance=ExtResource("16_alh3a")]
 position = Vector2(355, 1034)
-level = "level0"
+level = "chapter1_level2"
 
 [node name="Spike" parent="Background" instance=ExtResource("18_x3xnh")]
 position = Vector2(1092, 1275)
@@ -669,7 +669,7 @@ position = Vector2(430, 1034)
 position = Vector2(430, 1034)
 script = ExtResource("31_chk")
 marker_name = "chapter1_intro_checkpoint"
-checkpoint_message = "Rastpunkt erreicht – von hier aus beginnt der Abstieg."
+checkpoint_message = "Start-Rastpunkt aktiviert – du hast den Einstieg gemeistert."
 heal_ratio = 0.25
 one_shot = true
 
@@ -679,7 +679,7 @@ shape = SubResource("RectangleShape2D_ch1_game_cp")
 [node name="StartHint" type="Area2D" parent="."]
 position = Vector2(574, 1002)
 script = ExtResource("32_msg")
-message = "Willkommen in Kapitel 1. Folge dem sicheren Hauptpfad, teste deinen Sprung und halte mit Interagieren nach Übergängen Ausschau."
+message = "Level 1 – Spawn / Einstieg: Lerne Tempo, Sprunghöhe und den sicheren Hauptpfad kennen. Die ersten Sprünge bleiben bewusst breit und lesbar."
 message_type = "info"
 duration = 4.5
 
@@ -689,7 +689,7 @@ shape = SubResource("RectangleShape2D_ch1_game_msg")
 [node name="DoorHint" type="Area2D" parent="."]
 position = Vector2(360, 1034)
 script = ExtResource("32_msg")
-message = "Die erste Tür führt in die Echo-Tiefen. Dahinter warten erste Gegner und sichtbare Fallen – fair, aber nicht nachlässig."
+message = "Vor dir liegt Level 2. Dort tauchen die ersten kleinen Gegner und einfache Plattformaufgaben auf."
 message_type = "warning"
 duration = 4.0
 
