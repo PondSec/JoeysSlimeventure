@@ -44,10 +44,10 @@ var toast_settings = {
 	\"position\": \"bottom_right\"
 }
 
-@onready var ip_input: LineEdit = $MultiPlayer/VBoxContainer/IPInput
-@onready var port_input: LineEdit = $MultiPlayer/VBoxContainer/PortInput
-@onready var pact_notes: Label = $PatchNotes
-@onready var volume_slider: HSlider = $SettingsPanel/VBoxContainer/VolumeSlider
+@onready var ip_input: LineEdit = get_node_or_null(\"MultiPlayer/VBoxContainer/IPInput\")
+@onready var port_input: LineEdit = get_node_or_null(\"MultiPlayer/VBoxContainer/PortInput\")
+@onready var pact_notes: Label = get_node_or_null(\"PatchNotes\")
+@onready var volume_slider: HSlider = get_node_or_null(\"SettingsPanel/VBoxContainer/VolumeSlider\")
 
 # Dauer in Sekunden für jede Priorität
 const DISPLAY_DURATION = {
@@ -120,7 +120,7 @@ func fetch_game_messages() -> void:
 	add_child(http_request)
 	http_request.request_completed.connect(_on_game_messages_request_completed.bind(http_request))
 
-	var url = \"https://api.joeysslimeventure.com/api/game-messages\"
+	var url = \"https://api.joeyslime.com/api/game-messages\"
 	var error = http_request.request(url)
 	if error != OK:
 		push_error(\"Fehler beim Abrufen der Game Messages: \" + str(error))

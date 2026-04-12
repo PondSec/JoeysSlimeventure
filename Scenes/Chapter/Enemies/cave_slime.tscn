@@ -1,0 +1,31 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Texture2D" path="res://Assets/slime-sprite.png" id="1_slime"]
+[ext_resource type="Script" path="res://Scripts/Chapter/Enemies/cave_slime.gd" id="2_script"]
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_body"]
+radius = 15.0
+height = 30.0
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_hitbox"]
+size = Vector2(34, 26)
+
+[node name="CaveSlime" type="CharacterBody2D"]
+script = ExtResource("2_script")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, -12)
+shape = SubResource("CapsuleShape2D_body")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+position = Vector2(0, -16)
+scale = Vector2(0.16, 0.16)
+texture = ExtResource("1_slime")
+hframes = 5
+vframes = 3
+
+[node name="Hitbox" type="Area2D" parent="."]
+position = Vector2(0, -14)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hitbox"]
+shape = SubResource("RectangleShape2D_hitbox")

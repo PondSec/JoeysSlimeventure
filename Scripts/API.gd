@@ -1,6 +1,6 @@
 extends Node2D
 
-var url = "http://api.joeysslimeventure.com/items"  # Geänderte URL
+var url = "https://api.joeyslime.com/items"
 @onready var http_request = $HTTPRequest
 @export var inv: Inv  # Referenz zum Inventar des Spielers
 @onready var player: CharacterBody2D  # Referenz auf den Spieler (ändere dies je nach Struktur)

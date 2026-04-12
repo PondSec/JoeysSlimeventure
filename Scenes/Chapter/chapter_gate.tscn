@@ -1,0 +1,43 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Texture2D" path="res://Assets/Door/door.png" id="1_door"]
+[ext_resource type="Texture2D" path="res://Assets/Light/torch_light.png" id="2_light"]
+[ext_resource type="Script" path="res://Scripts/Chapter/chapter_gate.gd" id="3_script"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_gate"]
+size = Vector2(44, 110)
+
+[node name="ChapterGate" type="Node2D"]
+script = ExtResource("3_script")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+position = Vector2(0, -34)
+texture = ExtResource("1_door")
+
+[node name="PointLight2D" type="PointLight2D" parent="."]
+position = Vector2(0, -38)
+color = Color(0.56, 0.88, 1, 1)
+energy = 1.1
+texture = ExtResource("2_light")
+texture_scale = 2.05
+
+[node name="TitleLabel" type="Label" parent="."]
+position = Vector2(-108, -120)
+size = Vector2(216, 28)
+horizontal_alignment = 1
+
+[node name="StatusLabel" type="Label" parent="."]
+position = Vector2(-124, -92)
+size = Vector2(248, 24)
+horizontal_alignment = 1
+
+[node name="PromptLabel" type="Label" parent="."]
+position = Vector2(-88, 26)
+size = Vector2(176, 22)
+horizontal_alignment = 1
+
+[node name="Area2D" type="Area2D" parent="."]
+position = Vector2(0, -34)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Area2D"]
+shape = SubResource("RectangleShape2D_gate")

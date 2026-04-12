@@ -8,7 +8,7 @@ func join_dedicated_server():
 	is_multiplayer = true
 	peer = ENetMultiplayerPeer.new()
 	
-	var err = peer.create_client("gameserver.joeysslimeventure.com", 5999)
+	var err = peer.create_client("gameserver.joeyslime.com", 5999)
 	if err != OK:
 		print("❌ Fehler beim Verbinden: ", err)
 		show_error("Verbindung fehlgeschlagen")

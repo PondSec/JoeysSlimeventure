@@ -1,4 +1,4 @@
-[gd_scene load_steps=57 format=3 uid="uid://b6ublycstdj8n"]
+[gd_scene load_steps=58 format=3 uid="uid://b6ublycstdj8n"]
 
 [ext_resource type="Resource" uid="uid://0rntjh2xt5s5" path="res://InventorySystem/playerinv.tres" id="1_e7ml4"]
 [ext_resource type="PackedScene" uid="uid://boa0bok16i3n" path="res://Scenes/slime_ball.tscn" id="2_y6uwr"]
@@ -28,6 +28,7 @@
 [ext_resource type="Texture2D" uid="uid://cllwmov7ffejk" path="res://Assets/Particles#/dust.png" id="25_p1odr"]
 [ext_resource type="PackedScene" uid="uid://dwcb5l2ylkk5d" path="res://Scenes/SkillTree.tscn" id="26_0gysh"]
 [ext_resource type="Texture2D" uid="uid://gxr5xin814o6" path="res://Assets/sphere.png" id="26_vfarp"]
+[ext_resource type="Script" path="res://Scripts/player.gd" id="27_player"]
 
 [sub_resource type="GDScript" id="GDScript_381hh"]
 resource_name = "Player"
@@ -225,7 +226,7 @@ var has_thorns_skill := false
 var player_level := 1
 @onready var skill_tree = $SkillTree
 
-var url = \"https://api.joeysslimeventure.com/\"
+var url = \"https://api.joeyslime.com/\"
 @onready var http_request = $HTTPRequest
 
 # Referenz zur Lebensanzeige (ProgressBar)
@@ -2804,7 +2805,7 @@ size = Vector2(400, 257.14)
 [sub_resource type="GDScript" id="GDScript_p1odr"]
 script/source = "extends CanvasLayer
 
-@onready var notification_label = $NotificationLabel
+@onready var notification_label = get_node_or_null(\"NotificationLabel\")
 
 func _ready():
 	# Erstelle das Notification-Label falls es nicht existiert
@@ -2879,7 +2880,7 @@ func _input(event):
 position = Vector2(291, 687)
 scale = Vector2(0.07, 0.07)
 collision_mask = 6
-script = SubResource("GDScript_381hh")
+script = ExtResource("27_player")
 inv = ExtResource("1_e7ml4")
 slimeball_scene = ExtResource("2_y6uwr")
 
