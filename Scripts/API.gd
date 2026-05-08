@@ -1,6 +1,8 @@
 extends Node2D
 
-var url = "http://api.joeysslimeventure.com/items"  # Geänderte URL
+const ItemRegistry := preload("res://Scripts/item_registry.gd")
+
+var url = "https://api.joeyslime.com/items"
 @onready var http_request = $HTTPRequest
 @export var inv: Inv  # Referenz zum Inventar des Spielers
 @onready var player: CharacterBody2D  # Referenz auf den Spieler (ändere dies je nach Struktur)
@@ -69,8 +71,9 @@ func _on_request_completed(results, response_code, headers, body):
 # Methode, um das Item vor dem Spieler abzulegen
 func drop_item_before_player(item: InvItem) -> void:
 	# Instanziiere das Item
-	var item_scene = load("res://Scenes/Items/" + item.name + ".tscn")
-	var dropped_item = item_scene.instantiate()
+	var dropped_item := ItemRegistry.create_pickup_for_item(item)
+	if dropped_item == null:
+		return
 
 	# Vergewissere dich, dass du die richtige Position des Spielers erhältst
 	if player:
@@ -87,7 +90,4 @@ func drop_item_before_player(item: InvItem) -> void:
 
 # Methode zum Laden eines Items anhand des Namens
 func load_item(item_name: String) -> InvItem:
-	var path = "res://InventorySystem/items/" + item_name + ".tres"
-	if ResourceLoader.exists(path):
-		return load(path) as InvItem
-	return null
+	return ItemRegistry.get_item(item_name)

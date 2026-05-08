@@ -1,38 +1,47 @@
 [gd_scene load_steps=3 format=3 uid="uid://bdyxh0ed3s8nu"]
 
-[ext_resource type="Script" path="res://InventorySystem/slot.gd" id="1_ih30d"]
-[ext_resource type="Texture2D" uid="uid://b8hkct0g5fkne" path="res://Assets/Inventory/slot.png" id="1_ix1s7"]
+[ext_resource type="Script" path="res://InventorySystem/slot.gd" id="1_slot"]
+[ext_resource type="Texture2D" uid="uid://b8hkct0g5fkne" path="res://Assets/Inventory/slot.png" id="2_slotbg"]
 
 [node name="Slot" type="Panel"]
-self_modulate = Color(1, 1, 1, 0)
-custom_minimum_size = Vector2(18, 18)
-offset_right = 18.0
-offset_bottom = 18.0
-script = ExtResource("1_ih30d")
+mouse_filter = 1
+custom_minimum_size = Vector2(56, 56)
+offset_right = 56.0
+offset_bottom = 56.0
+script = ExtResource("1_slot")
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
-texture = ExtResource("1_ix1s7")
-centered = false
+[node name="Background" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("2_slotbg")
+stretch_mode = 6
 
 [node name="CenterContainer" type="CenterContainer" parent="."]
-custom_minimum_size = Vector2(18, 18)
-layout_mode = 0
-offset_right = 18.0
-offset_bottom = 18.0
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 
-[node name="Panel" type="Panel" parent="CenterContainer"]
+[node name="ItemDisplay" type="TextureRect" parent="CenterContainer"]
+custom_minimum_size = Vector2(38, 38)
 layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
 
-[node name="ItemDisplay" type="Sprite2D" parent="CenterContainer/Panel"]
-scale = Vector2(0.5, 0.5)
-
-[node name="Label" type="Label" parent="CenterContainer/Panel"]
-custom_minimum_size = Vector2(19, 23)
+[node name="AmountLabel" type="Label" parent="."]
 layout_mode = 0
-offset_left = 1.0
-offset_top = 1.0
-offset_right = 20.0
-offset_bottom = 24.0
-scale = Vector2(0.3, 0.3)
-text = "64"
+offset_left = 10.0
+offset_top = 36.0
+offset_right = 50.0
+offset_bottom = 53.0
+theme_override_font_sizes/font_size = 12
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 2
 horizontal_alignment = 2

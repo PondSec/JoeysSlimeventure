@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /web_demo/
+Disallow: /index_old.html
+Disallow: /wiki/bat/
+
+Sitemap: https://joeyslime.com/sitemap.xml

@@ -1,0 +1,48 @@
+[gd_scene load_steps=7 format=3 uid="uid://dg0lumles5tbw"]
+
+[ext_resource type="Texture2D" uid="uid://bbv5t11bflxtv" path="res://Assets/Enemy/Mushroom/Mushroom without VFX/Mushroom-Idle.png" id="1_idle"]
+[ext_resource type="Texture2D" uid="uid://bfhvfvveasr1l" path="res://Assets/Light/torch_light.png" id="2_light"]
+[ext_resource type="Script" uid="uid://ba04rvi8tw7cj" path="res://Scripts/Chapter/Enemies/glowcap.gd" id="3_script"]
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_body"]
+radius = 9.0
+height = 18.0
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_hitbox"]
+size = Vector2(22, 28)
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_spores"]
+radius = 48.0
+
+[node name="Glowcap" type="CharacterBody2D"]
+script = ExtResource("3_script")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, -17)
+shape = SubResource("CapsuleShape2D_body")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+position = Vector2(0, -32)
+texture = ExtResource("1_idle")
+hframes = 7
+
+[node name="PointLight2D" type="PointLight2D" parent="."]
+position = Vector2(0, -39)
+scale = Vector2(2, 2)
+color = Color(0.82, 0.54, 0.32, 1)
+energy = 0.12
+texture = ExtResource("2_light")
+texture_scale = 0.42
+
+[node name="Hitbox" type="Area2D" parent="."]
+position = Vector2(0, -18)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hitbox"]
+shape = SubResource("RectangleShape2D_hitbox")
+
+[node name="SporeArea" type="Area2D" parent="."]
+position = Vector2(0, -28)
+monitoring = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="SporeArea"]
+shape = SubResource("CircleShape2D_spores")

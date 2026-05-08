@@ -1,4 +1,4 @@
-[gd_scene load_steps=59 format=4 uid="uid://cmdu13w35epv0"]
+[gd_scene load_steps=59 format=4 uid="uid://d0j3w1j4x7gsy"]
 
 [ext_resource type="Texture2D" uid="uid://82opar247kat" path="res://Assets/Tiles/platformertiles.png" id="1_c5erv"]
 [ext_resource type="Script" uid="uid://bp7am01qxi47c" path="res://Scripts/level1.gd" id="1_lyd6k"]

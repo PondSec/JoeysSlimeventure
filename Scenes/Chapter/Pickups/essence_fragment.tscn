@@ -1,0 +1,24 @@
+[gd_scene load_steps=5 format=3 uid="uid://dvwm2b4uq1i7r"]
+
+[ext_resource type="Texture2D" uid="uid://dgniyob3cabkp" path="res://Assets/Deko/crystal_pink.png" id="1_crystal"]
+[ext_resource type="Texture2D" uid="uid://bfhvfvveasr1l" path="res://Assets/Light/torch_light.png" id="2_light"]
+[ext_resource type="Script" uid="uid://cq561j2yt6yd" path="res://Scripts/Chapter/essence_fragment.gd" id="3_script"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_pickup"]
+radius = 9.0
+
+[node name="EssenceFragment" type="Area2D"]
+script = ExtResource("3_script")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_pickup")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+scale = Vector2(0.24, 0.24)
+texture = ExtResource("1_crystal")
+
+[node name="PointLight2D" type="PointLight2D" parent="."]
+color = Color(0.58, 0.93, 1, 1)
+energy = 0.62
+texture = ExtResource("2_light")
+texture_scale = 0.95

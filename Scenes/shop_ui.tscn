@@ -1,0 +1,131 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://Scripts/shop_ui.gd" id="1_script"]
+
+[node name="ShopUI" type="CanvasLayer"]
+layer = 40
+visible = false
+script = ExtResource("1_script")
+
+[node name="Backdrop" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Frame" type="MarginContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 170
+theme_override_constants/margin_top = 110
+theme_override_constants/margin_right = 170
+theme_override_constants/margin_bottom = 100
+
+[node name="RootPanel" type="PanelContainer" parent="Frame"]
+layout_mode = 2
+
+[node name="ContentMargin" type="MarginContainer" parent="Frame/RootPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 16
+
+[node name="ContentScroll" type="ScrollContainer" parent="Frame/RootPanel/ContentMargin"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Content" type="VBoxContainer" parent="Frame/RootPanel/ContentMargin/ContentScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 12
+
+[node name="HeaderRow" type="HBoxContainer" parent="Frame/RootPanel/ContentMargin/ContentScroll/Content"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="TitleStack" type="VBoxContainer" parent="Frame/RootPanel/ContentMargin/ContentScroll/Content/HeaderRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 3
+
+[node name="SignTexture" type="TextureRect" parent="Frame/RootPanel/ContentMargin/ContentScroll/Content/HeaderRow/TitleStack"]
+custom_minimum_size = Vector2(150, 48)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="TitleLabel" type="Label" parent="Frame/RootPanel/ContentMargin/ContentScroll/Content/HeaderRow/TitleStack"]
+layout_mode = 2
+
+[node name="SubtitleLabel" type="Label" parent="Frame/RootPanel/ContentMargin/ContentScroll/Content/HeaderRow/TitleStack"]
+custom_minimum_size = Vector2(0, 28)
+layout_mode = 2
+
+[node name="RefreshButton" type="Button" parent="Frame/RootPanel/ContentMargin/ContentScroll/Content/HeaderRow"]
+custom_minimum_size = Vector2(96, 34)
+layout_mode = 2
+
+[node name="CloseButton" type="Button" parent="Frame/RootPanel/ContentMargin/ContentScroll/Content/HeaderRow"]
+custom_minimum_size = Vector2(96, 34)
+layout_mode = 2
+
+[node name="MetaRow" type="HBoxContainer" parent="Frame/RootPanel/ContentMargin/ContentScroll/Content"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="StatusLabel" type="Label" parent="Frame/RootPanel/ContentMargin/ContentScroll/Content/MetaRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ResetLabel" type="Label" parent="Frame/RootPanel/ContentMargin/ContentScroll/Content/MetaRow"]
+layout_mode = 2
+
+[node name="WalletSection" type="VBoxContainer" parent="Frame/RootPanel/ContentMargin/ContentScroll/Content"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="WalletTitle" type="Label" parent="Frame/RootPanel/ContentMargin/ContentScroll/Content/WalletSection"]
+layout_mode = 2
+text = "Waehrungen"
+
+[node name="WalletRow" type="HBoxContainer" parent="Frame/RootPanel/ContentMargin/ContentScroll/Content/WalletSection"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="FeaturedSection" type="VBoxContainer" parent="Frame/RootPanel/ContentMargin/ContentScroll/Content"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="FeaturedTitle" type="Label" parent="Frame/RootPanel/ContentMargin/ContentScroll/Content/FeaturedSection"]
+layout_mode = 2
+text = "Tagesangebote"
+
+[node name="FeaturedRow" type="HBoxContainer" parent="Frame/RootPanel/ContentMargin/ContentScroll/Content/FeaturedSection"]
+custom_minimum_size = Vector2(0, 248)
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="PermanentSection" type="VBoxContainer" parent="Frame/RootPanel/ContentMargin/ContentScroll/Content"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="PermanentTitle" type="Label" parent="Frame/RootPanel/ContentMargin/ContentScroll/Content/PermanentSection"]
+layout_mode = 2
+text = "Permanente Ware"
+
+[node name="PermanentGrid" type="GridContainer" parent="Frame/RootPanel/ContentMargin/ContentScroll/Content/PermanentSection"]
+layout_mode = 2
+theme_override_constants/h_separation = 10
+theme_override_constants/v_separation = 10
+columns = 5
+
+[node name="HintLabel" type="Label" parent="Frame/RootPanel/ContentMargin/ContentScroll/Content"]
+layout_mode = 2
+
+[node name="HTTPRequest" type="HTTPRequest" parent="."]

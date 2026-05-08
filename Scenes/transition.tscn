@@ -5,27 +5,66 @@ script/source = "extends CanvasLayer
 
 signal transition_completed
 
-@onready var animation_player = $AnimationPlayer
-var player = is_in_group(\"players\")
+@onready var animation_player: AnimationPlayer = $AnimationPlayer
+@onready var color_rect: ColorRect = $ColorRect
 
-# Neuer Parameter: skip_fade_in (standardmäßig false)
+var transition_running := false
+
+func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	if animation_player != null:
+		animation_player.process_mode = Node.PROCESS_MODE_ALWAYS
+	if color_rect != null:
+		color_rect.process_mode = Node.PROCESS_MODE_ALWAYS
+
 func play_transition(scene_path: String, skip_fade_in: bool = false) -> void:
+	if transition_running:
+		return
+	transition_running = true
+
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	if animation_player != null:
+		animation_player.process_mode = Node.PROCESS_MODE_ALWAYS
+	if color_rect != null:
+		color_rect.process_mode = Node.PROCESS_MODE_ALWAYS
+
 	if not skip_fade_in:
 		fade_in()
 		await animation_player.animation_finished
-	
+	else:
+		_set_overlay_alpha(1.0)
+
 	emit_signal(\"transition_completed\")
-	get_tree().change_scene_to_file(scene_path)
-	
+	var change_error: int = get_tree().change_scene_to_file(scene_path)
+	if change_error != OK:
+		push_error(\"Transition konnte Szene nicht laden: %s\" % scene_path)
+		_set_overlay_alpha(0.0)
+		transition_running = false
+		queue_free()
+		return
+
+	await get_tree().process_frame
 	fade_out()
 	await animation_player.animation_finished
+	transition_running = false
 	queue_free()
 
 func fade_in() -> void:
+	if animation_player == null:
+		_set_overlay_alpha(1.0)
+		return
 	animation_player.play(\"fade_in\")
 
 func fade_out() -> void:
+	if animation_player == null:
+		_set_overlay_alpha(0.0)
+		return
 	animation_player.play(\"fade_out\")
+
+func _set_overlay_alpha(alpha: float) -> void:
+	if color_rect == null:
+		return
+	color_rect.color = Color(color_rect.color.r, color_rect.color.g, color_rect.color.b, alpha)
 "
 
 [sub_resource type="Animation" id="Animation_ah04o"]

@@ -1,3 +1,10 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+.DS_Store
+*.tmp
+.backups/
+_backups/
+.codex_tmp/
+release_builds/
+/web_demo/

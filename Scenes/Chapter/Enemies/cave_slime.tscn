@@ -1,0 +1,40 @@
+[gd_scene load_steps=6 format=3 uid="uid://qnv6ivekx04r"]
+
+[ext_resource type="Texture2D" uid="uid://cildswtcj7qrc" path="res://Assets/slime-sprite.png" id="1_slime"]
+[ext_resource type="Script" uid="uid://ddn2j7m7uwv15" path="res://Scripts/Chapter/Enemies/cave_slime.gd" id="2_script"]
+[ext_resource type="Texture2D" uid="uid://bfhvfvveasr1l" path="res://Assets/Light/torch_light.png" id="3_light"]
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_body"]
+radius = 12.0
+height = 26.0
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_hitbox"]
+size = Vector2(28, 22)
+
+[node name="CaveSlime" type="CharacterBody2D"]
+script = ExtResource("2_script")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, -12)
+shape = SubResource("CapsuleShape2D_body")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+self_modulate = Color(0.85, 0, 0.0141665, 0.847059)
+position = Vector2(0, -15)
+scale = Vector2(0.05, 0.05)
+texture = ExtResource("1_slime")
+hframes = 5
+vframes = 3
+
+[node name="PointLight2D" type="PointLight2D" parent="."]
+position = Vector2(0, -14)
+color = Color(0.34, 0.74, 1, 1)
+energy = 0.56
+texture = ExtResource("3_light")
+texture_scale = 0.72
+
+[node name="Hitbox" type="Area2D" parent="."]
+position = Vector2(0, -14)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hitbox"]
+shape = SubResource("RectangleShape2D_hitbox")

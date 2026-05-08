@@ -6,6 +6,8 @@
 [resource]
 script = ExtResource("1_5vje5")
 name = "bat_claw"
+display_name = "Bat Claw"
+description = "Ein leichter Talisman fuer flinke, bissige Angriffe."
 texture = ExtResource("2_0pvw6")
 health_bonus = 0.0
 damage_bonus = 0.0
@@ -13,3 +15,7 @@ crit_chance_bonus = 0.0
 crit_damage_bonus = 0.0
 throw_damage = 10.0
 drop_chance = 0.25
+item_type = "charm"
+equip_slot = "charm"
+rarity = "uncommon"
+stack_size = 1

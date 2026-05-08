@@ -1,7 +1,8 @@
-[gd_scene load_steps=6 format=3 uid="uid://bvmyx1qmnyvdd"]
+[gd_scene load_steps=7 format=3 uid="uid://bvmyx1qmnyvdd"]
 
 [ext_resource type="Resource" uid="uid://dnydbhi6bgqay" path="res://InventorySystem/items/iron_nugget.tres" id="1_m0yjg"]
 [ext_resource type="Texture2D" uid="uid://dnivcmfxerc80" path="res://Assets/Items/iron_nugget.png" id="2_838tc"]
+[ext_resource type="Script" path="res://Scripts/world_pickup.gd" id="3_pickup"]
 
 [sub_resource type="GDScript" id="GDScript_8jn70"]
 resource_name = "bat_claw"
@@ -40,7 +41,7 @@ height = 10.0
 size = Vector2(12, 12)
 
 [node name="copper_nugget" type="RigidBody2D"]
-script = SubResource("GDScript_8jn70")
+script = ExtResource("3_pickup")
 item = ExtResource("1_m0yjg")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]

@@ -1,13 +1,16 @@
 extends Panel
 
-@onready var item_visual: Sprite2D = $CenterContainer/Panel/ItemDisplay
-@onready var amount_text: Label = $CenterContainer/Panel/Label
 var slot_index = -1
 signal slot_updated
 
 func update(slot_data: InvSlot) -> void:
-	var item_display = get_node("CenterContainer/Panel/ItemDisplay") if has_node("CenterContainer/Panel/ItemDisplay") else null
-	var label = get_node("CenterContainer/Panel/Label") if has_node("CenterContainer/Panel/Label") else null
+	var item_display := get_node_or_null("CenterContainer/ItemDisplay")
+	if item_display == null:
+		item_display = get_node_or_null("CenterContainer/Panel/ItemDisplay")
+
+	var label := get_node_or_null("AmountLabel")
+	if label == null:
+		label = get_node_or_null("CenterContainer/Panel/Label")
 
 	if item_display:
 		item_display.visible = slot_data.item != null

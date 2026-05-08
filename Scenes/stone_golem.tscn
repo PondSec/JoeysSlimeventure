@@ -129,10 +129,12 @@ libraries = {
 }
 
 [node name="Collision" type="CollisionShape2D" parent="."]
+visible = false
 position = Vector2(1, 1)
 shape = SubResource("RectangleShape2D_c1dq0")
 
 [node name="AttackArea" type="Area2D" parent="."]
+visible = false
 
 [node name="Body" type="CollisionShape2D" parent="AttackArea"]
 position = Vector2(2.5, 15.5)
@@ -146,6 +148,7 @@ wait_time = 0.1
 autostart = true
 
 [node name="DetectionArea" type="Area2D" parent="."]
+visible = false
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="DetectionArea"]
 shape = SubResource("CircleShape2D_4em5g")

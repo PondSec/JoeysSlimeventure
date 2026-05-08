@@ -1,150 +1,204 @@
-[gd_scene load_steps=5 format=3 uid="uid://b0a5ssuwf6jb5"]
+[gd_scene load_steps=7 format=3]
 
-[ext_resource type="Script" uid="uid://gjjf1biuctuq" path="res://InventorySystem/inv_ui.gd" id="1_px203"]
-[ext_resource type="Texture2D" uid="uid://cmq3m2tadhjf7" path="res://Assets/Inventory/background.png" id="2_1yy2w"]
-[ext_resource type="PackedScene" uid="uid://bdyxh0ed3s8nu" path="res://InventorySystem/slot.tscn" id="3_3kb3x"]
-[ext_resource type="PackedScene" uid="uid://de82c5pup452l" path="res://InventorySystem/slot_hotbar.tscn" id="4_6xbyo"]
+[ext_resource type="Script" path="res://InventorySystem/inv_ui.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://Assets/GUI/Transfer.png" id="2_panel"]
+[ext_resource type="Texture2D" path="res://Assets/GUI/TextBox.png" id="3_box"]
+[ext_resource type="PackedScene" path="res://InventorySystem/slot.tscn" id="4_slot"]
+[ext_resource type="PackedScene" path="res://InventorySystem/player_preview.tscn" id="5_preview"]
+[ext_resource type="FontFile" path="res://Assets/GUI/Font/PixelatedEleganceRegular-ovyAA.ttf" id="6_font"]
 
 [node name="InvUI" type="Control"]
-modulate = Color(1, 1, 1, 0.937255)
-custom_minimum_size = Vector2(208, 98)
+visible = false
 layout_mode = 3
-anchors_preset = 0
-offset_right = 208.0
-offset_bottom = 98.0
-script = ExtResource("1_px203")
-
-[node name="NinePatchRect" type="NinePatchRect" parent="."]
-layout_mode = 0
-offset_right = 164.0
-offset_bottom = 79.0
-texture = ExtResource("2_1yy2w")
-patch_margin_left = 4
-patch_margin_top = 4
-patch_margin_right = 4
-patch_margin_bottom = 4
-
-[node name="GridContainer" type="GridContainer" parent="NinePatchRect"]
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -42.0
-offset_top = -31.0
-offset_right = 42.0
-offset_bottom = 31.0
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/h_separation = -1
-theme_override_constants/v_separation = -1
+script = ExtResource("1_script")
+slot_scene = ExtResource("4_slot")
+
+[node name="Backdrop" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0, 0, 0, 0.74)
+
+[node name="Frame" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 330
+theme_override_constants/margin_top = 150
+theme_override_constants/margin_right = 330
+theme_override_constants/margin_bottom = 150
+
+[node name="RootPanel" type="PanelContainer" parent="Frame"]
+layout_mode = 2
+custom_minimum_size = Vector2(1100, 620)
+
+[node name="ContentMargin" type="MarginContainer" parent="Frame/RootPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="ContentRow" type="HBoxContainer" parent="Frame/RootPanel/ContentMargin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="LeftColumn" type="VBoxContainer" parent="Frame/RootPanel/ContentMargin/ContentRow"]
+custom_minimum_size = Vector2(210, 0)
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="PreviewPanel" type="PanelContainer" parent="Frame/RootPanel/ContentMargin/ContentRow/LeftColumn"]
+layout_mode = 2
+
+[node name="PreviewMargin" type="MarginContainer" parent="Frame/RootPanel/ContentMargin/ContentRow/LeftColumn/PreviewPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="PreviewContent" type="VBoxContainer" parent="Frame/RootPanel/ContentMargin/ContentRow/LeftColumn/PreviewPanel/PreviewMargin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="PreviewTitle" type="Label" parent="Frame/RootPanel/ContentMargin/ContentRow/LeftColumn/PreviewPanel/PreviewMargin/PreviewContent"]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("6_font")
+theme_override_font_sizes/font_size = 15
+theme_override_colors/font_color = Color(0.58, 0.95, 0.74, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.96)
+theme_override_constants/outline_size = 2
+text = "AUSGERUESTET"
+horizontal_alignment = 1
+
+[node name="PlayerPreview" parent="Frame/RootPanel/ContentMargin/ContentRow/LeftColumn/PreviewPanel/PreviewMargin/PreviewContent" instance=ExtResource("5_preview")]
+layout_mode = 2
+
+[node name="EquipmentPanel" type="PanelContainer" parent="Frame/RootPanel/ContentMargin/ContentRow/LeftColumn"]
+layout_mode = 2
+
+[node name="EquipmentMargin" type="MarginContainer" parent="Frame/RootPanel/ContentMargin/ContentRow/LeftColumn/EquipmentPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="EquipmentContent" type="VBoxContainer" parent="Frame/RootPanel/ContentMargin/ContentRow/LeftColumn/EquipmentPanel/EquipmentMargin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="EquipmentTitle" type="Label" parent="Frame/RootPanel/ContentMargin/ContentRow/LeftColumn/EquipmentPanel/EquipmentMargin/EquipmentContent"]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("6_font")
+theme_override_font_sizes/font_size = 15
+theme_override_colors/font_color = Color(0.58, 0.95, 0.74, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.96)
+theme_override_constants/outline_size = 2
+text = "EQUIPMENT"
+horizontal_alignment = 1
+
+[node name="EquipmentSlots" type="HBoxContainer" parent="Frame/RootPanel/ContentMargin/ContentRow/LeftColumn/EquipmentPanel/EquipmentMargin/EquipmentContent"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 10
+
+[node name="EquipmentHint" type="Label" parent="Frame/RootPanel/ContentMargin/ContentRow/LeftColumn/EquipmentPanel/EquipmentMargin/EquipmentContent"]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("6_font")
+theme_override_font_sizes/font_size = 11
+theme_override_colors/font_color = Color(0.73, 0.84, 0.8, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.96)
+theme_override_constants/outline_size = 2
+text = "Rechtsklick: ausruesten oder ablegen"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="RightColumn" type="VBoxContainer" parent="Frame/RootPanel/ContentMargin/ContentRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[node name="BagPanel" type="PanelContainer" parent="Frame/RootPanel/ContentMargin/ContentRow/RightColumn"]
+layout_mode = 2
+
+[node name="BagMargin" type="MarginContainer" parent="Frame/RootPanel/ContentMargin/ContentRow/RightColumn/BagPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 12
+
+[node name="BagContent" type="VBoxContainer" parent="Frame/RootPanel/ContentMargin/ContentRow/RightColumn/BagPanel/BagMargin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="BagTitle" type="Label" parent="Frame/RootPanel/ContentMargin/ContentRow/RightColumn/BagPanel/BagMargin/BagContent"]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("6_font")
+theme_override_font_sizes/font_size = 15
+theme_override_colors/font_color = Color(0.9, 0.98, 0.92, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.96)
+theme_override_constants/outline_size = 2
+text = "RUCKSACK"
+
+[node name="BagScroll" type="ScrollContainer" parent="Frame/RootPanel/ContentMargin/ContentRow/RightColumn/BagPanel/BagMargin/BagContent"]
+custom_minimum_size = Vector2(0, 184)
+layout_mode = 2
+
+[node name="BagGrid" type="GridContainer" parent="Frame/RootPanel/ContentMargin/ContentRow/RightColumn/BagPanel/BagMargin/BagContent/BagScroll"]
+layout_mode = 2
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
 columns = 9
 
-[node name="Slot" parent="NinePatchRect/GridContainer" instance=ExtResource("3_3kb3x")]
+[node name="BagHint" type="Label" parent="Frame/RootPanel/ContentMargin/ContentRow/RightColumn/BagPanel/BagMargin/BagContent"]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("6_font")
+theme_override_font_sizes/font_size = 11
+theme_override_colors/font_color = Color(0.73, 0.84, 0.8, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.96)
+theme_override_constants/outline_size = 2
+text = "Linksklick: ziehen und ablegen. Rechtsklick auf Schwert: direkt ausruesten."
+autowrap_mode = 3
+
+[node name="HotbarPanel" type="PanelContainer" parent="Frame/RootPanel/ContentMargin/ContentRow/RightColumn"]
 layout_mode = 2
 
-[node name="Slot2" parent="NinePatchRect/GridContainer" instance=ExtResource("3_3kb3x")]
+[node name="HotbarMargin" type="MarginContainer" parent="Frame/RootPanel/ContentMargin/ContentRow/RightColumn/HotbarPanel"]
 layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 12
 
-[node name="Slot3" parent="NinePatchRect/GridContainer" instance=ExtResource("3_3kb3x")]
+[node name="HotbarContent" type="VBoxContainer" parent="Frame/RootPanel/ContentMargin/ContentRow/RightColumn/HotbarPanel/HotbarMargin"]
 layout_mode = 2
+theme_override_constants/separation = 8
 
-[node name="Slot4" parent="NinePatchRect/GridContainer" instance=ExtResource("3_3kb3x")]
+[node name="HotbarTitle" type="Label" parent="Frame/RootPanel/ContentMargin/ContentRow/RightColumn/HotbarPanel/HotbarMargin/HotbarContent"]
 layout_mode = 2
+theme_override_fonts/font = ExtResource("6_font")
+theme_override_font_sizes/font_size = 15
+theme_override_colors/font_color = Color(0.58, 0.95, 0.74, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.96)
+theme_override_constants/outline_size = 2
+text = "HOTBAR"
 
-[node name="Slot5" parent="NinePatchRect/GridContainer" instance=ExtResource("3_3kb3x")]
+[node name="HotbarGrid" type="GridContainer" parent="Frame/RootPanel/ContentMargin/ContentRow/RightColumn/HotbarPanel/HotbarMargin/HotbarContent"]
 layout_mode = 2
-
-[node name="Slot6" parent="NinePatchRect/GridContainer" instance=ExtResource("3_3kb3x")]
-layout_mode = 2
-
-[node name="Slot7" parent="NinePatchRect/GridContainer" instance=ExtResource("3_3kb3x")]
-layout_mode = 2
-
-[node name="Slot8" parent="NinePatchRect/GridContainer" instance=ExtResource("3_3kb3x")]
-layout_mode = 2
-
-[node name="Slot9" parent="NinePatchRect/GridContainer" instance=ExtResource("3_3kb3x")]
-layout_mode = 2
-
-[node name="Slot10" parent="NinePatchRect/GridContainer" instance=ExtResource("3_3kb3x")]
-layout_mode = 2
-
-[node name="Slot11" parent="NinePatchRect/GridContainer" instance=ExtResource("3_3kb3x")]
-layout_mode = 2
-
-[node name="Slot12" parent="NinePatchRect/GridContainer" instance=ExtResource("3_3kb3x")]
-layout_mode = 2
-
-[node name="Slot13" parent="NinePatchRect/GridContainer" instance=ExtResource("3_3kb3x")]
-layout_mode = 2
-
-[node name="Slot14" parent="NinePatchRect/GridContainer" instance=ExtResource("3_3kb3x")]
-layout_mode = 2
-
-[node name="Slot15" parent="NinePatchRect/GridContainer" instance=ExtResource("3_3kb3x")]
-layout_mode = 2
-
-[node name="Slot16" parent="NinePatchRect/GridContainer" instance=ExtResource("3_3kb3x")]
-layout_mode = 2
-
-[node name="Slot17" parent="NinePatchRect/GridContainer" instance=ExtResource("3_3kb3x")]
-layout_mode = 2
-
-[node name="Slot18" parent="NinePatchRect/GridContainer" instance=ExtResource("3_3kb3x")]
-layout_mode = 2
-
-[node name="Slot19" parent="NinePatchRect/GridContainer" instance=ExtResource("3_3kb3x")]
-layout_mode = 2
-
-[node name="Slot20" parent="NinePatchRect/GridContainer" instance=ExtResource("3_3kb3x")]
-layout_mode = 2
-
-[node name="Slot21" parent="NinePatchRect/GridContainer" instance=ExtResource("3_3kb3x")]
-layout_mode = 2
-
-[node name="Slot22" parent="NinePatchRect/GridContainer" instance=ExtResource("3_3kb3x")]
-layout_mode = 2
-
-[node name="Slot23" parent="NinePatchRect/GridContainer" instance=ExtResource("3_3kb3x")]
-layout_mode = 2
-
-[node name="Slot24" parent="NinePatchRect/GridContainer" instance=ExtResource("3_3kb3x")]
-layout_mode = 2
-
-[node name="Slot25" parent="NinePatchRect/GridContainer" instance=ExtResource("3_3kb3x")]
-layout_mode = 2
-
-[node name="Slot26" parent="NinePatchRect/GridContainer" instance=ExtResource("3_3kb3x")]
-layout_mode = 2
-
-[node name="Slot27" parent="NinePatchRect/GridContainer" instance=ExtResource("3_3kb3x")]
-layout_mode = 2
-
-[node name="Slot_hotbar" parent="NinePatchRect/GridContainer" instance=ExtResource("4_6xbyo")]
-layout_mode = 2
-
-[node name="Slot_hotbar2" parent="NinePatchRect/GridContainer" instance=ExtResource("4_6xbyo")]
-layout_mode = 2
-
-[node name="Slot_hotbar3" parent="NinePatchRect/GridContainer" instance=ExtResource("4_6xbyo")]
-layout_mode = 2
-
-[node name="Slot_hotbar4" parent="NinePatchRect/GridContainer" instance=ExtResource("4_6xbyo")]
-layout_mode = 2
-
-[node name="Slot_hotbar5" parent="NinePatchRect/GridContainer" instance=ExtResource("4_6xbyo")]
-layout_mode = 2
-
-[node name="Slot_hotbar6" parent="NinePatchRect/GridContainer" instance=ExtResource("4_6xbyo")]
-layout_mode = 2
-
-[node name="Slot_hotbar7" parent="NinePatchRect/GridContainer" instance=ExtResource("4_6xbyo")]
-layout_mode = 2
-
-[node name="Slot_hotbar8" parent="NinePatchRect/GridContainer" instance=ExtResource("4_6xbyo")]
-layout_mode = 2
-
-[node name="Slot_hotbar9" parent="NinePatchRect/GridContainer" instance=ExtResource("4_6xbyo")]
-layout_mode = 2
+theme_override_constants/h_separation = 8
+columns = 9

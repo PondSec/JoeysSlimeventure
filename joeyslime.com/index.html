@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Joey&#x27;s Slimeventure | Pixel-Art Metroidvania &amp; Browser-Demo</title>
+    <meta name="description" content="Offizielle Website zu Joey&#x27;s Slimeventure: Pixel-Art Metroidvania und Action-Platformer mit Browser-Demo, Gameplay-Ueberblick, Welt, Wiki, Devlog und offiziellen Projektlinks.">
+    <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
+    <meta name="theme-color" content="#050505">
+    <meta name="author" content="Joshua Pond">
+    <meta property="og:title" content="Joey&#x27;s Slimeventure | Pixel-Art Metroidvania &amp; Browser-Demo">
+    <meta property="og:description" content="Offizielle Website zu Joey&#x27;s Slimeventure: Pixel-Art Metroidvania und Action-Platformer mit Browser-Demo, Gameplay-Ueberblick, Welt, Wiki, Devlog und offiziellen Projektlinks.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://joeyslime.com/">
+    <meta property="og:image" content="https://joeyslime.com/assets/media/hero-screenshot.png">
+    <meta property="og:image:width" content="1920">
+    <meta property="og:image:height" content="1080">
+    <meta property="og:locale" content="de_DE">
+    <meta property="og:site_name" content="Joey&#x27;s Slimeventure">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Joey&#x27;s Slimeventure | Pixel-Art Metroidvania &amp; Browser-Demo">
+    <meta name="twitter:description" content="Offizielle Website zu Joey&#x27;s Slimeventure: Pixel-Art Metroidvania und Action-Platformer mit Browser-Demo, Gameplay-Ueberblick, Welt, Wiki, Devlog und offiziellen Projektlinks.">
+    <meta name="twitter:image" content="https://joeyslime.com/assets/media/hero-screenshot.png">
+    <meta name="twitter:image:alt" content="Screenshot aus Joey's Slimeventure">
+    <link rel="canonical" href="https://joeyslime.com/">
+    <link rel="icon" href="./logo.ico">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="./assets/css/site.css">
+    
+    <script type="application/ld+json">[{"@context": "https://schema.org", "@type": "WebSite", "name": "Joey's Slimeventure", "url": "https://joeyslime.com", "inLanguage": "de-DE", "publisher": {"@type": "Organization", "name": "PondSec"}}, {"@context": "https://schema.org", "@type": "Organization", "name": "PondSec", "url": "https://pondsec.com", "sameAs": ["https://store.steampowered.com/app/4536840/Joeys_Slimeventure/", "https://github.com/JoshuaPondStudios/JoeysSlimeventure", "https://www.tiktok.com/@joeysslimeventure", "https://youtube.com/@pondsec", "https://pondsec.com", "https://portfolio.pondsec.com", "https://pondsec.itch.io/joeys-slimeventure"]}, {"@context": "https://schema.org", "@type": "VideoGame", "name": "Joey's Slimeventure", "description": "Ein atmosphärisches Pixel-Art Metroidvania und Action-Platformer-Abenteuer über einen gefallenen Krieger, der als Slime in die Tiefe zurückkehrt.", "genre": ["Action Platformer", "Metroidvania", "Pixel Art Adventure"], "gamePlatform": ["Windows", "macOS", "Browser Demo"], "playMode": "SinglePlayer", "operatingSystem": "Windows, macOS, Web Browser", "image": "https://joeyslime.com/assets/media/hero-screenshot.png", "author": {"@type": "Person", "name": "Joshua Pond"}, "publisher": {"@type": "Organization", "name": "PondSec"}, "sameAs": ["https://store.steampowered.com/app/4536840/Joeys_Slimeventure/", "https://github.com/JoshuaPondStudios/JoeysSlimeventure", "https://www.tiktok.com/@joeysslimeventure", "https://youtube.com/@pondsec", "https://pondsec.com", "https://portfolio.pondsec.com", "https://pondsec.itch.io/joeys-slimeventure"], "url": "https://joeyslime.com"}]</script>
+</head>
+<body class="page-home" data-current-path="/">
+    <a class="skip-link" href="#main">Zum Hauptinhalt springen</a>
+    <div class="loading-bar" id="loadingBar"></div>
+    
+    <nav class="main-nav" aria-label="Hauptnavigation">
+        <div class="nav-container">
+            <a href="./index.html" class="logo"><span class="logo-title">Slimeventure</span><span class="logo-sub">Official Site</span></a>
+            <div class="nav-links" id="site-navigation">
+                <a href="./index.html" class="active" aria-current="page">Start</a><a href="./play/index.html">Spiel</a><a href="./shop/index.html" class="shop-link">Shop</a><a href="./world/index.html">Welt</a><a href="./devlog/index.html">Devlog</a><a href="./wiki/index.html">Wiki</a><a href="./media/index.html">Media</a><a href="./faq/index.html">FAQ</a><a href="./about/index.html">Über</a><a href="./reward/index.html" class="reward-link">Daily Rewards</a>
+            </div>
+            <button class="hamburger-menu" id="hamburger-menu" aria-label="Menü öffnen" aria-expanded="false" aria-controls="site-navigation">
+                <div class="bar"></div>
+                <div class="bar"></div>
+                <div class="bar"></div>
+            </button>
+        </div>
+    </nav>
+    
+    
+    <header class="hero hero--landing" id="main">
+        <div class="hero-panel hero-panel--split hero-panel--landing scroll-reveal">
+            <div class="hero-content landing-copy">
+                <span class="eyebrow">Offizielle Website · Pixel-Art Metroidvania</span>
+                <h1>Joey&#x27;s Slimeventure</h1>
+                <p class="page-lead">Ein atmosphaerisches Pixel-Art Metroidvania und Action-Platformer-Abenteuer ueber einen gefallenen Krieger, der als Slime in die Tiefe zurueckkehrt.</p>
+                <p class="hero-support">Neue Besucher sollen hier sofort verstehen, was Joey's Slimeventure ist, was heute schon spielbar ist und wo Demo, Steam-Shop, Welt, Wiki und Devlog ohne Umwege liegen.</p>
+                <div class="hero-buttons">
+                    <a href="./web_demo/index.html" class="btn btn-large btn-magnetic">Demo spielen</a>
+                    <a href="./shop/index.html" class="btn btn-accent btn-large">Steam & Wishlist</a>
+                    <a href="./world/index.html" class="btn btn-secondary btn-large">Welt entdecken</a>
+                </div>
+                <div class="meta-pills">
+                    <span class="pill"><strong>Status:</strong> Aktive Entwicklung</span>
+                    <span class="pill"><strong>Genre:</strong> Pixel-Art Metroidvania</span>
+                    <span class="pill"><strong>Aktuell spielbar:</strong> Kapitel I</span>
+                    <span class="pill"><strong>Steam:</strong> Wishlist live</span>
+                    <span class="pill"><strong>Plattformen:</strong> Windows, macOS, Browser Demo</span>
+                </div>
+            </div>
+            <div class="landing-hero-stack">
+                <div class="hero-media-panel">
+                    <img src="./assets/media/hero-screenshot.png" alt="Gameplay-Screenshot aus Joey&#x27;s Slimeventure" decoding="async" width="1920" height="1080" fetchpriority="high">
+                    <img src="./assets/media/joey.gif" alt="Joey in Slime-Form waehrend des Gameplays" decoding="async" width="512" height="512" loading="lazy">
+                </div>
+                <article class="content-panel hero-side-card">
+                    <h3>Neu hier? So findest du dich sofort zurecht</h3>
+                    <div class="hero-side-list">
+                        <div class="hero-side-list__item"><strong>1.</strong><span>Starte die Browser-Demo fuer den schnellsten Ersteindruck.</span></div>
+                        <div class="hero-side-list__item"><strong>2.</strong><span>Setze Joey's Slimeventure auf deine Steam-Wunschliste.</span></div>
+                        <div class="hero-side-list__item"><strong>3.</strong><span>Tauche danach tiefer in Kapitel, Wiki und Devlog ein.</span></div>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <section id="about" class="section-dark">
+            <div class="container">
+                <div class="section-header scroll-reveal">
+                    <h2>In 30 Sekunden orientiert</h2>
+                    <p>Die offizielle Website fuehrt neue Besucher zuerst zu Demo und Spielueberblick und erst dann tiefer in Welt, Wiki und Entwicklung.</p>
+                </div>
+                <div class="content-grid starter-grid">
+                    
+    <article class="content-panel starter-card scroll-reveal-stagger">
+        <span class="starter-card__step">01</span>
+        <h3>Demo spielen</h3>
+        <p>Teste Joey&#x27;s Slimeventure direkt im Browser und spüre sofort, wie sich Slime-Movement, Licht und Combat anfühlen.</p>
+        <a class="starter-card__link" href="./web_demo/index.html">Browser-Demo starten</a>
+    </article>
+    
+    <article class="content-panel starter-card scroll-reveal-stagger">
+        <span class="starter-card__step">02</span>
+        <h3>Steam wishlisten</h3>
+        <p>Die neue Shop-Seite bündelt Steam-Store, Wishlist-Callout und den direkten Weg zur offiziellen Produktseite ohne Stilbruch.</p>
+        <a class="starter-card__link" href="./shop/index.html">Zur Steam-Seite</a>
+    </article>
+    
+    <article class="content-panel starter-card scroll-reveal-stagger">
+        <span class="starter-card__step">03</span>
+        <h3>Spiel verstehen</h3>
+        <p>Sieh dir Gameplay, Controls, Plattformen und den aktuellen Build an, ohne dich durch die ganze Website klicken zu müssen.</p>
+        <a class="starter-card__link" href="./play/index.html">Zum Spielüberblick</a>
+    </article>
+    
+    <article class="content-panel starter-card scroll-reveal-stagger">
+        <span class="starter-card__step">04</span>
+        <h3>Welt und Progression entdecken</h3>
+        <p>Kapitel, Biome, Gegner, Skills und Devlog liegen auf eigenen Seiten bereit, damit neue Besucher sofort Orientierung bekommen.</p>
+        <a class="starter-card__link" href="./world/index.html">Welt ansehen</a>
+    </article>
+    
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <div class="container">
+                <div class="section-header scroll-reveal">
+                    <h2>Steam-Shop jetzt live</h2>
+                    <p>Joey's Slimeventure hat jetzt eine offizielle Steam-Seite. Die Website fuehrt passend dazu sauber von Demo und Spielinfos zur Wishlist und zum Store.</p>
+                </div>
+                <div class="content-grid content-grid--wide store-highlight-grid">
+                    <article class="content-panel scroll-reveal-left">
+                        <h3>Steam-Wishlist, Store-Seite und Browser-Demo greifen jetzt sauber ineinander</h3>
+                        <p class="page-lead">Die neue Steam-Seite praesentiert Joey's Slimeventure als farbiges 2D-Abenteuer voller Platforming, Geheimnisse, Bosskaempfe und handgebauter Level.</p>
+                        <ul class="fact-list">
+                            <li><strong>Steam Status</strong><span>Offizielle Shop-Seite ist live</span></li>
+                            <li><strong>Release</strong><span>To be announced</span></li>
+                            <li><strong>Sprachen</strong><span>English, German</span></li>
+                            <li><strong>Features</strong><span>Single-player, Steam Achievements, Steam Cloud, Stats, Family Sharing</span></li>
+                        </ul>
+                        <div class="section-links">
+                            <a href="./shop/index.html">Zur Shop-Seite</a>
+                            <a href="https://store.steampowered.com/app/4536840/Joeys_Slimeventure/" target="_blank" rel="noreferrer">Steam-Shop oeffnen</a>
+                            <a href="./play/index.html">Demo und Controls</a>
+                        </div>
+                    </article>
+                    <aside class="content-panel store-art-panel scroll-reveal-right">
+                        <img src="./assets/media/steam-title-capsule.png" alt="Steam Key Art von Joey&#x27;s Slimeventure" decoding="async" width="920" height="430" fetchpriority="high">
+                        <div class="store-chip-row">
+                            <span class="store-chip"><i class="fab fa-steam" aria-hidden="true"></i> Wishlist</span>
+                            <span class="store-chip"><i class="fas fa-hourglass-half" aria-hidden="true"></i> To be announced</span>
+                            <span class="store-chip"><i class="fas fa-desktop" aria-hidden="true"></i> Windows</span>
+                        </div>
+                    </aside>
+                </div>
+            </div>
+        </section>
+
+        <section id="play">
+            <div class="container">
+                <div class="section-header scroll-reveal">
+                    <h2>Was Joey's Slimeventure ausmacht</h2>
+                    <p>Die Startseite muss sofort zeigen, was fuer ein Spiel dich erwartet: lesbares Pixel-Art-Design, sauberes Movement, Combat und klarer Metroidvania-Fortschritt.</p>
+                </div>
+                <div class="features-grid">
+                    
+    <article class="feature-card scroll-reveal-stagger">
+        <div class="feature-icon"><i class="fas fa-eye"></i></div>
+        <h3>Lesbares Pixel-Art-Abenteuer</h3>
+        <p>Dunkle Höhlen, Glow-Licht und klare Blickachsen sorgen dafür, dass Joey&#x27;s Slimeventure atmosphärisch aussieht, ohne unlesbar zu werden.</p>
+    </article>
+    
+    <article class="feature-card scroll-reveal-stagger">
+        <div class="feature-icon"><i class="fas fa-person-running"></i></div>
+        <h3>Sauberes Slime-Movement</h3>
+        <p>Kurze Sprünge, Wall-Tools, Tempo-Wechsel und später neue Traversal-Skills halten den Flow lebendig und gut kontrollierbar.</p>
+    </article>
+    
+    <article class="feature-card scroll-reveal-stagger">
+        <div class="feature-icon"><i class="fas fa-hand-fist"></i></div>
+        <h3>Direktes Kampfgefühl</h3>
+        <p>Treffer, Combos, Drops und Gegnerreaktionen sollen jede Begegnung präzise und wertig wirken lassen statt nur laut oder chaotisch.</p>
+    </article>
+    
+    <article class="feature-card scroll-reveal-stagger">
+        <div class="feature-icon"><i class="fas fa-door-open"></i></div>
+        <h3>Metroidvania-Fortschritt mit Hub</h3>
+        <p>Neue Türen, Kapitel und Skills öffnen sich entlang der Kampagne. Dadurch bleibt die Progression greifbar und das Worldbuilding nachvollziehbar.</p>
+    </article>
+    
+                </div>
+            </div>
+        </section>
+
+        <section class="section-dark">
+            <div class="container">
+                <div class="section-header scroll-reveal">
+                    <h2>Aktueller Build auf einen Blick</h2>
+                    <p>Neue Spieler brauchen nicht nur Stimmung, sondern auch Sicherheit: Was ist schon da, wie weit ist das Spiel und worin liegt der aktuelle Fokus?</p>
+                </div>
+                <div class="content-grid content-grid--wide">
+                    <article class="content-panel scroll-reveal-left">
+                        <h3>Kapitel I setzt den Ton fuer das ganze Spiel</h3>
+                        <p class="page-lead">Die Tropfsteinhöhle fuehrt Licht, fruehe Traversal, Hoehlenatmosphaere und erste saubere Gegnerachsen ein. Von hier aus verzweigt sich spaeter die gesamte Kampagnenstruktur mit Hub-Tueren, Biomen und neuen Freischaltungen.</p>
+                        <ul class="fact-list">
+                            <li><strong>Status</strong><span>Aktive Entwicklung</span></li>
+                            <li><strong>Fokus</strong><span>Action-Platformer mit Metroidvania-Struktur</span></li>
+                            <li><strong>Aktuelles Kapitel</strong><span>I · Tropfsteinhöhle</span></li>
+                            <li><strong>Nächster Skill-Fokus</strong><span>Sticky Form</span></li>
+                        </ul>
+                        <div class="section-links">
+                            <a href="./play/index.html">Zur Demo und den Controls</a>
+                            <a href="./world/index.html">Zur Welt und Story</a>
+                            <a href="./wiki/progression/index.html">Zur Progression</a>
+                        </div>
+                    </article>
+                    <aside class="stat-grid scroll-reveal-right">
+                        
+        <article class="stat-card scroll-reveal-stagger">
+            <strong>Demo live</strong>
+            <h3>Sofort spielbar</h3>
+            <p>Neue Besucher koennen Joey direkt im Browser ausprobieren.</p>
+        </article>
+        
+        <article class="stat-card scroll-reveal-stagger">
+            <strong>Kapitel I</strong>
+            <h3>Aktueller Spielstand</h3>
+            <p>Tropfsteinhöhle ist die erste spielbare Hauptroute.</p>
+        </article>
+        
+        <article class="stat-card scroll-reveal-stagger">
+            <strong>Sticky Form</strong>
+            <h3>Naechster Fokus</h3>
+            <p>Die aktuelle Kommunikation fuehrt klar zur naechsten grossen Traversal-Freischaltung.</p>
+        </article>
+        
+        <article class="stat-card scroll-reveal-stagger">
+            <strong>Steam live</strong>
+            <h3>Shop &amp; Wishlist</h3>
+            <p>Die offizielle Steam-Seite ist online und fuehrt direkt zur Wunschliste.</p>
+        </article>
+        
+                    </aside>
+                </div>
+            </div>
+        </section>
+
+        <section id="features">
+            <div class="container">
+                <div class="section-header scroll-reveal">
+                    <h2>So fuehlt sich der Gameplay-Loop an</h2>
+                    <p>Wer Joey's Slimeventure sucht, soll sofort verstehen, wie Exploration, Kampf, Skills und Hub-Fortschritt zusammenspielen.</p>
+                </div>
+                <div class="content-grid">
+                    
+        <article class="content-panel scroll-reveal-stagger">
+            <h3>Erkunden</h3>
+            <p>Du liest Räume über Licht, Kristalle, Wasser, Höhenwechsel und alternative Pfade statt über Markerpfeile und UI-Lärm.</p>
+        </article>
+        
+        <article class="content-panel scroll-reveal-stagger">
+            <h3>Kämpfen</h3>
+            <p>Frühe Gegner wie die Cave Bat trainieren Timing, Positionierung und Trefferfenster, bevor das Spiel härter wird.</p>
+        </article>
+        
+        <article class="content-panel scroll-reveal-stagger">
+            <h3>Freischalten</h3>
+            <p>Skills wie Wall Slide, Sticky Form oder Double Jump erweitern Joeys Bewegungsfreiheit Schritt für Schritt entlang der Lernkurve.</p>
+        </article>
+        
+        <article class="content-panel scroll-reveal-stagger">
+            <h3>Zurück in den Hub</h3>
+            <p>Der Hub verbindet Kapitel, Story-Fortschritt und neue Türen. So bleibt jederzeit klar, wohin die Reise als Nächstes führt.</p>
+        </article>
+        
+                </div>
+            </div>
+        </section>
+
+        <section id="story" class="section-dark">
+            <div class="container">
+                <div class="section-header scroll-reveal">
+                    <h2>Kapitel, Biome und Roadmap</h2>
+                    <p>Die Startseite zeigt nur den wichtigsten Weltueberblick. Fuer mehr Tiefe fuehren eigene Seiten zu Story, Wiki und kompletter Progression.</p>
+                </div>
+                <div class="content-grid content-grid--chapters">
+                    
+    <article class="content-panel scroll-reveal-stagger">
+        <h3>Kapitel I · Tropfsteinhöhle</h3>
+        <p>Feuchte Hallen aus Kalkstein, kaltem Wasser und leuchtenden Kristallen.</p>
+        <ul class="fact-list fact-list--stacked">
+            <li><strong>Status</strong><span>Spielbar</span></li>
+            <li><strong>Boss</strong><span>König der Höhlenschleime</span></li>
+            <li><strong>Skill</strong><span>Sticky Form</span></li>
+            <li><strong>Signatur</strong><span>Kalkstein, kaltes Wasser, Kristalle</span></li>
+        </ul>
+    </article>
+    
+    <article class="content-panel scroll-reveal-stagger">
+        <h3>Kapitel II · Knochenkatakomben</h3>
+        <p>Ein versiegeltes Ossarium unter der Höhle.</p>
+        <ul class="fact-list fact-list--stacked">
+            <li><strong>Status</strong><span>In Planung</span></li>
+            <li><strong>Boss</strong><span>Wächter der Gebeine</span></li>
+            <li><strong>Skill</strong><span>Dash</span></li>
+            <li><strong>Signatur</strong><span>Staub, Knochen, Wandfackeln</span></li>
+        </ul>
+    </article>
+    
+    <article class="content-panel scroll-reveal-stagger">
+        <h3>Kapitel III · Pilzwald</h3>
+        <p>Wuchernde Pilze und toxische Sporen warten tiefer unten.</p>
+        <ul class="fact-list fact-list--stacked">
+            <li><strong>Status</strong><span>In Planung</span></li>
+            <li><strong>Boss</strong><span>Mycelia</span></li>
+            <li><strong>Skill</strong><span>Teleport</span></li>
+            <li><strong>Signatur</strong><span>Pilzlicht, Sporen, Wurzeln</span></li>
+        </ul>
+    </article>
+    
+    <article class="content-panel scroll-reveal-stagger">
+        <h3>Kapitel IV · Lava-Abgrund</h3>
+        <p>Brodelnde Hitze hinter alten Basalttoren.</p>
+        <ul class="fact-list fact-list--stacked">
+            <li><strong>Status</strong><span>In Planung</span></li>
+            <li><strong>Boss</strong><span>Pyros</span></li>
+            <li><strong>Skill</strong><span>Acid Spit</span></li>
+            <li><strong>Signatur</strong><span>Basalt, Magma, Hitzezonen</span></li>
+        </ul>
+    </article>
+    
+                </div>
+                <div class="section-links">
+                    <a href="./world/index.html">Alle Kapitel ausfuehrlich ansehen</a>
+                    <a href="./wiki/index.html">Mechaniken und Gegner im Wiki</a>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <div class="container">
+                <div class="section-header scroll-reveal">
+                    <h2>Offizielle Kanaele und Projektlinks</h2>
+                    <p>Wer Joey's Slimeventure verfolgen will, findet hier die wichtigsten offiziellen Wege fuer Updates, Clips, Builds und Projektfortschritt.</p>
+                </div>
+                
+    <div class="social-loop scroll-reveal" aria-label="Offizielle Kanäle">
+        <div class="social-loop__viewport">
+            <div class="social-loop__track">
+                <div class="social-loop__group">
+                    <a class="social-loop__item" href="https://store.steampowered.com/app/4536840/Joeys_Slimeventure/" target="_blank" rel="noreferrer" aria-label="Steam"><i class="fab fa-steam" aria-hidden="true"></i><span>Steam</span></a>
+                    <a class="social-loop__item" href="https://github.com/JoshuaPondStudios/JoeysSlimeventure" target="_blank" rel="noreferrer" aria-label="GitHub"><i class="fab fa-github" aria-hidden="true"></i><span>GitHub</span></a>
+                    <a class="social-loop__item" href="https://www.tiktok.com/@joeysslimeventure" target="_blank" rel="noreferrer" aria-label="TikTok"><i class="fab fa-tiktok" aria-hidden="true"></i><span>TikTok</span></a>
+                    <a class="social-loop__item" href="https://youtube.com/@pondsec" target="_blank" rel="noreferrer" aria-label="YouTube"><i class="fab fa-youtube" aria-hidden="true"></i><span>YouTube</span></a>
+                    <a class="social-loop__item" href="https://pondsec.itch.io/joeys-slimeventure" target="_blank" rel="noreferrer" aria-label="Itch.io"><i class="fas fa-gamepad" aria-hidden="true"></i><span>Itch.io</span></a>
+                    <a class="social-loop__item" href="https://pondsec.com" target="_blank" rel="noreferrer" aria-label="PondSec"><i class="fas fa-globe" aria-hidden="true"></i><span>PondSec</span></a>
+                    <a class="social-loop__item" href="https://portfolio.pondsec.com" target="_blank" rel="noreferrer" aria-label="Portfolio"><i class="fas fa-address-card" aria-hidden="true"></i><span>Portfolio</span></a>
+                </div>
+                <div class="social-loop__group" aria-hidden="true">
+                    <a class="social-loop__item" href="https://store.steampowered.com/app/4536840/Joeys_Slimeventure/" target="_blank" rel="noreferrer" aria-label="Steam"><i class="fab fa-steam" aria-hidden="true"></i><span>Steam</span></a>
+                    <a class="social-loop__item" href="https://github.com/JoshuaPondStudios/JoeysSlimeventure" target="_blank" rel="noreferrer" aria-label="GitHub"><i class="fab fa-github" aria-hidden="true"></i><span>GitHub</span></a>
+                    <a class="social-loop__item" href="https://www.tiktok.com/@joeysslimeventure" target="_blank" rel="noreferrer" aria-label="TikTok"><i class="fab fa-tiktok" aria-hidden="true"></i><span>TikTok</span></a>
+                    <a class="social-loop__item" href="https://youtube.com/@pondsec" target="_blank" rel="noreferrer" aria-label="YouTube"><i class="fab fa-youtube" aria-hidden="true"></i><span>YouTube</span></a>
+                    <a class="social-loop__item" href="https://pondsec.itch.io/joeys-slimeventure" target="_blank" rel="noreferrer" aria-label="Itch.io"><i class="fas fa-gamepad" aria-hidden="true"></i><span>Itch.io</span></a>
+                    <a class="social-loop__item" href="https://pondsec.com" target="_blank" rel="noreferrer" aria-label="PondSec"><i class="fas fa-globe" aria-hidden="true"></i><span>PondSec</span></a>
+                    <a class="social-loop__item" href="https://portfolio.pondsec.com" target="_blank" rel="noreferrer" aria-label="Portfolio"><i class="fas fa-address-card" aria-hidden="true"></i><span>Portfolio</span></a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+            </div>
+        </section>
+
+        <section id="devlog" class="section-dark">
+            <div class="container">
+                <div class="section-header scroll-reveal">
+                    <h2>Aktuelle Entwicklung</h2>
+                    <p>Diese Eintraege werden aus dem Git-Verlauf gezogen und zeigen den echten Stand statt leerer Marketing-Notizen.</p>
+                </div>
+                <div class="timeline-list">
+                    
+    <article class="timeline-entry scroll-reveal">
+        <div class="devlog-entry__meta">
+            <span class="pill">2026-04-13</span>
+            <span class="pill">Presentation / UI</span>
+            <span class="pill">aafed2c</span>
+        </div>
+        <h3>backup: snapshot website before UI overhaul</h3>
+        <p class="devlog-entry__summary">Aktualisiert Joey&#x27;s Slimeventure mit sichtbaren Änderungen im laufenden Entwicklungsstand.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal">
+        <div class="devlog-entry__meta">
+            <span class="pill">2026-04-12</span>
+            <span class="pill">World / Level Design</span>
+            <span class="pill">a2d1620</span>
+        </div>
+        <h3>Refactor chapter generation and fix cave tile resolution</h3>
+        <p class="devlog-entry__summary">Stabilisiert einen bestehenden Teil des Projekts und entfernt Reibung beim Spielen oder Entwickeln.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-10-09</span>
+            <span class="pill">Systems / AI</span>
+            <span class="pill">142349a</span>
+        </div>
+        <h3>Better Lumora Movement</h3>
+        <p class="devlog-entry__summary">Aktualisiert Joey&#x27;s Slimeventure mit sichtbaren Änderungen im laufenden Entwicklungsstand.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+                </div>
+                <p class="mini-note">Letzte Quelle: Branch <strong>codex/website-ui-refresh-2026-04-13</strong> · generiert 2026-04-21 17:20 UTC</p>
+                <div class="section-links">
+                    <a href="./devlog/index.html">Kompletten Devlog lesen</a>
+                    <a href="./about/index.html">Entwickler und Studio ansehen</a>
+                </div>
+            </div>
+        </section>
+
+        
+    <section id="community" class="section-dark">
+        <div class="container">
+            <div class="section-header scroll-reveal">
+                <h2>Community und Feedback</h2>
+                <p>Wer Joey's Slimeventure spannend findet, kann das Projekt direkt auf der offiziellen Startseite unterstuetzen und Feedback hinterlassen.</p>
+            </div>
+            <div class="community-content">
+                <div class="like-section scroll-reveal">
+                    <div class="like-container">
+                        <h3>Unterstuetze das Projekt</h3>
+                        <div class="like-stats">
+                            <span class="like-count" id="totalLikes">0</span>
+                            <span class="like-label">Likes</span>
+                        </div>
+                        <button class="btn btn-accent like-btn" id="likeBtn" type="button">
+                            <i class="fas fa-thumbs-up"></i>
+                            <span class="btn-text">Gefällt mir</span>
+                        </button>
+                        <div class="like-message" id="likeMessage"></div>
+                    </div>
+                </div>
+                <div class="comments-section scroll-reveal">
+                    <div class="comments-header">
+                        <h3>Kommentare & Feedback</h3>
+                        <div class="comments-controls">
+                            <select id="sortComments">
+                                <option value="newest">Neueste zuerst</option>
+                                <option value="oldest">Älteste zuerst</option>
+                                <option value="popular">Beliebteste</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="comment-form-container">
+                        <form id="commentForm" class="comment-form">
+                            <div class="form-group">
+                                <label for="username">Name:</label>
+                                <input type="text" id="username" name="username" maxlength="30" required placeholder="Dein Name" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label for="commentContent">Kommentar:</label>
+                                <textarea id="commentContent" name="content" maxlength="500" required placeholder="Teile deine Gedanken zum Spiel..." class="form-control"></textarea>
+                                <div class="char-counter"><span id="charCount">0</span>/500 Zeichen</div>
+                            </div>
+                            <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Kommentar posten</button>
+                        </form>
+                    </div>
+                    <div class="comments-list" id="commentsList">
+                        <div class="loading-comments">Lade Kommentare...</div>
+                    </div>
+                    <div class="comments-pagination" id="commentsPagination">
+                        <button class="btn btn-secondary pagination-btn" id="prevPage" type="button"> <i class="fas fa-chevron-left"></i> Zurück</button>
+                        <span class="page-info" id="pageInfo">Seite 1 von 1</span>
+                        <button class="btn btn-secondary pagination-btn" id="nextPage" type="button">Weiter <i class="fas fa-chevron-right"></i></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    </main>
+    
+    <button class="quick-finder" id="quickFinderOpen" type="button" aria-label="Schnellfinder öffnen">
+        <i class="fas fa-compass" aria-hidden="true"></i>
+    </button>
+    <div class="site-command" id="siteCommand" hidden aria-hidden="true">
+        <button class="site-command__backdrop" type="button" data-command-close aria-label="Schnellfinder schließen"></button>
+        <div class="site-command__panel" role="dialog" aria-modal="true" aria-labelledby="siteCommandTitle">
+            <div class="site-command__header">
+                <div>
+                    <p class="site-command__eyebrow">Schnellfinder</p>
+                    <h2 id="siteCommandTitle">Finde Demo, Wiki, Kapitel und Kanäle sofort</h2>
+                </div>
+                <button class="site-command__close" type="button" data-command-close aria-label="Schnellfinder schließen">
+                    <i class="fas fa-xmark" aria-hidden="true"></i>
+                </button>
+            </div>
+            <p class="site-command__hint">Für neue Besucher und Spieler: schnell zur Demo, zum Wiki, zu Daily Rewards, GitHub, TikTok und den wichtigsten Seiten springen.</p>
+            <input id="siteCommandInput" class="toolbar-input site-command__input" type="search" placeholder="Seite, Feature oder Kanal suchen">
+            <div class="site-command__results" id="siteCommandResults"></div>
+        </div>
+    </div>
+    
+    <footer>
+        <div class="footer-content">
+            <div class="footer-column footer-column--brand">
+                <h3>Slimeventure</h3>
+                <p class="footer-copy">
+                    Die offizielle Website zu Joey's Slimeventure mit Browser-Demo, Gameplay-Ueberblick, Welt, Wiki, Devlog und offiziellen Projektlinks.
+                </p>
+                <div class="footer-status">
+                    <span class="footer-pill">Browser-Demo</span>
+                    <span class="footer-pill">Steam Shop live</span>
+                    <span class="footer-pill">Kapitel I spielbar</span>
+                    <span class="footer-pill">Wiki & Devlog</span>
+                </div>
+                <div class="social-links">
+                    <a href="https://store.steampowered.com/app/4536840/Joeys_Slimeventure/" class="social-link" target="_blank" rel="noreferrer" aria-label="Steam"><i class="fab fa-steam"></i></a>
+                    <a href="https://github.com/JoshuaPondStudios/JoeysSlimeventure" class="social-link" target="_blank" rel="noreferrer" aria-label="GitHub"><i class="fab fa-github"></i></a>
+                    <a href="https://www.tiktok.com/@joeysslimeventure" class="social-link" target="_blank" rel="noreferrer" aria-label="TikTok"><i class="fab fa-tiktok"></i></a>
+                    <a href="https://youtube.com/@pondsec" class="social-link" target="_blank" rel="noreferrer" aria-label="YouTube"><i class="fab fa-youtube"></i></a>
+                    <a href="https://pondsec.com" class="social-link" target="_blank" rel="noreferrer" aria-label="PondSec"><i class="fas fa-globe"></i></a>
+                </div>
+            </div>
+            <div class="footer-column">
+                <h3>Schnell rein</h3>
+                <ul class="footer-links">
+        <li><a href="./web_demo/index.html">Demo spielen</a></li>
+        <li><a href="./shop/index.html">Steam Shop</a></li>
+        <li><a href="./world/index.html">Kapitel & Welt</a></li>
+        <li><a href="./wiki/index.html">Game Wiki</a></li>
+        <li><a href="./devlog/index.html">Git-Devlog</a></li>
+        <li><a href="./reward/index.html">Daily Rewards</a></li>
+    </ul>
+            </div>
+            <div class="footer-column">
+                <h3>Seiten</h3>
+                <ul class="footer-links"><li><a href="./index.html">Start</a></li><li><a href="./play/index.html">Spiel</a></li><li><a href="./shop/index.html">Shop</a></li><li><a href="./world/index.html">Welt</a></li><li><a href="./devlog/index.html">Devlog</a></li><li><a href="./wiki/index.html">Wiki</a></li><li><a href="./media/index.html">Media</a></li><li><a href="./faq/index.html">FAQ</a></li><li><a href="./about/index.html">Über</a></li></ul>
+            </div>
+            <div class="footer-column">
+                <h3>Offiziell</h3>
+                <ul class="footer-links">
+                    <li><a href="https://store.steampowered.com/app/4536840/Joeys_Slimeventure/" target="_blank" rel="noreferrer">Steam</a></li>
+                    <li><a href="https://github.com/JoshuaPondStudios/JoeysSlimeventure" target="_blank" rel="noreferrer">GitHub</a></li>
+                    <li><a href="https://www.tiktok.com/@joeysslimeventure" target="_blank" rel="noreferrer">TikTok</a></li>
+                    <li><a href="https://pondsec.com" target="_blank" rel="noreferrer">PondSec</a></li>
+                    <li><a href="https://portfolio.pondsec.com" target="_blank" rel="noreferrer">Portfolio</a></li>
+                    <li><a href="https://pondsec.itch.io/joeys-slimeventure" target="_blank" rel="noreferrer">Itch.io</a></li>
+                    <li><a href="mailto:contact@pondsec.com">Kontakt</a></li>
+                    <li><a href="https://pondsec.com/impressum" target="_blank" rel="noreferrer">Impressum</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="copyright">
+            <p>&copy; 2026 Joey's Slimeventure. Alle Rechte vorbehalten.</p>
+        </div>
+    </footer>
+    
+    <button class="cursor-toggle" id="cursorToggle" type="button" aria-label="Spezialcursor umschalten" aria-pressed="true">
+        <i class="fas fa-crosshairs" aria-hidden="true"></i>
+    </button>
+    <button class="back-to-top" id="backToTop" aria-label="Zurück nach oben"><i class="fas fa-chevron-up"></i></button>
+    
+    <script src="./assets/js/site.js" defer></script>
+</body>
+</html>

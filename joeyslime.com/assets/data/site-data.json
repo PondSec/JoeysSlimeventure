@@ -1,0 +1,605 @@
+{
+  "generated_at": "2026-04-21T17:20:00.715013+00:00",
+  "game": {
+    "title": "Joey's Slimeventure",
+    "tagline": "Ein atmosphärisches Pixel-Art Metroidvania und Action-Platformer-Abenteuer über einen gefallenen Krieger, der als Slime in die Tiefe zurückkehrt.",
+    "status": "Aktive Entwicklung",
+    "developer": "Joshua Pond",
+    "platforms": [
+      "Windows",
+      "macOS",
+      "Browser Demo"
+    ],
+    "genres": [
+      "Action Platformer",
+      "Metroidvania",
+      "Pixel Art Adventure"
+    ],
+    "hero_description": "Joey rutscht, springt, leuchtet und kaempft sich durch unterirdische Biome mit klarer Lernkurve, starkem Feedback und immer mehr Traversal-Freiheit."
+  },
+  "steam": {
+    "app_id": 4536840,
+    "store_url": "https://store.steampowered.com/app/4536840/Joeys_Slimeventure/",
+    "widget_url": "https://store.steampowered.com/widget/4536840/",
+    "community_url": "https://steamcommunity.com/app/4536840",
+    "release_date": "To be announced",
+    "coming_soon": true,
+    "short_description": "Join Joey, a brave little slime, on a colorful 2D adventure full of platforming, secrets, enemies, and dangerous challenges. Explore handcrafted levels, face bosses, and discover a charming world full of surprises.",
+    "developers": [
+      "Joshua Pond",
+      "PondSec"
+    ],
+    "publishers": [
+      "Joshua Pond",
+      "PondSec"
+    ],
+    "languages": [
+      "English",
+      "German"
+    ],
+    "platforms": [
+      "Windows"
+    ],
+    "features": [
+      "Single-player",
+      "Steam Achievements",
+      "Steam Cloud",
+      "Stats",
+      "Family Sharing"
+    ],
+    "header_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4536840/6ca267355e37547ae6babf3542c6d17780705427/header.jpg?t=1776791077",
+    "capsule_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4536840/f1029f345427f607b80900298c5128440472c89e/capsule_184x69.jpg?t=1776791077",
+    "website": "https://joeyslime.com",
+    "support_email": "joey@pondsec.com",
+    "local_banner": "/assets/media/steam-title-capsule.png",
+    "local_vertical_art": "/assets/media/steam-vertical-capsule.png",
+    "wishlist_copy": "Setze Joey's Slimeventure auf deine Steam-Wunschliste, damit du beim Start von Early Access sofort benachrichtigt wirst."
+  },
+  "controls": [
+    {
+      "input": "A / D",
+      "title": "Bewegen",
+      "description": "Joey fließt über Boden, Kanten und später durch komplexere Risse und Schächte."
+    },
+    {
+      "input": "Space",
+      "title": "Springen",
+      "description": "Der Einstieg bleibt fair, bevor Kapitel I langsam Höhe und Präzision steigert."
+    },
+    {
+      "input": "Shift",
+      "title": "Sprint / Druck",
+      "description": "Hilft, Lücken sauber zu überbrücken und Schwung durch den Raum zu tragen."
+    },
+    {
+      "input": "Linksklick",
+      "title": "Angreifen",
+      "description": "Startet Joeys Combo-Kette. Treffer sollen lesbar, direkt und rhythmisch sein."
+    },
+    {
+      "input": "F",
+      "title": "Glow umschalten",
+      "description": "Toggelt Joeys Leuchten für Lesbarkeit, Stil und Cave-Atmosphäre."
+    },
+    {
+      "input": "Esc",
+      "title": "Pause",
+      "description": "Pausiert das Spiel im Hub und während der Kapitel für eine ruhige Navigation."
+    }
+  ],
+  "player_stats": {
+    "max_health": {
+      "value": 100,
+      "note": "Basis-Lebenspunkte von Joey."
+    },
+    "walk_speed": {
+      "value": 140,
+      "note": "Kontrolliertes Grundtempo für lesbare Jump-Passagen."
+    },
+    "run_speed": {
+      "value": 220,
+      "note": "Schnelleres Traversal auf sicheren Geraden."
+    },
+    "base_attack_damage": {
+      "value": 15,
+      "note": "Grundschaden von Joeys Nahkampf."
+    },
+    "max_combo": {
+      "value": 11,
+      "note": "Maximale Zahl der Combo-Stufen."
+    },
+    "jump_velocity": {
+      "value": -430,
+      "note": "Vertikale Basis für Standardsprünge."
+    },
+    "wall_jump_x": {
+      "value": 320,
+      "note": "Horizontaler Schub beim Wall Jump."
+    },
+    "wall_jump_y": {
+      "value": -400,
+      "note": "Vertikale Höhe beim Wall Jump."
+    },
+    "dash_speed": {
+      "value": 540,
+      "note": "Basistempo für den Dash."
+    },
+    "teleport_distance": {
+      "value": 300,
+      "note": "Maximale Distanz für Teleport-Fähigkeit."
+    }
+  },
+  "skills": [
+    {
+      "id": "glow",
+      "title": "Glow",
+      "markers": [],
+      "marker_labels": [],
+      "baseline": true,
+      "description": "Joeys Leuchten macht dunkle Bereiche lesbar und setzt Cave-Atmosphäre unter Spannung."
+    },
+    {
+      "id": "sticky_form",
+      "title": "Sticky Form",
+      "markers": [
+        "chapter1_complete"
+      ],
+      "marker_labels": [
+        "Kapitel I abgeschlossen"
+      ],
+      "baseline": false,
+      "description": "Verankert Joey an Oberflächen und erweitert Plattformrätsel."
+    },
+    {
+      "id": "wall_slide",
+      "title": "Wall Slide",
+      "markers": [
+        "chapter1_level_1"
+      ],
+      "marker_labels": [
+        "Kapitel I • Level 1"
+      ],
+      "baseline": false,
+      "description": "Gibt Joey Kontrolle an vertikalen Flächen und öffnet sichere Höhenwechsel."
+    },
+    {
+      "id": "regeneration",
+      "title": "Regeneration",
+      "markers": [
+        "chapter1_level_3"
+      ],
+      "marker_labels": [
+        "Kapitel I • Level 3"
+      ],
+      "baseline": false,
+      "description": "Belohnt ruhige Spielmomente mit einem defensiven Rückzugswerkzeug."
+    },
+    {
+      "id": "double_jump",
+      "title": "Double Jump",
+      "markers": [
+        "chapter1_level_6"
+      ],
+      "marker_labels": [
+        "Kapitel I • Level 6"
+      ],
+      "baseline": false,
+      "description": "Hebt die Traversal-Freiheit in Kapitel I spürbar an."
+    },
+    {
+      "id": "dash",
+      "title": "Dash",
+      "markers": [
+        "chapter2_complete"
+      ],
+      "marker_labels": [
+        "Kapitel II abgeschlossen"
+      ],
+      "baseline": false,
+      "description": "Kurzer Tempoburst für Kampf, Timing und Gap-Crossing."
+    },
+    {
+      "id": "wall_run",
+      "title": "Wall Run",
+      "markers": [
+        "chapter2_level_3"
+      ],
+      "marker_labels": [
+        "Kapitel II • Level 3"
+      ],
+      "baseline": false,
+      "description": "Beschleunigt späteres Movement entlang klarer Wandstrecken."
+    },
+    {
+      "id": "heal_burst",
+      "title": "Heal Burst",
+      "markers": [
+        "chapter2_level_5"
+      ],
+      "marker_labels": [
+        "Kapitel II • Level 5"
+      ],
+      "baseline": false,
+      "description": "Schnelle Notheilung für druckvolle Begegnungen."
+    },
+    {
+      "id": "teleport",
+      "title": "Teleport",
+      "markers": [
+        "chapter3_complete"
+      ],
+      "marker_labels": [
+        "Kapitel III abgeschlossen"
+      ],
+      "baseline": false,
+      "description": "Verlegt Joey gezielt über größere Distanzen."
+    },
+    {
+      "id": "mana_shield",
+      "title": "Mana Shield",
+      "markers": [
+        "chapter3_level_4"
+      ],
+      "marker_labels": [
+        "Kapitel III • Level 4"
+      ],
+      "baseline": false,
+      "description": "Absorbiert Druckspitzen in späteren Kapiteln."
+    },
+    {
+      "id": "acid_spit",
+      "title": "Acid Spit",
+      "markers": [
+        "chapter4_complete"
+      ],
+      "marker_labels": [
+        "Kapitel IV abgeschlossen"
+      ],
+      "baseline": false,
+      "description": "Gibt Joey eine neue Reichweitenachse im Kampf."
+    },
+    {
+      "id": "slime_minion",
+      "title": "Slime Minion",
+      "markers": [
+        "chapter4_level_3"
+      ],
+      "marker_labels": [
+        "Kapitel IV • Level 3"
+      ],
+      "baseline": false,
+      "description": "Unterstützt Kampfbegegnungen mit Begleitwesen."
+    },
+    {
+      "id": "slime_wings",
+      "title": "Slime Wings",
+      "markers": [
+        "chapter5_complete"
+      ],
+      "marker_labels": [
+        "Kapitel V abgeschlossen"
+      ],
+      "baseline": false,
+      "description": "Reduziert Falltempo und erweitert Luftkontrolle."
+    },
+    {
+      "id": "thorns",
+      "title": "Thorns",
+      "markers": [
+        "chapter5_level_4"
+      ],
+      "marker_labels": [
+        "Kapitel V • Level 4"
+      ],
+      "baseline": false,
+      "description": "Bestrafung für nahen Kontakt mit späteren Gegnern."
+    },
+    {
+      "id": "gravity_slime",
+      "title": "Gravity Slime",
+      "markers": [
+        "chapter6_complete"
+      ],
+      "marker_labels": [
+        "Kapitel VI abgeschlossen"
+      ],
+      "baseline": false,
+      "description": "Endgame-Movement mit radikal veränderter Raumlogik."
+    },
+    {
+      "id": "phoenix_slime",
+      "title": "Phoenix Slime",
+      "markers": [
+        "chapter7_complete"
+      ],
+      "marker_labels": [
+        "Kapitel VII abgeschlossen"
+      ],
+      "baseline": false,
+      "description": "High-end Power-Fantasy für späte Kapitel."
+    },
+    {
+      "id": "ult",
+      "title": "Ultimate",
+      "markers": [
+        "chapter7_complete"
+      ],
+      "marker_labels": [
+        "Kapitel VII abgeschlossen"
+      ],
+      "baseline": false,
+      "description": "Spitzenskills für große Bossphasen."
+    }
+  ],
+  "chapters": [
+    {
+      "index": 1,
+      "roman": "I",
+      "title": "Die Tropfsteinhöhle",
+      "short_title": "Tropfsteinhöhle",
+      "description": "Feuchte Hallen aus Kalkstein, kaltem Wasser und leuchtenden Kristallen.",
+      "status": "Spielbar",
+      "boss": "König der Höhlenschleime",
+      "skill_unlock": "Sticky Form",
+      "signature": "Kalkstein, kaltes Wasser, Kristalle"
+    },
+    {
+      "index": 2,
+      "roman": "II",
+      "title": "Die Knochenkatakomben",
+      "short_title": "Knochenkatakomben",
+      "description": "Ein versiegeltes Ossarium unter der Höhle.",
+      "status": "In Planung",
+      "boss": "Wächter der Gebeine",
+      "skill_unlock": "Dash",
+      "signature": "Staub, Knochen, Wandfackeln"
+    },
+    {
+      "index": 3,
+      "roman": "III",
+      "title": "Der Pilzwald",
+      "short_title": "Pilzwald",
+      "description": "Wuchernde Pilze und toxische Sporen warten tiefer unten.",
+      "status": "In Planung",
+      "boss": "Mycelia",
+      "skill_unlock": "Teleport",
+      "signature": "Pilzlicht, Sporen, Wurzeln"
+    },
+    {
+      "index": 4,
+      "roman": "IV",
+      "title": "Der Lava-Abgrund",
+      "short_title": "Lava-Abgrund",
+      "description": "Brodelnde Hitze hinter alten Basalttoren.",
+      "status": "In Planung",
+      "boss": "Pyros",
+      "skill_unlock": "Acid Spit",
+      "signature": "Basalt, Magma, Hitzezonen"
+    },
+    {
+      "index": 5,
+      "roman": "V",
+      "title": "Die Faulniskluft",
+      "short_title": "Faulniskluft",
+      "description": "Verdorbene Tiefen, in denen Morgraths Atem hängt.",
+      "status": "In Planung",
+      "boss": "Morgraths Vorhut",
+      "skill_unlock": "Slime Wings",
+      "signature": "Faulnis, Gift, Verderbnis"
+    },
+    {
+      "index": 6,
+      "roman": "VI",
+      "title": "Der Schwarzkristallkern",
+      "short_title": "Schwarzkristallkern",
+      "description": "Ein Herz aus dunklem Glas und stummer Magie.",
+      "status": "In Planung",
+      "boss": "Schwarzkristall-Herz",
+      "skill_unlock": "Gravity Slime",
+      "signature": "Schwarzkristall, Echo, Leere"
+    },
+    {
+      "index": 7,
+      "roman": "VII",
+      "title": "Der Thronvorhof",
+      "short_title": "Thronvorhof",
+      "description": "Das letzte Tor vor Morgraths eigentlichem Sitz.",
+      "status": "In Planung",
+      "boss": "Thronvorhof-Kommandant",
+      "skill_unlock": "Ultimate / Phoenix Slime",
+      "signature": "Vorhof, Garde, Endspielspannung"
+    }
+  ],
+  "enemies": [
+    {
+      "name": "Cave Bat",
+      "slug": "cave-bat",
+      "biome": "Tropfsteinhöhle",
+      "role": "Luftdruck",
+      "description": "Die Fledermaus kontrolliert frühe Luftachsen und zwingt saubere Trefferfenster statt hektischem Button-Spam.",
+      "health": 26,
+      "contact_damage": 10,
+      "move_speed": "Schweben 105 / Jagen 155",
+      "signature": "Swoop-Speed 280",
+      "image": "/assets/media/bat.gif"
+    },
+    {
+      "name": "Slime King",
+      "slug": "slime-king",
+      "biome": "Kapitel-I-Mini-Boss",
+      "role": "Bossdruck",
+      "description": "Der träge, schwere Mini-Boss prüft, ob Joeys Movement, Tempo und Hit-Commitment bereits sauber sitzen.",
+      "health": 220,
+      "contact_damage": 18,
+      "move_speed": "Hop-Angriff 210",
+      "signature": "Slam-Schaden 24",
+      "image": null
+    }
+  ],
+  "items": [
+    {
+      "id": "bat_artefact",
+      "name": "Bat Artefact",
+      "kind": "Relikt",
+      "rarity": "Mythisch",
+      "description": "Extrem seltener Reliktdrop mit offensivem Build-Potenzial.",
+      "drop_chance": "0.5%",
+      "throw_damage": 2.0,
+      "bonuses": [
+        {
+          "label": "Damage-Bonus",
+          "value": "0.5"
+        },
+        {
+          "label": "Crit-Chance",
+          "value": "0.1"
+        },
+        {
+          "label": "Crit-Damage",
+          "value": "0.1"
+        }
+      ],
+      "image": "/assets/media/bat_artefact.png"
+    },
+    {
+      "id": "bat_claw",
+      "name": "Bat Claw",
+      "kind": "Ressource",
+      "rarity": "Häufig",
+      "description": "Früher Bat-Drop, ideal für Wurf- und Materialspiel.",
+      "drop_chance": "25.0%",
+      "throw_damage": 10.0,
+      "bonuses": [],
+      "image": "/assets/media/bat_claw.png"
+    },
+    {
+      "id": "copper_nugget",
+      "name": "Copper Nugget",
+      "kind": "Ressource",
+      "rarity": "Häufig",
+      "description": "Häufige Grundressource für den frühen Loot-Loop.",
+      "drop_chance": "30.0%",
+      "throw_damage": 1.0,
+      "bonuses": [],
+      "image": "/assets/media/copper_nugget.png"
+    },
+    {
+      "id": "gold_nugget",
+      "name": "Gold Nugget",
+      "kind": "Ressource",
+      "rarity": "Selten",
+      "description": "Seltener Fund für wertigere Runs.",
+      "drop_chance": "2.0%",
+      "throw_damage": 6.0,
+      "bonuses": [],
+      "image": "/assets/media/gold_nugget.png"
+    },
+    {
+      "id": "golem_heart",
+      "name": "Golem Heart",
+      "kind": "Relikt",
+      "rarity": "Mythisch",
+      "description": "Seltene Boss-nahe Ressource mit Lebensbonus.",
+      "drop_chance": "0.1%",
+      "throw_damage": 2.0,
+      "bonuses": [
+        {
+          "label": "Health-Bonus",
+          "value": "0.5"
+        }
+      ],
+      "image": "/assets/media/golem_heart.png"
+    },
+    {
+      "id": "iron_nugget",
+      "name": "Iron Nugget",
+      "kind": "Ressource",
+      "rarity": "Ungewöhnlich",
+      "description": "Stabilerer Drop mit spürbar mehr Wurf-Schaden.",
+      "drop_chance": "15.0%",
+      "throw_damage": 5.0,
+      "bonuses": [],
+      "image": "/assets/media/iron_nugget.png"
+    },
+    {
+      "id": "silver_nugget",
+      "name": "Silver Nugget",
+      "kind": "Ressource",
+      "rarity": "Mythisch",
+      "description": "Bekannter Inventar-Gegenstand.",
+      "drop_chance": "0.0%",
+      "throw_damage": 0.0,
+      "bonuses": [],
+      "image": null
+    },
+    {
+      "id": "stone",
+      "name": "Stone",
+      "kind": "Ressource",
+      "rarity": "Nicht festgelegt",
+      "description": "Rohmaterial ohne markanten Kampfbonus.",
+      "drop_chance": null,
+      "throw_damage": 2.0,
+      "bonuses": [],
+      "image": null
+    }
+  ],
+  "mechanics": [
+    {
+      "slug": "glow",
+      "title": "Glow",
+      "category": "Lesbarkeit",
+      "summary": "Joey bringt seine eigene Lichtquelle mit. Das sorgt für Stimmung, macht Kanten lesbar und führt Spieler bewusst durch dunklere Abschnitte.",
+      "points": [
+        "Standardmäßig verfügbar und damit Teil des Einstiegs.",
+        "Hilft, Plattformkanten, Gegner und pickups schneller zu lesen.",
+        "Dient spielerisch als ruhiger Kontrast zu dunkleren Höhlengängen.",
+        "Freischaltung: Grundausstattung"
+      ]
+    },
+    {
+      "slug": "movement",
+      "title": "Slime Movement",
+      "category": "Traversal",
+      "summary": "Der Spielfluss baut auf weich reagierendem Movement auf: kurze Sprünge, kontrollierte Landungen und späteres vertikales Erweitern durch Freischaltungen.",
+      "points": [
+        "Zuerst sichere Horizontalräume, später mehr Höhenarbeit.",
+        "Airtime und Landefeedback geben Tempo ohne das Spiel unlesbar zu machen.",
+        "Traversal-Skills werden bewusst an Kapitel-Progression gekoppelt."
+      ]
+    },
+    {
+      "slug": "combat",
+      "title": "Combo Combat",
+      "category": "Kampf",
+      "summary": "Joeys Nahkampf ist auf Treffergefühl, Combo-Rhythmus und klares Ende von Angriffsketten ausgerichtet.",
+      "points": [
+        "Maximale Combo-Länge liegt aktuell bei 11 Treffern.",
+        "Kritische Treffer und Trefferfeedback arbeiten mit klaren Audio- und VFX-Signalen.",
+        "Feinde werden nicht blind gespawnt, sondern sollen den Raum ergänzen."
+      ]
+    },
+    {
+      "slug": "essence",
+      "title": "Essenz und Loot",
+      "category": "Belohnung",
+      "summary": "Kristallsplitter, Relikte und Materialdrops machen Erkundung wertvoll und geben Spielern einen greifbaren Fortschrittsloop.",
+      "points": [
+        "Essenz dient als unmittelbare Belohnung für Neugier und Nebenwege.",
+        "Items bringen Zahlen, Wurfwerte oder Kampfboni mit.",
+        "Seltene Drops geben dem Wiederholen von Begegnungen langfristig Sinn."
+      ]
+    },
+    {
+      "slug": "progression",
+      "title": "Kapitel-Progression",
+      "category": "Struktur",
+      "summary": "Jedes Kapitel führt neue Anforderungen ein und macht weitere Hub-Türen sichtbar, sobald der vorherige Abschnitt sauber abgeschlossen wurde.",
+      "points": [
+        "Kapitel I dient als frühes Onboarding für Licht, Sprünge und Wall-Tools.",
+        "Skill-Freischaltungen werden nicht auf einmal, sondern entlang der Lernkurve verteilt.",
+        "Hub, Türen und Kapitelmarker halten den Fortschritt jederzeit klar lesbar."
+      ]
+    }
+  ]
+}

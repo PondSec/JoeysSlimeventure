@@ -44,10 +44,10 @@ var toast_settings = {
 	\"position\": \"bottom_right\"
 }
 
-@onready var ip_input: LineEdit = $MultiPlayer/VBoxContainer/IPInput
-@onready var port_input: LineEdit = $MultiPlayer/VBoxContainer/PortInput
-@onready var pact_notes: Label = $PatchNotes
-@onready var volume_slider: HSlider = $SettingsPanel/VBoxContainer/VolumeSlider
+@onready var ip_input: LineEdit = get_node_or_null(\"MultiPlayer/VBoxContainer/IPInput\")
+@onready var port_input: LineEdit = get_node_or_null(\"MultiPlayer/VBoxContainer/PortInput\")
+@onready var pact_notes: Label = get_node_or_null(\"PatchNotes\")
+@onready var volume_slider: HSlider = get_node_or_null(\"SettingsPanel/VBoxContainer/VolumeSlider\")
 
 # Dauer in Sekunden für jede Priorität
 const DISPLAY_DURATION = {
@@ -120,7 +120,7 @@ func fetch_game_messages() -> void:
 	add_child(http_request)
 	http_request.request_completed.connect(_on_game_messages_request_completed.bind(http_request))
 
-	var url = \"https://api.joeysslimeventure.com/api/game-messages\"
+	var url = \"https://api.joeyslime.com/api/game-messages\"
 	var error = http_request.request(url)
 	if error != OK:
 		push_error(\"Fehler beim Abrufen der Game Messages: \" + str(error))
@@ -607,13 +607,19 @@ func _on_volume_slider_value_changed(value: float) -> void:
 	config.save(CONFIG_PATH)
 
 func _on_play_button_pressed() -> void:
-	var level_scene_path = \"res://Scenes/Game.tscn\"
+	var hub_scene_path := \"res://Scenes/Game.tscn\"
+	var chapter_runtime_scene_path := \"res://Scenes/Chapter/chapter_level.tscn\"
+	var level_scene_path := hub_scene_path
 	var level_resource = load(\"user://current_level.res\")
 	if level_resource and level_resource.has_method(\"get\"):
-		level_scene_path = level_resource.unlocked_level
+		var saved_scene_path: String = str(level_resource.unlocked_level)
+		if saved_scene_path == chapter_runtime_scene_path:
+			print(\"Kapitel-Resume wird aus dem Hauptmenue ueber den Hub gestartet, um schwarze Ladebilder zu vermeiden.\")
+		else:
+			level_scene_path = saved_scene_path
 		if not ResourceLoader.exists(level_scene_path):
-			print(\"⚠ Level ungültig, fallback auf Startlevel\")
-			level_scene_path = \"res://Scenes/Game.tscn\"
+			print(\"Level ungueltig, fallback auf Startlevel\")
+			level_scene_path = hub_scene_path
 
 	var transition = preload(\"res://Scenes/transition.tscn\").instantiate()
 	get_tree().root.add_child(transition)
@@ -841,8 +847,8 @@ text = "Matchmaking"
 
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/PlayButton" to="." method="_on_play_button_pressed"]
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/SettingsButton" to="." method="_on_settings_button_pressed"]
-[connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/CreditsButton" to="." method="_on_texture_button_pressed"]
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/CreditsButton" to="." method="_on_credits_button_pressed"]
+[connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/CreditsButton" to="." method="_on_texture_button_pressed"]
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/QuitButton" to="." method="_on_quit_button_pressed"]
-[connection signal="pressed" from="MultiPlayer/VBoxContainer/matchmaking" to="." method="_on_host_game_pressed"]
 [connection signal="pressed" from="MultiPlayer/VBoxContainer/matchmaking" to="." method="_on_matchmaking_pressed"]
+[connection signal="pressed" from="MultiPlayer/VBoxContainer/matchmaking" to="." method="_on_host_game_pressed"]

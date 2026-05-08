@@ -1,0 +1,43 @@
+Joey's Slimeventure (v0.0.3.1)
+Release Notes
+Vergleichsbasis: Joey's Slimeventure (v0.0.3.0)
+
+Dieses Release baut auf allen Aenderungen seit v0.0.3.0 auf und bringt vor allem deutlich mehr Spielsysteme, Content, Combat-Polish und Praesentation.
+
+Gameplay und Kampf
+- Joey kann sich jetzt waehrend des Spielens in den Hero verwandeln und wieder zurueckwechseln.
+- Der Hero hat ein eigenes Movement-Profil mit eigener Hitbox, Wall Jump statt Wall Slide, Ground Slide und eigenem Handling.
+- Das Hero-Kampfsystem wurde deutlich erweitert und fuehlt sich direkter, staerker und reaktiver an.
+- Neue Hero-VFX fuer Transformation, Slash, Dash, Wall Jump, Slide, Air Jump und Landung sorgen fuer klareres Feedback.
+- Hero-spezifische Sounds und Combat-Feedback wurden ausgebaut.
+
+Progression und Skills
+- Der Skill Tree wurde stark erweitert und weiter integriert.
+- Neue Mobilitaets- und Kampfskills wie Double Jump, Wall Run, Teleport, Mana Shield, Sticky Form und Thorns wurden aufgebaut oder verbessert.
+- Das Sternesystem wurde erweitert: Pyrion, Vortex und Lumora inklusive Skill-Fortschritt und Spezialverhalten sind jetzt Teil des Spiels.
+
+Welt, Level und Gegner
+- Das Kapitel- und Layout-System wurde deutlich ueberarbeitet, inklusive Builder-, Resolver- und Validierungslogik.
+- Neue Traversal-, Inspection- und Validation-Skripte helfen bei stabileren Levels und besserem Fluss.
+- Neue oder ausgebaute Gegner- und Encounter-Inhalte wie Glowcap, Cave Bat, Cave Slime, Slime King sowie weitere Enemy-Assets wurden integriert.
+- Neue Gefahren und Interaktionen wie Spikes, Essence Fragments und weitere Weltobjekte wurden hinzugefuegt oder verbessert.
+
+Items, Shop und Inventar
+- Das Inventar, Tooltip-System, Slots und Hotbar wurden ueberarbeitet.
+- Neue Item- und Registry-Strukturen fuer Shop-, Star- und Sword-Content wurden angelegt.
+- Shop UI, Shop Wagon und zusaetzliche Item-Pickups wurden ergaenzt.
+- Neue Ressourcen wie Silver Nugget und weitere Item-Anpassungen wurden aufgenommen.
+
+Art, Audio und Praesentation
+- Viele neue Spritesheets, Parallax-Hintergruende, UI-Elemente, Effekt-Sheets und weitere Assets wurden integriert.
+- Zusetzliche Polish-Sounds fuer Klicks, Impacts, Powerups, Schritte und Jump-Momente wurden eingebaut.
+- Menu-, UI- und Praesentationsbereiche wurden weiter verfeinert.
+
+Web, Demo und Projektpraesenz
+- Die Website unter joeyslime.com wurde breit ueberarbeitet.
+- Devlog, FAQ, Media-, Reward-, World- und Wiki-Seiten wurden erweitert oder neu aufgebaut.
+- Der Web-Demo-Build und die zugehoerigen Assets wurden aktualisiert.
+
+Technik und Build
+- Export-Metadaten wurden auf Version 0.0.3.1 aktualisiert.
+- Diese Release Notes und ein neuer Windows-Export fuer Joey's Slimeventure (v0.0.3.1) wurden vorbereitet.

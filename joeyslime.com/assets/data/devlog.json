@@ -1,0 +1,366 @@
+{
+  "generated_at": "2026-04-21 17:20 UTC",
+  "latest_ref": "codex/website-ui-refresh-2026-04-13",
+  "entries": [
+    {
+      "hash": "aafed2c3f27570d10e5897435e04cdfdce351aca",
+      "hash_short": "aafed2c",
+      "date": "2026-04-13",
+      "subject": "backup: snapshot website before UI overhaul",
+      "body": "",
+      "summary": "Aktualisiert Joey's Slimeventure mit sichtbaren Änderungen im laufenden Entwicklungsstand.",
+      "category_key": "presentation",
+      "category": "Presentation / UI"
+    },
+    {
+      "hash": "a2d1620f906042e656d2d284dd312d23c900d05a",
+      "hash_short": "a2d1620",
+      "date": "2026-04-12",
+      "subject": "Refactor chapter generation and fix cave tile resolution",
+      "body": "",
+      "summary": "Stabilisiert einen bestehenden Teil des Projekts und entfernt Reibung beim Spielen oder Entwickeln.",
+      "category_key": "world",
+      "category": "World / Level Design"
+    },
+    {
+      "hash": "142349a6afa8e16fc3b91b7044d884b4311eb355",
+      "hash_short": "142349a",
+      "date": "2025-10-09",
+      "subject": "Better Lumora Movement",
+      "body": "",
+      "summary": "Aktualisiert Joey's Slimeventure mit sichtbaren Änderungen im laufenden Entwicklungsstand.",
+      "category_key": "systems",
+      "category": "Systems / AI"
+    },
+    {
+      "hash": "6bdf0f0cdcae0730f192f15c415eb5f29a40965c",
+      "hash_short": "6bdf0f0",
+      "date": "2025-10-09",
+      "subject": "Added Lumora Catch System",
+      "body": "",
+      "summary": "Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.",
+      "category_key": "systems",
+      "category": "Systems / AI"
+    },
+    {
+      "hash": "a1fda649ca2078d7efc4de25a485dc90dc73b6f5",
+      "hash_short": "a1fda64",
+      "date": "2025-10-08",
+      "subject": "Added all 3 Stars Spyrion, Vortex and Lumora",
+      "body": "",
+      "summary": "Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.",
+      "category_key": "systems",
+      "category": "Systems / AI"
+    },
+    {
+      "hash": "a95632671d45d316c38686c6150e74a370426c00",
+      "hash_short": "a956326",
+      "date": "2025-10-08",
+      "subject": "feat: Add Lumora skill progression system",
+      "body": "- Add export variable for Lumora reference in Player script - Implement damage tracking for Lumora skill points: - Notify Lumora on successful attacks against enemies - Include ultimate ability damage in skill points - Add thorns damage reflection to skill progression - Lumora gains 10% of player damage as skill points - Enable Lumora attack capability after reaching 150 skill points - Scale damage multiplier with additional skill points (2% per 200 points over 150) This allows Lumora to level up alongside the player based on combat performance.",
+      "summary": "- Add export variable for Lumora reference in Player script - Implement damage tracking for Lumora skill points: - Notify Lumora on successful attacks against enemies - Include ultimate ability damage in skill points - Add thorns damage reflection to skill progression - Lumora gains 10% of player damage as skill points - Enable Lumora attack capability after reaching 150 skill points - Scale damage multiplier with additional skill points (2% per 200 points over 150) This allows Lumora to level up alongside the player based on combat performance.",
+      "category_key": "systems",
+      "category": "Systems / AI"
+    },
+    {
+      "hash": "d493a0b265451cd04c2c36d830675134a0e98eab",
+      "hash_short": "d493a0b",
+      "date": "2025-10-08",
+      "subject": "fix(lumora): implement working enemy detection and damage system",
+      "body": "- Replace Area2D-based detection with direct group search for reliable enemy targeting - Fix collision layer issues by using get_tree().get_nodes_in_group('enemies') - Add comprehensive debug logging to verify enemy detection and damage application - Increase attack radius from 80 to 150 for better combat effectiveness - Ensure take_damage method is properly called on all enemies in range - Remove temporary Area2D creation in favor of persistent group-based approach The system now correctly: - Finds all enemies in the 'enemies' group regardless of collision layers - Applies base_damage * damage_multiplier to each enemy within attack_radius - Creates visual attack effects at enemy positions - Tracks and displays hit counts for debugging",
+      "summary": "- Replace Area2D-based detection with direct group search for reliable enemy targeting - Fix collision layer issues by using get_tree().get_nodes_in_group('enemies') - Add comprehensive debug logging to verify enemy detection and damage application - Increase attack radius from 80 to 150 for better combat effectiveness - Ensure take_damage method is properly called on all enemies in range - Remove temporary Area2D creation in favor of persistent group-based approach The system now correctly: - Finds all enemies in the 'enemies' group regardless of collision layers - Applies base_damage * damage_multiplier to each enemy within attack_radius - Creates visual attack effects at enemy positions - Tracks and displays hit counts for debugging",
+      "category_key": "systems",
+      "category": "Systems / AI"
+    },
+    {
+      "hash": "98dd05fd0a49d41844ec01d7f78c8ccb2a7be809",
+      "hash_short": "98dd05f",
+      "date": "2025-10-08",
+      "subject": "fix(lumora): implement working enemy detection and damage system",
+      "body": "- Replace Area2D-based detection with direct group search for reliable enemy targeting - Fix collision layer issues by using get_tree().get_nodes_in_group('enemies') - Add comprehensive debug logging to verify enemy detection and damage application - Increase attack radius from 80 to 150 for better combat effectiveness - Ensure take_damage method is properly called on all enemies in range - Remove temporary Area2D creation in favor of persistent group-based approach The system now correctly: - Finds all enemies in the 'enemies' group regardless of collision layers - Applies base_damage * damage_multiplier to each enemy within attack_radius - Creates visual attack effects at enemy positions - Tracks and displays hit counts for debugging",
+      "summary": "- Replace Area2D-based detection with direct group search for reliable enemy targeting - Fix collision layer issues by using get_tree().get_nodes_in_group('enemies') - Add comprehensive debug logging to verify enemy detection and damage application - Increase attack radius from 80 to 150 for better combat effectiveness - Ensure take_damage method is properly called on all enemies in range - Remove temporary Area2D creation in favor of persistent group-based approach The system now correctly: - Finds all enemies in the 'enemies' group regardless of collision layers - Applies base_damage * damage_multiplier to each enemy within attack_radius - Creates visual attack effects at enemy positions - Tracks and displays hit counts for debugging",
+      "category_key": "systems",
+      "category": "Systems / AI"
+    },
+    {
+      "hash": "83ebc487af47d0112cef9e3d989faf8d9da871b3",
+      "hash_short": "83ebc48",
+      "date": "2025-10-08",
+      "subject": "Added Ability to Lumora",
+      "body": "",
+      "summary": "Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.",
+      "category_key": "systems",
+      "category": "Systems / AI"
+    },
+    {
+      "hash": "d0b8b14b52e6d5045fb45904163dddc1158b2a89",
+      "hash_short": "d0b8b14",
+      "date": "2025-10-08",
+      "subject": "Added Vortex and Pyrion",
+      "body": "",
+      "summary": "Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.",
+      "category_key": "updates",
+      "category": "General Update"
+    },
+    {
+      "hash": "b4908f43da5718c8a131315dd4453616b0a1245d",
+      "hash_short": "b4908f4",
+      "date": "2025-10-08",
+      "subject": "Fix Lumora occasional freezing in mid-air",
+      "body": "- Relax movement conditions to prevent unwanted stillness - Add stuck protection to detect and resolve frozen states - Implement continuous subtle movement adjustments - Increase position tolerance and reduce movement thresholds - Improve obstacle avoidance with more escape directions - Maintain natural following behavior while eliminating freezes",
+      "summary": "- Relax movement conditions to prevent unwanted stillness - Add stuck protection to detect and resolve frozen states - Implement continuous subtle movement adjustments - Increase position tolerance and reduce movement thresholds - Improve obstacle avoidance with more escape directions - Maintain natural following behavior while eliminating freezes",
+      "category_key": "systems",
+      "category": "Systems / AI"
+    },
+    {
+      "hash": "bec45e336f2a3f1d21b58643bf806c4e7d8e7b20",
+      "hash_short": "bec45e3",
+      "date": "2025-10-08",
+      "subject": "Better movement Lumora",
+      "body": "",
+      "summary": "Aktualisiert Joey's Slimeventure mit sichtbaren Änderungen im laufenden Entwicklungsstand.",
+      "category_key": "systems",
+      "category": "Systems / AI"
+    },
+    {
+      "hash": "f29acaf0af423a6cd1a21f1bee61380d4a0094ce",
+      "hash_short": "f29acaf",
+      "date": "2025-10-08",
+      "subject": "Added Lumora",
+      "body": "",
+      "summary": "Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.",
+      "category_key": "systems",
+      "category": "Systems / AI"
+    },
+    {
+      "hash": "f1782d47735aa609b65f35e2350798cf13ef3417",
+      "hash_short": "f1782d4",
+      "date": "2025-10-07",
+      "subject": "Fixed Collision Bug",
+      "body": "",
+      "summary": "Stabilisiert einen bestehenden Teil des Projekts und entfernt Reibung beim Spielen oder Entwickeln.",
+      "category_key": "updates",
+      "category": "General Update"
+    },
+    {
+      "hash": "06371c8c3f5301d5b20071878c39f9411672648f",
+      "hash_short": "06371c8",
+      "date": "2025-10-07",
+      "subject": "Add priority-based toasts with close buttons and hover effects",
+      "body": "",
+      "summary": "Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.",
+      "category_key": "updates",
+      "category": "General Update"
+    },
+    {
+      "hash": "95fcf90250d114195f0f9264c4959e7abeb0a984",
+      "hash_short": "95fcf90",
+      "date": "2025-10-07",
+      "subject": "Better Toasts added Timer and CLose Button",
+      "body": "",
+      "summary": "Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.",
+      "category_key": "updates",
+      "category": "General Update"
+    },
+    {
+      "hash": "76ce79a5c489adfe349f4c05490e4bc886ff356b",
+      "hash_short": "76ce79a",
+      "date": "2025-10-07",
+      "subject": "Added Server Message",
+      "body": "",
+      "summary": "Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.",
+      "category_key": "updates",
+      "category": "General Update"
+    },
+    {
+      "hash": "c58ba8bdd3c6aeec239619a4c931cf1f5095e354",
+      "hash_short": "c58ba8b",
+      "date": "2025-10-05",
+      "subject": "Adjust leaf lifetime",
+      "body": "",
+      "summary": "Aktualisiert Joey's Slimeventure mit sichtbaren Änderungen im laufenden Entwicklungsstand.",
+      "category_key": "updates",
+      "category": "General Update"
+    },
+    {
+      "hash": "18117c2baaa3fcbf0ecdfafb74ba6706e34b6d08",
+      "hash_short": "18117c2",
+      "date": "2025-10-05",
+      "subject": "Better Leaf Interaction",
+      "body": "",
+      "summary": "Aktualisiert Joey's Slimeventure mit sichtbaren Änderungen im laufenden Entwicklungsstand.",
+      "category_key": "updates",
+      "category": "General Update"
+    },
+    {
+      "hash": "ae54ee1d58d3bfd0d05666f1701676258f1fe6d1",
+      "hash_short": "ae54ee1",
+      "date": "2025-10-05",
+      "subject": "Fixed some bugs",
+      "body": "",
+      "summary": "Stabilisiert einen bestehenden Teil des Projekts und entfernt Reibung beim Spielen oder Entwickeln.",
+      "category_key": "updates",
+      "category": "General Update"
+    },
+    {
+      "hash": "6d1e029f9169ce7242c278198a8125ec737ed01d",
+      "hash_short": "6d1e029",
+      "date": "2025-10-05",
+      "subject": "Better Enviroment",
+      "body": "",
+      "summary": "Aktualisiert Joey's Slimeventure mit sichtbaren Änderungen im laufenden Entwicklungsstand.",
+      "category_key": "updates",
+      "category": "General Update"
+    },
+    {
+      "hash": "1c13be0a53b51521471858ebe072a82b3ce79c9c",
+      "hash_short": "1c13be0",
+      "date": "2025-10-05",
+      "subject": "Added falling leaf's",
+      "body": "",
+      "summary": "Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.",
+      "category_key": "updates",
+      "category": "General Update"
+    },
+    {
+      "hash": "ed350207ffc0df14c55e6ad0f00611494d5dbd21",
+      "hash_short": "ed35020",
+      "date": "2025-10-05",
+      "subject": "Added Bloom",
+      "body": "",
+      "summary": "Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.",
+      "category_key": "updates",
+      "category": "General Update"
+    },
+    {
+      "hash": "7c63b28a4ce384252bbdcd5c0dd5e1f65033f0c0",
+      "hash_short": "7c63b28",
+      "date": "2025-10-03",
+      "subject": "Expanded Level0",
+      "body": "",
+      "summary": "Aktualisiert Joey's Slimeventure mit sichtbaren Änderungen im laufenden Entwicklungsstand.",
+      "category_key": "world",
+      "category": "World / Level Design"
+    },
+    {
+      "hash": "afbf49f706cd998dc8d22807c7c112060d792edf",
+      "hash_short": "afbf49f",
+      "date": "2025-10-01",
+      "subject": "added brain worm",
+      "body": "",
+      "summary": "Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.",
+      "category_key": "updates",
+      "category": "General Update"
+    },
+    {
+      "hash": "97df5b7f87f90e86248f78c5bd7f881f301c5a10",
+      "hash_short": "97df5b7",
+      "date": "2025-10-01",
+      "subject": "Added Background light",
+      "body": "",
+      "summary": "Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.",
+      "category_key": "updates",
+      "category": "General Update"
+    },
+    {
+      "hash": "5d4ecd4a94b33747a2a59932bf0c784f4b4cf010",
+      "hash_short": "5d4ecd4",
+      "date": "2025-10-01",
+      "subject": "Abilitys",
+      "body": "",
+      "summary": "Aktualisiert Joey's Slimeventure mit sichtbaren Änderungen im laufenden Entwicklungsstand.",
+      "category_key": "updates",
+      "category": "General Update"
+    },
+    {
+      "hash": "8878249f462f21d063c775af55e3006b2ee53b1d",
+      "hash_short": "8878249",
+      "date": "2025-10-01",
+      "subject": "Merge remote-tracking branch 'origin/dev' into dev",
+      "body": "",
+      "summary": "Aktualisiert Joey's Slimeventure mit sichtbaren Änderungen im laufenden Entwicklungsstand.",
+      "category_key": "updates",
+      "category": "General Update"
+    },
+    {
+      "hash": "c809d064e3ec4650acb2c9f9b16758dd1d04a728",
+      "hash_short": "c809d06",
+      "date": "2025-10-01",
+      "subject": "better Background",
+      "body": "",
+      "summary": "Aktualisiert Joey's Slimeventure mit sichtbaren Änderungen im laufenden Entwicklungsstand.",
+      "category_key": "updates",
+      "category": "General Update"
+    },
+    {
+      "hash": "88050d921fe317c4f9b0fdbb3dde4669516df924",
+      "hash_short": "88050d9",
+      "date": "2025-09-03",
+      "subject": "Better Minion Agent",
+      "body": "",
+      "summary": "Aktualisiert Joey's Slimeventure mit sichtbaren Änderungen im laufenden Entwicklungsstand.",
+      "category_key": "updates",
+      "category": "General Update"
+    },
+    {
+      "hash": "5c45826636b713bbed2739abf160cdee0849360b",
+      "hash_short": "5c45826",
+      "date": "2025-09-02",
+      "subject": "Added Slime Minion",
+      "body": "",
+      "summary": "Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.",
+      "category_key": "updates",
+      "category": "General Update"
+    },
+    {
+      "hash": "1cec8cd5cd82dbe2f549267879ec317921a1f096",
+      "hash_short": "1cec8cd",
+      "date": "2025-09-02",
+      "subject": "Added Thorns Ability",
+      "body": "",
+      "summary": "Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.",
+      "category_key": "updates",
+      "category": "General Update"
+    },
+    {
+      "hash": "4b4974618115bdd2d9aa42d89dfd821b892a62fb",
+      "hash_short": "4b49746",
+      "date": "2025-09-02",
+      "subject": "Added new Ability Sticky Form",
+      "body": "",
+      "summary": "Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.",
+      "category_key": "updates",
+      "category": "General Update"
+    },
+    {
+      "hash": "10ab8310066e3c017164796f8ec9a4f6ec13035c",
+      "hash_short": "10ab831",
+      "date": "2025-08-31",
+      "subject": "Fixed mana_shield bug",
+      "body": "",
+      "summary": "Stabilisiert einen bestehenden Teil des Projekts und entfernt Reibung beim Spielen oder Entwickeln.",
+      "category_key": "updates",
+      "category": "General Update"
+    },
+    {
+      "hash": "0cf21fc91abea3482e04f99d579d69a0f55a1971",
+      "hash_short": "0cf21fc",
+      "date": "2025-08-31",
+      "subject": "Added Mana Shield",
+      "body": "",
+      "summary": "Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.",
+      "category_key": "updates",
+      "category": "General Update"
+    },
+    {
+      "hash": "0c6c4c1a5c56fb7751df93ace374078db447adf4",
+      "hash_short": "0c6c4c1",
+      "date": "2025-08-31",
+      "subject": "Added Wall_run and double_jump and Teleport",
+      "body": "",
+      "summary": "Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.",
+      "category_key": "updates",
+      "category": "General Update"
+    }
+  ]
+}

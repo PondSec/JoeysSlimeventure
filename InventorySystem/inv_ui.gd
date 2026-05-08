@@ -1,292 +1,352 @@
 extends Control
 
-@onready var inv: Inv = preload("res://InventorySystem/playerinv.tres")
-@onready var slots: Array = $NinePatchRect/GridContainer.get_children()
-@onready var spind_ui = $SpindUI
+const FONT_PATH := "res://Assets/GUI/Font/PixelatedEleganceRegular-ovyAA.ttf"
+const ItemRegistry := preload("res://Scripts/item_registry.gd")
+const UI_ROOT_BG := Color(0.08, 0.1, 0.16, 0.96)
+const UI_SECTION_BG := Color(0.05, 0.08, 0.12, 0.94)
+const UI_SECTION_BG_ALT := Color(0.08, 0.12, 0.09, 0.94)
+const UI_BORDER := Color(0.35, 0.92, 0.7, 1.0)
+const UI_BORDER_SOFT := Color(0.2, 0.33, 0.4, 1.0)
+const UI_OUTLINE := Color(0.01, 0.02, 0.05, 1.0)
+const UI_TEXT := Color(0.9, 0.98, 0.94, 1.0)
+const UI_TEXT_MUTED := Color(0.65, 0.8, 0.76, 1.0)
+
+@export var slot_scene: PackedScene
+
+var inv: Inv = preload("res://InventorySystem/playerinv.tres")
+@onready var backdrop: ColorRect = $Backdrop
+@onready var root_panel: PanelContainer = $Frame/RootPanel
+@onready var preview_panel: PanelContainer = $Frame/RootPanel/ContentMargin/ContentRow/LeftColumn/PreviewPanel
+@onready var equipment_panel: PanelContainer = $Frame/RootPanel/ContentMargin/ContentRow/LeftColumn/EquipmentPanel
+@onready var bag_panel: PanelContainer = $Frame/RootPanel/ContentMargin/ContentRow/RightColumn/BagPanel
+@onready var hotbar_panel: PanelContainer = $Frame/RootPanel/ContentMargin/ContentRow/RightColumn/HotbarPanel
+@onready var bag_grid: GridContainer = $Frame/RootPanel/ContentMargin/ContentRow/RightColumn/BagPanel/BagMargin/BagContent/BagScroll/BagGrid
+@onready var hotbar_grid: GridContainer = $Frame/RootPanel/ContentMargin/ContentRow/RightColumn/HotbarPanel/HotbarMargin/HotbarContent/HotbarGrid
+@onready var equipment_slots_row: HBoxContainer = $Frame/RootPanel/ContentMargin/ContentRow/LeftColumn/EquipmentPanel/EquipmentMargin/EquipmentContent/EquipmentSlots
+@onready var player_preview: Control = $Frame/RootPanel/ContentMargin/ContentRow/LeftColumn/PreviewPanel/PreviewMargin/PreviewContent/PlayerPreview
 @onready var tooltip = preload("res://InventorySystem/Tooltip.tscn").instantiate()
 
-var is_open = false
-var dragging_item = null
-var dragging_sprite = null
-var dragging_slot_index = -1
-var detected_slot_index = -1
-var dragging_item_scale = 0.5
-var hovered_slot_index = -1
-var is_hovering = false
+var is_open := false
+var save_path := "user://inventory.save"
+var cached_font: FontFile
+var inventory_slot_nodes: Array[Control] = []
+var hotbar_slot_nodes: Array[Control] = []
+var equipment_slot_nodes: Dictionary = {}
+var slot_lookup: Dictionary = {}
+var dragging_origin: Dictionary = {}
+var dragging_item: Control = null
+var dragging_slot_ref: Dictionary = {}
+var hovered_slot_ref: Dictionary = {}
 
-var save_path = "user://inventory.save"
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	mouse_filter = Control.MOUSE_FILTER_STOP
+	if slot_scene == null:
+		slot_scene = preload("res://InventorySystem/slot.tscn")
+
+	_apply_styles()
+	_build_slot_views()
+
 	inv.update.connect(update_slots)
-	update_slots()
 	inv.load_inventory(save_path)
+	update_slots()
 	close()
-	
-	# Tooltip als Child hinzufügen
+
 	add_child(tooltip)
 	tooltip.visible = false
 
-func _process(delta: float) -> void:
+
+func _process(_delta: float) -> void:
 	if Input.is_action_just_pressed("inventory"):
 		if is_open:
 			close()
-			inv.save_inventory(save_path)
 		else:
 			open()
-			
+
+	if not is_open:
+		return
+
+	hovered_slot_ref = _get_slot_ref_under_mouse()
+	_update_tooltip()
+
 	if dragging_item:
 		dragging_item.position = get_global_mouse_position()
 
 	if Input.is_action_just_pressed("Attack"):
-		if !dragging_item:
-			detected_slot_index = get_slot_index_under_mouse()
-			if detected_slot_index != -1:
-				_on_slot_pressed(detected_slot_index)
+		if dragging_origin.is_empty():
+			_start_drag(hovered_slot_ref)
 		else:
-			detected_slot_index = get_slot_index_under_mouse()
-			_on_slot_released(detected_slot_index)
+			_complete_drag(hovered_slot_ref)
 
 	if Input.is_action_just_pressed("mouse_right"):
-		detected_slot_index = get_slot_index_under_mouse()
-		if detected_slot_index != -1:
-			_on_right_click(detected_slot_index)
-	
-	# Hover-Erkennung mit Timer für bessere Performance
-	if is_open:
-		var current_hovered_slot = get_slot_index_under_mouse()
-		if current_hovered_slot != hovered_slot_index:
-			hovered_slot_index = current_hovered_slot
-			_update_tooltip()
+		_handle_right_click(hovered_slot_ref)
 
-func _update_tooltip():
-	if hovered_slot_index != -1 and is_open:
-		var slot = inv.slots[hovered_slot_index]
-		if slot and slot.item:
-			await get_tree().create_timer(0.3).timeout
-			if hovered_slot_index != -1 and is_open:
-				tooltip.show_tooltip(slot.item, get_global_mouse_position())
-		else:
-			tooltip.hide_tooltip()
-	else:
-		tooltip.hide_tooltip()
 
-func open():
+func open() -> void:
 	visible = true
 	is_open = true
 	update_slots()
 
-func close():
+
+func close() -> void:
 	visible = false
 	is_open = false
-	update_slots()
 	tooltip.hide_tooltip()
-	
-	if dragging_item:
-		var source_slot = inv.slots[dragging_slot_index]
-		if source_slot:
-			var item_display = slots[dragging_slot_index].get_node("CenterContainer/Panel/ItemDisplay") if slots[dragging_slot_index].has_node("CenterContainer/Panel/ItemDisplay") else null
-			if item_display:
-				item_display.visible = true
+	_cancel_drag()
+	inv.save_inventory(save_path)
 
-		dragging_item.queue_free()
-		dragging_item = null
-		dragging_sprite = null
-		dragging_slot_index = -1
-		update_slots()
 
-func update_slots():
-	for i in range(min(inv.slots.size(), slots.size())):
-		var slot = slots[i]
-		var item_display = slot.get_node("CenterContainer/Panel/ItemDisplay") if slot.has_node("CenterContainer/Panel/ItemDisplay") else null
+func update_slots() -> void:
+	for i in range(27):
+		inventory_slot_nodes[i].call("update", inv.slots[i])
 
-		# Verstecke das Item im ursprünglichen Slot, wenn es gezogen wird
-		if i == dragging_slot_index and dragging_item:
-			if item_display:
-				item_display.visible = false  # Verstecke das Item im Slot
-		else:
-			# Zeige das Item an, wenn es im Slot vorhanden ist
-			if item_display:
-				item_display.visible = inv.slots[i].item != null
+	for i in range(9):
+		hotbar_slot_nodes[i].call("update", inv.slots[27 + i])
 
-		# Aktualisiere den Slot, wenn es nicht der gezogene Slot ist
-		if i != dragging_slot_index:
-			slot.update(inv.slots[i])
-			
-func _on_slot_pressed(slot_index: int):
-	if !is_open:  # Prüfe, ob das Inventar geschlossen ist
+	for slot_name in inv.get_equipment_slot_names():
+		if equipment_slot_nodes.has(slot_name):
+			var equip_slot := inv.get_equipped_slot(slot_name)
+			equipment_slot_nodes[slot_name].call("update", equip_slot)
+
+	var weapon_item := inv.get_equipped_item("weapon")
+	if player_preview and player_preview.has_method("set_preview_item"):
+		player_preview.call("set_preview_item", weapon_item if weapon_item else ItemRegistry.get_default_weapon())
+
+
+func _build_slot_views() -> void:
+	inventory_slot_nodes.clear()
+	hotbar_slot_nodes.clear()
+	equipment_slot_nodes.clear()
+	slot_lookup.clear()
+
+	for child in bag_grid.get_children():
+		child.queue_free()
+	for child in hotbar_grid.get_children():
+		child.queue_free()
+	for child in equipment_slots_row.get_children():
+		child.queue_free()
+
+	for index in range(27):
+		var slot := _create_slot_instance()
+		bag_grid.add_child(slot)
+		inventory_slot_nodes.append(slot)
+		slot_lookup[slot] = {"kind": "inventory", "index": index}
+
+	for hotbar_index in range(9):
+		var slot := _create_slot_instance()
+		hotbar_grid.add_child(slot)
+		hotbar_slot_nodes.append(slot)
+		slot_lookup[slot] = {"kind": "inventory", "index": 27 + hotbar_index}
+
+	var sections := VBoxContainer.new()
+	sections.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sections.add_theme_constant_override("separation", 10)
+	equipment_slots_row.add_child(sections)
+
+	for layout_group in inv.get_equipment_layout():
+		var section := VBoxContainer.new()
+		section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		section.add_theme_constant_override("separation", 6)
+		sections.add_child(section)
+
+		var label := Label.new()
+		label.text = String(layout_group.get("title", "Equipment")).to_upper()
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		_style_label(label, 12, UI_TEXT_MUTED, 2)
+		section.add_child(label)
+
+		var slot_row := HBoxContainer.new()
+		slot_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		slot_row.alignment = BoxContainer.ALIGNMENT_BEGIN
+		slot_row.add_theme_constant_override("separation", 8)
+		section.add_child(slot_row)
+
+		var slot_names: Array = layout_group.get("slots", [])
+		for slot_name_variant in slot_names:
+			var slot_name := String(slot_name_variant)
+			var slot := _create_slot_instance()
+			slot_row.add_child(slot)
+			equipment_slot_nodes[slot_name] = slot
+			slot_lookup[slot] = {"kind": "equipment", "slot_name": slot_name}
+
+
+func _create_slot_instance() -> Control:
+	var slot := slot_scene.instantiate() as Control
+	slot.custom_minimum_size = Vector2(56.0, 56.0)
+	return slot
+
+
+func _start_drag(slot_ref: Dictionary) -> void:
+	if slot_ref.is_empty():
 		return
-	if slot_index != -1:
-		var slot = inv.slots[slot_index]
-		if slot.item:
-			# Verstecke das ItemDisplay (Sprite2D) im Slot sofort
-			var item_display = slots[slot_index].get_node("CenterContainer/Panel/ItemDisplay") if slots[slot_index].has_node("CenterContainer/Panel/ItemDisplay") else null
-			if item_display:
-				item_display.visible = false
-				print("DEBUG: ItemDisplay in Slot ", slot_index, " unsichtbar gemacht")
-			else:
-				print("DEBUG: ItemDisplay nicht gefunden in Slot ", slot_index)
-
-			# Verstecke das Label im Slot sofort
-			var label = slots[slot_index].get_node("CenterContainer/Panel/Label") if slots[slot_index].has_node("CenterContainer/Panel/Label") else null
-			if label:
-				label.visible = false
-				print("DEBUG: Label in Slot ", slot_index, " unsichtbar gemacht")
-			else:
-				print("DEBUG: Label nicht gefunden in Slot ", slot_index)
-
-			# Erstelle das draggende Item
-			dragging_item = create_dragging_item(slot.item)
-			dragging_sprite = dragging_item.get_child(0)
-
-			# Skaliere das Item für die Mausdarstellung
-			if dragging_sprite.texture:
-				var texture_size = dragging_sprite.texture.get_size()
-				dragging_sprite.scale = Vector2(64.0 / texture_size.x, 64.0 / texture_size.y)
-
-			dragging_slot_index = slot_index
-
-			# Aktualisiere die Slots sofort
-			update_slots()  # Stelle sicher, dass das Inventar UI sofort aktualisiert wird
-			
-func _on_slot_released(slot_index: int):
-	if !is_open:  # Prüfe, ob das Inventar geschlossen ist
+	var slot := _resolve_slot(slot_ref)
+	if slot == null or slot.item == null:
 		return
-	if dragging_item:
-		if slot_index != -1:
-			# Wenn der Slot unter der Maus existiert, lege das Item dort ab
-			var target_slot = inv.slots[slot_index]
-			var source_slot = inv.slots[dragging_slot_index]
 
-			if target_slot != source_slot:
-				# Tausch der Slots oder Stapeln der Items, wenn die Bedingungen zutreffen
-				if target_slot.item == source_slot.item and target_slot.amount < 64:
-					# Stapeln des Items, wenn der Ziel-Slot das gleiche Item enthält und Platz hat
-					var remaining_space = 64 - target_slot.amount
-					var amount_to_stack = min(remaining_space, source_slot.amount)
-					target_slot.amount += amount_to_stack
-					source_slot.amount -= amount_to_stack
-
-					# Wenn die Menge im Quell-Slot jetzt 0 ist, setze das Item auf null
-					if source_slot.amount == 0:
-						source_slot.item = null
-				else:
-					# Items werden einfach getauscht
-					inv.swap_slots(dragging_slot_index, slot_index)
-
-		# Entferne das draggende Item, nachdem es abgelegt wurde
-		dragging_item.queue_free()
-		dragging_item = null
-		dragging_sprite = null
-		dragging_slot_index = -1
-
-		update_slots()
-
-		# Stelle sicher, dass das Item im Quell-Slot wieder angezeigt wird, wenn es abgelegt wurde
-		var source_slot_ui = slots[dragging_slot_index].get_node("CenterContainer/Panel/ItemDisplay") if slots[dragging_slot_index].has_node("ItemTexture") else null
-		if source_slot_ui:
-			source_slot_ui.visible = true  # Stelle das ItemTexture im Quell-Slot wieder her
-
-func _on_right_click(slot_index: int):
-	if not dragging_item:
-		return
-	
-	var source_slot = inv.slots[dragging_slot_index]
-	var target_slot = inv.slots[slot_index]
-	
-	# Sicherheitsprüfungen
-	if not source_slot.item or source_slot.amount <= 0:
-		return
-	
-	# Fall 1: Ziel-Slot ist leer
-	if not target_slot.item:
-		target_slot.item = source_slot.item.duplicate()  # Wichtig: Neue Instanz erstellen!
-		target_slot.amount = 1
-		source_slot.amount -= 1
-		
-		if source_slot.amount <= 0:
-			source_slot.item = null
-			cleanup_dragging_item()
-		else:
-			update_dragging_item(source_slot.item)
-	
-	# Fall 2: Gleiches Item und Platz zum Stapeln
-	elif target_slot.item == source_slot.item and target_slot.amount < 64:
-		target_slot.amount += 1
-		source_slot.amount -= 1
-		
-		if source_slot.amount <= 0:
-			source_slot.item = null
-			cleanup_dragging_item()
-		else:
-			update_dragging_item(source_slot.item)
-	
-	# Fall 3: Unterschiedliche Items - Tausche nur ein Item
-	else:
-		# Temporäre Variablen speichern
-		var temp_item = target_slot.item.duplicate()
-		var temp_amount = target_slot.amount
-		
-		# Ein Item vom Quell-Slot in den Ziel-Slot bewegen
-		target_slot.item = source_slot.item.duplicate()
-		target_slot.amount = 1
-		source_slot.amount -= 1
-		
-		# Ursprüngliches Ziel-Item in den Quell-Slot bewegen
-		if source_slot.amount > 0:
-			source_slot.item = temp_item
-			source_slot.amount = temp_amount
-		else:
-			source_slot.item = temp_item
-			source_slot.amount = temp_amount
-		
-		update_dragging_item(source_slot.item)
-	
+	dragging_origin = slot_ref.duplicate(true)
+	dragging_slot_ref = slot_ref.duplicate(true)
+	dragging_item = _create_dragging_item(slot.item)
 	update_slots()
 
-func cleanup_dragging_item():
+
+func _complete_drag(target_ref: Dictionary) -> void:
+	if dragging_origin.is_empty():
+		return
+
+	if target_ref.is_empty():
+		_cancel_drag()
+		return
+
+	if not _can_drop_into(dragging_origin, target_ref):
+		_cancel_drag()
+		return
+
+	var source_kind := String(dragging_origin.get("kind", ""))
+	var target_kind := String(target_ref.get("kind", ""))
+
+	if source_kind == "inventory" and target_kind == "inventory":
+		inv.swap_slots(int(dragging_origin.get("index", -1)), int(target_ref.get("index", -1)))
+	elif source_kind == "inventory" and target_kind == "equipment":
+		inv.swap_inventory_with_equipment(int(dragging_origin.get("index", -1)), String(target_ref.get("slot_name", "")))
+	elif source_kind == "equipment" and target_kind == "inventory":
+		inv.swap_inventory_with_equipment(int(target_ref.get("index", -1)), String(dragging_origin.get("slot_name", "")))
+
+	_cancel_drag()
+	update_slots()
+
+
+func _handle_right_click(slot_ref: Dictionary) -> void:
+	if slot_ref.is_empty():
+		return
+
+	match String(slot_ref.get("kind", "")):
+		"inventory":
+			var index := int(slot_ref.get("index", -1))
+			if index >= 0 and index < inv.slots.size():
+				var item := inv.slots[index].item
+				if item and item.equip_slot != "none":
+					inv.equip_from_inventory(index)
+		"equipment":
+			inv.unequip_to_inventory(String(slot_ref.get("slot_name", "")))
+
+
+func _can_drop_into(source_ref: Dictionary, target_ref: Dictionary) -> bool:
+	if source_ref == target_ref:
+		return true
+
+	var source_slot := _resolve_slot(source_ref)
+	var target_slot := _resolve_slot(target_ref)
+	if source_slot == null or source_slot.item == null or target_slot == null:
+		return false
+
+	var source_kind := String(source_ref.get("kind", ""))
+	var target_kind := String(target_ref.get("kind", ""))
+
+	if source_kind == "inventory" and target_kind == "equipment":
+		return inv.can_equip_item(source_slot.item, String(target_ref.get("slot_name", "")))
+	if source_kind == "equipment" and target_kind == "inventory":
+		return true
+	if source_kind == "inventory" and target_kind == "inventory":
+		return true
+	return false
+
+
+func _resolve_slot(slot_ref: Dictionary) -> InvSlot:
+	if slot_ref.is_empty():
+		return null
+
+	match String(slot_ref.get("kind", "")):
+		"inventory":
+			var index := int(slot_ref.get("index", -1))
+			if index >= 0 and index < inv.slots.size():
+				return inv.slots[index]
+		"equipment":
+			return inv.get_equipped_slot(String(slot_ref.get("slot_name", "")))
+	return null
+
+
+func _get_slot_ref_under_mouse() -> Dictionary:
+	var pointer := get_global_mouse_position()
+	for node in slot_lookup.keys():
+		var control := node as Control
+		if control and control.get_global_rect().has_point(pointer):
+			return (slot_lookup[node] as Dictionary).duplicate(true)
+	return {}
+
+
+func _update_tooltip() -> void:
+	if not is_open or dragging_item:
+		tooltip.hide_tooltip()
+		return
+	if hovered_slot_ref.is_empty():
+		tooltip.hide_tooltip()
+		return
+
+	var slot := _resolve_slot(hovered_slot_ref)
+	if slot == null or slot.item == null:
+		tooltip.hide_tooltip()
+		return
+	tooltip.show_tooltip(slot.item, get_global_mouse_position())
+
+
+func _cancel_drag() -> void:
 	if dragging_item:
 		dragging_item.queue_free()
-		dragging_item = null
-	dragging_slot_index = -1
+	dragging_item = null
+	dragging_origin.clear()
+	dragging_slot_ref.clear()
+	update_slots()
 
-func update_dragging_item(item: InvItem):
-	if dragging_item:
-		# Altes Sprite entfernen
-		var old_sprite = dragging_item.get_child(0)
-		dragging_item.remove_child(old_sprite)
-		old_sprite.queue_free()
-		
-		# Neues Sprite erstellen
-		var new_sprite = Sprite2D.new()
-		new_sprite.texture = item.texture
-		if new_sprite.texture:
-			var tex_size = new_sprite.texture.get_size()
-			new_sprite.scale = Vector2(64/tex_size.x, 64/tex_size.y)
-		dragging_item.add_child(new_sprite)
 
-# Item für das Ziehen erstellen
-func create_dragging_item(item: InvItem) -> Control:
-	var drag_item = Control.new()
-	var sprite = Sprite2D.new()
+func _create_dragging_item(item: InvItem) -> Control:
+	var drag_item := Control.new()
+	var sprite := Sprite2D.new()
 	sprite.texture = item.texture
-
-	if sprite.texture:
-		var texture_size = sprite.texture.get_size()
-		sprite.scale = Vector2(64.0 / texture_size.x, 64.0 / texture_size.y)
-
+	sprite.scale = Vector2(1.75, 1.75)
 	drag_item.add_child(sprite)
-
-	var ui_parent = self.get_parent()
-	if ui_parent:
-		ui_parent.add_child(drag_item)
-
+	get_parent().add_child(drag_item)
 	drag_item.position = get_global_mouse_position()
-
 	return drag_item
-	
-# Slot unter der Maus ermitteln
-func get_slot_index_under_mouse() -> int:
-	for i in range(slots.size()):
-		if slots[i].get_global_rect().has_point(get_global_mouse_position()):
-			return i
-	return -1
+
+
+func _apply_styles() -> void:
+	backdrop.color = Color(0.0, 0.0, 0.0, 0.76)
+	root_panel.add_theme_stylebox_override("panel", _make_flat_style(UI_ROOT_BG, UI_BORDER_SOFT.lightened(0.15), 4, 8, 14))
+	preview_panel.add_theme_stylebox_override("panel", _make_flat_style(UI_SECTION_BG, UI_BORDER, 2, 6, 6))
+	equipment_panel.add_theme_stylebox_override("panel", _make_flat_style(UI_SECTION_BG_ALT, UI_BORDER_SOFT.lightened(0.08), 2, 6, 6))
+	bag_panel.add_theme_stylebox_override("panel", _make_flat_style(UI_SECTION_BG, UI_BORDER_SOFT, 2, 6, 6))
+	hotbar_panel.add_theme_stylebox_override("panel", _make_flat_style(UI_SECTION_BG_ALT, UI_BORDER_SOFT, 2, 6, 6))
+
+
+func _style_label(label: Label, font_size: int, color: Color, outline_size: int) -> void:
+	label.add_theme_font_override("font", _load_font())
+	label.add_theme_font_size_override("font_size", font_size)
+	label.add_theme_color_override("font_color", color)
+	label.add_theme_color_override("font_outline_color", UI_OUTLINE)
+	label.add_theme_constant_override("outline_size", outline_size)
+
+
+func _load_font() -> FontFile:
+	if cached_font == null:
+		cached_font = load(FONT_PATH) as FontFile
+	return cached_font
+
+
+func _make_flat_style(bg: Color, border: Color, border_width: int, radius: int, shadow_size: int) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = bg
+	style.border_color = border
+	style.set_border_width_all(border_width)
+	style.corner_detail = 1
+	style.corner_radius_top_left = radius
+	style.corner_radius_top_right = radius
+	style.corner_radius_bottom_left = radius
+	style.corner_radius_bottom_right = radius
+	style.content_margin_left = 14
+	style.content_margin_top = 12
+	style.content_margin_right = 14
+	style.content_margin_bottom = 12
+	style.shadow_color = Color(0.0, 0.0, 0.0, 0.42)
+	style.shadow_size = shadow_size
+	return style

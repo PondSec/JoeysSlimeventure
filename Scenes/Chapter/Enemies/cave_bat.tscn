@@ -1,0 +1,25 @@
+[gd_scene load_steps=5 format=3 uid="uid://bt2k2lcuv4v7y"]
+
+[ext_resource type="Texture2D" uid="uid://bncftw00sbl6m" path="res://Assets/Bat/Standard/BatStandard_Flying.png" id="1_bat"]
+[ext_resource type="Script" uid="uid://6nri52xog45p" path="res://Scripts/Chapter/Enemies/cave_bat.gd" id="2_script"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_body"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_hitbox"]
+size = Vector2(26, 18)
+
+[node name="CaveBat" type="CharacterBody2D"]
+script = ExtResource("2_script")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_body")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+scale = Vector2(1.7, 1.7)
+texture = ExtResource("1_bat")
+hframes = 4
+
+[node name="Hitbox" type="Area2D" parent="."]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hitbox"]
+shape = SubResource("RectangleShape2D_hitbox")

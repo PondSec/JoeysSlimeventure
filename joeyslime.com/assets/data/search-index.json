@@ -1,0 +1,580 @@
+{
+  "generated_at": "2026-04-21T17:20:01.168720+00:00",
+  "entries": [
+    {
+      "path": "/",
+      "title": "Joey's Slimeventure",
+      "summary": "Offizielle Website zum Pixel-Art Metroidvania und Action-Platformer Joey's Slimeventure mit Demo, Welt, Wiki und Devlog.",
+      "tags": [
+        "joey's slimeventure",
+        "joey slimeventure",
+        "official website",
+        "pixel art metroidvania",
+        "action platformer",
+        "browser demo",
+        "indie game"
+      ]
+    },
+    {
+      "path": "/play/",
+      "title": "Spielen",
+      "summary": "Browser-Demo, Gameplay, Controls, Plattformen und Einstieg in Joey's Slimeventure.",
+      "tags": [
+        "spielen",
+        "browser demo",
+        "controls",
+        "gameplay",
+        "platforms",
+        "official demo"
+      ]
+    },
+    {
+      "path": "/shop/",
+      "title": "Steam Shop",
+      "summary": "Steam-Shop, Wishlist, Store-Infos und direkter Weg zur offiziellen Steam-Seite von Joey's Slimeventure.",
+      "tags": [
+        "steam",
+        "shop",
+        "wishlist",
+        "coming soon",
+        "early access"
+      ]
+    },
+    {
+      "path": "/world/",
+      "title": "Welt",
+      "summary": "Story, Hub, Kapitel, Biome, Bosse und Progression der Kampagne.",
+      "tags": [
+        "story",
+        "kapitel",
+        "biome",
+        "welt",
+        "hub",
+        "bosses"
+      ]
+    },
+    {
+      "path": "/devlog/",
+      "title": "Devlog",
+      "summary": "Echte Entwicklungsupdates direkt aus dem Git-Verlauf von Joey's Slimeventure.",
+      "tags": [
+        "devlog",
+        "git",
+        "updates",
+        "development",
+        "changelog"
+      ]
+    },
+    {
+      "path": "/wiki/",
+      "title": "Game Wiki",
+      "summary": "Wissenszentrale fuer Mechaniken, Gegner, Items und Progression.",
+      "tags": [
+        "wiki",
+        "guide",
+        "mechaniken",
+        "enemies",
+        "items",
+        "progression"
+      ]
+    },
+    {
+      "path": "/wiki/mechanics/",
+      "title": "Wiki: Mechaniken",
+      "summary": "Controls, Movement, Kampf und Lesbarkeit im Detail.",
+      "tags": [
+        "movement",
+        "combat",
+        "glow",
+        "controls",
+        "mechanics"
+      ]
+    },
+    {
+      "path": "/wiki/enemies/",
+      "title": "Wiki: Gegner",
+      "summary": "Gegnerrollen, Leben, Schaden und Verhalten.",
+      "tags": [
+        "gegner",
+        "bat",
+        "boss",
+        "enemy",
+        "combat"
+      ]
+    },
+    {
+      "path": "/wiki/items/",
+      "title": "Wiki: Items",
+      "summary": "Materialien, Relikte, Drop-Raten und Boni.",
+      "tags": [
+        "items",
+        "loot",
+        "drops",
+        "relics",
+        "resources"
+      ]
+    },
+    {
+      "path": "/wiki/progression/",
+      "title": "Wiki: Progression",
+      "summary": "Skill-Freischaltungen, Kapitel-Meilensteine und Progression.",
+      "tags": [
+        "progression",
+        "skills",
+        "freischaltungen",
+        "metroidvania progression"
+      ]
+    },
+    {
+      "path": "/media/",
+      "title": "Media",
+      "summary": "Screenshots, Fact Sheet, Brandmaterial und Press-Kit.",
+      "tags": [
+        "media",
+        "screenshots",
+        "press kit",
+        "fact sheet"
+      ]
+    },
+    {
+      "path": "/reward/",
+      "title": "Daily Rewards",
+      "summary": "Live-Belohnungen, Reward-Pool und Reset-Zeiten fuer Joey's Slimeventure.",
+      "tags": [
+        "daily rewards",
+        "items",
+        "reward pool",
+        "live rewards"
+      ]
+    },
+    {
+      "path": "/about/",
+      "title": "Entwickler",
+      "summary": "Joshua Pond, PondSec und der Hintergrund hinter Joey's Slimeventure.",
+      "tags": [
+        "entwickler",
+        "pondsec",
+        "joshua pond",
+        "official studio"
+      ]
+    },
+    {
+      "path": "/faq/",
+      "title": "FAQ",
+      "summary": "Antworten auf die wichtigsten Fragen rund um Demo, Plattformen, Fortschritt und Content.",
+      "tags": [
+        "faq",
+        "hilfe",
+        "support",
+        "demo",
+        "platforms"
+      ]
+    },
+    {
+      "path": "/wiki/mechanics/#glow",
+      "title": "Glow",
+      "summary": "Joey bringt seine eigene Lichtquelle mit. Das sorgt für Stimmung, macht Kanten lesbar und führt Spieler bewusst durch dunklere Abschnitte.",
+      "tags": [
+        "Lesbarkeit",
+        "wiki",
+        "mechanik"
+      ]
+    },
+    {
+      "path": "/wiki/mechanics/#movement",
+      "title": "Slime Movement",
+      "summary": "Der Spielfluss baut auf weich reagierendem Movement auf: kurze Sprünge, kontrollierte Landungen und späteres vertikales Erweitern durch Freischaltungen.",
+      "tags": [
+        "Traversal",
+        "wiki",
+        "mechanik"
+      ]
+    },
+    {
+      "path": "/wiki/mechanics/#combat",
+      "title": "Combo Combat",
+      "summary": "Joeys Nahkampf ist auf Treffergefühl, Combo-Rhythmus und klares Ende von Angriffsketten ausgerichtet.",
+      "tags": [
+        "Kampf",
+        "wiki",
+        "mechanik"
+      ]
+    },
+    {
+      "path": "/wiki/mechanics/#essence",
+      "title": "Essenz und Loot",
+      "summary": "Kristallsplitter, Relikte und Materialdrops machen Erkundung wertvoll und geben Spielern einen greifbaren Fortschrittsloop.",
+      "tags": [
+        "Belohnung",
+        "wiki",
+        "mechanik"
+      ]
+    },
+    {
+      "path": "/wiki/mechanics/#progression",
+      "title": "Kapitel-Progression",
+      "summary": "Jedes Kapitel führt neue Anforderungen ein und macht weitere Hub-Türen sichtbar, sobald der vorherige Abschnitt sauber abgeschlossen wurde.",
+      "tags": [
+        "Struktur",
+        "wiki",
+        "mechanik"
+      ]
+    },
+    {
+      "path": "/wiki/enemies/",
+      "title": "Cave Bat",
+      "summary": "Die Fledermaus kontrolliert frühe Luftachsen und zwingt saubere Trefferfenster statt hektischem Button-Spam.",
+      "tags": [
+        "Tropfsteinhöhle",
+        "Luftdruck",
+        "gegner"
+      ]
+    },
+    {
+      "path": "/wiki/enemies/",
+      "title": "Slime King",
+      "summary": "Der träge, schwere Mini-Boss prüft, ob Joeys Movement, Tempo und Hit-Commitment bereits sauber sitzen.",
+      "tags": [
+        "Kapitel-I-Mini-Boss",
+        "Bossdruck",
+        "gegner"
+      ]
+    },
+    {
+      "path": "/wiki/items/",
+      "title": "Bat Artefact",
+      "summary": "Extrem seltener Reliktdrop mit offensivem Build-Potenzial.",
+      "tags": [
+        "Relikt",
+        "Mythisch",
+        "item"
+      ]
+    },
+    {
+      "path": "/wiki/items/",
+      "title": "Bat Claw",
+      "summary": "Früher Bat-Drop, ideal für Wurf- und Materialspiel.",
+      "tags": [
+        "Ressource",
+        "Häufig",
+        "item"
+      ]
+    },
+    {
+      "path": "/wiki/items/",
+      "title": "Copper Nugget",
+      "summary": "Häufige Grundressource für den frühen Loot-Loop.",
+      "tags": [
+        "Ressource",
+        "Häufig",
+        "item"
+      ]
+    },
+    {
+      "path": "/wiki/items/",
+      "title": "Gold Nugget",
+      "summary": "Seltener Fund für wertigere Runs.",
+      "tags": [
+        "Ressource",
+        "Selten",
+        "item"
+      ]
+    },
+    {
+      "path": "/wiki/items/",
+      "title": "Golem Heart",
+      "summary": "Seltene Boss-nahe Ressource mit Lebensbonus.",
+      "tags": [
+        "Relikt",
+        "Mythisch",
+        "item"
+      ]
+    },
+    {
+      "path": "/wiki/items/",
+      "title": "Iron Nugget",
+      "summary": "Stabilerer Drop mit spürbar mehr Wurf-Schaden.",
+      "tags": [
+        "Ressource",
+        "Ungewöhnlich",
+        "item"
+      ]
+    },
+    {
+      "path": "/wiki/items/",
+      "title": "Silver Nugget",
+      "summary": "Bekannter Inventar-Gegenstand.",
+      "tags": [
+        "Ressource",
+        "Mythisch",
+        "item"
+      ]
+    },
+    {
+      "path": "/wiki/items/",
+      "title": "Stone",
+      "summary": "Rohmaterial ohne markanten Kampfbonus.",
+      "tags": [
+        "Ressource",
+        "Nicht festgelegt",
+        "item"
+      ]
+    },
+    {
+      "path": "/wiki/progression/",
+      "title": "Glow",
+      "summary": "Joeys Leuchten macht dunkle Bereiche lesbar und setzt Cave-Atmosphäre unter Spannung.",
+      "tags": [
+        "skill",
+        "progression"
+      ]
+    },
+    {
+      "path": "/wiki/progression/",
+      "title": "Sticky Form",
+      "summary": "Verankert Joey an Oberflächen und erweitert Plattformrätsel.",
+      "tags": [
+        "Kapitel I abgeschlossen",
+        "skill",
+        "progression"
+      ]
+    },
+    {
+      "path": "/wiki/progression/",
+      "title": "Wall Slide",
+      "summary": "Gibt Joey Kontrolle an vertikalen Flächen und öffnet sichere Höhenwechsel.",
+      "tags": [
+        "Kapitel I • Level 1",
+        "skill",
+        "progression"
+      ]
+    },
+    {
+      "path": "/wiki/progression/",
+      "title": "Regeneration",
+      "summary": "Belohnt ruhige Spielmomente mit einem defensiven Rückzugswerkzeug.",
+      "tags": [
+        "Kapitel I • Level 3",
+        "skill",
+        "progression"
+      ]
+    },
+    {
+      "path": "/wiki/progression/",
+      "title": "Double Jump",
+      "summary": "Hebt die Traversal-Freiheit in Kapitel I spürbar an.",
+      "tags": [
+        "Kapitel I • Level 6",
+        "skill",
+        "progression"
+      ]
+    },
+    {
+      "path": "/wiki/progression/",
+      "title": "Dash",
+      "summary": "Kurzer Tempoburst für Kampf, Timing und Gap-Crossing.",
+      "tags": [
+        "Kapitel II abgeschlossen",
+        "skill",
+        "progression"
+      ]
+    },
+    {
+      "path": "/wiki/progression/",
+      "title": "Wall Run",
+      "summary": "Beschleunigt späteres Movement entlang klarer Wandstrecken.",
+      "tags": [
+        "Kapitel II • Level 3",
+        "skill",
+        "progression"
+      ]
+    },
+    {
+      "path": "/wiki/progression/",
+      "title": "Heal Burst",
+      "summary": "Schnelle Notheilung für druckvolle Begegnungen.",
+      "tags": [
+        "Kapitel II • Level 5",
+        "skill",
+        "progression"
+      ]
+    },
+    {
+      "path": "/wiki/progression/",
+      "title": "Teleport",
+      "summary": "Verlegt Joey gezielt über größere Distanzen.",
+      "tags": [
+        "Kapitel III abgeschlossen",
+        "skill",
+        "progression"
+      ]
+    },
+    {
+      "path": "/wiki/progression/",
+      "title": "Mana Shield",
+      "summary": "Absorbiert Druckspitzen in späteren Kapiteln.",
+      "tags": [
+        "Kapitel III • Level 4",
+        "skill",
+        "progression"
+      ]
+    },
+    {
+      "path": "/wiki/progression/",
+      "title": "Acid Spit",
+      "summary": "Gibt Joey eine neue Reichweitenachse im Kampf.",
+      "tags": [
+        "Kapitel IV abgeschlossen",
+        "skill",
+        "progression"
+      ]
+    },
+    {
+      "path": "/wiki/progression/",
+      "title": "Slime Minion",
+      "summary": "Unterstützt Kampfbegegnungen mit Begleitwesen.",
+      "tags": [
+        "Kapitel IV • Level 3",
+        "skill",
+        "progression"
+      ]
+    },
+    {
+      "path": "/wiki/progression/",
+      "title": "Slime Wings",
+      "summary": "Reduziert Falltempo und erweitert Luftkontrolle.",
+      "tags": [
+        "Kapitel V abgeschlossen",
+        "skill",
+        "progression"
+      ]
+    },
+    {
+      "path": "/wiki/progression/",
+      "title": "Thorns",
+      "summary": "Bestrafung für nahen Kontakt mit späteren Gegnern.",
+      "tags": [
+        "Kapitel V • Level 4",
+        "skill",
+        "progression"
+      ]
+    },
+    {
+      "path": "/wiki/progression/",
+      "title": "Gravity Slime",
+      "summary": "Endgame-Movement mit radikal veränderter Raumlogik.",
+      "tags": [
+        "Kapitel VI abgeschlossen",
+        "skill",
+        "progression"
+      ]
+    },
+    {
+      "path": "/wiki/progression/",
+      "title": "Phoenix Slime",
+      "summary": "High-end Power-Fantasy für späte Kapitel.",
+      "tags": [
+        "Kapitel VII abgeschlossen",
+        "skill",
+        "progression"
+      ]
+    },
+    {
+      "path": "/wiki/progression/",
+      "title": "Ultimate",
+      "summary": "Spitzenskills für große Bossphasen.",
+      "tags": [
+        "Kapitel VII abgeschlossen",
+        "skill",
+        "progression"
+      ]
+    },
+    {
+      "path": "/world/",
+      "title": "Die Tropfsteinhöhle",
+      "summary": "Feuchte Hallen aus Kalkstein, kaltem Wasser und leuchtenden Kristallen.",
+      "tags": [
+        "Spielbar",
+        "Kalkstein, kaltes Wasser, Kristalle",
+        "kapitel"
+      ]
+    },
+    {
+      "path": "/world/",
+      "title": "Die Knochenkatakomben",
+      "summary": "Ein versiegeltes Ossarium unter der Höhle.",
+      "tags": [
+        "In Planung",
+        "Staub, Knochen, Wandfackeln",
+        "kapitel"
+      ]
+    },
+    {
+      "path": "/world/",
+      "title": "Der Pilzwald",
+      "summary": "Wuchernde Pilze und toxische Sporen warten tiefer unten.",
+      "tags": [
+        "In Planung",
+        "Pilzlicht, Sporen, Wurzeln",
+        "kapitel"
+      ]
+    },
+    {
+      "path": "/world/",
+      "title": "Der Lava-Abgrund",
+      "summary": "Brodelnde Hitze hinter alten Basalttoren.",
+      "tags": [
+        "In Planung",
+        "Basalt, Magma, Hitzezonen",
+        "kapitel"
+      ]
+    },
+    {
+      "path": "/world/",
+      "title": "Die Faulniskluft",
+      "summary": "Verdorbene Tiefen, in denen Morgraths Atem hängt.",
+      "tags": [
+        "In Planung",
+        "Faulnis, Gift, Verderbnis",
+        "kapitel"
+      ]
+    },
+    {
+      "path": "/world/",
+      "title": "Der Schwarzkristallkern",
+      "summary": "Ein Herz aus dunklem Glas und stummer Magie.",
+      "tags": [
+        "In Planung",
+        "Schwarzkristall, Echo, Leere",
+        "kapitel"
+      ]
+    },
+    {
+      "path": "/world/",
+      "title": "Der Thronvorhof",
+      "summary": "Das letzte Tor vor Morgraths eigentlichem Sitz.",
+      "tags": [
+        "In Planung",
+        "Vorhof, Garde, Endspielspannung",
+        "kapitel"
+      ]
+    },
+    {
+      "path": "/shop/",
+      "title": "Wishlist on Steam",
+      "summary": "Setze Joey's Slimeventure auf deine Steam-Wunschliste, damit du beim Start von Early Access sofort benachrichtigt wirst.",
+      "tags": [
+        "Single-player",
+        "Steam Achievements",
+        "Steam Cloud",
+        "Stats",
+        "Family Sharing",
+        "English",
+        "German",
+        "steam",
+        "wishlist",
+        "shop"
+      ]
+    }
+  ]
+}

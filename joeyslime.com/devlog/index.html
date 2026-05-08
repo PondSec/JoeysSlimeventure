@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Devlog und Entwicklungsupdates | Joey&#x27;s Slimeventure</title>
+    <meta name="description" content="Echte Entwicklungsupdates aus dem Git-Verlauf von Joey&#x27;s Slimeventure mit sichtbarem Projektfortschritt und aktuellem Build-Kontext.">
+    <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
+    <meta name="theme-color" content="#050505">
+    <meta name="author" content="Joshua Pond">
+    <meta property="og:title" content="Devlog und Entwicklungsupdates | Joey&#x27;s Slimeventure">
+    <meta property="og:description" content="Echte Entwicklungsupdates aus dem Git-Verlauf von Joey&#x27;s Slimeventure mit sichtbarem Projektfortschritt und aktuellem Build-Kontext.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://joeyslime.com/devlog/">
+    <meta property="og:image" content="https://joeyslime.com/assets/media/hero-screenshot.png">
+    <meta property="og:image:width" content="1920">
+    <meta property="og:image:height" content="1080">
+    <meta property="og:locale" content="de_DE">
+    <meta property="og:site_name" content="Joey&#x27;s Slimeventure">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Devlog und Entwicklungsupdates | Joey&#x27;s Slimeventure">
+    <meta name="twitter:description" content="Echte Entwicklungsupdates aus dem Git-Verlauf von Joey&#x27;s Slimeventure mit sichtbarem Projektfortschritt und aktuellem Build-Kontext.">
+    <meta name="twitter:image" content="https://joeyslime.com/assets/media/hero-screenshot.png">
+    <meta name="twitter:image:alt" content="Screenshot aus Joey's Slimeventure">
+    <link rel="canonical" href="https://joeyslime.com/devlog/">
+    <link rel="icon" href="../logo.ico">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../assets/css/site.css">
+    
+    <script type="application/ld+json">[{"@context": "https://schema.org", "@type": "WebSite", "name": "Joey's Slimeventure", "url": "https://joeyslime.com", "inLanguage": "de-DE", "publisher": {"@type": "Organization", "name": "PondSec"}}, {"@context": "https://schema.org", "@type": "Organization", "name": "PondSec", "url": "https://pondsec.com", "sameAs": ["https://store.steampowered.com/app/4536840/Joeys_Slimeventure/", "https://github.com/JoshuaPondStudios/JoeysSlimeventure", "https://www.tiktok.com/@joeysslimeventure", "https://youtube.com/@pondsec", "https://pondsec.com", "https://portfolio.pondsec.com", "https://pondsec.itch.io/joeys-slimeventure"]}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Start", "item": "https://joeyslime.com/"}, {"@type": "ListItem", "position": 2, "name": "Devlog", "item": "https://joeyslime.com/devlog/"}]}, {"@context": "https://schema.org", "@type": "Blog", "name": "Joey's Slimeventure Devlog", "url": "https://joeyslime.com/devlog/"}]</script>
+</head>
+<body class="page-inner" data-current-path="/devlog/">
+    <a class="skip-link" href="#main">Zum Hauptinhalt springen</a>
+    <div class="loading-bar" id="loadingBar"></div>
+    
+    <nav class="main-nav" aria-label="Hauptnavigation">
+        <div class="nav-container">
+            <a href="../index.html" class="logo"><span class="logo-title">Slimeventure</span><span class="logo-sub">Official Site</span></a>
+            <div class="nav-links" id="site-navigation">
+                <a href="../index.html">Start</a><a href="../play/index.html">Spiel</a><a href="../shop/index.html" class="shop-link">Shop</a><a href="../world/index.html">Welt</a><a href="../devlog/index.html" class="active" aria-current="page">Devlog</a><a href="../wiki/index.html">Wiki</a><a href="../media/index.html">Media</a><a href="../faq/index.html">FAQ</a><a href="../about/index.html">Über</a><a href="../reward/index.html" class="reward-link">Daily Rewards</a>
+            </div>
+            <button class="hamburger-menu" id="hamburger-menu" aria-label="Menü öffnen" aria-expanded="false" aria-controls="site-navigation">
+                <div class="bar"></div>
+                <div class="bar"></div>
+                <div class="bar"></div>
+            </button>
+        </div>
+    </nav>
+    
+    
+    <header class="hero" id="main">
+        <div class="hero-panel scroll-reveal">
+            <div class="hero-content">
+                <span class="eyebrow">Devlog</span>
+                <h1>Entwicklungsupdates direkt aus dem Projekt</h1>
+                <p class="page-lead">Kein von Hand gepflegter Platzhalter-Blog: Diese Seite nimmt echte Commits aus dem Projekt und macht den Fortschritt fuer Spieler, Presse und Community lesbar.</p>
+                <div class="meta-pills">
+                    <span class="pill"><strong>Branch:</strong> codex/website-ui-refresh-2026-04-13</span>
+                    <span class="pill"><strong>Einträge:</strong> 36</span>
+                    <span class="pill"><strong>Stand:</strong> 2026-04-21 17:20 UTC</span>
+                </div>
+                <div class="hero-buttons">
+                    <a href="https://github.com/JoshuaPondStudios/JoeysSlimeventure" class="btn btn-large btn-magnetic" target="_blank" rel="noreferrer">GitHub öffnen</a>
+                    <a href="../wiki/index.html" class="btn btn-secondary btn-large">Zum Wiki</a>
+                </div>
+            </div>
+        </div>
+    </header>
+    <main data-devlog-root="true">
+        <section class="section-dark">
+            <div class="container">
+                <div class="section-header scroll-reveal">
+                    <h2>Was hier passiert</h2>
+                    <p>Der Devlog ist jetzt eine eigene Seite mit Suchfeld und Filterung. So bleibt die Startseite sauber und Spieler können Updates gezielt lesen.</p>
+                </div>
+                <div class="stat-grid">
+                    
+        <article class="content-panel scroll-reveal-stagger">
+            <h3>Quelle</h3>
+            <p>Branch <strong>codex/website-ui-refresh-2026-04-13</strong></p>
+        </article>
+        <article class="content-panel scroll-reveal-stagger">
+            <h3>Einträge</h3>
+            <p>36 Commits im sichtbaren Verlauf</p>
+        </article>
+        <article class="content-panel scroll-reveal-stagger">
+            <h3>Generiert</h3>
+            <p>2026-04-21 17:20 UTC</p>
+        </article>
+    
+                </div>
+            </div>
+        </section>
+        <section>
+            <div class="container">
+                <div class="filter-bar scroll-reveal">
+                    <input id="devlogSearch" class="toolbar-input" type="search" placeholder="Devlog durchsuchen">
+                    <button class="filter-button active" type="button" data-filter="all">Alle</button> <button class="filter-button" type="button" data-filter="General Update">General Update</button> <button class="filter-button" type="button" data-filter="Presentation / UI">Presentation / UI</button> <button class="filter-button" type="button" data-filter="Systems / AI">Systems / AI</button> <button class="filter-button" type="button" data-filter="World / Level Design">World / Level Design</button>
+                </div>
+                <div class="timeline-list" id="devlogEntries">
+                    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="Presentation / UI" data-search="backup: snapshot website before ui overhaul aktualisiert joey&#x27;s slimeventure mit sichtbaren änderungen im laufenden entwicklungsstand. ">
+        <div class="devlog-entry__meta">
+            <span class="pill">2026-04-13</span>
+            <span class="pill">Presentation / UI</span>
+            <span class="pill">aafed2c</span>
+        </div>
+        <h3>backup: snapshot website before UI overhaul</h3>
+        <p class="devlog-entry__summary">Aktualisiert Joey&#x27;s Slimeventure mit sichtbaren Änderungen im laufenden Entwicklungsstand.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="World / Level Design" data-search="refactor chapter generation and fix cave tile resolution stabilisiert einen bestehenden teil des projekts und entfernt reibung beim spielen oder entwickeln. ">
+        <div class="devlog-entry__meta">
+            <span class="pill">2026-04-12</span>
+            <span class="pill">World / Level Design</span>
+            <span class="pill">a2d1620</span>
+        </div>
+        <h3>Refactor chapter generation and fix cave tile resolution</h3>
+        <p class="devlog-entry__summary">Stabilisiert einen bestehenden Teil des Projekts und entfernt Reibung beim Spielen oder Entwickeln.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="Systems / AI" data-search="better lumora movement aktualisiert joey&#x27;s slimeventure mit sichtbaren änderungen im laufenden entwicklungsstand. ">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-10-09</span>
+            <span class="pill">Systems / AI</span>
+            <span class="pill">142349a</span>
+        </div>
+        <h3>Better Lumora Movement</h3>
+        <p class="devlog-entry__summary">Aktualisiert Joey&#x27;s Slimeventure mit sichtbaren Änderungen im laufenden Entwicklungsstand.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="Systems / AI" data-search="added lumora catch system fügt einen neuen baustein hinzu, der spiel, präsentation oder produktionsfluss erweitert. ">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-10-09</span>
+            <span class="pill">Systems / AI</span>
+            <span class="pill">6bdf0f0</span>
+        </div>
+        <h3>Added Lumora Catch System</h3>
+        <p class="devlog-entry__summary">Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="Systems / AI" data-search="added all 3 stars spyrion, vortex and lumora fügt einen neuen baustein hinzu, der spiel, präsentation oder produktionsfluss erweitert. ">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-10-08</span>
+            <span class="pill">Systems / AI</span>
+            <span class="pill">a1fda64</span>
+        </div>
+        <h3>Added all 3 Stars Spyrion, Vortex and Lumora</h3>
+        <p class="devlog-entry__summary">Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="Systems / AI" data-search="feat: add lumora skill progression system - add export variable for lumora reference in player script - implement damage tracking for lumora skill points: - notify lumora on successful attacks against enemies - include ultimate ability damage in skill points - add thorns damage reflection to skill progression - lumora gains 10% of player damage as skill points - enable lumora attack capability after reaching 150 skill points - scale damage multiplier with additional skill points (2% per 200 points over 150) this allows lumora to level up alongside the player based on combat performance. - add export variable for lumora reference in player script - implement damage tracking for lumora skill points: - notify lumora on successful attacks against enemies - include ultimate ability damage in skill points - add thorns damage reflection to skill progression - lumora gains 10% of player damage as skill points - enable lumora attack capability after reaching 150 skill points - scale damage multiplier with additional skill points (2% per 200 points over 150) this allows lumora to level up alongside the player based on combat performance.">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-10-08</span>
+            <span class="pill">Systems / AI</span>
+            <span class="pill">a956326</span>
+        </div>
+        <h3>feat: Add Lumora skill progression system</h3>
+        <p class="devlog-entry__summary">- Add export variable for Lumora reference in Player script - Implement damage tracking for Lumora skill points: - Notify Lumora on successful attacks against enemies - Include ultimate ability damage in skill points - Add thorns damage reflection to skill progression - Lumora gains 10% of player damage as skill points - Enable Lumora attack capability after reaching 150 skill points - Scale damage multiplier with additional skill points (2% per 200 points over 150) This allows Lumora to level up alongside the player based on combat performance.</p>
+        <p class="devlog-entry__body">- Add export variable for Lumora reference in Player script - Implement damage tracking for Lumora skill points: - Notify Lumora on successful attacks against enemies - Include ultimate ability damage in skill points - Add thorns damage reflection to skill progression - Lumora gains 10% of player damage as skill points - Enable Lumora attack capability after reaching 150 skill points - Scale damage multiplier with additional skill points (2% per 200 points over 150) This allows Lumora to level up alongside the player based on combat performance.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="Systems / AI" data-search="fix(lumora): implement working enemy detection and damage system - replace area2d-based detection with direct group search for reliable enemy targeting - fix collision layer issues by using get_tree().get_nodes_in_group(&#x27;enemies&#x27;) - add comprehensive debug logging to verify enemy detection and damage application - increase attack radius from 80 to 150 for better combat effectiveness - ensure take_damage method is properly called on all enemies in range - remove temporary area2d creation in favor of persistent group-based approach the system now correctly: - finds all enemies in the &#x27;enemies&#x27; group regardless of collision layers - applies base_damage * damage_multiplier to each enemy within attack_radius - creates visual attack effects at enemy positions - tracks and displays hit counts for debugging - replace area2d-based detection with direct group search for reliable enemy targeting - fix collision layer issues by using get_tree().get_nodes_in_group(&#x27;enemies&#x27;) - add comprehensive debug logging to verify enemy detection and damage application - increase attack radius from 80 to 150 for better combat effectiveness - ensure take_damage method is properly called on all enemies in range - remove temporary area2d creation in favor of persistent group-based approach the system now correctly: - finds all enemies in the &#x27;enemies&#x27; group regardless of collision layers - applies base_damage * damage_multiplier to each enemy within attack_radius - creates visual attack effects at enemy positions - tracks and displays hit counts for debugging">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-10-08</span>
+            <span class="pill">Systems / AI</span>
+            <span class="pill">d493a0b</span>
+        </div>
+        <h3>fix(lumora): implement working enemy detection and damage system</h3>
+        <p class="devlog-entry__summary">- Replace Area2D-based detection with direct group search for reliable enemy targeting - Fix collision layer issues by using get_tree().get_nodes_in_group(&#x27;enemies&#x27;) - Add comprehensive debug logging to verify enemy detection and damage application - Increase attack radius from 80 to 150 for better combat effectiveness - Ensure take_damage method is properly called on all enemies in range - Remove temporary Area2D creation in favor of persistent group-based approach The system now correctly: - Finds all enemies in the &#x27;enemies&#x27; group regardless of collision layers - Applies base_damage * damage_multiplier to each enemy within attack_radius - Creates visual attack effects at enemy positions - Tracks and displays hit counts for debugging</p>
+        <p class="devlog-entry__body">- Replace Area2D-based detection with direct group search for reliable enemy targeting - Fix collision layer issues by using get_tree().get_nodes_in_group(&#x27;enemies&#x27;) - Add comprehensive debug logging to verify enemy detection and damage application - Increase attack radius from 80 to 150 for better combat effectiveness - Ensure take_damage method is properly called on all enemies in range - Remove temporary Area2D creation in favor of persistent group-based approach The system now correctly: - Finds all enemies in the &#x27;enemies&#x27; group regardless of collision layers - Applies base_damage * damage_multiplier to each enemy within attack_radius - Creates visual attack effects at enemy positions - Tracks and displays hit counts for debugging</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="Systems / AI" data-search="fix(lumora): implement working enemy detection and damage system - replace area2d-based detection with direct group search for reliable enemy targeting - fix collision layer issues by using get_tree().get_nodes_in_group(&#x27;enemies&#x27;) - add comprehensive debug logging to verify enemy detection and damage application - increase attack radius from 80 to 150 for better combat effectiveness - ensure take_damage method is properly called on all enemies in range - remove temporary area2d creation in favor of persistent group-based approach the system now correctly: - finds all enemies in the &#x27;enemies&#x27; group regardless of collision layers - applies base_damage * damage_multiplier to each enemy within attack_radius - creates visual attack effects at enemy positions - tracks and displays hit counts for debugging - replace area2d-based detection with direct group search for reliable enemy targeting - fix collision layer issues by using get_tree().get_nodes_in_group(&#x27;enemies&#x27;) - add comprehensive debug logging to verify enemy detection and damage application - increase attack radius from 80 to 150 for better combat effectiveness - ensure take_damage method is properly called on all enemies in range - remove temporary area2d creation in favor of persistent group-based approach the system now correctly: - finds all enemies in the &#x27;enemies&#x27; group regardless of collision layers - applies base_damage * damage_multiplier to each enemy within attack_radius - creates visual attack effects at enemy positions - tracks and displays hit counts for debugging">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-10-08</span>
+            <span class="pill">Systems / AI</span>
+            <span class="pill">98dd05f</span>
+        </div>
+        <h3>fix(lumora): implement working enemy detection and damage system</h3>
+        <p class="devlog-entry__summary">- Replace Area2D-based detection with direct group search for reliable enemy targeting - Fix collision layer issues by using get_tree().get_nodes_in_group(&#x27;enemies&#x27;) - Add comprehensive debug logging to verify enemy detection and damage application - Increase attack radius from 80 to 150 for better combat effectiveness - Ensure take_damage method is properly called on all enemies in range - Remove temporary Area2D creation in favor of persistent group-based approach The system now correctly: - Finds all enemies in the &#x27;enemies&#x27; group regardless of collision layers - Applies base_damage * damage_multiplier to each enemy within attack_radius - Creates visual attack effects at enemy positions - Tracks and displays hit counts for debugging</p>
+        <p class="devlog-entry__body">- Replace Area2D-based detection with direct group search for reliable enemy targeting - Fix collision layer issues by using get_tree().get_nodes_in_group(&#x27;enemies&#x27;) - Add comprehensive debug logging to verify enemy detection and damage application - Increase attack radius from 80 to 150 for better combat effectiveness - Ensure take_damage method is properly called on all enemies in range - Remove temporary Area2D creation in favor of persistent group-based approach The system now correctly: - Finds all enemies in the &#x27;enemies&#x27; group regardless of collision layers - Applies base_damage * damage_multiplier to each enemy within attack_radius - Creates visual attack effects at enemy positions - Tracks and displays hit counts for debugging</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="Systems / AI" data-search="added ability to lumora fügt einen neuen baustein hinzu, der spiel, präsentation oder produktionsfluss erweitert. ">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-10-08</span>
+            <span class="pill">Systems / AI</span>
+            <span class="pill">83ebc48</span>
+        </div>
+        <h3>Added Ability to Lumora</h3>
+        <p class="devlog-entry__summary">Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="General Update" data-search="added vortex and pyrion fügt einen neuen baustein hinzu, der spiel, präsentation oder produktionsfluss erweitert. ">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-10-08</span>
+            <span class="pill">General Update</span>
+            <span class="pill">d0b8b14</span>
+        </div>
+        <h3>Added Vortex and Pyrion</h3>
+        <p class="devlog-entry__summary">Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="Systems / AI" data-search="fix lumora occasional freezing in mid-air - relax movement conditions to prevent unwanted stillness - add stuck protection to detect and resolve frozen states - implement continuous subtle movement adjustments - increase position tolerance and reduce movement thresholds - improve obstacle avoidance with more escape directions - maintain natural following behavior while eliminating freezes - relax movement conditions to prevent unwanted stillness - add stuck protection to detect and resolve frozen states - implement continuous subtle movement adjustments - increase position tolerance and reduce movement thresholds - improve obstacle avoidance with more escape directions - maintain natural following behavior while eliminating freezes">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-10-08</span>
+            <span class="pill">Systems / AI</span>
+            <span class="pill">b4908f4</span>
+        </div>
+        <h3>Fix Lumora occasional freezing in mid-air</h3>
+        <p class="devlog-entry__summary">- Relax movement conditions to prevent unwanted stillness - Add stuck protection to detect and resolve frozen states - Implement continuous subtle movement adjustments - Increase position tolerance and reduce movement thresholds - Improve obstacle avoidance with more escape directions - Maintain natural following behavior while eliminating freezes</p>
+        <p class="devlog-entry__body">- Relax movement conditions to prevent unwanted stillness - Add stuck protection to detect and resolve frozen states - Implement continuous subtle movement adjustments - Increase position tolerance and reduce movement thresholds - Improve obstacle avoidance with more escape directions - Maintain natural following behavior while eliminating freezes</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="Systems / AI" data-search="better movement lumora aktualisiert joey&#x27;s slimeventure mit sichtbaren änderungen im laufenden entwicklungsstand. ">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-10-08</span>
+            <span class="pill">Systems / AI</span>
+            <span class="pill">bec45e3</span>
+        </div>
+        <h3>Better movement Lumora</h3>
+        <p class="devlog-entry__summary">Aktualisiert Joey&#x27;s Slimeventure mit sichtbaren Änderungen im laufenden Entwicklungsstand.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="Systems / AI" data-search="added lumora fügt einen neuen baustein hinzu, der spiel, präsentation oder produktionsfluss erweitert. ">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-10-08</span>
+            <span class="pill">Systems / AI</span>
+            <span class="pill">f29acaf</span>
+        </div>
+        <h3>Added Lumora</h3>
+        <p class="devlog-entry__summary">Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="General Update" data-search="fixed collision bug stabilisiert einen bestehenden teil des projekts und entfernt reibung beim spielen oder entwickeln. ">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-10-07</span>
+            <span class="pill">General Update</span>
+            <span class="pill">f1782d4</span>
+        </div>
+        <h3>Fixed Collision Bug</h3>
+        <p class="devlog-entry__summary">Stabilisiert einen bestehenden Teil des Projekts und entfernt Reibung beim Spielen oder Entwickeln.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="General Update" data-search="add priority-based toasts with close buttons and hover effects fügt einen neuen baustein hinzu, der spiel, präsentation oder produktionsfluss erweitert. ">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-10-07</span>
+            <span class="pill">General Update</span>
+            <span class="pill">06371c8</span>
+        </div>
+        <h3>Add priority-based toasts with close buttons and hover effects</h3>
+        <p class="devlog-entry__summary">Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="General Update" data-search="better toasts added timer and close button fügt einen neuen baustein hinzu, der spiel, präsentation oder produktionsfluss erweitert. ">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-10-07</span>
+            <span class="pill">General Update</span>
+            <span class="pill">95fcf90</span>
+        </div>
+        <h3>Better Toasts added Timer and CLose Button</h3>
+        <p class="devlog-entry__summary">Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="General Update" data-search="added server message fügt einen neuen baustein hinzu, der spiel, präsentation oder produktionsfluss erweitert. ">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-10-07</span>
+            <span class="pill">General Update</span>
+            <span class="pill">76ce79a</span>
+        </div>
+        <h3>Added Server Message</h3>
+        <p class="devlog-entry__summary">Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="General Update" data-search="adjust leaf lifetime aktualisiert joey&#x27;s slimeventure mit sichtbaren änderungen im laufenden entwicklungsstand. ">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-10-05</span>
+            <span class="pill">General Update</span>
+            <span class="pill">c58ba8b</span>
+        </div>
+        <h3>Adjust leaf lifetime</h3>
+        <p class="devlog-entry__summary">Aktualisiert Joey&#x27;s Slimeventure mit sichtbaren Änderungen im laufenden Entwicklungsstand.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="General Update" data-search="better leaf interaction aktualisiert joey&#x27;s slimeventure mit sichtbaren änderungen im laufenden entwicklungsstand. ">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-10-05</span>
+            <span class="pill">General Update</span>
+            <span class="pill">18117c2</span>
+        </div>
+        <h3>Better Leaf Interaction</h3>
+        <p class="devlog-entry__summary">Aktualisiert Joey&#x27;s Slimeventure mit sichtbaren Änderungen im laufenden Entwicklungsstand.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="General Update" data-search="fixed some bugs stabilisiert einen bestehenden teil des projekts und entfernt reibung beim spielen oder entwickeln. ">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-10-05</span>
+            <span class="pill">General Update</span>
+            <span class="pill">ae54ee1</span>
+        </div>
+        <h3>Fixed some bugs</h3>
+        <p class="devlog-entry__summary">Stabilisiert einen bestehenden Teil des Projekts und entfernt Reibung beim Spielen oder Entwickeln.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="General Update" data-search="better enviroment aktualisiert joey&#x27;s slimeventure mit sichtbaren änderungen im laufenden entwicklungsstand. ">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-10-05</span>
+            <span class="pill">General Update</span>
+            <span class="pill">6d1e029</span>
+        </div>
+        <h3>Better Enviroment</h3>
+        <p class="devlog-entry__summary">Aktualisiert Joey&#x27;s Slimeventure mit sichtbaren Änderungen im laufenden Entwicklungsstand.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="General Update" data-search="added falling leaf&#x27;s fügt einen neuen baustein hinzu, der spiel, präsentation oder produktionsfluss erweitert. ">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-10-05</span>
+            <span class="pill">General Update</span>
+            <span class="pill">1c13be0</span>
+        </div>
+        <h3>Added falling leaf&#x27;s</h3>
+        <p class="devlog-entry__summary">Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="General Update" data-search="added bloom fügt einen neuen baustein hinzu, der spiel, präsentation oder produktionsfluss erweitert. ">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-10-05</span>
+            <span class="pill">General Update</span>
+            <span class="pill">ed35020</span>
+        </div>
+        <h3>Added Bloom</h3>
+        <p class="devlog-entry__summary">Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="World / Level Design" data-search="expanded level0 aktualisiert joey&#x27;s slimeventure mit sichtbaren änderungen im laufenden entwicklungsstand. ">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-10-03</span>
+            <span class="pill">World / Level Design</span>
+            <span class="pill">7c63b28</span>
+        </div>
+        <h3>Expanded Level0</h3>
+        <p class="devlog-entry__summary">Aktualisiert Joey&#x27;s Slimeventure mit sichtbaren Änderungen im laufenden Entwicklungsstand.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="General Update" data-search="added brain worm fügt einen neuen baustein hinzu, der spiel, präsentation oder produktionsfluss erweitert. ">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-10-01</span>
+            <span class="pill">General Update</span>
+            <span class="pill">afbf49f</span>
+        </div>
+        <h3>added brain worm</h3>
+        <p class="devlog-entry__summary">Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="General Update" data-search="added background light fügt einen neuen baustein hinzu, der spiel, präsentation oder produktionsfluss erweitert. ">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-10-01</span>
+            <span class="pill">General Update</span>
+            <span class="pill">97df5b7</span>
+        </div>
+        <h3>Added Background light</h3>
+        <p class="devlog-entry__summary">Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="General Update" data-search="abilitys aktualisiert joey&#x27;s slimeventure mit sichtbaren änderungen im laufenden entwicklungsstand. ">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-10-01</span>
+            <span class="pill">General Update</span>
+            <span class="pill">5d4ecd4</span>
+        </div>
+        <h3>Abilitys</h3>
+        <p class="devlog-entry__summary">Aktualisiert Joey&#x27;s Slimeventure mit sichtbaren Änderungen im laufenden Entwicklungsstand.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="General Update" data-search="merge remote-tracking branch &#x27;origin/dev&#x27; into dev aktualisiert joey&#x27;s slimeventure mit sichtbaren änderungen im laufenden entwicklungsstand. ">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-10-01</span>
+            <span class="pill">General Update</span>
+            <span class="pill">8878249</span>
+        </div>
+        <h3>Merge remote-tracking branch &#x27;origin/dev&#x27; into dev</h3>
+        <p class="devlog-entry__summary">Aktualisiert Joey&#x27;s Slimeventure mit sichtbaren Änderungen im laufenden Entwicklungsstand.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="General Update" data-search="better background aktualisiert joey&#x27;s slimeventure mit sichtbaren änderungen im laufenden entwicklungsstand. ">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-10-01</span>
+            <span class="pill">General Update</span>
+            <span class="pill">c809d06</span>
+        </div>
+        <h3>better Background</h3>
+        <p class="devlog-entry__summary">Aktualisiert Joey&#x27;s Slimeventure mit sichtbaren Änderungen im laufenden Entwicklungsstand.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="General Update" data-search="better minion agent aktualisiert joey&#x27;s slimeventure mit sichtbaren änderungen im laufenden entwicklungsstand. ">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-09-03</span>
+            <span class="pill">General Update</span>
+            <span class="pill">88050d9</span>
+        </div>
+        <h3>Better Minion Agent</h3>
+        <p class="devlog-entry__summary">Aktualisiert Joey&#x27;s Slimeventure mit sichtbaren Änderungen im laufenden Entwicklungsstand.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="General Update" data-search="added slime minion fügt einen neuen baustein hinzu, der spiel, präsentation oder produktionsfluss erweitert. ">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-09-02</span>
+            <span class="pill">General Update</span>
+            <span class="pill">5c45826</span>
+        </div>
+        <h3>Added Slime Minion</h3>
+        <p class="devlog-entry__summary">Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="General Update" data-search="added thorns ability fügt einen neuen baustein hinzu, der spiel, präsentation oder produktionsfluss erweitert. ">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-09-02</span>
+            <span class="pill">General Update</span>
+            <span class="pill">1cec8cd</span>
+        </div>
+        <h3>Added Thorns Ability</h3>
+        <p class="devlog-entry__summary">Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="General Update" data-search="added new ability sticky form fügt einen neuen baustein hinzu, der spiel, präsentation oder produktionsfluss erweitert. ">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-09-02</span>
+            <span class="pill">General Update</span>
+            <span class="pill">4b49746</span>
+        </div>
+        <h3>Added new Ability Sticky Form</h3>
+        <p class="devlog-entry__summary">Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="General Update" data-search="fixed mana_shield bug stabilisiert einen bestehenden teil des projekts und entfernt reibung beim spielen oder entwickeln. ">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-08-31</span>
+            <span class="pill">General Update</span>
+            <span class="pill">10ab831</span>
+        </div>
+        <h3>Fixed mana_shield bug</h3>
+        <p class="devlog-entry__summary">Stabilisiert einen bestehenden Teil des Projekts und entfernt Reibung beim Spielen oder Entwickeln.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="General Update" data-search="added mana shield fügt einen neuen baustein hinzu, der spiel, präsentation oder produktionsfluss erweitert. ">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-08-31</span>
+            <span class="pill">General Update</span>
+            <span class="pill">0cf21fc</span>
+        </div>
+        <h3>Added Mana Shield</h3>
+        <p class="devlog-entry__summary">Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+    <article class="timeline-entry scroll-reveal" data-devlog-entry="true" data-category="General Update" data-search="added wall_run and double_jump and teleport fügt einen neuen baustein hinzu, der spiel, präsentation oder produktionsfluss erweitert. ">
+        <div class="devlog-entry__meta">
+            <span class="pill">2025-08-31</span>
+            <span class="pill">General Update</span>
+            <span class="pill">0c6c4c1</span>
+        </div>
+        <h3>Added Wall_run and double_jump and Teleport</h3>
+        <p class="devlog-entry__summary">Fügt einen neuen Baustein hinzu, der Spiel, Präsentation oder Produktionsfluss erweitert.</p>
+        <p class="devlog-entry__body">Kein zusätzlicher Commit-Text hinterlegt.</p>
+    </article>
+    
+                </div>
+                <div class="empty-state" id="devlogEmpty" hidden>Keine Einträge passen zu deinem Filter.</div>
+            </div>
+        </section>
+    </main>
+    
+    <button class="quick-finder" id="quickFinderOpen" type="button" aria-label="Schnellfinder öffnen">
+        <i class="fas fa-compass" aria-hidden="true"></i>
+    </button>
+    <div class="site-command" id="siteCommand" hidden aria-hidden="true">
+        <button class="site-command__backdrop" type="button" data-command-close aria-label="Schnellfinder schließen"></button>
+        <div class="site-command__panel" role="dialog" aria-modal="true" aria-labelledby="siteCommandTitle">
+            <div class="site-command__header">
+                <div>
+                    <p class="site-command__eyebrow">Schnellfinder</p>
+                    <h2 id="siteCommandTitle">Finde Demo, Wiki, Kapitel und Kanäle sofort</h2>
+                </div>
+                <button class="site-command__close" type="button" data-command-close aria-label="Schnellfinder schließen">
+                    <i class="fas fa-xmark" aria-hidden="true"></i>
+                </button>
+            </div>
+            <p class="site-command__hint">Für neue Besucher und Spieler: schnell zur Demo, zum Wiki, zu Daily Rewards, GitHub, TikTok und den wichtigsten Seiten springen.</p>
+            <input id="siteCommandInput" class="toolbar-input site-command__input" type="search" placeholder="Seite, Feature oder Kanal suchen">
+            <div class="site-command__results" id="siteCommandResults"></div>
+        </div>
+    </div>
+    
+    <footer>
+        <div class="footer-content">
+            <div class="footer-column footer-column--brand">
+                <h3>Slimeventure</h3>
+                <p class="footer-copy">
+                    Die offizielle Website zu Joey's Slimeventure mit Browser-Demo, Gameplay-Ueberblick, Welt, Wiki, Devlog und offiziellen Projektlinks.
+                </p>
+                <div class="footer-status">
+                    <span class="footer-pill">Browser-Demo</span>
+                    <span class="footer-pill">Steam Shop live</span>
+                    <span class="footer-pill">Kapitel I spielbar</span>
+                    <span class="footer-pill">Wiki & Devlog</span>
+                </div>
+                <div class="social-links">
+                    <a href="https://store.steampowered.com/app/4536840/Joeys_Slimeventure/" class="social-link" target="_blank" rel="noreferrer" aria-label="Steam"><i class="fab fa-steam"></i></a>
+                    <a href="https://github.com/JoshuaPondStudios/JoeysSlimeventure" class="social-link" target="_blank" rel="noreferrer" aria-label="GitHub"><i class="fab fa-github"></i></a>
+                    <a href="https://www.tiktok.com/@joeysslimeventure" class="social-link" target="_blank" rel="noreferrer" aria-label="TikTok"><i class="fab fa-tiktok"></i></a>
+                    <a href="https://youtube.com/@pondsec" class="social-link" target="_blank" rel="noreferrer" aria-label="YouTube"><i class="fab fa-youtube"></i></a>
+                    <a href="https://pondsec.com" class="social-link" target="_blank" rel="noreferrer" aria-label="PondSec"><i class="fas fa-globe"></i></a>
+                </div>
+            </div>
+            <div class="footer-column">
+                <h3>Schnell rein</h3>
+                <ul class="footer-links">
+        <li><a href="../web_demo/index.html">Demo spielen</a></li>
+        <li><a href="../shop/index.html">Steam Shop</a></li>
+        <li><a href="../world/index.html">Kapitel & Welt</a></li>
+        <li><a href="../wiki/index.html">Game Wiki</a></li>
+        <li><a href="../devlog/index.html">Git-Devlog</a></li>
+        <li><a href="../reward/index.html">Daily Rewards</a></li>
+    </ul>
+            </div>
+            <div class="footer-column">
+                <h3>Seiten</h3>
+                <ul class="footer-links"><li><a href="../index.html">Start</a></li><li><a href="../play/index.html">Spiel</a></li><li><a href="../shop/index.html">Shop</a></li><li><a href="../world/index.html">Welt</a></li><li><a href="../devlog/index.html">Devlog</a></li><li><a href="../wiki/index.html">Wiki</a></li><li><a href="../media/index.html">Media</a></li><li><a href="../faq/index.html">FAQ</a></li><li><a href="../about/index.html">Über</a></li></ul>
+            </div>
+            <div class="footer-column">
+                <h3>Offiziell</h3>
+                <ul class="footer-links">
+                    <li><a href="https://store.steampowered.com/app/4536840/Joeys_Slimeventure/" target="_blank" rel="noreferrer">Steam</a></li>
+                    <li><a href="https://github.com/JoshuaPondStudios/JoeysSlimeventure" target="_blank" rel="noreferrer">GitHub</a></li>
+                    <li><a href="https://www.tiktok.com/@joeysslimeventure" target="_blank" rel="noreferrer">TikTok</a></li>
+                    <li><a href="https://pondsec.com" target="_blank" rel="noreferrer">PondSec</a></li>
+                    <li><a href="https://portfolio.pondsec.com" target="_blank" rel="noreferrer">Portfolio</a></li>
+                    <li><a href="https://pondsec.itch.io/joeys-slimeventure" target="_blank" rel="noreferrer">Itch.io</a></li>
+                    <li><a href="mailto:contact@pondsec.com">Kontakt</a></li>
+                    <li><a href="https://pondsec.com/impressum" target="_blank" rel="noreferrer">Impressum</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="copyright">
+            <p>&copy; 2026 Joey's Slimeventure. Alle Rechte vorbehalten.</p>
+        </div>
+    </footer>
+    
+    <button class="cursor-toggle" id="cursorToggle" type="button" aria-label="Spezialcursor umschalten" aria-pressed="true">
+        <i class="fas fa-crosshairs" aria-hidden="true"></i>
+    </button>
+    <button class="back-to-top" id="backToTop" aria-label="Zurück nach oben"><i class="fas fa-chevron-up"></i></button>
+    
+    <script src="../assets/js/site.js" defer></script>
+</body>
+</html>

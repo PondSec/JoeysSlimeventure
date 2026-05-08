@@ -5,6 +5,7 @@
 [sub_resource type="GDScript" id="GDScript_t13jq"]
 script/source = "extends Control
 class_name SkillTree
+const SkillProgression = preload(\"res://Scripts/skill_progression.gd\")
 
 # Texturen für die Skill-Knoten
 var node_texture = preload(\"res://Assets/SkillTree/SkillNodeActive.png\")
@@ -177,6 +178,16 @@ var skills = {
 		\"required_levels\": [\"level31\"],
 		\"description\": \"Joey bildet schleimige Flügel aus und kann langsam über Abgründe gleiten.\",
 		\"icon\": null
+	},
+
+	# HERO-FORM STRANG (Verwandlung / Hybrid-Movement)
+	\"hero_form\": {
+		\"pos\": Vector2(400, 430) * scale_factor,
+		\"unlocked\": false,
+		\"requires\": [\"glow\"],
+		\"required_levels\": [\"Game\"],
+		\"description\": \"Joey fokussiert seine uralte Magie und kann sich mit O in den Cave Hero verwandeln. Nochmal O bringt ihn zurueck in die Slime-Form.\",
+		\"icon\": null
 	}
 }
 
@@ -201,7 +212,10 @@ var connections = [
 	[\"sticky_form\", \"slime_minion\"],
 	[\"slime_minion\", \"acid_spit\"],
 	[\"slime_minion\", \"slime_wings\"],
-	[\"acid_spit\", \"gravity_slime\"]
+	[\"acid_spit\", \"gravity_slime\"],
+
+	# Hero Form
+	[\"glow\", \"hero_form\"]
 ]
 
 var hovered_node = null
@@ -214,12 +228,15 @@ signal skill_unlocked(skill_name)
 func _ready():
 	# Vollbild einstellen
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	SkillProgression.apply_to_skills(skills)
 	
 	self.visible = false
 	await get_tree().process_frame
 	
 	if player:
-		skill_unlocked.connect(player._on_skill_unlocked)
+		var unlock_callable = Callable(player, \"_on_skill_unlocked\")
+		if not skill_unlocked.is_connected(unlock_callable):
+			skill_unlocked.connect(unlock_callable)
 	
 	create_tooltip()
 	connect_to_doors()
@@ -241,6 +258,9 @@ func _on_level_completed(level_name: String):
 	print(\"Level abgeschlossen: \", level_name, \" - Aktualisiere Skillbaum\")
 	check_available_skills()
 	queue_redraw()
+
+func _format_required_levels(required_levels) -> PackedStringArray:
+	return SkillProgression.format_marker_list(required_levels)
 
 func _draw():
 	draw_background_panel()
@@ -408,7 +428,7 @@ func draw_level_requirements(skill, node_size, offset):
 	# Lade Pixelart-Font
 	var font = load(\"res://Assets/GUI/Font/PixelatedEleganceRegular-ovyAA.ttf\")
 	var font_size = 10 * scale_factor
-	var levels_text = \"Benötigt: \" + \", \".join(skill.required_levels)
+	var levels_text = \"Benötigt: \" + \", \".join(_format_required_levels(skill.required_levels))
 	
 	# Berechne die Textgröße für die korrekte Positionierung
 	var text_size = font.get_string_size(levels_text, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size)
@@ -539,7 +559,7 @@ func handle_mouse_motion(event):
 
 func update_tooltip_text(skill):
 	# Erstelle Tooltip-Text
-	var levels_text = \"Benötigte Level: \" + \", \".join(skill.required_levels)
+	var levels_text = \"Benötigte Meilensteine: \" + \", \".join(_format_required_levels(skill.required_levels))
 	skill_tooltip_text = skill.description + \"\\n\" + levels_text
 	
 	# Füge Info über fehlende Level hinzu
@@ -548,12 +568,12 @@ func update_tooltip_text(skill):
 	
 	for req_level in skill.required_levels:
 		if not req_level in completed_levels:
-			missing_levels.append(req_level)
+			missing_levels.append(SkillProgression.format_marker(req_level))
 	
 	if missing_levels.size() > 0:
-		skill_tooltip_text += \"\\n\\nFehlende Level: \" + \", \".join(missing_levels)
+		skill_tooltip_text += \"\\n\\nFehlende Schritte: \" + \", \".join(missing_levels)
 	else:
-		skill_tooltip_text += \"\\n\\nAlle Level abgeschlossen!\"
+		skill_tooltip_text += \"\\n\\nAlle Voraussetzungen erfüllt!\"
 
 func try_unlock_skill():
 	if not hovered_node or skills[hovered_node].unlocked:
@@ -574,7 +594,6 @@ func try_unlock_skill():
 
 func unlock_skill(skill_name):
 	skills[skill_name].unlocked = true
-	skill_unlocked.emit(skill_name)
 	
 	# Entferne den Skill aus der verfügbaren Liste
 	if available_skills.has(skill_name):
@@ -582,15 +601,15 @@ func unlock_skill(skill_name):
 	
 	# Aktiviere den Skill im Player
 	if player:
-		match skill_name:
-			\"wall_slide\":
-				player.has_wall_slide_skill = true
-				print(\"Wall Slide aktiviert\")
-			\"ult\":
-				player.has_ult_skill = true
-				print(\"Ultimate aktiviert\")
+		if player.has_method(\"grant_skill\"):
+			player.grant_skill(skill_name, false)
+		else:
+			skill_unlocked.emit(skill_name)
+	else:
+		skill_unlocked.emit(skill_name)
 	
-	player.save_skills()
+	if player and player.has_method(\"save_skills\"):
+		player.save_skills()
 	save_skills()
 	queue_redraw()
 
@@ -673,12 +692,13 @@ func check_available_skills():
 # Funktion zum Anzeigen der Skill-Notification
 func show_skill_notification(skill_name: String):
 	var skill = skills[skill_name]
-	var notification_text = \"Neuer Skill verfügbar: \" + skill_name + \"\\n\" + skill.description
-	
-	# Zugriff auf den CanvasLayer (SkillTreeUI)
-	var canvas_layer = get_parent()
-	if canvas_layer and canvas_layer.has_method(\"show_notification\"):
-		canvas_layer.show_notification(notification_text)
+	var pretty_name = SkillProgression.get_skill_title(skill_name)
+	var notification_text = \"Neuer Skill verfügbar: \" + pretty_name + \"\\n\" + skill.description
+
+	if player and player.has_method(\"_show_feedback_toast\"):
+		player._show_feedback_toast(notification_text, \"reward\", null)
+		if player.has_method(\"_show_feedback_banner\"):
+			player._show_feedback_banner(pretty_name.to_upper() + \" BEREIT\", Color(0.52, 0.96, 0.72, 1.0), 0.5)
 	else:
 		print(\"Could not find SkillTreeUI to show notification\")
 
@@ -700,38 +720,37 @@ func reset_view():
 	queue_redraw()
 
 func update_tooltip_position():
+	var tooltip = get_node_or_null(\"Tooltip\")
+	if tooltip == null:
+		return
+
 	if skill_tooltip_visible and hovered_node:
-		var tooltip = $Tooltip
-		if tooltip:
-			tooltip.text = skill_tooltip_text
-			tooltip.visible = true
-			
-			# Tooltip-Position relativ zur Maus, aber innerhalb des Bildschirms halten
-			var mouse_pos = get_global_mouse_position()
-			var tooltip_size = tooltip.get_minimum_size()
-			var viewport_size = get_viewport_rect().size
-			
-			var tooltip_pos = mouse_pos + Vector2(20, 20)
-			
-			# Stelle sicher, dass der Tooltip nicht aus dem Bildschirm herausragt
-			if tooltip_pos.x + tooltip_size.x > viewport_size.x:
-				tooltip_pos.x = viewport_size.x - tooltip_size.x - 10
-			if tooltip_pos.y + tooltip_size.y > viewport_size.y:
-				tooltip_pos.y = viewport_size.y - tooltip_size.y - 10
-			
-			tooltip.position = tooltip_pos
+		tooltip.text = skill_tooltip_text
+		tooltip.visible = true
+		
+		# Tooltip-Position relativ zur Maus, aber innerhalb des Bildschirms halten
+		var mouse_pos = get_global_mouse_position()
+		var tooltip_size = tooltip.get_minimum_size()
+		var viewport_size = get_viewport_rect().size
+		
+		var tooltip_pos = mouse_pos + Vector2(20, 20)
+		
+		# Stelle sicher, dass der Tooltip nicht aus dem Bildschirm herausragt
+		if tooltip_pos.x + tooltip_size.x > viewport_size.x:
+			tooltip_pos.x = viewport_size.x - tooltip_size.x - 10
+		if tooltip_pos.y + tooltip_size.y > viewport_size.y:
+			tooltip_pos.y = viewport_size.y - tooltip_size.y - 10
+		
+		tooltip.position = tooltip_pos
 	else:
-		var tooltip = $Tooltip
-		if tooltip:
-			tooltip.visible = false
+		tooltip.visible = false
 
 # Speichern und Laden
 func save_skills():
 	var save_data = {}
 	for skill_name in skills:
 		save_data[skill_name] = {
-			\"unlocked\": skills[skill_name].unlocked,
-			\"required_levels\": skills[skill_name].required_levels
+			\"unlocked\": skills[skill_name].unlocked
 		}
 	
 	var save_game = FileAccess.open(\"user://skills.save\", FileAccess.WRITE)
@@ -753,17 +772,6 @@ func load_skills():
 			for skill_name in save_data:
 				if skills.has(skill_name):
 					skills[skill_name].unlocked = save_data[skill_name].unlocked
-					
-					if \"required_levels\" in save_data[skill_name]:
-						skills[skill_name].required_levels = save_data[skill_name].required_levels
-					
-					# Aktiviere Skill im Player, wenn freigeschaltet
-					if save_data[skill_name].unlocked and player and can_unlock_skill(skill_name):
-						match skill_name:
-							\"wall_slide\":
-								player.has_wall_slide_skill = true
-							\"ult\":
-								player.has_ult_skill = true
 	
 	queue_redraw()
 

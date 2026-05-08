@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="InvItem" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://InventorySystem/inventory_item.gd" id="1_item"]
+[ext_resource type="Texture2D" path="res://Assets/Items/iron_nugget.png" id="2_texture"]
+
+[resource]
+script = ExtResource("1_item")
+name = "silver_nugget"
+texture = ExtResource("2_texture")
+health_bonus = 0.0
+damage_bonus = 0.0
+crit_chance_bonus = 0.0
+crit_damage_bonus = 0.0
+throw_damage = 0.0
+drop_chance = 0.0

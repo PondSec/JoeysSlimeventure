@@ -1,0 +1,1320 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- SEO Meta Tags -->
+    <title>Slimeventure - Kostenloses Pixelart Abenteuerspiel im Browser</title>
+    <meta name="description" content="Spiele Joey's Slimeventure - ein kostenloses Pixelart-Abenteuer mit dynamischem Lichtsystem, Bosskämpfen und Charakterentwicklung. Jetzt im Browser spielen!">
+    <meta name="robots" content="noindex,nofollow,noarchive">
+    <meta name="keywords" content="Slimeventure, Pixelart Spiel, Abenteuerspiel, Browser Game, kostenloses Spiel, Indie Game, Retro Spiel, Joshua Pond">
+    <meta name="author" content="Joshua Pond">
+    
+    <!-- Open Graph / Social Media Meta Tags -->
+    <meta property="og:title" content="Slimeventure - Kostenloses Pixelart Abenteuerspiel">
+    <meta property="og:description" content="Tauche ein in Joey's Slimeventure - ein klebriges Pixelart-Abenteuer voller Gefahren, Rätsel und epischer Bosskämpfe!">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://joeyslime.com">
+    <meta property="og:image" content="https://joeyslime.com/img/og-image.png">
+    <meta property="og:site_name" content="Slimeventure">
+    
+    <!-- Twitter Card Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Slimeventure - Kostenloses Pixelart Abenteuerspiel">
+    <meta name="twitter:description" content="Tauche ein in Joey's Slimeventure - ein klebriges Pixelart-Abenteuer voller Gefahren, Rätsel und epischer Bosskämpfe!">
+    <meta name="twitter:image" content="https://joeyslime.com/img/twitter-image.png">
+    <meta name="twitter:creator" content="@SlimeventureGame">
+    <link rel="icon" href="logo.ico">
+    <style>
+        :root {
+            --primary: #AFFF82;
+            --primary-dark: #4CAF50;
+            --accent: #FF82C3;
+            --dark: #1a1a1a;
+            --darker: #0f0f0f;
+            --light: #f0f0f0;
+            --gray: #888;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Press Start 2P', cursive, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+            background: var(--darker) url('bg.png') no-repeat center center/cover;
+            color: var(--light);
+            image-rendering: pixelated;
+            overflow-x: hidden;
+            scroll-behavior: smooth;
+        }
+        
+        body::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        body::-webkit-scrollbar-track {
+            background: var(--dark);
+        }
+        
+        body::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 0;
+        }
+        
+        /* Header mit Hero-Bereich */
+        .hero {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            padding: 0 20px;
+        }
+        
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.3) 100%);
+            z-index: 1;
+        }
+        
+        .hero-content {
+            position: relative;
+            z-index: 2;
+            max-width: 800px;
+        }
+        
+        .hero h1 {
+            font-size: 3rem;
+            text-shadow: 6px 6px 0 #000;
+            margin-bottom: 1.5rem;
+            color: var(--primary);
+            line-height: 1.2;
+        }
+        
+        .hero p {
+            font-size: 1.2rem;
+            margin-bottom: 2.5rem;
+            color: var(--light);
+            text-shadow: 2px 2px 0 #000;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        .hero-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        /* Navigation */
+        .main-nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(10, 10, 10, 0.95);
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+            padding: 15px 0;
+            border-bottom: 3px solid var(--primary);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        }
+        
+        .nav-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--primary);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .logo img {
+            height: 40px;
+            width: auto;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 25px;
+        }
+        
+        .nav-links a {
+            color: var(--light);
+            text-decoration: none;
+            font-size: 0.8rem;
+            transition: all 0.3s ease;
+            position: relative;
+            padding: 5px 0;
+        }
+        
+        .nav-links a:hover {
+            color: var(--primary);
+        }
+        
+        .nav-links a::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--primary);
+            transition: width 0.3s ease;
+        }
+        
+        .nav-links a:hover::after {
+            width: 100%;
+        }
+        
+        .reward-link {
+            color: var(--accent) !important;
+            position: relative;
+        }
+        
+        .reward-link::before {
+            content: '✨';
+            margin-right: 5px;
+        }
+        
+        .reward-link:hover {
+            color: #ffaad4 !important;
+        }
+        
+        .notification-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: #ff4444;
+            color: white;
+            border-radius: 50%;
+            width: 8px;
+            height: 8px;
+            font-size: 0.6rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .hamburger-menu {
+            display: none;
+            flex-direction: column;
+            gap: 5px;
+            cursor: pointer;
+            background: transparent;
+            border: none;
+            padding: 5px;
+        }
+        
+        .hamburger-menu .bar {
+            width: 25px;
+            height: 3px;
+            background: var(--primary);
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+        
+        /* Buttons */
+        .btn {
+            display: inline-block;
+            background: var(--primary);
+            color: var(--dark);
+            padding: 12px 24px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.9rem;
+            text-decoration: none;
+            border: 3px solid var(--primary-dark);
+            cursor: pointer;
+            box-shadow: 4px 4px 0 #000;
+            transition: all 0.2s ease;
+            text-align: center;
+            image-rendering: pixelated;
+        }
+        
+        .btn:hover {
+            background: #D0FFB6;
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0 #000;
+        }
+        
+        .btn-secondary {
+            background: transparent;
+            color: var(--primary);
+            border-color: var(--primary);
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(175, 255, 130, 0.1);
+        }
+        
+        .btn-accent {
+            background: var(--accent);
+            color: var(--dark);
+            border-color: #e861a8;
+        }
+        
+        .btn-accent:hover {
+            background: #ffaad4;
+            transform: translate(-2px, -2px);
+        }
+        
+        .btn-large {
+            padding: 15px 30px;
+            font-size: 1rem;
+        }
+        
+        .expand-btn {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 20px;
+            transition: all 0.3s ease;
+        }
+        
+        .expand-btn .fa-chevron-down {
+            transition: transform 0.3s ease;
+        }
+        
+        .expand-btn.expanded .fa-chevron-down {
+            transform: rotate(180deg);
+        }
+        
+        /* Sections */
+        section {
+            padding: 80px 20px;
+            position: relative;
+        }
+        
+        .section-dark {
+            background: rgba(0, 0, 0, 0.4);
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .section-header {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+        
+        .section-header h2 {
+            font-size: 2rem;
+            color: var(--primary);
+            margin-bottom: 20px;
+            text-shadow: 3px 3px 0 #000;
+            position: relative;
+            display: inline-block;
+        }
+        
+        .section-header h2::after {
+            content: '';
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100px;
+            height: 4px;
+            background: var(--primary);
+        }
+        
+        .section-header p {
+            color: var(--gray);
+            max-width: 700px;
+            margin: 0 auto;
+            font-size: 0.9rem;
+        }
+        
+        /* Game Info */
+        .game-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            align-items: center;
+        }
+        
+        .game-info-image {
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.3);
+            border: 3px solid var(--primary);
+        }
+        
+        .game-info-image img {
+            width: 100%;
+            height: auto;
+            display: block;
+            transition: transform 0.5s ease;
+        }
+        
+        .game-info-image:hover img {
+            transform: scale(1.05);
+        }
+        
+        .game-info-text h3 {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            color: var(--primary);
+        }
+        
+        .game-info-text p {
+            margin-bottom: 20px;
+            color: var(--light);
+            font-size: 0.9rem;
+            line-height: 1.7;
+        }
+        
+        /* Features Grid */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-top: 40px;
+        }
+        
+        .feature-card {
+            background: rgba(30, 30, 30, 0.7);
+            padding: 30px;
+            border-radius: 10px;
+            border: 2px solid var(--primary-dark);
+            box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.3);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.3);
+        }
+        
+        .feature-icon {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+            color: var(--primary);
+        }
+        
+        .feature-card h3 {
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            color: var(--primary);
+        }
+        
+        .feature-card p {
+            color: var(--light);
+            font-size: 0.8rem;
+            line-height: 1.6;
+        }
+        
+        /* Play Section */
+        .play-section {
+            text-align: center;
+        }
+        
+        .itch-embed-container {
+            display: flex;
+            justify-content: center;
+            margin: 40px 0;
+        }
+        
+        .pixel-frame {
+            background: #2a2a2a;
+            border: 4px solid var(--primary);
+            border-radius: 0;
+            box-shadow: 
+                8px 8px 0 #000,
+                0 0 0 2px var(--primary),
+                8px 8px 0 2px #000;
+            image-rendering: pixelated;
+            font-family: 'Press Start 2P', cursive;
+            max-width: 552px;
+            width: 100%;
+        }
+        
+        .pixel-header {
+            background: var(--primary);
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 3px solid #000;
+        }
+        
+        .pixel-dots {
+            display: flex;
+            gap: 6px;
+        }
+        
+        .pixel-dot {
+            width: 12px;
+            height: 12px;
+            border: 2px solid #000;
+            display: inline-block;
+        }
+        
+        .pixel-dot.red { background: #ff5f57; }
+        .pixel-dot.yellow { background: #ffbd2e; }
+        .pixel-dot.green { background: #28c940; }
+        
+        .pixel-title {
+            color: #000;
+            font-size: 10px;
+            font-weight: bold;
+            text-shadow: 1px 1px 0 var(--primary);
+        }
+        
+        .pixel-iframe {
+            border: none;
+            background: #1a1a1a;
+            display: block;
+            margin: 0;
+            padding: 0;
+            image-rendering: pixelated;
+            filter: contrast(1.1) brightness(0.95) saturate(1.2);
+            width: 100%;
+        }
+        
+        /* Story Section */
+        .story-content {
+            max-width: 800px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        
+        .story-content p {
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+            line-height: 1.7;
+            color: var(--light);
+        }
+        
+        /* Expandable Content */
+        .expandable-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.5s ease;
+        }
+        
+        .expandable-content.expanded {
+            max-height: 1000px;
+        }
+        
+        /* Characters Section */
+        .characters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 30px;
+            margin-top: 40px;
+        }
+        
+        .character-card {
+            background: rgba(30, 30, 30, 0.7);
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid var(--primary-dark);
+            box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.3);
+            transition: transform 0.3s ease;
+        }
+        
+        .character-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .character-image {
+            height: 200px;
+            overflow: hidden;
+        }
+        
+        .character-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.5s ease;
+        }
+        
+        .character-card:hover .character-image img {
+            transform: scale(1.1);
+        }
+        
+        .character-info {
+            padding: 20px;
+        }
+        
+        .character-info h3 {
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+            color: var(--primary);
+        }
+        
+        .character-info p {
+            font-size: 0.8rem;
+            color: var(--light);
+            line-height: 1.6;
+        }
+        
+        /* Contact Form */
+        .contact-form {
+            max-width: 600px;
+            margin: 0 auto;
+            background: rgba(30, 30, 30, 0.7);
+            padding: 30px;
+            border-radius: 10px;
+            border: 2px solid var(--primary-dark);
+            box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.3);
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--primary);
+            font-size: 0.8rem;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 12px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.8rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid var(--primary-dark);
+            border-radius: 5px;
+            color: var(--light);
+            transition: border-color 0.3s ease;
+        }
+        
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        
+        textarea.form-control {
+            min-height: 150px;
+            resize: vertical;
+        }
+        
+        /* Footer */
+        footer {
+            background: rgba(10, 10, 10, 0.95);
+            padding: 50px 20px 30px;
+            border-top: 3px solid var(--primary);
+        }
+        
+        .footer-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 40px;
+            margin-bottom: 40px;
+        }
+        
+        .footer-column h3 {
+            font-size: 1.2rem;
+            margin-bottom: 20px;
+            color: var(--primary);
+        }
+        
+        .footer-links {
+            list-style: none;
+        }
+        
+        .footer-links li {
+            margin-bottom: 10px;
+        }
+        
+        .footer-links a {
+            color: var(--light);
+            text-decoration: none;
+            font-size: 0.8rem;
+            transition: color 0.3s ease;
+        }
+        
+        .footer-links a:hover {
+            color: var(--primary);
+        }
+        
+        .social-links {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .social-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            background: var(--primary);
+            color: var(--dark);
+            border-radius: 5px;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            border: 2px solid var(--primary-dark);
+        }
+        
+        .social-link:hover {
+            background: #D0FFB6;
+            transform: translateY(-3px);
+        }
+        
+        .copyright {
+            text-align: center;
+            padding-top: 30px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--gray);
+            font-size: 0.7rem;
+        }
+        
+        /* Back to Top Button */
+        .back-to-top {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: var(--primary);
+            color: var(--dark);
+            border: 2px solid var(--primary-dark);
+            width: 50px;
+            height: 50px;
+            border-radius: 5px;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            z-index: 100;
+            transition: all 0.3s ease;
+        }
+        
+        .back-to-top:hover {
+            background: #D0FFB6;
+            transform: translateY(-3px);
+        }
+        
+        .back-to-top.visible {
+            display: flex;
+        }
+        
+        /* Loading Screen */
+        .loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--darker);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            transition: opacity 0.5s ease;
+        }
+        
+        .loading-content {
+            text-align: center;
+        }
+        
+        .pixel-loader {
+            width: 32px;
+            height: 32px;
+            background: var(--primary);
+            animation: pixelBounce 0.6s infinite alternate;
+            margin-bottom: 20px;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes pixelBounce {
+            from { transform: translateY(0) scale(1); }
+            to { transform: translateY(-20px) scale(1.1); }
+        }
+        
+        /* Animations */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .fade-in {
+            animation: fadeInUp 0.8s ease forwards;
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 992px) {
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+            
+            .game-info {
+                grid-template-columns: 1fr;
+            }
+            
+            .game-info-image {
+                order: -1;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2rem;
+            }
+            
+            .hero p {
+                font-size: 1rem;
+            }
+            
+            .nav-links {
+                display: none;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background: rgba(10, 10, 10, 0.95);
+                flex-direction: column;
+                padding: 20px;
+                gap: 15px;
+                border-top: 1px solid var(--primary);
+            }
+            
+            .nav-links.active {
+                display: flex;
+            }
+            
+            .hamburger-menu {
+                display: flex;
+            }
+            
+            .hamburger-menu.active .bar:nth-child(1) {
+                transform: rotate(45deg) translate(5px, 5px);
+            }
+            
+            .hamburger-menu.active .bar:nth-child(2) {
+                opacity: 0;
+            }
+            
+            .hamburger-menu.active .bar:nth-child(3) {
+                transform: rotate(-45deg) translate(7px, -6px);
+            }
+            
+            .section-header h2 {
+                font-size: 1.5rem;
+            }
+            
+            .btn {
+                font-size: 0.8rem;
+                padding: 10px 20px;
+            }
+            
+            .back-to-top {
+                bottom: 20px;
+                right: 20px;
+                width: 40px;
+                height: 40px;
+                font-size: 1rem;
+            }
+        }
+        
+        @media (max-width: 576px) {
+            .hero h1 {
+                font-size: 1.8rem;
+            }
+            
+            .hero-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .btn {
+                width: 100%;
+                max-width: 300px;
+            }
+            
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .characters-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div class="loading-screen" id="loadingScreen">
+        <div class="loading-content">
+            <div class="pixel-loader"></div>
+            <p>Lade Slimeventure...</p>
+        </div>
+    </div>
+    
+    <!-- Navigation -->
+    <nav class="main-nav">
+        <div class="nav-container">
+            <a href="#" class="logo">
+                <span>Slimeventure</span>
+            </a>
+            
+            <div class="nav-links">
+                <a href="#about">Über das Spiel</a>
+                <a href="#features">Features</a>
+                <a href="#play">Spielen</a>
+                <a href="#story">Story</a>
+                <a href="#characters">Charaktere</a>
+                <a href="#contact">Kontakt</a>
+            </div>
+            
+            <button class="hamburger-menu" id="hamburger-menu">
+                <div class="bar"></div>
+                <div class="bar"></div>
+                <div class="bar"></div>
+            </button>
+        </div>
+    </nav>
+    
+    <!-- Hero Section -->
+    <header class="hero">
+        <div class="hero-content fade-in">
+            <h1>Joey's Slimeventure</h1>
+            <p>Ein klebriges Pixelart-Abenteuer voller Gefahren, Rätsel und epischer Bosskämpfe!</p>
+            <div class="hero-buttons">
+                <a href="#play" class="btn btn-large">Jetzt Spielen</a>
+                <a href="https://joeyslime.com/reward/" class="btn btn-accent btn-large" target="_blank">
+                    <i class="fas fa-gift"></i> Daily Rewards
+                </a>
+                <a href="#about" class="btn btn-secondary btn-large">Mehr Erfahren</a>
+            </div>
+        </div>
+    </header>
+    
+    <!-- About Section -->
+    <section id="about" class="section-dark">
+        <div class="container">
+            <div class="section-header fade-in">
+                <h2>Über das Spiel</h2>
+                <p>Tauche ein in die Welt von Joey's Slimeventure – ein Abenteuer, das du als mutiger Schleimheld gestaltest.</p>
+            </div>
+            
+            <div class="game-info fade-in">
+                <div class="game-info-text">
+                    <h3>Ein klebriges Abenteuer erwartet dich!</h3>
+                    <p>Du bist es, der sich durch die Dunkelheit bekämpft, wo jedes Geräusch von gefährlichen Gegnern wie Fledermäusen und Skeletten verfolgt wird. Doch du bist nicht allein in der Dunkelheit – du entscheidest, wann du leuchtest und wann du dich im Schatten versteckst.</p>
+                    <p>Jede Entscheidung bringt neue Herausforderungen und Gefahren, aber auch neue Chancen, dich weiterzuentwickeln. Während du die Geheimnisse dieser mysteriösen Welt aufdeckst, wirst du stärker und gewandter.</p>
+                    <a href="#features" class="btn">Mehr Entdecken</a>
+                </div>
+                
+                <div class="game-info-image">
+                    <img src="img/screenshot.png" alt="Slimeventure Spiel-Screenshot" style="width: 100%; height: auto; border: 3px solid #4CAF50; border-radius: 10px; box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.3);">
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Features Section -->
+    <section id="features">
+        <div class="container">
+            <div class="section-header fade-in">
+                <h2>Spiel-Features</h2>
+                <p>Entdecke die einzigartigen Mechaniken und Features von Joey's Slimeventure</p>
+            </div>
+            
+            <div class="features-grid">
+                <div class="feature-card fade-in">
+                    <div class="feature-icon">
+                        <i class="fas fa-lightbulb"></i>
+                    </div>
+                    <h3>Dynamisches Lichtsystem</h3>
+                    <p>Entscheide, wann du leuchtest - aber Vorsicht, Licht zieht Gegner an! Ein falscher Moment kann dein Untergang sein.</p>
+                </div>
+                
+                <div class="feature-card fade-in">
+                    <div class="feature-icon">
+                        <i class="fas fa-dragon"></i>
+                    </div>
+                    <h3>Vielfältige Gegner</h3>
+                    <p>Bekämpfe Fledermäuse, Skelette und andere gefährliche Kreaturen, die in der Dunkelheit lauern.</p>
+                </div>
+                
+                <div class="feature-card fade-in">
+                    <div class="feature-icon">
+                        <i class="fas fa-gem"></i>
+                    </div>
+                    <h3>Charakter-Entwicklung</h3>
+                    <p>Werde mit jedem Kampf stärker und meistere neue Fähigkeiten, um mächtige Bosse zu bezwingen.</p>
+                </div>
+                
+                <div class="feature-card fade-in">
+                    <div class="feature-icon">
+                        <i class="fas fa-expand-arrows-alt"></i>
+                    </div>
+                    <h3>Große, erkundbare Welt</h3>
+                    <p>Entdecke verborgene Gebiete, löse Rätsel und finde Geheimnisse in einer weitläufigen Pixelwelt.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Play Section -->
+    <section id="play" class="section-dark">
+        <div class="container">
+            <div class="section-header fade-in">
+                <h2>Jetzt Spielen</h2>
+                <p>Probiere Joey's Slimeventure direkt im Browser aus oder unterstütze die Entwicklung!</p>
+            </div>
+            
+            <div class="play-section fade-in">
+                <a href="https://joeyslime.com/web_demo/" class="btn btn-large">Kostenlos Spielen</a>
+                
+                <p style="margin: 30px 0; font-size: 0.9rem; color: var(--gray);">
+                    <strong>Oder unterstütze mich mit einem beliebigen Betrag</strong>, 
+                    um das Spiel auf Steam zu bringen!
+                </p>
+                
+                <div class="itch-embed-container">
+                    <div class="pixel-frame">
+                        <div class="pixel-header">
+                            <div class="pixel-dots">
+                                <span class="pixel-dot red"></span>
+                                <span class="pixel-dot yellow"></span>
+                                <span class="pixel-dot green"></span>
+                            </div>
+                            <span class="pixel-title">Joey's Slimeventure - Jetzt unterstützen!</span>
+                        </div>
+                        <iframe 
+                            frameborder="0" 
+                            src="https://itch.io/embed/3929257" 
+                            width="100%" 
+                            height="167"
+                            class="pixel-iframe"
+                        >
+                            <a href="https://pondsec.itch.io/joeys-slimeventure">Joey's Slimeventure by Joshua Pond</a>
+                        </iframe>
+                    </div>
+                </div>
+                
+                <a href="https://github.com/JoshuaPondStudios/JoeysSlimeventure/" class="btn btn-secondary">
+                    <i class="fab fa-github"></i> GitHub Repository
+                </a>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Story Section -->
+    <section id="story">
+        <div class="container">
+            <div class="section-header fade-in">
+                <h2>Die Geschichte</h2>
+                <p>Erfahre mehr über die Welt von Joey's Slimeventure</p>
+            </div>
+            
+            <div class="story-content fade-in">
+                <p>In einer weit entfernten Welt existiert ein kleines, aber mutiges Schleimwesen namens Joey. Er kämpft sich tapfer durch die Dunkelheit, wo Fledermäuse, Skelette und andere gefährliche Gegner lauern.</p>
+                
+                <div class="expandable-content" id="story-content">
+                    <p>Mutig macht er sich auf die Reise, um die mächtigen, uralten Mächte herauszufordern und zu bezwingen. Auf seiner Reise dahin trifft er auf eine Vielzahl von Gegnern, die ihn immer wieder vor neue Herausforderungen stellen.</p>
+                    <p>Doch mit jedem Kampf wächst seine Erfahrung, und Joey entwickelt sich weiter – stärker und entschlossener, den finsteren Mächten ein Ende zu setzen. Seine Reise ist nicht nur eine der Stärke, sondern auch der Entschlossenheit und Weisheit.</p>
+                    <p>Er wird schließlich so mächtig, dass er dem endgültigen Boss gegenübertreten kann, um das Schicksal der Welt zu bestimmen.</p>
+                </div>
+                
+                <button class="btn btn-secondary expand-btn" onclick="toggleExpand('story-content', this)">
+                    <span class="btn-text">Mehr Lesen</span>
+                    <i class="fas fa-chevron-down"></i>
+                </button>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Characters Section -->
+    <section id="characters" class="section-dark">
+        <div class="container">
+            <div class="section-header fade-in">
+                <h2>Charaktere & Gegner</h2>
+                <p>Lerne die Bewohner der Welt von Slimeventure kennen</p>
+            </div>
+            
+            <div class="characters-grid">
+                <div class="character-card fade-in">
+                    <div class="character-image">
+                        <img src="img/slime.gif" alt="Joey der Schleimheld" style="width: 100%; height: 100%; object-fit: contain; padding: 15px;">
+                    </div>
+                    <div class="character-info">
+                        <h3>Joey</h3>
+                        <p>Unser mutiger Schleimheld. Klein aber oho! Joey kämpft sich durch die Dunkelheit und entwickelt sich mit jedem besiegten Gegner weiter.</p>
+                    </div>
+                </div>
+                
+                <div class="character-card fade-in">
+                    <div class="character-image">
+                        <img src="img/bat.png" alt="Fledermaus Gegner" style="width: 100%; height: 100%; object-fit: contain; padding: 15px;">
+                    </div>
+                    <div class="character-info">
+                        <h3>Fledermaus</h3>
+                        <p>Heimtückische Gegner, die aus der Dunkelheit angreifen. Werden aggressiver, wenn Joey sein Licht einschaltet.</p>
+                    </div>
+                </div>
+                
+                <div class="character-card fade-in">
+                    <div class="character-image">
+                        <img src="img/sk.png" alt="Skelett Gegner" style="width: 100%; height: 100%; object-fit: contain; padding: 15px;">
+                    </div>
+                    <div class="character-info">
+                        <h3>Skelett</h3>
+                        <p>Knöcherne Gegner, die Joey das Leben schwer machen. Sie sind zäh und können gefährliche Angriffe ausführen.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Contact Section -->
+    <section id="contact">
+        <div class="container">
+            <div class="section-header fade-in">
+                <h2>Kontakt</h2>
+                <p>Hast du Fragen, Anregungen oder möchtest du einfach nur Hallo sagen?</p>
+            </div>
+            
+            <div class="contact-form fade-in">
+                <form action="mailto:joshua@pondsec.de" method="post" enctype="text/plain">
+                    <div class="form-group">
+                        <label for="name">Name:</label>
+                        <input type="text" id="name" name="name" class="form-control" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="email">E-Mail:</label>
+                        <input type="email" id="email" name="email" class="form-control" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="message">Nachricht:</label>
+                        <textarea id="message" name="message" class="form-control" required></textarea>
+                    </div>
+                    
+                    <button type="submit" class="btn" style="width: 100%;">Nachricht senden</button>
+                </form>
+                
+                <p style="text-align: center; margin-top: 20px; font-size: 0.8rem; color: var(--gray);">
+                    Oder kontaktiere uns direkt per E-Mail: <a href="mailto:joshua@pondsec.de" style="color: var(--primary);">joshua@pondsec.de</a>
+                </p>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Footer -->
+    <footer>
+        <div class="footer-content">
+            <div class="footer-column">
+                <h3>Slimeventure</h3>
+                <p style="color: var(--gray); font-size: 0.8rem; line-height: 1.6;">
+                    Ein Pixelart-Abenteuer entwickelt von Joshua Pond. Tauche ein in eine Welt voller Gefahren, Rätsel und epischer Bosskämpfe!
+                </p>
+                <div class="social-links">
+                    <a href="https://github.com/JoshuaPondStudios/JoeysSlimeventure" class="social-link" target="_blank">
+                        <i class="fab fa-github"></i>
+                    </a>
+                    <a href="https://www.reddit.com/r/JoeysSlimeventure/" class="social-link" target="_blank">
+                        <i class="fab fa-reddit"></i>
+                    </a>
+                    <a href="https://youtube.com/@pondstudios20" class="social-link" target="_blank">
+                        <i class="fab fa-youtube"></i>
+                    </a>
+                </div>
+            </div>
+            
+            <div class="footer-column">
+                <h3>Links</h3>
+                <ul class="footer-links">
+                    <li><a href="#about">Über das Spiel</a></li>
+                    <li><a href="#features">Features</a></li>
+                    <li><a href="#play">Spielen</a></li>
+                    <li><a href="https://joeyslime.com/reward/" target="_blank">Daily Rewards</a></li>
+                    <li><a href="#story">Story</a></li>
+                    <li><a href="#characters">Charaktere</a></li>
+                </ul>
+            </div>
+            
+            <div class="footer-column">
+                <h3>Entwicklung</h3>
+                <ul class="footer-links">
+                    <li><a href="https://github.com/JoshuaPondStudios/JoeysSlimeventure" target="_blank">GitHub Repository</a></li>
+                    <li><a href="https://pondsec.itch.io/joeys-slimeventure" target="_blank">Itch.io Seite</a></li>
+                    <li><a href="#contact">Kontakt</a></li>
+                    <li><a href="#">Datenschutz</a></li>
+                    <li><a href="#">Impressum</a></li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="copyright">
+            <p>&copy; 2025 Joey's Slimeventure. Alle Rechte vorbehalten.</p>
+        </div>
+    </footer>
+    
+    <!-- Back to Top Button -->
+    <button class="back-to-top" id="backToTop">
+        <i class="fas fa-chevron-up"></i>
+    </button>
+    
+    <script>
+        // Loading Screen entfernen
+        window.addEventListener('load', function() {
+            const loadingScreen = document.getElementById('loadingScreen');
+            setTimeout(() => {
+                loadingScreen.style.opacity = '0';
+                setTimeout(() => {
+                    loadingScreen.style.display = 'none';
+                }, 500);
+            }, 1000);
+        });
+        
+        // Mobile Navigation Toggle
+        const hamburgerMenu = document.getElementById('hamburger-menu');
+        const navLinks = document.querySelector('.nav-links');
+        
+        hamburgerMenu.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            hamburgerMenu.classList.toggle('active');
+        });
+        
+        // Close mobile menu when clicking on a link
+        document.querySelectorAll('.nav-links a').forEach(link => {
+            link.addEventListener('click', () => {
+                navLinks.classList.remove('active');
+                hamburgerMenu.classList.remove('active');
+            });
+        });
+        
+        // Scroll animations
+        const fadeElements = document.querySelectorAll('.fade-in');
+        
+        const fadeInObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.animation = 'fadeInUp 0.8s ease forwards';
+                    fadeInObserver.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.1 });
+        
+        fadeElements.forEach(element => {
+            fadeInObserver.observe(element);
+        });
+        
+        // Navbar background on scroll
+        window.addEventListener('scroll', () => {
+            const nav = document.querySelector('.main-nav');
+            if (window.scrollY > 50) {
+                nav.style.background = 'rgba(10, 10, 10, 0.98)';
+            } else {
+                nav.style.background = 'rgba(10, 10, 10, 0.95)';
+            }
+            
+            // Back to top button visibility
+            const backToTopButton = document.getElementById('backToTop');
+            if (window.scrollY > 300) {
+                backToTopButton.classList.add('visible');
+            } else {
+                backToTopButton.classList.remove('visible');
+            }
+        });
+        
+        // Back to top functionality
+        document.getElementById('backToTop').addEventListener('click', () => {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        });
+        
+        // Expand/Collapse Funktion
+        function toggleExpand(contentId, button) {
+            const content = document.getElementById(contentId);
+            const isExpanded = content.classList.contains('expanded');
+            
+            if (isExpanded) {
+                content.classList.remove('expanded');
+                button.classList.remove('expanded');
+                button.querySelector('.btn-text').textContent = 'Mehr Lesen';
+            } else {
+                content.classList.add('expanded');
+                button.classList.add('expanded');
+                button.querySelector('.btn-text').textContent = 'Weniger Anzeigen';
+            }
+        }
+        
+        // Daily Rewards Notification Check
+        function checkDailyRewards() {
+            // Hier könntest du prüfen, ob heute schon Belohnungen abgeholt wurden
+            const lastClaim = localStorage.getItem('lastRewardClaim');
+            const today = new Date().toDateString();
+            
+            if (lastClaim !== today) {
+                // Notification anzeigen
+                const rewardLink = document.querySelector('.reward-link');
+                if (rewardLink) {
+                    const badge = document.createElement('span');
+                    badge.className = 'notification-badge';
+                    badge.textContent = '!';
+                    rewardLink.style.position = 'relative';
+                    rewardLink.appendChild(badge);
+                }
+            }
+        }
+        
+        // Smooth Scroll für alle Links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+        
+        // Beim Laden ausführen
+        document.addEventListener('DOMContentLoaded', function() {
+            checkDailyRewards();
+        });
+    </script>
+</body>
+</html>

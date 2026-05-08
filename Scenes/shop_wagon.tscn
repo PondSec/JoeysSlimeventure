@@ -1,0 +1,46 @@
+[gd_scene load_steps=5 format=3 uid="uid://bmtdh61d4fsg6"]
+
+[ext_resource type="Script" uid="uid://dnweiu7i6ws1o" path="res://Scripts/shop_wagon.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://dpn7p84151xgh" path="res://Assets/Shop/assets/shop cart.png" id="2_cart"]
+[ext_resource type="FontFile" uid="uid://c2wsertwqrai5" path="res://Assets/GUI/Font/PixelatedEleganceRegular-ovyAA.ttf" id="3_font"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_interact"]
+size = Vector2(148, 132)
+
+[node name="ShopWagon" type="Node2D"]
+script = ExtResource("1_script")
+
+[node name="VisualRoot" type="Node2D" parent="."]
+
+[node name="ShadowShadow" type="Polygon2D" parent="VisualRoot"]
+position = Vector2(0, -13)
+scale = Vector2(1.56, 0.56)
+color = Color(0, 0, 0, 0.42)
+polygon = PackedVector2Array(-34, -8, 34, -8, 48, 0, 34, 8, -34, 8, -48, 0)
+
+[node name="CartSprite" type="Sprite2D" parent="VisualRoot"]
+position = Vector2(0, -74)
+scale = Vector2(1.55, 1.55)
+texture = ExtResource("2_cart")
+
+[node name="InteractionArea" type="Area2D" parent="."]
+position = Vector2(0, -64)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="InteractionArea"]
+shape = SubResource("RectangleShape2D_interact")
+
+[node name="PromptRoot" type="Node2D" parent="."]
+
+[node name="PromptPanel" type="PanelContainer" parent="PromptRoot"]
+custom_minimum_size = Vector2(174, 42)
+offset_left = -87.0
+offset_top = -21.0
+offset_right = 87.0
+offset_bottom = 21.0
+
+[node name="PromptLabel" type="Label" parent="PromptRoot/PromptPanel"]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("3_font")
+theme_override_font_sizes/font_size = 16
+horizontal_alignment = 1
+vertical_alignment = 1
