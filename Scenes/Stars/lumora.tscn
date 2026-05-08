@@ -1,0 +1,969 @@
+[gd_scene load_steps=11 format=3 uid="uid://7vreypkntsqt"]
+
+[ext_resource type="Texture2D" uid="uid://cllwmov7ffejk" path="res://Assets/Particles#/dust.png" id="2_eor77"]
+[ext_resource type="Texture2D" uid="uid://bsrg4bd6kj0je" path="res://Assets/Stars/Lumora-sheet.png" id="2_strim"]
+
+[sub_resource type="GDScript" id="GDScript_jxmgf"]
+resource_name = "Lumora"
+script/source = "extends CharacterBody2D
+
+# --------------------
+# CATCH SYSTEM
+# --------------------
+signal lumora_caught(player: Node2D)
+
+@export var catch_radius: float = 120.0  # 🔥 Vergrößert von 80 auf 120
+@export var catch_time_required: float = 2.5  # 🔥 Verkürzt von 3.0 auf 2.5
+var catch_progress: float = 0.0
+var is_being_caught: bool = false
+var catching_player: Node2D = null
+var is_caught: bool = false
+
+# Flucht-Verhalten
+var is_fleeing: bool = false
+var flee_speed_multiplier: float = 1.2  # 🔥 Reduziert von 1.8 auf 1.5
+var flee_distance: float = 60.0  # 🔥 Reduziert von 150 auf 100
+
+# Catch-Visualisierung
+var catch_indicator: Sprite2D
+var catch_progress_bar: ProgressBar
+
+# --------------------
+# CONFIG / EXPORTS
+# --------------------
+@export var player_path: NodePath
+@export var delay_points := 25
+@export var move_speed := 180.0
+@export var float_amplitude := 5.0
+@export var float_speed := 3.0
+@export var follow_distance := 70.0
+@export var smooth_factor := 2.5
+@export var orbit_speed := 1.0
+@export var orbit_smooth := 0.7
+@export var avoid_distance := 60.0
+@export var avoid_strength := 0.4
+
+# Animation Einstellungen
+@export var animation_slow_speed := 0.5
+@export var animation_normal_speed := 1.0
+
+# Buff-Einstellungen (werden vor dem Fangen nicht verwendet)
+@export var heal_amount := 5
+@export var heal_interval := 2.0
+@export var damage_reduction := 0.3
+@export var speed_buff_multiplier := 1.3
+@export var damage_buff_multiplier := 1.25
+@export var health_threshold := 0.7
+
+@export var light_node_path: NodePath = \"GlowLight\"
+
+# LUMORA DAMAGE / SKILL SYSTEM (werden vor dem Fangen nicht verwendet)
+@export var base_damage := 15.0
+@export var damage_interval := 1.0
+@export var attack_radius := 150.0
+@export var skill_save_path: String = \"user://lumora_skill_data.save\"
+
+# --------------------
+# PERSISTENT SAVE SYSTEM
+# --------------------
+@export var save_path: String = \"user://lumora_save_data.save\"
+var is_permanent: bool = false
+
+# --------------------
+# INTERN
+# --------------------
+var _player: Node2D = null
+var _trail_positions: Array[Vector2] = []
+var _time := 0.0
+var _orbit_angle := 0.0
+var _orbit_radius := 0.0
+var _raycast: RayCast2D
+var _random_offset := randf_range(0.85, 1.15)
+var _velocity := Vector2.ZERO
+var _light: Light2D
+var _animation_player: AnimationPlayer
+
+# Buff-System (vor dem Fangen deaktiviert)
+var _heal_timer: Timer
+var _is_player_low_health := false
+var _active_buffs := {}
+var _buff_particles: GPUParticles2D
+
+# Skill / Damage (vor dem Fangen deaktiviert)
+var current_skill_points := 0.0
+var can_attack := false  # Standardmäßig false vor dem Fangen
+var damage_multiplier := 1.0
+
+var _damage_timer: Timer
+var _autosave_timer: Timer
+
+# --------------------
+# READY
+# --------------------
+func _ready() -> void:
+	add_to_group(\"lumora\")
+	_find_player()
+	_load_permanent_state()
+	
+	# Spieler-Referenz
+	if player_path:
+		_player = get_node_or_null(player_path)
+	else:
+		push_warning(\"Lumora has no player assigned!\")
+
+	# Animation Player
+	_animation_player = get_node_or_null(\"AnimationPlayer\")
+	if _animation_player:
+		_animation_player.play(\"fly\")
+		_animation_player.speed_scale = animation_normal_speed
+
+	# Raycast für Hindernisvermeidung
+	_raycast = RayCast2D.new()
+	add_child(_raycast)
+	_raycast.enabled = true
+	_raycast.collide_with_areas = true
+	_raycast.collide_with_bodies = true
+	_raycast.collision_mask = 0b1111
+	_raycast.target_position = Vector2.RIGHT * avoid_distance
+
+	# Lichtsystem
+	if has_node(light_node_path):
+		_light = get_node(light_node_path)
+
+	# Trail für Nachleuchteffekt
+	var trail_line = get_node_or_null(\"TrailLine2D\")
+	if trail_line == null:
+		trail_line = Line2D.new()
+		trail_line.name = \"TrailLine2D\"
+		add_child(trail_line)
+		trail_line.width = 4.0
+		trail_line.gradient = _create_color_ramp(Color(0.8,0.9,1.0,0.5))
+		trail_line.texture_mode = Line2D.LINE_TEXTURE_TILE
+
+	# Timer werden erstellt, aber erst nach dem Fangen aktiviert
+	_heal_timer = Timer.new()
+	add_child(_heal_timer)
+	_heal_timer.wait_time = heal_interval
+	_heal_timer.autostart = false  # Nicht automatisch starten
+	_heal_timer.one_shot = false
+	_heal_timer.timeout.connect(_on_heal_timer_timeout)
+
+	# Partikel für Buff-Effekte
+	_buff_particles = GPUParticles2D.new()
+	add_child(_buff_particles)
+	_buff_particles.emitting = false
+	_buff_particles.one_shot = false
+	_buff_particles.amount = 32
+
+	_orbit_radius = follow_distance
+
+	# --- Skill / Damage timers & Persistenz ---
+	_load_skill_data()
+
+	_damage_timer = Timer.new()
+	add_child(_damage_timer)
+	_damage_timer.wait_time = damage_interval
+	_damage_timer.autostart = false  # Nicht automatisch starten
+	_damage_timer.one_shot = false
+	_damage_timer.timeout.connect(_on_damage_timer_timeout)
+
+	_autosave_timer = Timer.new()
+	add_child(_autosave_timer)
+	_autosave_timer.wait_time = 2.0
+	_autosave_timer.autostart = false  # Nicht automatisch starten
+	_autosave_timer.one_shot = false
+	_autosave_timer.timeout.connect(_autosave_skill_data)
+
+	# Wenn permanent, aktiviere alle Systeme
+	if is_permanent:
+		print(\"✅ Permanente Lumora geladen - Alle Systeme aktiviert\")
+		can_attack = true
+		_heal_timer.start()
+		_damage_timer.start()
+		_autosave_timer.start()
+		# Deaktiviere Catch-System komplett
+		if catch_indicator:
+			catch_indicator.visible = false
+		if catch_progress_bar:
+			catch_progress_bar.visible = false
+	else:
+		_setup_catch_system()
+		# Vor dem Fangen: Keine Buffs, kein Angriff
+		can_attack = false
+		print(\"🦋 Wilde Lumora - Fluchtverhalten aktiviert\")
+
+func _find_player():
+	if _player == null or not is_instance_valid(_player):
+		var players = get_tree().get_nodes_in_group(\"players\")
+		if players.size() > 0:
+			_player = players[0]
+			print(\"🎯 Lumora hat Spieler gefunden: \", _player.name)
+
+func _setup_catch_system():
+	# Catch Indicator Sprite
+	catch_indicator = Sprite2D.new()
+	catch_indicator.texture = _create_catch_texture()
+	catch_indicator.modulate = Color(0.8, 0.9, 1.0, 0.0)
+	catch_indicator.z_index = 10
+	add_child(catch_indicator)
+	
+	# Progress Bar
+	catch_progress_bar = ProgressBar.new()
+	catch_progress_bar.size = Vector2(60, 8)
+	catch_progress_bar.max_value = catch_time_required
+	catch_progress_bar.value = 0
+	catch_progress_bar.visible = false
+	catch_progress_bar.z_index = 11
+	add_child(catch_progress_bar)
+	
+	catch_progress_bar.position = Vector2(-30, -60)
+
+# --------------------
+# PHYSICS
+# --------------------
+func _physics_process(delta: float) -> void:
+	if _player == null or not is_instance_valid(_player):
+		_find_player()
+		return
+
+	_time += delta * float_speed * _random_offset
+	_orbit_angle += delta * orbit_speed * _random_offset
+
+	var player_pos = _player.global_position
+	var desired_pos: Vector2
+
+	# Sanfteres Fluchtverhalten mit Übergängen
+	var distance_to_player = global_position.distance_to(player_pos)
+	var is_player_too_close = distance_to_player < flee_distance
+
+	# Gleitende Flucht-Intensität für sanfte Übergänge
+	var flee_intensity = 0.0
+	if not is_caught and is_player_too_close:
+		flee_intensity = lerp(flee_intensity, 1.0, delta * 3.0)
+		if not is_fleeing:
+			is_fleeing = true
+			print(\"🏃‍♀️ Lumora flüchtet!\")
+	else:
+		flee_intensity = lerp(flee_intensity, 0.0, delta * 2.0)
+		if is_fleeing and flee_intensity < 0.1:
+			is_fleeing = false
+			print(\"🦋 Lumora beruhigt sich\")
+
+	# Kombiniertes Verhalten basierend auf Flucht-Intensität
+	if flee_intensity > 0.0:
+		# Sanfte Flucht-Bewegung
+		var flee_direction = (global_position - player_pos).normalized()
+		var safe_distance = flee_distance * 1.5
+		var flee_target = player_pos + flee_direction * safe_distance
+		desired_pos = global_position.lerp(flee_target, delta * 2.0 * flee_intensity)
+		
+		# Reduziertes Schweben während der Flucht
+		var float_offset = Vector2(0, sin(_time * _random_offset) * float_amplitude * 0.5)
+		desired_pos += float_offset
+	else:
+		# Elegantes Orbit-Verhalten
+		var target_orbit = follow_distance + sin(_time * 0.7) * 4.0 * _random_offset  # Reduzierte Amplitude
+		_orbit_radius = lerp(_orbit_radius, target_orbit, delta * orbit_smooth * 0.8)
+
+		var orbit_offset = Vector2(cos(_orbit_angle), sin(_orbit_angle)) * _orbit_radius
+		# Sanfteres Schweben mit reduzierter X-Achsen-Bewegung
+		var float_offset = Vector2(
+			cos(_time * _random_offset * 0.3) * float_amplitude * 0.2,
+			sin(_time * _random_offset) * float_amplitude
+		)
+		desired_pos = player_pos + orbit_offset + float_offset
+
+	# Sanftere Hinderniserkennung
+	var move_dir = (desired_pos - global_position)
+	if move_dir.length() > 0.001:
+		move_dir = move_dir.normalized()
+		_raycast.rotation = move_dir.angle()
+		_raycast.target_position = move_dir * avoid_distance
+		_raycast.force_raycast_update()
+
+		if _raycast.is_colliding():
+			var normal = _raycast.get_collision_normal()
+			var avoid_angle = normal.angle() + PI / 2.0
+			var avoid_vector = Vector2(cos(avoid_angle), sin(avoid_angle)) * avoid_distance * avoid_strength * 0.7
+			desired_pos += avoid_vector
+
+	# Sanftere Bewegung
+	var current_move_speed = move_speed * (1.0 + flee_intensity * (flee_speed_multiplier - 1.0))
+	var desired_velocity = (desired_pos - global_position) * smooth_factor
+	_velocity = _velocity.lerp(desired_velocity, delta * 1.5)  # Reduzierte Lerp-Stärke
+	global_position += _velocity * delta * (current_move_speed / 100.0)
+
+	# Stabilere Rotation verhindert Kopf-Drehungen
+	if _velocity.length() > 0.1:
+		var target_rotation = _velocity.angle()
+		# Verhindere plötzliche 180° Drehungen
+		var angle_diff = abs(angle_difference(rotation, target_rotation))
+		if angle_diff < PI * 0.8:  # Nur drehen wenn Winkeländerung nicht zu extrem
+			rotation = lerp_angle(rotation, target_rotation, delta * 3.0)
+		else:
+			# Bei großen Winkelsprüngen sanfter drehen
+			rotation = lerp_angle(rotation, target_rotation, delta * 1.5)
+	
+	# Trail-Logik
+	_trail_positions.append(global_position)
+	if _trail_positions.size() > delay_points:
+		_trail_positions.remove_at(0)
+	
+	var trail_line = get_node(\"TrailLine2D\") as Line2D
+	trail_line.clear_points()
+	for pos in _trail_positions:
+		trail_line.add_point(pos)
+	
+	# Catch-System
+	if not is_fleeing and distance_to_player <= catch_radius:
+		_update_catch_system(delta)
+	else:
+		if is_being_caught:
+			_stop_catching()
+	
+	# Catch-Indicator positionieren
+	if catch_indicator:
+		catch_indicator.global_position = global_position
+	if catch_progress_bar:
+		catch_progress_bar.global_position = global_position + Vector2(-30, -60)
+	
+	_update_light(delta, player_pos)
+	
+	if is_caught:
+		_check_player_health()
+		_update_buffs()
+		_update_aura_link()
+	
+	_update_animation_speed()
+
+# ---------------------------------
+# ANIMATION SYSTEM
+# ---------------------------------
+func _update_animation_speed() -> void:
+	if not _animation_player:
+		return
+		
+	var player_velocity = Vector2.ZERO
+	if _player and _player.has_method(\"get_velocity\"):
+		player_velocity = _player.get_velocity()
+	
+	# Sanftere Animationsübergänge
+	var target_speed = animation_normal_speed
+	
+	if is_fleeing:
+		target_speed = animation_normal_speed * 1.3  # Reduziert von 1.5
+	elif player_velocity.length() < 10.0:
+		target_speed = animation_slow_speed
+	else:
+		target_speed = animation_normal_speed
+
+	# Gleitender Übergang der Animationsgeschwindigkeit
+	_animation_player.speed_scale = lerp(_animation_player.speed_scale, target_speed, 0.1)
+
+# ---------------------------------
+# VISUELLE SYSTEME
+# ---------------------------------
+func _update_light(delta: float, player_pos: Vector2) -> void:
+	if not _light:
+		return
+
+	var dist = global_position.distance_to(player_pos)
+	var pulse = 0.12 * sin(_time * 4.0)
+	var base_intensity = clamp(1.0 - abs(dist - follow_distance) / 150.0, 0.4, 1.0)
+
+	# 🔥 NEU: Andere Farbe während Flucht
+	if is_fleeing:
+		_light.color = Color(1.0, 0.6, 0.3)  # Orange/Flucht-Farbe
+	elif is_caught and _is_player_low_health:
+		_light.color = Color(1, 0.3, 0.3)
+	elif is_caught and _active_buffs.size() > 0:
+		_light.color = Color(1.0, 0.863, 1.0)
+	else:
+		_light.color = Color(1.0, 1.0, 1.0)  # Normale weiße Farbe
+
+	_light.energy = lerp(_light.energy, base_intensity + pulse, delta * 2.0)
+
+func _update_aura_link():
+	if not is_caught or not _player:
+		var line = get_node_or_null(\"AuraLine2D\")
+		if line:
+			line.visible = false
+		return
+		
+	var line = get_node_or_null(\"AuraLine2D\")
+	if line == null:
+		line = Line2D.new()
+		line.name = \"AuraLine2D\"
+		add_child(line)
+		line.width = 2.0  # Dünnere Linie
+		line.gradient = _create_color_ramp(Color(0.6, 0.9, 1.0))
+		line.texture = _create_pixel_texture()
+		line.texture_mode = Line2D.LINE_TEXTURE_TILE
+		line.begin_cap_mode = Line2D.LINE_CAP_ROUND
+		line.end_cap_mode = Line2D.LINE_CAP_ROUND
+	
+	line.visible = true
+	line.clear_points()
+	
+	# Sanftere Kurve mit mehr Punkten für weichere Bewegung
+	var point_count = 8
+	for i in point_count + 1:
+		var t = float(i) / point_count
+		var point = global_position.lerp(_player.global_position, t)
+		# Sanftere Wellenbewegung
+		var wave_offset = Vector2(0, sin(_time * 5.0 + t * PI) * 4.0)
+		line.add_point(point + wave_offset)
+	
+	line.modulate.a = 0.4 + 0.2 * sin(_time * 3.0)  # Sanfteres Pulsieren
+
+# ---------------------------------
+# CATCH SYSTEM
+# ---------------------------------
+func _update_catch_system(delta: float):
+	if is_caught:
+		return
+	
+	if _player == null or not is_instance_valid(_player):
+		return
+	
+	var distance_to_player = global_position.distance_to(_player.global_position)
+	
+	# DEBUG: Zeige Distanz an
+	if Engine.get_frames_drawn() % 120 == 0:
+		print(\"Lumora <-> Spieler Distanz: \", distance_to_player, \" | Catch Radius: \", catch_radius)
+	
+	# Prüfe ob Spieler in Catch-Radius ist UND Lumora nicht flüchtet
+	if distance_to_player <= catch_radius and not is_fleeing:
+		if not is_being_caught:
+			_start_catching(_player)
+		
+		catch_progress += delta
+		if catch_progress_bar:
+			catch_progress_bar.value = catch_progress
+		
+		var progress_ratio = catch_progress / catch_time_required
+		if catch_indicator:
+			catch_indicator.modulate.a = progress_ratio * 0.8
+			catch_indicator.scale = Vector2.ONE * (1.0 + progress_ratio * 0.3)
+		
+		if catch_progress >= catch_time_required:
+			_complete_catch()
+	else:
+		if is_being_caught:
+			_stop_catching()
+
+func _start_catching(player: Node2D):
+	is_being_caught = true
+	catching_player = player
+	catch_progress = 0.0
+	if catch_progress_bar:
+		catch_progress_bar.visible = true
+		catch_progress_bar.value = 0
+	if catch_indicator:
+		catch_indicator.modulate.a = 0.1
+	
+	print(\"🎣 Lumora wird gefangen...\")
+
+func _stop_catching():
+	is_being_caught = false
+	catching_player = null
+	catch_progress = 0.0
+	if catch_progress_bar:
+		catch_progress_bar.visible = false
+	if catch_indicator:
+		catch_indicator.modulate.a = 0.0
+		catch_indicator.scale = Vector2.ONE
+	
+	print(\"❌ Fangvorgang abgebrochen\")
+
+func _complete_catch():
+	is_caught = true
+	is_permanent = true
+	
+	print(\"🎉 Lumora wurde erfolgreich gefangen und permanent gespeichert!\")
+	
+	lumora_caught.emit(catching_player)
+	_player = catching_player
+	
+	# Catch-Visualisierung ausblenden
+	if catch_progress_bar:
+		catch_progress_bar.visible = false
+	if catch_indicator:
+		catch_indicator.visible = false
+	
+	# 🔥 NEU: Alle Systeme nach dem Fangen aktivieren
+	_activate_post_catch_systems()
+	
+	_save_permanent_state()
+	_create_catch_effect()
+	_activate_initial_buffs()
+
+# 🔥 NEUE METHODE: Aktiviere alle Systeme nach dem Fangen
+func _activate_post_catch_systems():
+	print(\"🔮 Aktiviere Lumora-Systeme nach dem Fang...\")
+	
+	# Aktiviere alle Timer
+	_heal_timer.start()
+	_damage_timer.start()
+	_autosave_timer.start()
+	
+	# Aktiviere Angriffe
+	can_attack = true
+	
+	# Aktiviere Buff-System
+	print(\"✅ Lumora-Systeme aktiviert: Heilen, Buffs, Angriffe\")
+
+func _activate_initial_buffs():
+	if _player and _player.has_method(\"apply_buff\"):
+		_player.heal(50)
+		_player.apply_buff(\"speed_boost\", 1.5)
+		_player.apply_buff(\"damage_boost\", 1.3)
+		_show_buff_label(\"✨ Gefangen!\", Color(0.7, 0.9, 1.0), 1.5, 2.0)
+	
+	print(\"✅ Lumora ist jetzt permanent deinem Spieler zugewiesen!\")
+
+# ---------------------------------
+# BUFF / HEIL / STATUS (nur nach dem Fangen aktiv)
+# ---------------------------------
+func _check_player_health() -> void:
+	if not is_caught:  # 🔥 NEU: Nur wenn gefangen
+		return
+		
+	if _player and _player.has_method(\"get_health_percentage\"):
+		var health_percentage = _player.get_health_percentage()
+		var was_low_health = _is_player_low_health
+		_is_player_low_health = health_percentage <= health_threshold
+		
+		if _is_player_low_health and not was_low_health:
+			print(\"🚨 Spieler hat niedrige HP! Emergency Buffs aktivieren\")
+			_activate_emergency_buffs()
+		elif not _is_player_low_health and was_low_health:
+			print(\"✅ Spieler HP wieder normal. Emergency Buffs deaktivieren\")
+			_deactivate_emergency_buffs()
+
+func _activate_emergency_buffs() -> void:
+	if not is_caught:  # 🔥 NEU: Nur wenn gefangen
+		return
+		
+	if _active_buffs.has(\"speed_boost\"):
+		print(\"⚠️ Emergency Buffs sind bereits aktiv - überspringe\")
+		return
+		
+	print(\"🚨 ACTIVATING EMERGENCY BUFFS!\")
+	_apply_buff(\"speed_boost\", speed_buff_multiplier)
+	_apply_buff(\"damage_boost\", damage_buff_multiplier)
+	_apply_buff(\"damage_reduction\", damage_reduction)
+	_heal_timer.wait_time = heal_interval * 0.5
+	_activate_buff_particles(Color(1.0, 0.3, 0.3))
+	_show_buff_label(\"♥\", Color(1,0.5,0.5), 1.5, 0.8)
+
+func _deactivate_emergency_buffs() -> void:
+	if not is_caught:  # 🔥 NEU: Nur wenn gefangen
+		return
+		
+	print(\"✅ DEACTIVATING EMERGENCY BUFFS!\")
+	_remove_buff(\"speed_boost\")
+	_remove_buff(\"damage_boost\")
+	_remove_buff(\"damage_reduction\")
+	_heal_timer.wait_time = heal_interval
+	_activate_buff_particles(Color(0.8, 0.9, 1.0, 0.6))
+
+func _apply_buff(buff_type: String, value: float) -> void:
+	if not is_caught:  # 🔥 NEU: Nur wenn gefangen
+		return
+		
+	if _active_buffs.has(buff_type) and _active_buffs[buff_type] == value:
+		print(\"⚠️ Buff \", buff_type, \" ist bereits mit Wert \", value, \" aktiv - überspringe\")
+		return
+		
+	print(\"🔮 Lumora applying buff: \", buff_type, \" = \", value)
+	_active_buffs[buff_type] = value
+	if _player and _player.has_method(\"apply_buff\"):
+		_player.apply_buff(buff_type, value)
+
+func _remove_buff(buff_type: String) -> void:
+	if not is_caught:  # 🔥 NEU: Nur wenn gefangen
+		return
+		
+	print(\"🔮 Lumora removing buff: \", buff_type)
+	if _active_buffs.has(buff_type):
+		_active_buffs.erase(buff_type)
+	if _player and _player.has_method(\"remove_buff\"):
+		_player.remove_buff(buff_type)
+
+func _update_buffs() -> void:
+	if not is_caught or not _player:  # 🔥 NEU: Nur wenn gefangen
+		return
+		
+	if _player.has_method(\"has_buff\"):
+		var distance_to_player = global_position.distance_to(_player.global_position)
+		var should_have_constant_buff = distance_to_player < follow_distance * 2.0
+		
+		var has_constant_buff = _active_buffs.has(\"constant_damage_reduction\")
+		
+		if should_have_constant_buff and not has_constant_buff:
+			_apply_buff(\"constant_damage_reduction\", damage_reduction * 0.5)
+		elif not should_have_constant_buff and has_constant_buff:
+			_remove_buff(\"constant_damage_reduction\")
+
+func _on_heal_timer_timeout() -> void:
+	if not is_caught or not _player:  # 🔥 NEU: Nur wenn gefangen
+		return
+		
+	if _player.has_method(\"heal\"):
+		var actual_heal_amount = heal_amount
+		if _is_player_low_health:
+			actual_heal_amount *= 2
+		_player.heal(actual_heal_amount)
+		_create_heal_effect()
+		_show_buff_label(\"♥\", Color(0.4,1.0,0.4,0.8), 1.2, 0.8)
+
+# ---------------------------------
+# SKILL / DAMAGE SYSTEM (nur nach dem Fangen aktiv)
+# ---------------------------------
+func add_skill_points_from_player_damage(player_damage: float) -> void:
+	if not is_caught:  # 🔥 NEU: Nur wenn gefangen
+		return
+		
+	var gained = player_damage * 0.1
+	current_skill_points += gained
+
+	if current_skill_points >= 150.0 and not can_attack:
+		can_attack = true
+		_show_buff_label(\"⚔ Lumora erwacht!\", Color(0.7, 0.9, 1.0), 1.3, 1.5)
+
+	var extra = max(0.0, current_skill_points - 150.0)
+	var level_bonus = int(extra / 200.0)
+	damage_multiplier = 1.0 + (level_bonus * 0.02)
+
+func _on_damage_timer_timeout() -> void:
+	if not is_caught or not can_attack:  # 🔥 NEU: Nur wenn gefangen und Angriffe freigeschaltet
+		return
+	_attack_nearby_enemies()
+
+func _attack_nearby_enemies() -> void:
+	if not is_caught:  # 🔥 NEU: Nur wenn gefangen
+		return
+		
+	var enemies = get_tree().get_nodes_in_group(\"enemies\")
+	var hit_count = 0
+	
+	for enemy in enemies:
+		if not is_instance_valid(enemy):
+			continue
+			
+		var distance = global_position.distance_to(enemy.global_position)
+		
+		if distance <= attack_radius:
+			if enemy.has_method(\"take_damage\"):
+				var damage = base_damage * damage_multiplier
+				var kb_dir = (enemy.global_position - global_position).normalized()
+				enemy.take_damage(damage, kb_dir)
+				_create_attack_effect(enemy.global_position)
+				hit_count += 1
+
+# ... (die restlichen Methoden wie _create_catch_effect, _create_catch_texture, etc. bleiben gleich)
+# [Der Rest des Codes bleibt unverändert - nur die Methoden, die visuelle Effekte und Hilfsfunktionen betreffen]
+
+func _create_catch_effect():
+	var particles = GPUParticles2D.new()
+	add_child(particles)
+	
+	var mat = ParticleProcessMaterial.new()
+	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	mat.emission_sphere_radius = 80.0
+	mat.spread = 360.0
+	mat.gravity = Vector3(0, -50, 0)
+	mat.initial_velocity = Vector2(120.0, 120)
+	mat.scale = Vector2(1.5, 1.5)
+	
+	var gradient = Gradient.new()
+	gradient.set_color(0, Color(1.0, 1.0, 1.0, 1.0))
+	gradient.set_color(0.5, Color(0.7, 0.9, 1.0, 0.8))
+	gradient.set_color(1, Color(0.5, 0.7, 1.0, 0.0))
+	var gradient_texture = GradientTexture1D.new()
+	gradient_texture.gradient = gradient
+	mat.color_ramp = gradient_texture
+	
+	particles.process_material = mat
+	particles.amount = 100
+	particles.lifetime = 2.0
+	particles.one_shot = true
+	particles.global_position = global_position
+	particles.emitting = true
+	
+	await get_tree().create_timer(2.5).timeout
+	particles.queue_free()
+
+func _create_catch_texture() -> Texture2D:
+	var image = Image.create(64, 64, false, Image.FORMAT_RGBA8)
+	image.fill(Color(0, 0, 0, 0))
+	
+	var center = Vector2(32, 32)
+	var radius = 30
+	
+	for x in 64:
+		for y in 64:
+			var pos = Vector2(x, y)
+			var distance = pos.distance_to(center)
+			
+			if distance <= radius and distance >= radius - 4:
+				var alpha = 1.0 - (distance - (radius - 4)) / 4.0
+				image.set_pixel(x, y, Color(0.8, 0.9, 1.0, alpha))
+	
+	return ImageTexture.create_from_image(image)
+
+# ... (weitere Hilfsmethoden wie _create_pixel_texture, _create_color_ramp, etc.)
+
+func _create_pixel_texture() -> Texture2D:
+	var image = Image.create(4, 4, false, Image.FORMAT_RGBA8)
+	for x in 4:
+		for y in 4:
+			if (x == 0 || x == 3) and (y == 0 || y == 3):
+				image.set_pixel(x, y, Color(0, 0, 0, 0))
+			else:
+				image.set_pixel(x, y, Color(1, 1, 1, 1))
+	return ImageTexture.create_from_image(image)
+
+func _create_color_ramp(base_color: Color) -> GradientTexture1D:
+	var gradient = Gradient.new()
+	gradient.set_color(0, base_color)
+	gradient.set_color(1, Color(base_color.r, base_color.g, base_color.b, 0))
+	var texture = GradientTexture1D.new()
+	texture.gradient = gradient
+	return texture
+
+func _activate_buff_particles(color: Color) -> void:
+	_buff_particles.emitting = true
+	var mat = ParticleProcessMaterial.new()
+	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	mat.emission_sphere_radius = 60.0
+	mat.initial_velocity = Vector2(80.0, 80.0)
+	mat.spread = 35.0
+	mat.gravity = Vector3(0, -50, 0)
+	mat.scale = Vector2(0.6, 0.6)
+	mat.color_ramp = _create_color_ramp(color)
+	_buff_particles.process_material = mat
+	_buff_particles.lifetime = 1.2
+
+func _create_heal_effect() -> void:
+	var heal_particles = GPUParticles2D.new()
+	add_child(heal_particles)
+	var mat = ParticleProcessMaterial.new()
+	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	mat.emission_sphere_radius = 25.0
+	mat.gravity = Vector3(0, -30, 0)
+	mat.initial_velocity = Vector2(100.0, 100)
+	mat.spread = 25.0
+	mat.scale = Vector2(0.8, 0.8)
+	mat.lifetime_randomness = 0.4
+	mat.color_ramp = _create_color_ramp(Color(0.4, 1.0, 0.4, 0.8))
+	heal_particles.process_material = mat
+	heal_particles.amount = 40
+	heal_particles.lifetime = 0.8
+	heal_particles.one_shot = true
+	heal_particles.emitting = true
+	if _player:
+		heal_particles.global_position = _player.global_position
+	else:
+		heal_particles.global_position = global_position
+	await get_tree().create_timer(0.9).timeout
+	heal_particles.queue_free()
+
+func _create_attack_effect(pos: Vector2) -> void:
+	var fx = GPUParticles2D.new()
+	add_child(fx)
+	var mat = ParticleProcessMaterial.new()
+	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	mat.emission_sphere_radius = 25
+	mat.lifetime_randomness = 0.3
+	mat.spread = 60.0
+	mat.gravity = Vector3(0, 0, 0)
+	mat.initial_velocity = Vector2(80, 80)
+	mat.color_ramp = _create_color_ramp(Color(0.6, 0.8, 1.0, 0.9))
+	fx.process_material = mat
+	fx.amount = 30
+	fx.one_shot = true
+	fx.lifetime = 0.5
+	fx.global_position = pos
+	fx.emitting = true
+	await get_tree().create_timer(0.6).timeout
+	fx.queue_free()
+
+func _show_buff_label(text: String, color: Color = Color(1,1,1), scale: float = 1.0, duration: float = 0.8) -> void:
+	var label = Label.new()
+	label.text = text
+	label.modulate = color
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.position = global_position - Vector2(0, 20)
+	label.scale = Vector2.ZERO
+	add_child(label)
+
+	var tween = create_tween()
+	tween.tween_property(label, \"scale\", Vector2.ONE * scale, duration * 0.4).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.tween_property(label, \"position:y\", label.position.y - 20, duration * 0.6).set_trans(Tween.TRANS_LINEAR)
+	tween.tween_property(label, \"modulate:a\", 0.0, duration * 0.6).set_delay(duration * 0.4)
+
+	tween.finished.connect(func():
+		if label.is_inside_tree():
+			label.queue_free()
+	)
+
+func _load_permanent_state():
+	if FileAccess.file_exists(save_path):
+		var file = FileAccess.open(save_path, FileAccess.READ)
+		if file:
+			is_permanent = file.get_var()
+			file.close()
+			print(\"📁 Lumora Save-Datei gefunden - is_permanent: \", is_permanent)
+
+func _save_permanent_state():
+	var file = FileAccess.open(save_path, FileAccess.WRITE)
+	if file:
+		file.store_var(is_permanent)
+		file.close()
+		print(\"💾 Lumora permanent gespeichert: \", is_permanent)
+
+func _autosave_skill_data() -> void:
+	if not is_caught:  # 🔥 NEU: Nur wenn gefangen
+		return
+		
+	var err = OK
+	var file = FileAccess.open(skill_save_path, FileAccess.ModeFlags.WRITE)
+	if file:
+		file.store_var(current_skill_points)
+		file.store_var(can_attack)
+		file.store_var(damage_multiplier)
+		file.close()
+	else:
+		push_warning(\"Lumora: konnte Skill-Daten nicht speichern: \" + str(skill_save_path))
+
+func _load_skill_data() -> void:
+	if FileAccess.file_exists(skill_save_path):
+		var file = FileAccess.open(skill_save_path, FileAccess.ModeFlags.READ)
+		if file:
+			current_skill_points = float(file.get_var())
+			can_attack = bool(file.get_var())
+			damage_multiplier = float(file.get_var())
+			file.close()
+		else:
+			current_skill_points = 0.0
+			can_attack = false
+			damage_multiplier = 1.0
+	else:
+		current_skill_points = 0.0
+		can_attack = false
+		damage_multiplier = 1.0
+
+func assign_player(player_node: Node2D):
+	player_path = player_node.get_path()
+	_player = player_node
+	print(\"Lumora wurde Spieler \", player_node.name, \" zugewiesen\")
+
+func delete_save_data():
+	if FileAccess.file_exists(save_path):
+		DirAccess.remove_absolute(save_path)
+		print(\"🗑️ Lumora Save-Datei gelöscht\")
+
+func angle_difference(from: float, to: float) -> float:
+	var diff = fmod(to - from + PI, PI * 2) - PI
+	return diff if diff >= -PI else diff + PI * 2
+"
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_strim"]
+particle_flag_disable_z = true
+emission_shape_scale = Vector3(10, 10, 10)
+emission_shape = 1
+emission_sphere_radius = 1.0
+angle_min = -279.2
+angle_max = 18.7
+spread = 38.652
+radial_velocity_min = -2.23517e-05
+radial_velocity_max = -2.23517e-05
+gravity = Vector3(0, 98, 0)
+scale_min = 0.8
+scale_max = 1.2
+scale_over_velocity_min = 0.8
+scale_over_velocity_max = 1.2
+color = Color(0.964706, 0.882353, 0.890196, 1)
+
+[sub_resource type="Gradient" id="Gradient_jxmgf"]
+colors = PackedColorArray(1, 1, 1, 1, 0, 0, 0, 1)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_5x7xt"]
+gradient = SubResource("Gradient_jxmgf")
+fill = 1
+fill_from = Vector2(0.493119, 0.527523)
+fill_to = Vector2(0.889908, 0.169725)
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_5x7xt"]
+radius = 8.0
+
+[sub_resource type="Animation" id="Animation_d64lg"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Sprite2D:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [0]
+}
+
+[sub_resource type="Animation" id="Animation_rag14"]
+resource_name = "fly"
+length = 0.2
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Sprite2D:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0.000591655, 0.2),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [0, 1]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_3l6if"]
+_data = {
+&"RESET": SubResource("Animation_d64lg"),
+&"fly": SubResource("Animation_rag14")
+}
+
+[node name="Lumora" type="CharacterBody2D"]
+script = SubResource("GDScript_jxmgf")
+
+[node name="GPUParticles2D" type="GPUParticles2D" parent="."]
+emitting = false
+amount = 50
+texture = ExtResource("2_eor77")
+lifetime = 6.0
+explosiveness = 0.1
+randomness = 0.2
+fixed_fps = 144
+process_material = SubResource("ParticleProcessMaterial_strim")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_strim")
+hframes = 2
+
+[node name="GlowLight" type="PointLight2D" parent="."]
+texture = SubResource("GradientTexture2D_5x7xt")
+texture_scale = 1.6
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+visible = false
+shape = SubResource("CircleShape2D_5x7xt")
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+libraries = {
+&"": SubResource("AnimationLibrary_3l6if")
+}

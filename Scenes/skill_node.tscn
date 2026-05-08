@@ -1,0 +1,30 @@
+[gd_scene load_steps=2 format=3 uid="uid://c8chprbm6cj8w"]
+
+[sub_resource type="GDScript" id="GDScript_24ija"]
+script/source = "# SkillNode.gd
+extends TextureButton
+
+@export var skill_name: String = \"\"
+@export var skill_cost: int = 1
+@export var unlocked: bool = false
+
+func _ready():
+	$Label.text = skill_name
+	update_appearance()
+
+func update_appearance():
+	if unlocked:
+		modulate = Color.GREEN
+	else:
+		modulate = Color.GRAY
+"
+
+[node name="SkillNode" type="TextureButton"]
+offset_right = 40.0
+offset_bottom = 40.0
+script = SubResource("GDScript_24ija")
+
+[node name="Label" type="Label" parent="."]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 23.0

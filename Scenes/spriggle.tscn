@@ -1,0 +1,80 @@
+[gd_scene load_steps=8 format=3 uid="uid://dripb2v15sy8"]
+
+[ext_resource type="Texture2D" uid="uid://dd4vbs1pe4ie5" path="res://Assets/Spriggle/sprite-sheet-spriggle.png" id="1_caftd"]
+[ext_resource type="Script" uid="uid://dqlcp6xtmie66" path="res://Scenes/spriggle.gd" id="1_yyw2s"]
+
+[sub_resource type="Animation" id="Animation_yyw2s"]
+resource_name = "idle"
+length = 0.6
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Sprite2D:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.6),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [3, 7]
+}
+
+[sub_resource type="Animation" id="Animation_qndtj"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Sprite2D:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [3]
+}
+
+[sub_resource type="Animation" id="Animation_rvtoh"]
+resource_name = "walk"
+length = 0.3
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Sprite2D:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.3),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [3, 4]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_f4my7"]
+_data = {
+&"RESET": SubResource("Animation_qndtj"),
+&"idle": SubResource("Animation_yyw2s"),
+&"walk": SubResource("Animation_rvtoh")
+}
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_11bnw"]
+size = Vector2(24, 30.5)
+
+[node name="Spriggle" type="CharacterBody2D"]
+script = ExtResource("1_yyw2s")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("1_caftd")
+hframes = 3
+vframes = 3
+frame = 3
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+libraries = {
+&"": SubResource("AnimationLibrary_f4my7")
+}
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(1, 11.75)
+shape = SubResource("RectangleShape2D_11bnw")

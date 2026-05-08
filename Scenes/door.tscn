@@ -9,6 +9,11 @@ script/source = "extends Node2D
 @onready var area: Area2D = $Area2D
 @export var level: String = \"\"
 
+signal level_completed(level_name)
+
+func _ready():
+	add_to_group(\"doors\")
+
 func _physics_process(_delta: float) -> void:
 	for body in area.get_overlapping_bodies():
 		if body.name == \"PlayerModel\" and Input.is_action_just_pressed(\"Interact\"):
@@ -16,15 +21,42 @@ func _physics_process(_delta: float) -> void:
 				push_warning(\"Kein Level für diese Tür gesetzt!\")
 				return
 			
+			# Speichere, dass dieses Level erreicht wurde
+			mark_level_completed(level)
+			
 			var transition = preload(\"res://Scenes/transition.tscn\").instantiate()
 			get_tree().root.add_child(transition)
 			
 			var scene_path = \"res://Scenes/%s.tscn\" % level
 			transition.play_transition(scene_path)
 			await transition.transition_completed
-			
-			# Ab hier ist die Transition bereits im Begriff sich selbst zu entfernen
-			# und die neue Szene ist geladen
+
+func mark_level_completed(level_name: String):
+	var completed_levels = load_completed_levels()
+	if not level_name in completed_levels:
+		completed_levels.append(level_name)
+		save_completed_levels(completed_levels)
+		print(\"Level abgeschlossen: \", level_name)
+		level_completed.emit(level_name)  # Signal aussenden
+		
+		# Aktualisiere den Skillbaum, wenn er sichtbar ist
+		var skill_tree = get_tree().get_first_node_in_group(\"skill_tree\")
+		if skill_tree:
+			skill_tree.queue_redraw()
+
+func load_completed_levels() -> Array:
+	if FileAccess.file_exists(\"user://completed_levels.save\"):
+		var file = FileAccess.open(\"user://completed_levels.save\", FileAccess.READ)
+		var data = JSON.parse_string(file.get_as_text())
+		file.close()
+		if data is Array:
+			return data
+	return []
+
+func save_completed_levels(levels: Array):
+	var file = FileAccess.open(\"user://completed_levels.save\", FileAccess.WRITE)
+	file.store_string(JSON.stringify(levels))
+	file.close()
 "
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_hvas2"]

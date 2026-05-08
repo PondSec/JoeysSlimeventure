@@ -123,6 +123,8 @@ radius = 48.074
 
 [node name="Bat" type="CharacterBody2D"]
 scale = Vector2(1.5, 1.5)
+collision_layer = 2
+collision_mask = 15
 script = ExtResource("1_fveqw")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
@@ -137,11 +139,13 @@ libraries = {
 speed_scale = 2.0
 
 [node name="AttackArea" type="Area2D" parent="."]
+visible = false
 
 [node name="Body" type="CollisionShape2D" parent="AttackArea"]
 shape = SubResource("CircleShape2D_p57rr")
 
 [node name="Collision" type="CollisionShape2D" parent="."]
+visible = false
 shape = SubResource("RectangleShape2D_chl00")
 
 [node name="NavigationAgent2D" type="NavigationAgent2D" parent="."]
@@ -149,6 +153,22 @@ shape = SubResource("RectangleShape2D_chl00")
 [node name="Timer" type="Timer" parent="NavigationAgent2D"]
 wait_time = 0.1
 autostart = true
+
+[node name="AlertIcon" type="Label" parent="."]
+offset_left = -1.0
+offset_top = -34.0
+offset_right = 4.0
+offset_bottom = -11.0
+
+[node name="DetectionArea" type="Area2D" parent="."]
+visible = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="DetectionArea"]
+shape = SubResource("CircleShape2D_50dnf")
+
+[node name="AudioStreamPlayer2D" type="AudioStreamPlayer2D" parent="."]
+stream = ExtResource("5_mqh3e")
+pitch_scale = 15.0
 
 [node name="HealthBar" type="TextureProgressBar" parent="."]
 offset_left = -12.6667
@@ -158,18 +178,3 @@ offset_bottom = -16.3333
 nine_patch_stretch = true
 texture_under = ExtResource("3_50dnf")
 texture_progress = ExtResource("4_mqh3e")
-
-[node name="AlertIcon" type="Label" parent="."]
-offset_left = -1.0
-offset_top = -34.0
-offset_right = 4.0
-offset_bottom = -11.0
-
-[node name="DetectionArea" type="Area2D" parent="."]
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="DetectionArea"]
-shape = SubResource("CircleShape2D_50dnf")
-
-[node name="AudioStreamPlayer2D" type="AudioStreamPlayer2D" parent="."]
-stream = ExtResource("5_mqh3e")
-pitch_scale = 15.0

@@ -16,6 +16,11 @@ const MAX_HEALTH = 50
 const ACCELERATION = 8.0
 const DECELERATION = 10.0
 
+var original_speed := SPEED  # Ursprüngliche Geschwindigkeit speichern
+var current_slow_multiplier := 1.0  # Aktueller Slow-Multiplikator
+var slow_timer := 0.0  # Timer für temporäre Slows
+var is_slowed := false
+
 # Variablen
 var navigation_update_timer = 0.0
 var is_dead := false
@@ -61,9 +66,9 @@ var streak_timer := 0.0
 @export var want_call: bool = true
 @onready var animation_player = $Sprite2D/AnimationPlayer
 @onready var navigation_agent = $NavigationAgent2D
-@onready var hit_particles = $HitParticles
-@onready var death_particles = $DeathParticles
-@onready var sound_player = $SoundPlayer
+@onready var hit_particles: CPUParticles2D = get_node_or_null("HitParticles") as CPUParticles2D
+@onready var death_particles: CPUParticles2D = get_node_or_null("DeathParticles") as CPUParticles2D
+@onready var sound_player: AudioStreamPlayer2D = _resolve_sound_player()
 @onready var health_bar = $HealthBar
 @onready var detection_area = $DetectionArea
 @onready var alert_icon = $AlertIcon
@@ -77,23 +82,90 @@ var death_sound = preload("res://Assets/Sounds/Bat_death.ogg")
 var hurt_sound = preload("res://Assets/Sounds/Bat_hurt2.ogg.mp3")
 var dodge_sound = preload("res://Assets/Sounds/Bat_takeoff.ogg")
 
+func _resolve_sound_player() -> AudioStreamPlayer2D:
+	var existing_player := get_node_or_null("SoundPlayer") as AudioStreamPlayer2D
+	if existing_player:
+		return existing_player
+	return get_node_or_null("AudioStreamPlayer2D") as AudioStreamPlayer2D
+
 func _ready() -> void:
 	randomize()
 	add_to_group("enemies")
 	add_to_group("bats")
+	
+	# Automatisch Target finden (kann Player oder Minion sein)
+	find_target()
+	
 	bat_position = get_random_spawn_position()
 	health_bar.visible = false
 	alert_icon.visible = false
 	alert_icon.text = "!"  # Stelle sicher, dass das Symbol ein ! ist
 	generate_patrol_points()
-	# Verbinde Area-Signale
-	detection_area.body_entered.connect(_on_player_detected)
-	detection_area.body_exited.connect(_on_player_lost)
 	
-	# AudioStreamPlayer dynamisch erstellen
-	sound_player = AudioStreamPlayer.new()
-	sound_player.name = "SoundPlayer"  # Optional: Name für Debugging
-	add_child(sound_player)  # WICHTIG: Node hinzufügen
+	# Verbinde Area-Signale
+	detection_area.body_entered.connect(_on_target_detected)  # Geändert von _on_player_detected
+	detection_area.body_exited.connect(_on_target_lost)       # Geändert von _on_player_lost
+	
+	if sound_player == null:
+		sound_player = AudioStreamPlayer2D.new()
+		sound_player.name = "SoundPlayer"
+		add_child(sound_player)
+	else:
+		sound_player.name = "SoundPlayer"
+	original_speed = SPEED
+
+func _on_target_detected(body: Node2D) -> void:
+	if body.is_in_group("players") or body.is_in_group("minions"):
+		# Wenn wir noch kein Ziel haben oder das neue Ziel näher ist
+		if player == null or global_position.distance_to(body.global_position) < global_position.distance_to(player.global_position):
+			player = body
+			alert_icon.text = "!"
+			alert_icon.visible = true
+			var alert_tween = create_tween()
+			alert_tween.tween_property(alert_icon, "scale", Vector2(1.5, 1.5), 0.2)
+			alert_tween.tween_property(alert_icon, "scale", Vector2(1.0, 1.0), 0.1)
+			# Nach 1 Sekunde unsichtbar machen
+			await get_tree().create_timer(1.0).timeout
+			if alert_icon.text == "!":  # Nur ausblenden, wenn es noch ein "!" ist
+				alert_icon.visible = false
+
+func _on_target_lost(body: Node2D) -> void:
+	if body == player:
+		# Suche ein neues Ziel in der Nähe
+		var new_target = find_nearest_target()
+		if new_target:
+			player = new_target
+		else:
+			# Ändere das Icon zu einem Fragezeichen
+			alert_icon.text = "?"
+			alert_icon.visible = true
+			
+			# Animation für das Fragezeichen
+			var alert_tween = create_tween()
+			alert_tween.tween_property(alert_icon, "scale", Vector2(1.5, 1.5), 0.2)
+			alert_tween.tween_property(alert_icon, "scale", Vector2(1.0, 1.0), 0.1)
+			
+			# Nach 0.5 Sekunden unsichtbar machen
+			await get_tree().create_timer(0.5).timeout
+			alert_icon.visible = false
+			alert_icon.text = "!"  # Zurück zum Ausrufezeichen für das nächste Mal
+
+func find_nearest_target() -> Node2D:
+	var players = get_tree().get_nodes_in_group("players")
+	var minions = get_tree().get_nodes_in_group("minions")
+	var all_targets = players + minions
+	
+	var nearest_target = null
+	var nearest_distance = INF
+	
+	for target in all_targets:
+		if is_instance_valid(target):
+			var distance = global_position.distance_to(target.global_position)
+			if distance < nearest_distance and distance <= DETECTION_RADIUS:
+				nearest_distance = distance
+				nearest_target = target
+	
+	return nearest_target
 
 func get_loot_table() -> Array:
 	# Lade die InvItem Resources direkt
@@ -115,7 +187,11 @@ func get_loot_table() -> Array:
 	return table
 
 func _physics_process(delta: float) -> void:
-	
+	if player == null or not is_instance_valid(player):
+		find_target()
+		if player == null:  # Immer noch kein Ziel gefunden
+			return  # Nichts tun, bis ein Ziel existiert
+			
 	if normal_hit_streak > 0:
 		streak_timer += delta
 		if streak_timer >= streak_reset_time:
@@ -147,7 +223,24 @@ func _physics_process(delta: float) -> void:
 	update_health_bar()
 	update_stealth()
 	
-	if is_stunned or player.current_health <= 0:
+	if slow_timer > 0:
+		slow_timer -= delta
+		if slow_timer <= 0:
+			_reset_speed()
+	
+   # Geschwindigkeit basierend auf Slow-Status setzen - DIESEN ABSCHNITT ERSETZEN:
+	if is_slowed:
+		current_speed = original_speed * current_slow_multiplier
+	else:
+		current_speed = original_speed	
+	
+	# Debug-Ausgabe (nur wenn tatsächlich verlangsamt)
+	if Engine.get_frames_drawn() % 60 == 0 and is_slowed:
+		print("🐌 Fledermaus ist verlangsamt: %s (Original: %s, Multiplier: %s)" % [
+			current_speed, original_speed, current_slow_multiplier
+		])
+	
+	if is_stunned or (player.has_method("current_health") and player.current_health <= 0):
 		velocity = Vector2.ZERO
 		is_attacking = false
 		set_animation()
@@ -161,19 +254,24 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	set_animation()
 
-func find_player() -> void:
-	# Warte einen Frame, damit der Player sicher geladen ist
-	await get_tree().process_frame
-	# Finde den Player in der Szene
-	var players = get_tree().get_nodes_in_group("player")
+func find_target() -> void:
+	var players = get_tree().get_nodes_in_group("players")
+	var minions = get_tree().get_nodes_in_group("minions")
+	
+	# Priorität: Zuerst Spieler, dann Minions
 	if players.size() > 0:
 		player = players[0]
+	elif minions.size() > 0:
+		player = minions[0]  # Minion als Ziel setzen
 	else:
-		push_warning("Player nicht gefunden! Stelle sicher, dass der Player in der 'player' Gruppe ist.")
+		push_warning("Kein Ziel gefunden! Weder Player noch Minions in den Gruppen.")
+		player = null
 
 func handle_state_machine(delta: float) -> void:
 	var distance_to_player = global_position.distance_to(player.global_position)
-	var actual_detection_radius = DETECTION_RADIUS if player.is_glowing else BASE_DETECTION_RADIUS
+	var actual_detection_radius = BASE_DETECTION_RADIUS
+	if player.is_in_group("players") and player.is_glowing:
+		actual_detection_radius = DETECTION_RADIUS
 	
 	if bat_health < MAX_HEALTH * 0.3 && can_call_for_help && current_state == "chase":
 		if randf() < CALL_PROBABILITY:  # Zufallsprüfung
@@ -240,8 +338,8 @@ func handle_patrol_state(delta: float) -> void:
 			current_patrol_index = (current_patrol_index + 1) % patrol_points.size()
 			target_point = patrol_points[current_patrol_index]
 		
-		# Geschwindigkeit natürlich variieren
-		var speed_variation = SPEED * randf_range(0.7, 1.3) * 0.6
+		# HIER ÄNDERN: current_speed statt SPEED verwenden
+		var speed_variation = current_speed * randf_range(0.7, 1.3) * 0.6  # <- GEÄNDERT
 		
 		# Sanftere Bewegungen mit Navigation
 		navigation_agent.target_position = target_point
@@ -298,14 +396,27 @@ func can_attack() -> bool:
 			and not is_dead 
 			and not is_stunned 
 			and not is_dodging 
+			and is_instance_valid(player)
 			and global_position.distance_to(player.global_position) <= ATTACK_RANGE)
-
+		
 func handle_chase(delta: float, distance: float) -> void:
 	if should_attack:
 		return
-	var actual_detection_radius = DETECTION_RADIUS if player.is_glowing else BASE_DETECTION_RADIUS
 	
-	# Nicht weiter verfolgen, wenn der Spieler außerhalb des Radius ist
+	# Überprüfe ob das Ziel noch gültig ist
+	if not is_instance_valid(player):
+		find_target()
+		if player == null:
+			return
+	
+	var actual_detection_radius = DETECTION_RADIUS
+	# Nur für Spieler Stealth-Mechanik anwenden
+	if player.is_in_group("players") and player.is_glowing:
+		actual_detection_radius = DETECTION_RADIUS
+	else:
+		actual_detection_radius = BASE_DETECTION_RADIUS
+	
+	# Nicht weiter verfolgen, wenn das Ziel außerhalb des Radius ist
 	if distance > actual_detection_radius * 1.2:  # 20% Puffer
 		velocity = Vector2.ZERO
 		decide_next_state()
@@ -320,11 +431,12 @@ func handle_chase(delta: float, distance: float) -> void:
 	
 	var direction = to_local(navigation_agent.get_next_path_position()).normalized()
 	if distance > MIN_DISTANCE:
-		var target_velocity = direction * SPEED
-		velocity = velocity.lerp(target_velocity, delta * 10)  # Glättung hier
+		# HIER ÄNDERN: current_speed statt SPEED verwenden
+		var target_velocity = direction * current_speed  # <- GEÄNDERT
+		velocity = velocity.lerp(target_velocity, delta * 10)
 	else:
-		velocity = velocity.lerp(Vector2.ZERO, delta * 10)  # Auch beim Stoppen glätten
-
+		velocity = velocity.lerp(Vector2.ZERO, delta * 10)
+		
 func handle_patrol(delta: float) -> void:
 	time_since_last_seen += delta
 	if time_since_last_seen > 3.0 and patrol_points.size() > 0:
@@ -430,7 +542,13 @@ func _on_attack_animation_finished(anim_name: String) -> void:
 			else:
 				show_damage_number(random_damage)
 			
-			player.take_damage(random_damage, global_position)
+			# Unterschiedliche take_damage Aufrufe je nach Zieltyp
+			if player.is_in_group("players"):
+				# Spieler erwartet 2 Argumente
+				player.take_damage(random_damage, global_position)
+			else:
+				# Minion erwartet nur 1 Argument
+				player.take_damage(random_damage)
 	
 	animation_player.disconnect("animation_finished", Callable(self, "_on_attack_animation_finished"))
 	is_attacking = false
@@ -549,9 +667,12 @@ func take_damage(amount: int, direction: Vector2, is_crit: bool = false) -> void
 		# Play special crit effects
 		perform_critical_hit_effects()
 	
-	# Schadensreduktion basierend auf der Entfernung
-	var distance_factor = clamp(global_position.distance_to(player.global_position) / 100.0, 0.5, 1.0)
-	final_damage = ceil(final_damage * distance_factor)
+	# Schadensreduktion basierend auf der Entfernung.
+	# Falls gerade kein Ziel referenziert ist, soll der Treffer trotzdem gelten.
+	var distance_factor := 1.0
+	if is_instance_valid(player):
+		distance_factor = clampf(global_position.distance_to(player.global_position) / 100.0, 0.5, 1.0)
+	final_damage = ceili(final_damage * distance_factor)
 	
 	bat_health -= final_damage
 	show_damage_number(final_damage, is_crit)  # Pass is_crit to show different damage numbers
@@ -805,3 +926,80 @@ func get_light_influence_at_position(pos: Vector2) -> float:
 	if max_light_influence > 0:
 		return clamp(total_light / max_light_influence, 0.0, 1.0)
 	return 0.0  # No light influence
+
+
+# --- NEUE METHODEN FÜR SLOW SYSTEM ---
+
+func get_speed() -> float:
+	return original_speed
+
+func set_speed(new_speed: float) -> void:
+	# Setze die aktuelle Geschwindigkeit basierend auf dem Slow-Multiplikator
+	current_speed = new_speed
+
+func apply_slow(slow_multiplier: float, duration: float) -> void:
+	# Slow anwenden
+	current_slow_multiplier = slow_multiplier
+	current_speed = original_speed * current_slow_multiplier
+	slow_timer = duration
+	is_slowed = true  # <- WICHTIG: Status setzen
+	
+	print("🔵 Slow angewendet! Multiplier: ", slow_multiplier, " Neue Geschwindigkeit: ", current_speed)
+	
+	# Visuellen Slow-Effekt anzeigen
+	_show_slow_effect()
+
+func _reset_speed() -> void:
+	# Geschwindigkeit zurücksetzen
+	current_slow_multiplier = 1.0
+	current_speed = original_speed
+	slow_timer = 0.0
+	is_slowed = false  # <- WICHTIG: Status zurücksetzen
+	
+	print("🟢 Slow entfernt! Geschwindigkeit zurückgesetzt: ", current_speed)
+	
+	# Visuellen Effekt entfernen
+	_hide_slow_effect()
+
+func _show_slow_effect() -> void:
+	# Bläuliche Tönung für Slow-Effekt
+	var slow_tween = create_tween()
+	slow_tween.tween_property(sprite, "modulate", Color(0.7, 0.7, 1.0, 0.8), 0.3)
+	
+	# Partikel-Effekt für Slow
+	var slow_particles = GPUParticles2D.new()
+	add_child(slow_particles)
+	
+	var mat = ParticleProcessMaterial.new()
+	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	mat.emission_sphere_radius = 25.0
+	mat.gravity = Vector3(0, -20, 0)
+	mat.initial_velocity = Vector2(30.0, 30.0)
+	mat.spread = 45.0
+	mat.scale = Vector2(0.8, 0.8)
+	mat.color_ramp = _create_slow_color_ramp()
+	
+	slow_particles.process_material = mat
+	slow_particles.amount = 20
+	slow_particles.lifetime = 1.0
+	slow_particles.one_shot = false
+	slow_particles.emitting = true
+	
+	# Partikel nach Ende des Slows entfernen
+	if slow_timer > 0:
+		await get_tree().create_timer(slow_timer).timeout
+		slow_particles.emitting = false
+		slow_particles.queue_free()
+
+func _hide_slow_effect() -> void:
+	# Farbe zurück zur Normalität
+	var normal_tween = create_tween()
+	normal_tween.tween_property(sprite, "modulate", Color.WHITE, 0.3)
+
+func _create_slow_color_ramp() -> GradientTexture1D:
+	var gradient = Gradient.new()
+	gradient.set_color(0, Color(0.3, 0.5, 0.9, 0.8))  # Blau am Anfang
+	gradient.set_color(1, Color(0.3, 0.5, 0.9, 0.0))  # Transparent am Ende
+	var texture = GradientTexture1D.new()
+	texture.gradient = gradient
+	return texture

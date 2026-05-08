@@ -65,7 +65,10 @@ func load_item(item_name: String) -> InvItem:
 	var item = load("res://InventorySystem/items/" + item_name + ".tres")  # Angenommener Pfad zu den Items
 	return item
 
-func Insert(item: InvItem):
+func Insert(item: InvItem) -> bool:
+	if item == null:
+		return false
+
 	var itemslots = slots.filter(func(slot): return slot.item == item and slot.amount < 64)
 	print("Itemslots: ", itemslots.size())  # Debugging-Log für verfügbare Itemslots
 	if !itemslots.is_empty():
@@ -83,10 +86,12 @@ func Insert(item: InvItem):
 			print("Item wurde in einen leeren Slot eingefügt.")
 		else:
 			print("Kein Platz für dieses Item.")
+			return false
 
 
 	update.emit()  # Signal senden
-	save_inventory("user://inventory.save") 
+	save_inventory("user://inventory.save")
+	return true
 
 # Tauschen von zwei Slots
 func swap_slots(index1: int, index2: int):

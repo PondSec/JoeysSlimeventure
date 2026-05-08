@@ -60,9 +60,9 @@ var streak_timer := 0.0
 @export var spawn_zone_container: Node2D
 @onready var animation_player = $Sprite2D/AnimationPlayer
 @onready var navigation_agent = $NavigationAgent2D
-@onready var hit_particles = $HitParticles
-@onready var death_particles = $DeathParticles
-@onready var sound_player = $SoundPlayer
+@onready var hit_particles: CPUParticles2D = get_node_or_null("HitParticles") as CPUParticles2D
+@onready var death_particles: CPUParticles2D = get_node_or_null("DeathParticles") as CPUParticles2D
+@onready var sound_player: AudioStreamPlayer2D = _resolve_sound_player()
 @onready var health_bar = $HealthBar
 @onready var detection_area = $DetectionArea
 @onready var alert_icon = $AlertIcon
@@ -74,6 +74,12 @@ var streak_timer := 0.0
 var death_sound = preload("res://Assets/Sounds/Bat_death.ogg")
 var hurt_sound = preload("res://Assets/Sounds/Bat_hurt2.ogg.mp3")
 var dodge_sound = preload("res://Assets/Sounds/Bat_takeoff.ogg")
+
+func _resolve_sound_player() -> AudioStreamPlayer2D:
+	var existing_player := get_node_or_null("SoundPlayer") as AudioStreamPlayer2D
+	if existing_player:
+		return existing_player
+	return get_node_or_null("AudioStreamPlayer2D") as AudioStreamPlayer2D
 
 # Loot-Tabelle
 var loot_table = [
@@ -99,10 +105,12 @@ func _ready() -> void:
 	detection_area.body_entered.connect(_on_player_detected)
 	detection_area.body_exited.connect(_on_player_lost)
 	
-	# AudioStreamPlayer dynamisch erstellen
-	sound_player = AudioStreamPlayer.new()
-	sound_player.name = "SoundPlayer"  # Optional: Name für Debugging
-	add_child(sound_player)  # WICHTIG: Node hinzufügen
+	if sound_player == null:
+		sound_player = AudioStreamPlayer2D.new()
+		sound_player.name = "SoundPlayer"
+		add_child(sound_player)
+	else:
+		sound_player.name = "SoundPlayer"
 
 func _physics_process(delta: float) -> void:
 	
@@ -534,9 +542,12 @@ func take_damage(amount: int, direction: Vector2, is_crit: bool = false) -> void
 		# Play special crit effects
 		perform_critical_hit_effects()
 	
-	# Schadensreduktion basierend auf der Entfernung
-	var distance_factor = clamp(global_position.distance_to(player.global_position) / 100.0, 0.5, 1.0)
-	final_damage = ceil(final_damage * distance_factor)
+	# Schadensreduktion basierend auf der Entfernung.
+	# Falls gerade kein Ziel referenziert ist, soll der Treffer trotzdem gelten.
+	var distance_factor := 1.0
+	if is_instance_valid(player):
+		distance_factor = clampf(global_position.distance_to(player.global_position) / 100.0, 0.5, 1.0)
+	final_damage = ceili(final_damage * distance_factor)
 	
 	bat_health -= final_damage
 	show_damage_number(final_damage, is_crit)  # Pass is_crit to show different damage numbers

@@ -1,11 +1,12 @@
-[gd_scene load_steps=48 format=3 uid="uid://b6ublycstdj8n"]
+[gd_scene load_steps=58 format=3 uid="uid://b6ublycstdj8n"]
 
-[ext_resource type="Texture2D" uid="uid://cildswtcj7qrc" path="res://Assets/slime-sprite.png" id="1_4yq4u"]
 [ext_resource type="Resource" uid="uid://0rntjh2xt5s5" path="res://InventorySystem/playerinv.tres" id="1_e7ml4"]
-[ext_resource type="Texture2D" uid="uid://c771vveh0silu" path="res://Assets/Light/light_white.png" id="1_p71sj"]
+[ext_resource type="PackedScene" uid="uid://boa0bok16i3n" path="res://Scenes/slime_ball.tscn" id="2_y6uwr"]
 [ext_resource type="Texture2D" uid="uid://quh4mac3hef1" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame0.png" id="3_ubp3h"]
+[ext_resource type="Texture2D" uid="uid://bfhvfvveasr1l" path="res://Assets/Light/torch_light.png" id="3_vfarp"]
 [ext_resource type="Texture2D" uid="uid://cjb4nq6aeftnv" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame1.png" id="4_6hcqa"]
 [ext_resource type="Texture2D" uid="uid://dq3ow8oywurgq" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame2.png" id="5_eo1jl"]
+[ext_resource type="Texture2D" uid="uid://cso6s6gjvh3qk" path="res://Assets/slime-sprite2.png" id="5_y6uwr"]
 [ext_resource type="Texture2D" uid="uid://b8fkvpdoglnlv" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame3.png" id="6_whfsg"]
 [ext_resource type="Texture2D" uid="uid://bdf3l7k3ha5iw" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame4.png" id="7_ojgk2"]
 [ext_resource type="Texture2D" uid="uid://lhtf7y3rpgu1" path="res://Assets/Attack/ezgif-3-d988ac59dc-gif-im/frame5.png" id="8_efps6"]
@@ -25,10 +26,23 @@
 [ext_resource type="AudioStream" uid="uid://c14lbto0tykos" path="res://Assets/Sounds/land.mp3" id="23_p1odr"]
 [ext_resource type="AudioStream" uid="uid://c4t47qbmuxikx" path="res://Assets/Sounds/walk.mp3" id="24_2ijsl"]
 [ext_resource type="Texture2D" uid="uid://cllwmov7ffejk" path="res://Assets/Particles#/dust.png" id="25_p1odr"]
+[ext_resource type="PackedScene" uid="uid://dwcb5l2ylkk5d" path="res://Scenes/SkillTree.tscn" id="26_0gysh"]
+[ext_resource type="Texture2D" uid="uid://gxr5xin814o6" path="res://Assets/sphere.png" id="26_vfarp"]
+[ext_resource type="Script" path="res://Scripts/player.gd" id="27_player"]
 
 [sub_resource type="GDScript" id="GDScript_381hh"]
 resource_name = "Player"
 script/source = "extends CharacterBody2D
+
+signal glow_changed(is_glowing: bool)
+var controls_inverted: bool = false
+
+var active_buffs := {}
+var base_walk_speed := 140.0
+var base_run_speed := 220.0
+var base_attack_damage := 15
+var damage_reduction := 0.0
+@export var lumora: CharacterBody2D
 
 var touch_controls: CanvasLayer
 var joystick: Control
@@ -43,18 +57,32 @@ var joystick_output := Vector2.ZERO
 
 var public_key: CryptoKey
 
+const SLIME_WINGS_GLIDE_SPEED = 200.0  # Sehr schnelles horizontales Gleiten
+const SLIME_WINGS_GRAVITY_REDUCTION = 0.08  # Sehr wenig Schwerkraft
+const SLIME_WINGS_MIN_FALL_SPEED = 20.0  # Extrem langsames Fallen
+
 # Bewegungseinstellungen
-const WALK_SPEED = 140.0
-const RUN_SPEED = 220.0
-const ACCELERATION = 1800.0
-const DECELERATION = 2400.0
-const AIR_ACCELERATION = 1200.0  # Vorher vielleicht 900.0
-const AIR_DECELERATION = 800.0   # Vorher vielleicht 600.0
+var WALK_SPEED = 140.0
+var RUN_SPEED = 220.0
+var ACCELERATION = 1800.0
+var DECELERATION = 2400.0
+var AIR_ACCELERATION = 1200.0  # Vorher vielleicht 900.0
+var AIR_DECELERATION = 800.0   # Vorher vielleicht 600.0
+
+# Wall Run Variablen
+var is_wall_running := false
+var wall_run_direction := 0
+var wall_run_vertical_speed := 150.0  # Reduzierte Geschwindigkeit
+var wall_run_timer: float = 0.0
+var wall_run_active: bool = false
+var current_wall_normal: Vector2
+var wall_run_cooldown: float = 0.0
+var was_on_wall: bool = false
 
 var base_crit_chance: float = 0.15  # 15% base crit chance
 var crit_damage_multiplier: float = 1.5  # 50% extra damage on crit
 
-var base_attack_damage: int = 15
+#var base_attack_damage: int = 15
 var attack_damage: int = 15
 var damage_multiplier: float = 1.0
 var current_crit_chance: float = 0.15
@@ -65,6 +93,7 @@ var current_crit_multiplier: float = 1.5
 const GRAVITY = 1200.0
 const MAX_FALL_SPEED = 800.0
 const JUMP_VELOCITY = -430.0
+const AIR_JUMP_VELOCITY = -380.0
 const SHORT_JUMP_MULTIPLIER = 0.6  # Für kürzere Sprünge bei losgelassener Taste
 const JUMP_CUT_MULTIPLIER = 0.4    # Für sofortige Sprungabbremsung
 
@@ -75,11 +104,27 @@ const WALL_JUMP_PUSH_AWAY = 200.0  # Zusätzlicher Abstoß-Effekt
 const WALL_SLIDE_SPEED = 50.0
 const WALL_STICK_TIME = 0.15       # Zeit, in der man sich noch vom Wand abstoßen kann
 
+var mana_shield_active := false
+var mana_shield_health := 0
+var max_mana_shield_health := 100
+var mana_shield_regen_rate := 5.0
+var mana_shield_regen_timer := 0.0
+var shield_particles_initial_params = {}
+var original_particle_settings: Dictionary = {}
+
 # Dash-Einstellungen
 const DASH_SPEED = 350.0
 const DASH_DURATION = 0.15
 const DASH_COOLDOWN = 3.0
 const DASH_INVULNERABILITY_TIME = 0.2
+
+# Teleportation Variablen
+var is_teleporting: bool = false
+const TELEPORT_COOLDOWN = 5.0  # Cooldown in Sekunden
+const TELEPORT_DISTANCE = 300.0  # Maximale Teleportdistanz
+var can_teleport := true
+var teleport_cooldown_timer: Timer
+var teleport_particles: GPUParticles2D
 
 # Bewegung und Status
 var current_speed = WALK_SPEED
@@ -90,6 +135,8 @@ var last_wall_normal := Vector2.ZERO
 var wall_stick_timer := 0.0
 var coyote_time := 0.0
 var jump_buffer_time := 0.0
+var air_jumps_available := 0  # Zähler für verfügbare Luftsprünge
+var max_air_jumps := 1
 var is_dashing := false
 var can_dash := true
 var dash_direction := Vector2.ZERO
@@ -105,6 +152,7 @@ var is_charging: bool = false
 
 # Variablen für Bewegung und Status
 var is_glowing := true
+var is_gliding := false
 var is_attacking := false  # Angriffszustand
 var was_in_air := false  # Variable, um zu überprüfen, ob der Spieler gerade in der Luft war
 var is_landing := false  # Variable, um die Landeanimation zu verfolgen
@@ -122,6 +170,12 @@ var is_stunned: bool = false  # Spieler kann sich während des Stuns nicht beweg
 var inventory = {}  # Ein Dictionary für das Inventar
 var dropped_items = []  # Liste für persistente Speicherung
 var selected_hotbar_index: int = 0  # Standardmäßig der erste Slot
+
+var is_sticky_form_active := false
+var sticky_form_timer := 0.0
+const STICKY_FORM_DURATION := 2.0  # 2 Sekunden Haftzeit
+const STICKY_FORM_COOLDOWN := 5.0  # 5 Sekunden Cooldown
+var sticky_form_cooldown_timer := 0.0
 
 # Timer Nodes
 var dash_timer: Timer
@@ -158,7 +212,21 @@ var wall_jump_buffer = 0.0
 const WALL_JUMP_BUFFER_TIME = 0.1
 const WALL_JUMP_FORGIVENESS = 0.15
 
-var url = \"https://api.joeysslimeventure.com/\"
+var has_glow_skill := false
+var has_wall_slide_skill := false
+var has_regeneration_skill := false
+var has_ult_skill := false
+var has_double_jump_skill := false
+var has_wall_run_skill := false
+var has_dash_skill := false
+var has_mana_shield_skill := false
+var has_heal_burst_skill := false
+var has_sticky_form_skill := false
+var has_thorns_skill := false
+var player_level := 1
+@onready var skill_tree = $SkillTree
+
+var url = \"https://api.joeyslime.com/\"
 @onready var http_request = $HTTPRequest
 
 # Referenz zur Lebensanzeige (ProgressBar)
@@ -168,8 +236,11 @@ var url = \"https://api.joeysslimeventure.com/\"
 @export var inv: Inv
 @onready var health_label = $CanvasLayer/HealthLabel
 @onready var api_script = preload(\"res://Scenes/api.tscn\").instantiate()
-
+@onready var shield_sprite = $ShieldSprite  # Ein Sprite2D-Node
+@onready var shield_light = $ShieldSprite/ShieldLight  # Dein vorhandener Light2D-Node
 @onready var particles: GPUParticles2D = $GPUParticles2D
+@export var slimeball_scene: PackedScene
+@export var throw_force: float = 300.0
 
 var is_walking := false
 const WALK_STEP_INTERVAL := 0.2
@@ -203,6 +274,9 @@ var is_swimming := false
 func _ready() -> void:
 	if OS.has_feature(\"mobile\") or OS.has_feature(\"web\"):
 		setup_touch_controls()
+	var gm = get_node(\"/root/GameManager\")
+	if gm.is_multiplayer:
+		$GPUParticles2D.emitting = false
 	if is_multiplayer_authority():
 		$Camera2D.enabled = true
 		set_process_input(true)
@@ -231,6 +305,7 @@ func _ready() -> void:
 	
 	load_charge_cooldown()
 	glow_effect = $PlayerGlow
+	glow_effect.visible = false
 	# Initialisiere Angriffsknoten
 	attack_sprite = $PlayerSprite/AttackSprite
 	attack_area = $PlayerSprite/AttackSprite/AttackArea
@@ -302,6 +377,48 @@ func _ready() -> void:
 	water_area.connect(\"body_entered\", Callable(self, \"_on_water_entered\"))
 	water_area.connect(\"body_exited\", Callable(self, \"_on_water_exited\"))
 	load_game()
+	# Verbinde das Signal, wenn ein Skill freigeschaltet wird
+	if skill_tree:
+		skill_tree.connect(\"skill_unlocked\", Callable(self, \"_on_skill_unlocked\"))
+	print(\"Wall Slide Skill status: \", has_wall_slide_skill)
+	max_air_jumps = 1
+	load_skills()
+	check_level_completion()
+	
+	# Teleportation Timer initialisieren
+	teleport_cooldown_timer = Timer.new()
+	teleport_cooldown_timer.one_shot = true
+	teleport_cooldown_timer.wait_time = TELEPORT_COOLDOWN
+	teleport_cooldown_timer.connect(\"timeout\", Callable(self, \"_on_teleport_cooldown_timeout\"))
+	add_child(teleport_cooldown_timer)
+
+	# Teleport Partikel-Effekt (optional)
+	teleport_particles = GPUParticles2D.new()
+	teleport_particles.emitting = false
+	teleport_particles.one_shot = true
+	teleport_particles.explosiveness = 0.8
+	add_child(teleport_particles)
+	
+	save_initial_particle_settings()
+	
+	base_walk_speed = WALK_SPEED
+	base_run_speed = RUN_SPEED
+	base_attack_damage = 15  # Dein Basis-Schadenswert
+
+
+func save_initial_particle_settings():
+	# Speichere die ursprünglichen Partikeleinstellungen
+	if particles and particles.process_material:
+		var material = particles.process_material.duplicate()
+		shield_particles_initial_params = {
+			\"process_material\": material,
+			\"amount\": particles.amount,
+			\"emitting\": particles.emitting,
+			\"one_shot\": particles.one_shot,
+			\"explosiveness\": particles.explosiveness,
+			\"position\": particles.position,
+			\"global_position\": particles.global_position
+		}
 
 func _on_api_timer_timeout():
 	api_script.send_request()
@@ -396,6 +513,9 @@ func _process(delta: float) -> void:
 	# Angriff ausführen, wenn die Angriffstaste gedrückt wird
 	if Input.is_action_just_pressed(\"Attack\") and not is_attacking:
 		perform_attack()
+	
+	if Input.is_action_just_pressed(\"throw_slimeball\") and slimeball_scene:
+		throw_slimeball()
 
 	# Leuchteffekt umschalten
 	if Input.is_action_just_pressed(\"Glow\"):
@@ -417,6 +537,8 @@ func _physics_process(delta: float) -> void:
 	if is_multiplayer_authority():
 		# Nur der Besitzer des Spielers führt Bewegungscode aus
 		handle_input()
+		_check_lumora_interaction()
+		handle_slime_wings(delta)
 		move_and_slide()
 		# Synchronisiere Position mit allen
 		update_position.rpc(position, velocity)
@@ -428,10 +550,17 @@ func _physics_process(delta: float) -> void:
 		handle_wall_mechanics(delta)
 		
 		# Schwerkraft anwenden
-		apply_gravity(delta)
-		
+		if not is_gliding:
+			apply_gravity(delta)
+		handle_wall_run(delta)
 		# Animationen aktualisieren
 		update_animations()
+		
+		# Sticky Form Timer aktualisieren
+		handle_sticky_form_timers(delta)
+		
+		# Sticky Form Mechanik anwenden
+		handle_sticky_form_mechanics(delta)
 		
 	# Bewegungseingaben verarbeiten
 	#handle_input()
@@ -441,6 +570,12 @@ func _physics_process(delta: float) -> void:
 	# Bewegung ausführen
 	#move_and_slide()
 	
+	# Mana-Schild Regeneration
+	if mana_shield_active and mana_shield_health < max_mana_shield_health:
+		mana_shield_regen_timer += delta
+		if mana_shield_regen_timer >= 1.0:  # Jede Sekunde regenerieren
+			mana_shield_health = min(mana_shield_health + mana_shield_regen_rate, max_mana_shield_health)
+			mana_shield_regen_timer = 0.0
 
 @rpc(\"unreliable\")  
 func update_position(new_pos: Vector2, new_vel: Vector2):
@@ -506,14 +641,31 @@ func handle_swimming_input(delta: float) -> void:
 func handle_input():
 	if !is_multiplayer_authority():
 		return
-		
-	# Verwende Touch-Eingabe, wenn aktiv, sonst Tastatureingabe
+	
 	var touch_direction := Vector2.ZERO
 	
 	if joystick_active:
-		touch_direction.x = joystick_output.x
+		var joystick_x = joystick_output.x
+		# INVERTIERE JOYSTICK-EINGABE
+		if controls_inverted:
+			joystick_x = -joystick_x
+		touch_direction.x = joystick_x
 	else:
-		touch_direction.x = Input.get_axis(\"left\", \"right\")
+		var left_input = Input.is_action_pressed(\"left\")
+		var right_input = Input.is_action_pressed(\"right\")
+		
+		# INVERTIERE TASTEN-EINGABE
+		if controls_inverted:
+			left_input = Input.is_action_pressed(\"right\")
+			right_input = Input.is_action_pressed(\"left\")
+		
+		# Verwende die (möglicherweise invertierten) Eingaben
+		if left_input:
+			touch_direction.x = -1
+		elif right_input:
+			touch_direction.x = 1
+		else:
+			touch_direction.x = 0
 	
 	# Nur Eingaben verarbeiten, wenn nicht in Landeanimation
 	if not is_landing:
@@ -530,7 +682,10 @@ func handle_input():
 		is_facing_left = direction.x < 0
 
 func charge():
-	# Cooldown-Prüfung
+	if not has_ult_skill:
+		print(\"Ultimate Fähigkeit noch nicht freigeschaltet!\")
+		return
+
 	var current_time = Time.get_ticks_msec() / 1000.0
 	if current_time - last_charge_time < charge_cooldown:
 		var remaining = charge_cooldown - (current_time - last_charge_time)
@@ -538,40 +693,58 @@ func charge():
 		return
 	
 	if is_on_floor() and !is_charging:
-		# Starte Cooldown
 		last_charge_time = current_time
 		save_charge_cooldown()
 		is_charging = true
 		direction.x = 0
 		
-		# Partikel-Effekte nur beim auslösenden Spieler anzeigen
 		if is_multiplayer_authority():
 			var material: ParticleProcessMaterial = particles.process_material
 			if not material:
 				push_error(\"Kein ParticleProcessMaterial gefunden!\")
 				is_charging = false
 				return
-				
-			# Phase 1: Sog-Effekt (2 Sekunden)
+			# -------------------
+			# PHASE 1: SOG (2 Sek.) – Blätter werden sanft angezogen
+			# -------------------
+			var pull_duration = 2.0
+			var elapsed = 0.0
 			material.radial_velocity = Vector2(-300, -300)
-			await get_tree().create_timer(2.0).timeout
 			
-			# Phase 2: Explosion (1 Sekunde)
+			while elapsed < pull_duration:
+				var leaves = get_tree().get_nodes_in_group(\"leaves\")
+				for leaf in leaves:
+					var dist = global_position.distance_to(leaf.global_position)
+					if dist < 400:
+						# Richtung Blatt -> Spieler, dann negiert für Sog
+						var dir = (leaf.global_position - global_position).normalized()
+						var power = clamp(1.0 - (dist / 400.0), 0.0, 1.0)
+						leaf.react_to_air_pressure(-dir, power * 0.06) # kleiner Impuls pro Frame
+				elapsed += get_process_delta_time()
+				await get_tree().process_frame
+
+			# -------------------
+			# PHASE 2: EXPLOSION (1 Sek.) – Blätter wegblasen
+			# -------------------
 			material.radial_velocity = Vector2(800, 800)
 			is_charging = false
-			
-			# 1. Spieler heilen
+
+			# Spieler heilen
 			current_health = max_health
 			update_health_bar()
 			show_damage_text(max_health - current_health, true)
 			flash_heal_effect()
-			
-			# 2. Gegner und andere Spieler schädigen
+
 			var explosion_radius = 300.0
 			var explosion_damage = 130
 			var knockback_force = 1000.0
 			
-			# Schade Gegnern
+			# LUMORA: Über Ultimate-Schaden informieren
+			if lumora and lumora.has_method(\"add_skill_points_from_player_damage\"):
+				lumora.add_skill_points_from_player_damage(explosion_damage)
+			
+
+			# Gegner Schaden
 			var enemies = get_tree().get_nodes_in_group(\"enemies\")
 			for enemy in enemies:
 				var distance = global_position.distance_to(enemy.global_position)
@@ -579,44 +752,49 @@ func charge():
 					var knockback_dir = (enemy.global_position - global_position).normalized()
 					var is_crit = randf() < base_crit_chance
 					var final_damage = explosion_damage * (crit_damage_multiplier if is_crit else 1.0)
-					
 					if enemy.has_method(\"take_damage\"):
 						enemy.take_damage(final_damage, knockback_dir * knockback_force, is_crit)
-			
-			# Schade anderen Spielern
+
+			# Andere Spieler
 			var players = get_tree().get_nodes_in_group(\"players\")
 			for player in players:
-				# Überspringe den Spieler, der den Charge ausgelöst hat
 				if player == self:
 					continue
-					
 				var distance = global_position.distance_to(player.global_position)
 				if distance <= explosion_radius:
 					var knockback_dir = (player.global_position - global_position).normalized()
 					var is_crit = randf() < base_crit_chance
 					var final_damage = explosion_damage * (crit_damage_multiplier if is_crit else 1.0)
-					
-					# Sende Schaden an den anderen Spieler
 					player.take_damage.rpc(final_damage, knockback_dir * knockback_force)
-			
-			# Effekte
+
+			# Blätter wegblasen
+			var leaves = get_tree().get_nodes_in_group(\"leaves\")
+			for leaf in leaves:
+				var dist = global_position.distance_to(leaf.global_position)
+				if dist < 550.0:
+					var dir = (leaf.global_position - global_position).normalized() # Richtung weg vom Spieler
+					var power = pow(1.0 - (dist / 550.0), 2.0)
+					leaf.react_to_air_pressure(dir, power * 4.0) # starker Stoß
+
+			# Kamera- und visuelle Effekte
 			$Camera2D.shake(0.3, 15)
 			await get_tree().create_timer(1.0).timeout
-			
-			# Phase 3: Ausklingen (3 Sekunden)
+
+			# -------------------
+			# PHASE 3: AUSKLINGEN (3 Sek.)
+			# -------------------
 			var fade_time = 3.0
-			var elapsed = 0.0
-			while elapsed < fade_time:
-				var progress = elapsed / fade_time
+			var fade_elapsed = 0.0
+			while fade_elapsed < fade_time:
+				var progress = fade_elapsed / fade_time
 				material.radial_velocity = Vector2.ONE * lerp(500, 0, progress * progress)
-				elapsed += get_process_delta_time()
+				fade_elapsed += get_process_delta_time()
 				await get_tree().process_frame
-			
 			material.radial_velocity = Vector2.ZERO
+
 		else:
-			# Für nicht-autoritative Clients: Warte nur die Zeit ab
 			await get_tree().create_timer(6.0).timeout
-		
+
 		is_charging = false
 
 # Speicher/Lade-Funktionen
@@ -680,9 +858,11 @@ func handle_jump_mechanics(delta):
 	else:
 		if is_charging:
 			return
+		
 		# Coyote Time (Sprung nach Verlassen der Plattform)
 		if is_on_floor():
 			coyote_time = 0.1
+			air_jumps_available = max_air_jumps  # Setze Luftsprünge zurück, wenn am Boden
 		else:
 			coyote_time -= delta
 		
@@ -692,6 +872,7 @@ func handle_jump_mechanics(delta):
 		else:
 			jump_buffer_time -= delta
 		
+		# Normalsprung vom Boden
 		if (coyote_time > 0 and jump_buffer_time > 0) or (is_on_floor() and Input.is_action_just_pressed(\"up\")):
 			velocity.y = JUMP_VELOCITY
 			coyote_time = 0
@@ -699,6 +880,9 @@ func handle_jump_mechanics(delta):
 			$JumpSound.pitch_scale = randf_range(1.3, 1.75)  # Leichte Tonhöhen-Variation
 			$JumpSound.play()
 			$AnimationPlayer.play(\"jump\")
+		# Luftsprung, wenn verfügbar
+		elif Input.is_action_just_pressed(\"up\") and air_jumps_available > 0 and not is_on_floor():
+			perform_air_jump()
 		
 		# Kurzer Sprung (wenn Taste losgelassen)
 		if Input.is_action_just_released(\"up\") and velocity.y < JUMP_VELOCITY * SHORT_JUMP_MULTIPLIER:
@@ -708,7 +892,34 @@ func handle_jump_mechanics(delta):
 		if Input.is_action_just_pressed(\"down\") and velocity.y < 0:
 			velocity.y *= JUMP_CUT_MULTIPLIER
 
+# Führe einen Luftsprung aus
+func perform_air_jump():
+	if !has_double_jump_skill:
+		return
+	if air_jumps_available <= 0:
+		return
+	
+	velocity.y = AIR_JUMP_VELOCITY
+	air_jumps_available -= 1
+	
+	# Effekte für den Luftsprung
+	$JumpSound.pitch_scale = randf_range(1.5, 1.8)  # Höherer Ton für Luftsprung
+	$JumpSound.play()
+	
+	# Partikeleffekt für Luftsprung
+	var air_jump_particles = $AirJumpParticles
+	if air_jump_particles:
+		air_jump_particles.emitting = true
+	
+	# Animation für Luftsprung
+	$AnimationPlayer.play(\"air_jump\")
+
 func handle_wall_mechanics(delta):
+	if not has_wall_slide_skill:
+		# Deaktiviere Wall Slide, wenn der Skill nicht freigeschaltet ist
+		is_wall_sliding = false
+		return
+	
 	# Wandsprung
 	if is_on_wall() and not is_on_floor():
 		is_wall_sliding = true
@@ -771,6 +982,8 @@ func handle_dash():
 		velocity.x = move_toward(velocity.x, 0, deceleration * get_physics_process_delta_time())
 
 func dash(dir: Vector2):
+	if !has_dash_skill:
+		return
 	if is_dashing or not can_dash:
 		return
 	
@@ -825,7 +1038,7 @@ func update_animations():
 		return
 	
 	if is_wall_sliding:
-		$AnimationPlayer.play(\"wall_slide\")
+		#$AnimationPlayer.play(\"wall_slide\")
 		$PlayerSprite.flip_h = last_wall_normal.x > 0
 	elif not is_on_floor():
 		# Sprunganimationen
@@ -869,7 +1082,8 @@ func _on_floor_entered():
 	$LandingParticles.emitting = true
 	$LandSound.play()
 	play_landing_animation()
-	
+	if is_wall_running:
+		end_wall_run()
 
 func _on_wall_entered():
 	$WallSlideParticles.emitting = true
@@ -948,25 +1162,54 @@ func set_animation() -> void:
 func is_in_air() -> bool:
 	return not is_on_floor()
 
-# Angriffskollisionsbehandlung
-func _on_attack_area_body_entered(body) -> void:
-	if body == self:  # Verhindere Selbstschaden
+func _on_attack_area_body_entered(body):
+	if body == self:
 		return
+	
 	if body.is_in_group(\"enemies\") or body.is_in_group(\"players\"):
-		# Nur der autoritative Spieler berechnet Schaden
 		if is_multiplayer_authority():
 			var is_crit = randf() < current_crit_chance
 			var damage = attack_damage * (current_crit_multiplier if is_crit else 1.0)
 			var knockback_direction = (body.global_position - global_position).normalized()
 			
-			# Sende Schaden an den getroffenen Spieler oder Gegner
+			# LUMORA: Über verursachten Schaden informieren
+			if lumora and lumora.has_method(\"add_skill_points_from_player_damage\"):
+				lumora.add_skill_points_from_player_damage(damage)
+			
 			if body.is_in_group(\"players\"):
 				body.take_damage.rpc(damage, knockback_direction)
 			else:
-				body.take_damage(damage, knockback_direction)
+				body.take_damage(damage, knockback_direction, is_crit)
 			
 			$Camera2D.shake(3.0, 0.2)
-		
+	
+	# **Luftdruck auf Blätter anwenden**
+	apply_sword_air_pressure()
+
+func apply_sword_air_pressure():
+	var leaves = get_tree().get_nodes_in_group(\"leaves\")
+	for leaf in leaves:
+		var dist = global_position.distance_to(leaf.global_position)
+
+		# geringere Reichweite – realistischer für ein Schwertschwingen
+		var max_range = 120.0
+		if dist > max_range:
+			continue
+
+		# Richtung vom Spieler zum Blatt
+		var dir = (leaf.global_position - global_position).normalized()
+
+		# Nahbereich kräftiger, aber mit glatter Kurve
+		# power fällt exponentiell statt linear ab
+		var normalized = dist / max_range
+		var power = pow(1.0 - normalized, 2.2)  # nah = stark, weit = schwach
+
+		# Option: bei sehr nahen Blättern (unter 30px) etwas Extra-Boost
+		if dist < 30.0:
+			power *= 1.8
+
+		leaf.react_to_air_pressure(dir, power)
+
 @rpc(\"call_local\", \"reliable\")
 func die() -> void:
 	print(\"Der Spieler ist gestorben!\")
@@ -1119,15 +1362,66 @@ func perform_attack() -> void:
 
 # Leuchteffekt aktualisieren
 func update_glow_state() -> void:
-	glow_effect.visible = is_glowing  # Lokale Aktualisierung
+	if not has_glow_skill:
+		is_glowing = false
+		return
+		
+	glow_effect.visible = is_glowing
+	# EMITTIERE DAS SIGNAL HIER:
+	glow_changed.emit(is_glowing)
+	get_tree().call_group(\"spikes\", \"_on_player_glow_changed\", is_glowing)
+	sync_glow_state.rpc(is_glowing)
 
-# Importiere diese Zeile in deine `take_damage`-Funktion, um den Partikel-Effekt zu aktivieren
+func set_controls_inverted(inverted: bool):
+	controls_inverted = inverted
+	print(\"Steuerung invertiert: \", inverted)
+
 @rpc(\"any_peer\", \"call_local\", \"reliable\")
 func take_damage(amount: int, hit_source: Vector2):
 	if !is_multiplayer_authority():
 		return
+	# Schadensreduktion anwenden
+	var reduced_damage = amount * (1.0 - damage_reduction)
+	reduced_damage = max(1, int(reduced_damage))  # Mindestens 1 Schaden
 	
-	# Eigenen Schaden verarbeiten
+	var space_state = get_world_2d().direct_space_state
+	var query = PhysicsPointQueryParameters2D.new()
+	
+	query.position = hit_source
+	query.collide_with_areas = true
+	query.collide_with_bodies = true
+	query.collision_mask = 0xFFFFFF
+	
+	var results = space_state.intersect_point(query)
+	
+	for result in results:
+		if result.collider.is_in_group(\"enemies\") and has_thorns_skill:
+			var return_damage = int(amount * 0.1)
+			result.collider.take_damage(return_damage, global_position)
+			
+			# LUMORA: Über Thorns-Schaden informieren
+			if lumora and lumora.has_method(\"add_skill_points_from_player_damage\"):
+				lumora.add_skill_points_from_player_damage(return_damage)
+			
+			break
+	
+	# Mana-Schild absorbiert Schaden
+	if mana_shield_active and mana_shield_health > 0:
+		var absorbed_damage = min(amount, mana_shield_health)
+		mana_shield_health -= absorbed_damage
+		amount -= absorbed_damage
+		
+		# Schild-Effekt bei Treffer
+		shield_hit_effect()
+		
+		# Schild deaktivieren wenn leer
+		if mana_shield_health <= 0:
+			deactivate_mana_shield()
+		
+		if amount <= 0:
+			return  # Aller Schaden absorbiert
+	
+	# Restlicher Schaden geht an Lebenspunkte
 	current_health -= amount
 	show_damage_text(amount, false)
 	flash_damage_color()
@@ -1136,9 +1430,9 @@ func take_damage(amount: int, hit_source: Vector2):
 	$HitSound.pitch_scale = randf_range(0.8, 1.2)
 	$HitSound.play()
 
-	# Knockback in Richtung der Trefferquelle
+	# Knockback
 	var knockback_dir = (global_position - hit_source).normalized()
-	velocity = knockback_dir * 200  # Mäßiger Knockback
+	velocity = knockback_dir * 200
 
 	# Stun-Effekt
 	is_stunned = true
@@ -1202,9 +1496,12 @@ func show_damage_text(amount: int, is_heal: bool) -> void:
 
 @rpc(\"any_peer\", \"call_local\", \"reliable\")
 func heal(amount: int):
-	if !is_multiplayer_authority():
+	if !has_regeneration_skill:
 		return
 		
+	if !is_multiplayer_authority():
+		return
+	
 	current_health += amount
 	show_damage_text(amount, true)
 	if current_health > max_health:
@@ -1220,16 +1517,18 @@ func save_game():
 	if gm.is_multiplayer:
 		print(\"⚠ Multiplayer aktiv → kein Speichern erlaubt\")
 		return
-	var bats = get_tree().get_nodes_in_group(\"bats\")  # 🦇 Alle Fledermäuse holen
-	save_load.save_game(self, bats)  # Spieler & Fledermäuse speichern
+	var bats = get_tree().get_nodes_in_group(\"bats\")
+	save_load.save_game(self, bats)
+	save_skills()  # Speichere auch die Skills
 
 func load_game():
 	var gm = get_node(\"/root/GameManager\")
 	if gm.is_multiplayer:
 		print(\"⚠ Multiplayer aktiv → kein Laden erlaubt\")
 		return
-	var bat_scene = preload(\"res://Scenes/bat.tscn\")  # 🦇 Vorlage für Fle	dermäuse
-	save_load.load_game(self, bat_scene)  # Spieler & Fledermäuse laden
+	var bat_scene = preload(\"res://Scenes/bat.tscn\")
+	save_load.load_game(self, bat_scene)
+	load_skills()  # Lade auch die Skills
 
 func _exit_tree():
 	save_game()  # Speichert das Spiel, wenn das Spiel beendet wird
@@ -1295,6 +1594,19 @@ func _input(event):
 			print(\"Hotbar Slot gewechselt zu:\", selected_hotbar_index)  # Debugging
 	if event.is_action_pressed(\"open_transfer\"):
 		open_transfer_dialog()
+	
+	if event.is_action_pressed(\"teleport\"):  # Du musst diese Action in den Input Map settings hinzufügen
+		perform_teleport()
+	
+	if event.is_action_pressed(\"mana_shield\"):  # Füge diese Action in Input Map hinzu
+		if mana_shield_active:
+			deactivate_mana_shield()
+		else:
+			activate_mana_shield()
+	if event.is_action_pressed(\"heal\"):
+		perform_heal_burst()
+	if event.is_action_pressed(\"sticky_form\"):  # Diese Action in Input Map hinzufügen
+		perform_sticky_form()
 
 func open_transfer_dialog():
 	var dialog = transfer_dialog_scene.instantiate()
@@ -1541,10 +1853,706 @@ func _notification(what):
 
 func set_joystick_output(value: Vector2):
 	joystick_output = value
+
+
+# Funktion, die aufgerufen wird, wenn ein Skill freigeschaltet wird
+func _on_skill_unlocked(skill_name: String):
+	match skill_name:
+		\"glow\":
+			has_glow_skill = true
+			print(\"Glow freigeschaltet!\")
+		\"wall_slide\":
+			has_wall_slide_skill = true
+			print(\"Wall Slide freigeschaltet!\")
+		\"regeneration\":
+			has_regeneration_skill = true
+			print(\"Regeneration freigeschaltet!\")
+		\"ult\":
+			has_ult_skill = true
+			print(\"Ultimate Fähigkeit freigeschaltet!\")
+		\"double_jump\":
+			has_double_jump_skill = true
+			print(\"Double Jump Fähigkeit freigeschaltet!\")
+		\"wall_run\":
+			has_wall_run_skill = true
+			print(\"Wall Run Fähigkeit freigeschaltet!\")
+		\"dash\":
+			has_dash_skill = true
+			print(\"Dash Fähigkeit freigeschaltet!\")
+		\"mana_shield\":
+			has_mana_shield_skill = true
+			print(\"Mana Shield Fähigkeit freigeschaltet!\")
+		\"heal_burst\":
+			has_heal_burst_skill = true
+			print(\"Heal Burst Fähigkeit freigeschaltet!\")
+		\"sticky_form\":
+			has_sticky_form_skill = true
+			print(\"Sticky Form freigeschaltet!\")
+		\"thorns\":
+			has_thorns_skill = true
+			print(\"Thorns freigeschaltet!\")
+	
+	save_skills()  # Speichere die Skills nach dem Freischalten
+
+# Überprüfe Level-Anforderungen für Skills
+func can_unlock_skill(skill_name: String) -> bool:
+	var skill_data = skill_tree.skills.get(skill_name)
+	if skill_data and player_level >= skill_data.level_required:
+		return true
+	return false
+
+# Erhöhe das Level (wird aufgerufen, wenn der Spieler ein Level aufsteigt)
+func level_up():
+	player_level += 1
+	print(\"Level up! Neues Level: \", player_level)
+
+func check_level_completion():
+	var completed_levels = load_completed_levels()
+	print(\"Abgeschlossene Level: \", completed_levels)
+
+func load_completed_levels() -> Array:
+	if FileAccess.file_exists(\"user://completed_levels.save\"):
+		var file = FileAccess.open(\"user://completed_levels.save\", FileAccess.READ)
+		var data = JSON.parse_string(file.get_as_text())
+		file.close()
+		if data is Array:
+			return data
+	return []
+
+func save_skills():
+	var save_data = {
+		\"has_glow_skill\": has_glow_skill,
+		\"has_wall_slide_skill\": has_wall_slide_skill,
+		\"has_regeneration_skill\": has_regeneration_skill,
+		\"has_ult_skill\": has_ult_skill,
+		\"has_double_jump_skill\": has_double_jump_skill,
+		\"has_wall_run_skill\": has_wall_run_skill,
+		\"has_dash_skill\": has_dash_skill,
+		\"has_mana_shield_skill\": has_mana_shield_skill,
+		\"has_heal_burst_skill\": has_heal_burst_skill,
+		\"has_sticky_form_skill\": has_sticky_form_skill,
+		\"has_thorns_skill\": has_thorns_skill,
+		\"player_level\": player_level
+	}
+	
+	var file = FileAccess.open(\"user://player_skills.save\", FileAccess.WRITE)
+	file.store_var(save_data)
+	file.close()
+
+func load_skills():
+	if not FileAccess.file_exists(\"user://player_skills.save\"):
+		return
+	
+	var file = FileAccess.open(\"user://player_skills.save\", FileAccess.READ)
+	var save_data = file.get_var()
+	file.close()
+	
+	has_glow_skill = save_data.get(\"has_glow_skill\", false)
+	has_wall_slide_skill = save_data.get(\"has_wall_slide_skill\", false)
+	has_regeneration_skill = save_data.get(\"has_regeneration_skill\", false)
+	has_ult_skill = save_data.get(\"has_ult_skill\", false)
+	has_double_jump_skill = save_data.get(\"has_double_jump_skill\", false)
+	has_wall_run_skill = save_data.get(\"has_wall_run_skill\", false)
+	has_dash_skill = save_data.get(\"has_dash_skill\", false)
+	has_mana_shield_skill = save_data.get(\"has_mana_shield_skill\", false)
+	has_heal_burst_skill = save_data.get(\"has_heal_burst_skill\", false)
+	has_sticky_form_skill = save_data.get(\"has_sticky_form_skill\", false)
+	has_thorns_skill = save_data.get(\"has_thorns_skill\", false)
+	player_level = save_data.get(\"player_level\", 1)
+	
+	# Aktualisiere die Skills im SkillTree
+	if skill_tree:
+		skill_tree.skills[\"glow\"].unlocked = has_glow_skill
+		skill_tree.skills[\"wall_slide\"].unlocked = has_wall_slide_skill
+		skill_tree.skills[\"regeneration\"].unlocked = has_regeneration_skill
+		skill_tree.skills[\"ult\"].unlocked = has_ult_skill
+		skill_tree.skills[\"double_jump\"].unlocked = has_double_jump_skill
+		skill_tree.skills[\"wall_run\"].unlocked = has_wall_run_skill
+		skill_tree.skills[\"dash\"].unlocked = has_dash_skill
+		skill_tree.skills[\"mana_shield\"].unlocked = has_mana_shield_skill
+		skill_tree.skills[\"heal_burst\"].unlocked = has_heal_burst_skill
+		skill_tree.skills[\"thorns\"].unlocked = has_thorns_skill
+		skill_tree.queue_redraw()
+
+func handle_wall_run(delta: float) -> void:
+	if !has_wall_run_skill:
+		return
+	# Cooldown Timer aktualisieren
+	if wall_run_cooldown > 0.0:
+		wall_run_cooldown -= delta
+	
+	# Prüfen ob Wand gerade verlassen wurde
+	if was_on_wall and not is_on_wall():
+		# Wand wurde verlassen, starte Cooldown
+		wall_run_cooldown = 2.0  # 1 Sekunde Cooldown
+		print(\"Wand verlassen - Cooldown gestartet: 1s\")
+	
+	# Aktuellen Wand-Status speichern
+	was_on_wall = is_on_wall()
+	
+	if can_wall_run() and is_on_wall() and not is_on_floor():
+		start_wall_run()
+	
+	if is_wall_running:
+		update_wall_run(delta)
+		
+		# Timer überprüfen und Wall Run beenden wenn abgelaufen
+		if wall_run_timer <= 0.0:
+			end_wall_run()
+	
+	# Wall Run beenden wenn Bedingungen nicht mehr erfüllt
+	if is_wall_running and should_end_wall_run():
+		end_wall_run()
+
+func can_wall_run() -> bool:
+	# Prüfe ob Sprint gedrückt wird während up/down Bewegung
+	var vertical_input = Input.get_axis(\"up_walk\", \"down\")
+	var sprint_pressed = Input.is_action_pressed(\"sprint\")
+	
+	return (not is_wall_running and 
+			wall_run_timer <= 0.0 and
+			wall_run_cooldown <= 0.0 and  # Cooldown muss abgelaufen sein
+			vertical_input != 0 and
+			sprint_pressed)
+
+func should_end_wall_run() -> bool:
+	return (not is_on_wall() or 
+			is_on_floor() or 
+			not Input.is_action_pressed(\"sprint\") or
+			Input.get_axis(\"up_walk\", \"down\") == 0)
+
+func start_wall_run() -> void:
+	is_wall_running = true
+	wall_run_active = true
+	wall_run_timer = 1.5  # 3 Sekunden Timer
+	wall_run_cooldown = 0.0  # Cooldown zurücksetzen
+	current_wall_normal = get_wall_normal()
+	wall_run_direction = -current_wall_normal.x
+	
+	# Starte an der Wand zu laufen
+	velocity.y = 0  # Stoppe Fallgeschwindigkeit
+	#$AnimationPlayer.play(\"wall_run\")
+	print(\"Wall Run gestartet! Timer: \", wall_run_timer, \"s\")
+
+func update_wall_run(delta: float) -> void:
+	if wall_run_active:
+		# Timer aktualisieren
+		wall_run_timer -= delta
+		
+		# Wall Run Bewegung basierend auf Input
+		var vertical_input = Input.get_axis(\"up_walk\", \"down\")
+		velocity.y = vertical_input * wall_run_vertical_speed
+		
+		# Sanft an der Wand halten
+		velocity.x = current_wall_normal.x * -30
+		
+		#print(\"Wall Run Timer: \", wall_run_timer)  # Debug
+
+func end_wall_run() -> void:
+	if is_wall_running:
+		is_wall_running = false
+		wall_run_active = false
+		
+		# Leichten Schub von der Wand geben
+		if is_on_wall():
+			velocity.x = -wall_run_direction * 100
+		
+		# Timer zurücksetzen
+		wall_run_timer = 0.0
+		#$AnimationPlayer.stop()
+		print(\"Wall Run beendet!\")
+
+# Cooldown Status für UI anzeigen (optional)
+func get_wall_run_cooldown_percentage() -> float:
+	return clamp(wall_run_cooldown / 1.0, 0.0, 1.0) if wall_run_cooldown > 0.0 else 0.0
+
+func perform_teleport() -> void:
+	if not can_teleport or is_dashing or is_attacking or is_stunned or is_teleporting:
+		return
+	
+	# Hole die exakte Mausposition in der Welt
+	var mouse_pos = get_global_mouse_position()
+	
+	# Berechne die Distanz zur Maus
+	var distance_to_mouse = global_position.distance_to(mouse_pos)
+	
+	# Begrenze die Teleport-Distanz auf das Maximum
+	var actual_distance = min(distance_to_mouse, TELEPORT_DISTANCE)
+	
+	# Wenn die Distanz begrenzt wird, berechne die begrenzte Position
+	var target_position = mouse_pos
+	if distance_to_mouse > TELEPORT_DISTANCE:
+		var direction = (mouse_pos - global_position).normalized()
+		target_position = global_position + (direction * TELEPORT_DISTANCE)
+	
+	# Prüfe nur ob die ZIELPOSITION frei ist (ignoriere den Weg)
+	var space_state = get_world_2d().direct_space_state
+	var query = PhysicsPointQueryParameters2D.new()
+	query.position = target_position
+	query.collision_mask = collision_mask
+	query.exclude = [self]
+	query.collide_with_areas = false  # Nur mit Bodies kollidieren
+	query.collide_with_bodies = true
+	
+	var results = space_state.intersect_point(query)
+	
+	if results.size() > 0:
+		# Zielposition ist blockiert, suche nahegelegene freie Position
+		print(\"Zielposition blockiert, suche alternative Position...\")
+		var free_position = find_nearby_free_position(target_position)
+		if free_position:
+			target_position = free_position
+		else:
+			print(\"Teleport abgebrochen: Keine freie Position in der Nähe gefunden\")
+			return
+	
+	# Starte den Teleportationsprozess
+	start_teleport_sequence(target_position)
+
+func start_teleport_sequence(target_position: Vector2) -> void:
+	is_teleporting = true
+	
+	# Erste Phase: Auflösen
+	var dissolve_tween = create_tween()
+	dissolve_tween.tween_property(self, \"modulate:a\", 0.0, 0.5)
+	dissolve_tween.tween_callback(finish_dissolve.bind(target_position))
+
+func finish_dissolve(target_position: Vector2) -> void:
+	# Teleport-Effekte am Ausgangspunkt
+	create_teleport_effects(global_position, false)
+	
+	# Zur (möglicherweise angepassten) Zielposition teleportieren
+	global_position = target_position
+	
+	# Zweite Phase: Wiedererscheinen
+	var appear_tween = create_tween()
+	appear_tween.tween_property(self, \"modulate:a\", 1.0, 0.5)
+	appear_tween.tween_callback(finish_teleport)
+	
+	# Teleport-Effekte am Zielpunkt
+	create_teleport_effects(global_position, true)
+	
+	# Blickrichtung zur Maus aktualisieren
+	is_facing_left = get_global_mouse_position().x < global_position.x
+	$PlayerSprite.flip_h = is_facing_left
+	$PlayerSprite/AttackSprite.flip_h = is_facing_left
+
+func finish_teleport() -> void:
+	is_teleporting = false
+	
+	# Cooldown starten
+	can_teleport = false
+	teleport_cooldown_timer.start()
+	
+	# Synchronisiere den Teleport mit anderen Clients (Multiplayer)
+	if is_multiplayer_authority():
+		sync_teleport.rpc(global_position, is_facing_left)
+	
+	print(\"Teleportiert zu: \", global_position)
+
+# Hilfsfunktion um freie Position in der Nähe zu finden
+func find_nearby_free_position(target_pos: Vector2, search_radius: float = 100.0) -> Vector2:
+	var space_state = get_world_2d().direct_space_state
+	
+	# Prüfe zuerst die exakte Position (falls doch frei)
+	var query = PhysicsPointQueryParameters2D.new()
+	query.position = target_pos
+	query.collision_mask = collision_mask
+	query.exclude = [self]
+	query.collide_with_areas = false
+	query.collide_with_bodies = true
+	
+	if space_state.intersect_point(query).size() == 0:
+		return target_pos
+	
+	# Suche in konzentrischen Kreisen um die Zielposition
+	for radius in range(20, int(search_radius) + 1, 20):
+		for angle in range(0, 360, 30):  # Alle 30 Grad prüfen
+			var check_pos = target_pos + Vector2(radius, 0).rotated(deg_to_rad(angle))
+			
+			query.position = check_pos
+			if space_state.intersect_point(query).size() == 0:
+				return check_pos
+	
+	return Vector2.ZERO  # Keine freie Position gefunden
+
+func _on_teleport_cooldown_timeout() -> void:
+	can_teleport = true
+	# Optional: Sound oder visuelles Feedback dass Teleport wieder verfügbar ist
+
+func create_teleport_effects(position: Vector2, is_arrival: bool) -> void:
+	# Partikel-Effekt
+	teleport_particles.global_position = position
+	teleport_particles.emitting = true
+
+	# Bildschirm-Shake
+	$Camera2D.shake(0.2, 10)
+
+@rpc(\"any_peer\", \"call_local\", \"reliable\")
+func sync_teleport(target_pos: Vector2, facing_left: bool) -> void:
+	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
+		return
+	
+	global_position = target_pos
+	is_facing_left = facing_left
+	$PlayerSprite.flip_h = is_facing_left
+	$PlayerSprite/AttackSprite.flip_h = is_facing_left
+	create_teleport_effects(target_pos, true)
+
+func activate_mana_shield():
+	if !has_mana_shield_skill:
+		return
+	if mana_shield_active:
+		return
+	
+	mana_shield_active = true
+	mana_shield_health = max_mana_shield_health
+	
+	# Sprite und Licht aktivieren
+	shield_sprite.visible = true
+	shield_light.enabled = true
+	
+	# Animation für das Erscheinen des Schildes
+	var tween = create_tween()
+	tween.tween_property(shield_sprite, \"scale\", Vector2(1, 1), 0.3).from(Vector2(0.5, 0.5))
+	tween.parallel().tween_property(shield_sprite, \"modulate:a\", 1.0, 0.3).from(0.0)
+	tween.parallel().tween_property(shield_light, \"energy\", 1.0, 0.3).from(0.0)
+	
+	# Synchronisiere mit anderen Clients
+	sync_mana_shield_state.rpc(true, max_mana_shield_health)
+
+func deactivate_mana_shield():
+	if not mana_shield_active:
+		return
+	
+	mana_shield_active = false
+	mana_shield_health = 0
+	
+	# Animation für das Verschwinden des Schildes
+	var tween = create_tween()
+	tween.tween_property(shield_sprite, \"scale\", Vector2(0.5, 0.5), 0.3)
+	tween.parallel().tween_property(shield_sprite, \"modulate:a\", 0.0, 0.3)
+	tween.parallel().tween_property(shield_light, \"energy\", 0.0, 0.3)
+	tween.tween_callback(finalize_deactivation)
+	
+	# Synchronisiere mit anderen Clients
+	sync_mana_shield_state.rpc(false, 0)
+
+func finalize_deactivation():
+	shield_sprite.visible = false
+	shield_light.enabled = false
+
+func shield_hit_effect():
+	# Kamera-Shake für Feedback
+	$Camera2D.shake(0.1, 8)
+	
+	# Schild-Treffer-Sound
+	#$ShieldHitSound.play()
+	
+	# Blitz-Effekt bei Treffer
+	var tween = create_tween()
+	tween.tween_property(shield_sprite, \"modulate\", Color(2, 2, 2, 1), 0.05)
+	tween.tween_property(shield_sprite, \"modulate\", Color(1, 1, 1, 1), 0.15)
+	tween.parallel().tween_property(shield_light, \"energy\", 2.0, 0.05)
+	tween.tween_property(shield_light, \"energy\", 1.0, 0.15)
+
+@rpc(\"any_peer\", \"call_local\", \"reliable\")
+func sync_mana_shield_state(active: bool, health: float):
+	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
+		return
+		
+	mana_shield_active = active
+	mana_shield_health = health
+	
+	if active:
+		shield_sprite.visible = true
+		shield_light.enabled = true
+		shield_sprite.scale = Vector2(1, 1)
+		shield_sprite.modulate.a = 1.0
+		shield_light.energy = 1.0
+	else:
+		shield_sprite.visible = false
+		shield_light.enabled = false
+
+func perform_heal_burst():
+	if !has_heal_burst_skill:
+		return
+	if current_health < 100:
+		heal(max_health/2)
+		update_health_bar()
+
+
+# Neue Funktionen für Sticky Form
+func handle_sticky_form_timers(delta: float):
+	if sticky_form_timer > 0.0:
+		sticky_form_timer -= delta
+		if sticky_form_timer <= 0.0:
+			end_sticky_form()
+	
+	if sticky_form_cooldown_timer > 0.0:
+		sticky_form_cooldown_timer -= delta
+
+func handle_sticky_form_mechanics(delta: float):
+	if is_sticky_form_active and is_on_wall():
+		# Spieler haftet an der Wand - keine Schwerkraft und kein Herunterrutschen
+		velocity.y = 0
+		velocity.x = 0
+		
+		# Sanft an der Wand halten
+		var wall_normal = get_wall_normal()
+		position += wall_normal * -2 * delta  # Leicht von der Wand wegdrücken für bessere Kollision
+
+func perform_sticky_form():
+	if !has_sticky_form_skill:
+		print(\"Sticky Form Fähigkeit nicht freigeschaltet!\")
+		return
+	
+	if sticky_form_cooldown_timer > 0.0:
+		print(\"Sticky Form ist im Cooldown! Noch \", sticky_form_cooldown_timer, \" Sekunden\")
+		return
+	
+	if not is_on_wall():
+		print(\"Kann Sticky Form nur an einer Wand aktivieren!\")
+		return
+	
+	if is_sticky_form_active:
+		end_sticky_form()
+		return
+	
+	start_sticky_form()
+
+func start_sticky_form():
+	is_sticky_form_active = true
+	sticky_form_timer = STICKY_FORM_DURATION
+	sticky_form_cooldown_timer = STICKY_FORM_COOLDOWN
+	
+	# Effekte für Sticky Form Start
+	$Camera2D.shake(0.1, 5)
+	
+	# Visueller Effekt - Spieler wird etwas durchsichtig
+	var tween = create_tween()
+	tween.tween_property($PlayerSprite, \"modulate\", Color(1, 1, 1, 0.7), 0.3)
+	
+	# Soundeffekt
+	# $StickyFormSound.play()
+	
+	print(\"Sticky Form aktiviert! Haftet für \", STICKY_FORM_DURATION, \" Sekunden an der Wand\")
+	
+	# Synchronisiere mit anderen Clients
+	sync_sticky_form_state.rpc(true, STICKY_FORM_DURATION)
+
+func end_sticky_form():
+	if not is_sticky_form_active:
+		return
+	
+	is_sticky_form_active = false
+	
+	# Effekte zurücksetzen
+	var tween = create_tween()
+	tween.tween_property($PlayerSprite, \"modulate\", Color(1, 1, 1, 1), 0.3)
+	
+	print(\"Sticky Form beendet\")
+	
+	# Synchronisiere mit anderen Clients
+	sync_sticky_form_state.rpc(false, 0.0)
+
+# RPC für Synchronisation
+@rpc(\"any_peer\", \"call_local\", \"reliable\")
+func sync_sticky_form_state(active: bool, duration: float):
+	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
+		return
+		
+	is_sticky_form_active = active
+	if active:
+		sticky_form_timer = duration
+		var tween = create_tween()
+		tween.tween_property($PlayerSprite, \"modulate\", Color(1, 1, 1, 0.7), 0.3)
+	else:
+		var tween = create_tween()
+		tween.tween_property($PlayerSprite, \"modulate\", Color(1, 1, 1, 1), 0.3)
+
+func throw_slimeball():
+	if slimeball_scene:
+		var slimeball = slimeball_scene.instantiate()
+		get_parent().add_child(slimeball)
+		
+		# Positioniere den Slimeball vor dem Spieler
+		var throw_direction = Vector2.RIGHT if not is_facing_left else Vector2.LEFT
+		slimeball.global_position = global_position + throw_direction * 20
+		
+		# Werfe den Slimeball
+		if slimeball.has_method(\"throw\"):
+			slimeball.throw(throw_direction * throw_force)
+			print(\"Slimeball geworfen!\")
+
+
+func handle_slime_wings(delta: float) -> void:
+	# Prüfe ob Gleiten möglich ist und aktiviert wird
+	if can_glide() and Input.is_action_pressed(\"up_walk\"):
+		start_gliding()
+	elif is_gliding and (not Input.is_action_pressed(\"up_walk\") or should_end_glide()):
+		end_gliding()
+	
+	# Gleit-Mechanik anwenden (auch wenn bereits gleitend)
+	if is_gliding:
+		apply_glide_physics(delta)
+
+func can_glide() -> bool:
+	# Einfachere Bedingung: Kann gleiten wenn in der Luft und nicht in anderen Aktionen
+	return (not is_on_floor() and 
+			not is_wall_sliding and 
+			not is_dashing and 
+			not is_attacking and 
+			not is_gliding)
+
+func start_gliding() -> void:
+	print(\"GLIDING STARTED!\")
+	is_gliding = true
+	
+	print(\"Slime Wings aktiviert - Gleiten!\")
+	
+	# Synchronisiere mit anderen Clients
+	sync_glide_state.rpc(true)
+
+func end_gliding() -> void:
+	is_gliding = false
+	
+	print(\"Gleiten beendet\")
+	
+	# Synchronisiere mit anderen Clients
+	sync_glide_state.rpc(false)
+
+func apply_glide_physics(delta: float) -> void:
+	# Reduzierte Schwerkraft beim Gleiten
+	velocity.y += GRAVITY * SLIME_WINGS_GRAVITY_REDUCTION * delta
+	
+	# Minimale Fallgeschwindigkeit begrenzen
+	velocity.y = max(velocity.y, SLIME_WINGS_MIN_FALL_SPEED)
+	
+	# Horizontale Kontrolle beim Gleiten
+	var horizontal_input = Input.get_axis(\"left\", \"right\")
+	if horizontal_input != 0:
+		velocity.x = move_toward(
+			velocity.x, 
+			horizontal_input * SLIME_WINGS_GLIDE_SPEED, 
+			AIR_ACCELERATION * delta
+		)
+
+func should_end_glide() -> bool:
+	# Beende Gleiten wenn: am Boden, an der Wand, oder andere Aktionen
+	return is_on_floor() or is_on_wall() or is_dashing or is_attacking
+
+# RPC für Synchronisation des Gleitzustands
+@rpc(\"any_peer\", \"call_local\", \"reliable\")
+func sync_glide_state(gliding: bool):
+	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
+		return
+		
+	is_gliding = gliding
+
+
+
+# Füge diese Methoden zur Player-Klasse hinzu:
+func get_health_percentage() -> float:
+	return float(current_health) / float(max_health)
+
+func apply_buff(buff_type: String, value: float) -> void:
+	active_buffs[buff_type] = value
+	_update_stats_from_buffs()  # Diese Zeile sollte bereits da sein, aber prüfe ob sie funktioniert
+	print(\"Buff angewendet: \", buff_type, \" Wert: \", value)  # Debug-Ausgabe
+
+func remove_buff(buff_type: String) -> void:
+	if active_buffs.has(buff_type):
+		active_buffs.erase(buff_type)
+		_update_stats_from_buffs()  # Diese Zeile sollte bereits da sein
+	print(\"Buff entfernt: \", buff_type)  # Debug-Ausgabe
+
+func has_buff(buff_type: String) -> bool:
+	return active_buffs.has(buff_type)
+
+func _update_stats_from_buffs() -> void:
+	# RESET auf Basiswerte zuerst
+	WALK_SPEED = base_walk_speed
+	RUN_SPEED = base_run_speed
+	var final_damage_multiplier = damage_multiplier  # Item-Multiplikator behalten
+	damage_reduction = 0.0
+	
+	# JEDEN Buff-Typ verarbeiten
+	for buff_type in active_buffs:
+		var value = active_buffs[buff_type]
+		
+		match buff_type:
+			\"speed_boost\", \"temporary_speed\":
+				WALK_SPEED *= value
+				RUN_SPEED *= value
+				print(\"✅ \", buff_type, \" angewendet: \", value, \" -> Walk: \", WALK_SPEED, \" Run: \", RUN_SPEED)
+			
+			\"damage_boost\":
+				final_damage_multiplier *= value
+				print(\"✅ \", buff_type, \" angewendet: \", value, \" -> Multiplier: \", final_damage_multiplier)
+			
+			\"damage_reduction\", \"constant_damage_reduction\":
+				damage_reduction += value
+				print(\"✅ \", buff_type, \" angewendet: \", value, \" -> Reduction: \", damage_reduction)
+			
+			\"healing_boost\":
+				# Wird separat im Heal-Timer gehandled
+				pass
+	
+	# Schadensreduktion begrenzen
+	damage_reduction = clamp(damage_reduction, 0.0, 0.8)
+	
+	# Endgültigen Schaden berechnen
+	attack_damage = base_attack_damage * final_damage_multiplier
+	
+	print(\"🎯 FINAL - Walk: \", WALK_SPEED, \" Run: \", RUN_SPEED, \" Damage: \", attack_damage, \" Reduction: \", damage_reduction)
+
+
+
+func _check_lumora_interaction():
+	# Einfache Debug-Ausgabe, dass das System aktiv ist
+	if Engine.get_frames_drawn() % 180 == 0: # Alle 3 Sekunden
+		var lumoras = get_tree().get_nodes_in_group(\"lumora\")
+		for lumora in lumoras:
+			# 🔥 NEU: Prüfe ob Lumora bereits gefangen wurde
+			if lumora.has_method(\"_update_catch_system\") and not lumora.is_caught:
+				var distance = global_position.distance_to(lumora.global_position)
+				var catch_radius = lumora.catch_radius
+				if distance <= catch_radius:
+					print(\"💫 Lumora in Reichweite - bleib in der Nähe zum Fangen!\")
+					return
+			elif lumora.is_caught:
+				print(\"✅ Diese Lumora wurde bereits gefangen\")
+
+func _show_interact_prompt():
+	# UI Element für Interact-Prompt anzeigen
+	# Beispiel: 
+	if has_node(\"InteractPrompt\"):
+		$InteractPrompt.visible = true
+	else:
+		# Erstelle ein temporäres Label für Debugging
+		print(\"🔼 Drücke und halte [E] um Lumora zu fangen\")
+
+func _hide_interact_prompt():
+	# UI Element für Interact-Prompt verstecken
+	if has_node(\"InteractPrompt\"):
+		$InteractPrompt.visible = false
 "
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_uwm2o"]
 size = Vector2(242.855, 386.667)
+
+[sub_resource type="Gradient" id="Gradient_p1odr"]
+interpolation_mode = 2
+colors = PackedColorArray(1, 1, 1, 1, 0, 0, 0, 1)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_0gysh"]
+gradient = SubResource("Gradient_p1odr")
+width = 1200
+height = 1200
+fill = 1
+fill_from = Vector2(0.481651, 0.513761)
+fill_to = Vector2(0.816514, 0.188073)
 
 [sub_resource type="SpriteFrames" id="SpriteFrames_sgnk3"]
 animations = [{
@@ -1579,7 +2587,7 @@ animations = [{
 }]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_jxxud"]
-size = Vector2(369.351, 264.603)
+size = Vector2(530.398, 223.887)
 
 [sub_resource type="Animation" id="Animation_chcy3"]
 length = 0.001
@@ -1594,6 +2602,22 @@ tracks/0/keys = {
 "transitions": PackedFloat32Array(1),
 "update": 1,
 "values": [0]
+}
+
+[sub_resource type="Animation" id="Animation_ypfnu"]
+resource_name = "end_wall_slide"
+length = 0.2
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("PlayerSprite:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.2),
+"transitions": PackedFloat32Array(1, 1),
+"update": 1,
+"values": [11, 10]
 }
 
 [sub_resource type="Animation" id="Animation_uuvvo"]
@@ -1614,7 +2638,7 @@ tracks/0/keys = {
 
 [sub_resource type="Animation" id="Animation_smtgq"]
 resource_name = "jump"
-length = 0.5
+length = 0.3
 tracks/0/type = "value"
 tracks/0/imported = false
 tracks/0/enabled = true
@@ -1622,15 +2646,15 @@ tracks/0/path = NodePath("PlayerSprite:frame")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.1, 0.2, 0.3, 0.4, 0.5),
-"transitions": PackedFloat32Array(1, 1, 1, 1, 1, 1),
+"times": PackedFloat32Array(0, 0.1, 0.2, 0.3),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
 "update": 1,
-"values": [5, 6, 7, 8, 10, 11]
+"values": [5, 6, 7, 8]
 }
 
 [sub_resource type="Animation" id="Animation_28ebo"]
 resource_name = "landing"
-length = 0.4
+length = 0.2
 tracks/0/type = "value"
 tracks/0/imported = false
 tracks/0/enabled = true
@@ -1638,10 +2662,26 @@ tracks/0/path = NodePath("PlayerSprite:frame")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.4),
-"transitions": PackedFloat32Array(1, 8.87656),
+"times": PackedFloat32Array(0, 0.2),
+"transitions": PackedFloat32Array(1, 1),
 "update": 0,
-"values": [8, 11]
+"values": [8, 9]
+}
+
+[sub_resource type="Animation" id="Animation_83xs0"]
+resource_name = "start_wall_slide"
+length = 0.1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("PlayerSprite:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [10, 11]
 }
 
 [sub_resource type="Animation" id="Animation_wvi70"]
@@ -1661,13 +2701,33 @@ tracks/0/keys = {
 "values": [0, 4]
 }
 
+[sub_resource type="Animation" id="Animation_y6uwr"]
+resource_name = "wall_slide"
+length = 0.8
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("PlayerSprite:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.4, 0.8),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 0,
+"values": [11, 15, 11]
+}
+
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_1fd5i"]
 _data = {
 &"RESET": SubResource("Animation_chcy3"),
+&"end_wall_slide": SubResource("Animation_ypfnu"),
 &"idle": SubResource("Animation_uuvvo"),
 &"jump": SubResource("Animation_smtgq"),
 &"landing": SubResource("Animation_28ebo"),
-&"walk": SubResource("Animation_wvi70")
+&"start_wall_slide": SubResource("Animation_83xs0"),
+&"walk": SubResource("Animation_wvi70"),
+&"wall_slide": SubResource("Animation_y6uwr")
 }
 
 [sub_resource type="Curve" id="Curve_0gysh"]
@@ -1675,21 +2735,21 @@ _limits = [0.0, 1.0, 0.215328, 1.0]
 _data = [Vector2(0.215328, 0), 0.0, 0.0, 0, 0, Vector2(0.31556, 0.996271), 0.0, 0.0, 0, 0, Vector2(0.716487, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
 point_count = 4
 
-[sub_resource type="CurveTexture" id="CurveTexture_alh3a"]
+[sub_resource type="CurveTexture" id="CurveTexture_y6uwr"]
 curve = SubResource("Curve_0gysh")
 
 [sub_resource type="Curve" id="Curve_vfarp"]
 _data = [Vector2(0, 0.0224719), 0.0, 0.0, 0, 0, Vector2(0.389706, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
 point_count = 3
 
-[sub_resource type="CurveTexture" id="CurveTexture_4q8tf"]
+[sub_resource type="CurveTexture" id="CurveTexture_83xs0"]
 curve = SubResource("Curve_vfarp")
 
 [sub_resource type="Curve" id="Curve_y6uwr"]
 _data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(0.595588, 0.786517), 0.0, 0.0, 0, 0, Vector2(1, 0.393258), 0.0, 0.0, 0, 0]
 point_count = 3
 
-[sub_resource type="CurveTexture" id="CurveTexture_x3xnh"]
+[sub_resource type="CurveTexture" id="CurveTexture_ypfnu"]
 curve = SubResource("Curve_y6uwr")
 
 [sub_resource type="Curve" id="Curve_p1odr"]
@@ -1697,14 +2757,14 @@ _limits = [0.0, 1.02439, 0.0, 1.0]
 _data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(0.445255, 1.02439), 0.0, 0.0, 0, 0, Vector2(0.718978, 0.874479), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
 point_count = 4
 
-[sub_resource type="CurveTexture" id="CurveTexture_0gysh"]
+[sub_resource type="CurveTexture" id="CurveTexture_xuaoq"]
 curve = SubResource("Curve_p1odr")
 
 [sub_resource type="Curve" id="Curve_83xs0"]
 _data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(0.466216, 1), 0.0, 0.0, 0, 0, Vector2(0.662162, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
 point_count = 4
 
-[sub_resource type="CurveTexture" id="CurveTexture_8r6kd"]
+[sub_resource type="CurveTexture" id="CurveTexture_wohnl"]
 curve = SubResource("Curve_83xs0")
 
 [sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_ypfnu"]
@@ -1713,40 +2773,116 @@ emission_shape_scale = Vector3(1000, 1000, 1000)
 emission_shape = 3
 emission_box_extents = Vector3(1, 1, 1)
 direction = Vector3(0, 0, 0)
-initial_velocity_min = 2.0
+spread = 166.446
+initial_velocity_min = 3.0
 initial_velocity_max = 8.0
 orbit_velocity_min = 9.49949e-08
 orbit_velocity_max = 9.49949e-08
 gravity = Vector3(0, 0, 0)
 scale_min = 0.0
 scale_max = 2.0
-scale_curve = SubResource("CurveTexture_0gysh")
+scale_curve = SubResource("CurveTexture_xuaoq")
 scale_over_velocity_max = 51.72
 color = Color(0.728456, 1, 0.750538, 1)
-alpha_curve = SubResource("CurveTexture_alh3a")
-emission_curve = SubResource("CurveTexture_4q8tf")
+alpha_curve = SubResource("CurveTexture_y6uwr")
+emission_curve = SubResource("CurveTexture_83xs0")
 hue_variation_min = -0.28
 hue_variation_max = 0.12
-hue_variation_curve = SubResource("CurveTexture_x3xnh")
+hue_variation_curve = SubResource("CurveTexture_ypfnu")
 anim_speed_max = 3.13
 turbulence_enabled = true
 turbulence_influence_min = 0.045
 turbulence_influence_max = 0.058
 turbulence_initial_displacement_min = -22.6
 turbulence_initial_displacement_max = 8.4
-turbulence_influence_over_life = SubResource("CurveTexture_8r6kd")
+turbulence_influence_over_life = SubResource("CurveTexture_wohnl")
 collision_mode = 2
 collision_use_scale = true
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_p1odr"]
 size = Vector2(400, 257.14)
 
+[sub_resource type="GDScript" id="GDScript_p1odr"]
+script/source = "extends CanvasLayer
+
+@onready var notification_label = get_node_or_null(\"NotificationLabel\")
+
+func _ready():
+	# Erstelle das Notification-Label falls es nicht existiert
+	if not has_node(\"NotificationLabel\"):
+		create_notification_label()
+
+func create_notification_label():
+	var label = Label.new()
+	label.name = \"NotificationLabel\"
+	label.text = \"\"
+	label.visible = false
+	label.z_index = 1000  # Sehr hoher z-index um über allem zu sein
+	
+	# Styling für die Notification
+	var font = load(\"res://Assets/GUI/Font/PixelatedEleganceRegular-ovyAA.ttf\")
+	if font:
+		label.add_theme_font_override(\"font\", font)
+	
+	label.add_theme_font_size_override(\"font_size\", 24)
+	label.add_theme_color_override(\"font_color\", Color.YELLOW)
+	
+	# Stylebox für Hintergrund
+	var stylebox = StyleBoxFlat.new()
+	stylebox.bg_color = Color(0, 0, 0, 0.8)
+	stylebox.border_color = Color.YELLOW
+	stylebox.border_width_left = 2
+	stylebox.border_width_right = 2
+	stylebox.border_width_top = 2
+	stylebox.border_width_bottom = 2
+	label.add_theme_stylebox_override(\"normal\", stylebox)
+	
+	add_child(label)
+	notification_label = label
+
+# Funktion zum Anzeigen einer Notification
+func show_notification(text: String, duration: float = 3.0):
+	if notification_label:
+		notification_label.text = text
+		notification_label.visible = true
+		
+		# Zentriere die Notification - Korrektur hier
+		var screen_size = get_viewport().get_visible_rect().size
+		notification_label.position = Vector2(
+			(screen_size.x - notification_label.size.x) / 2,
+			50  # 50 Pixel vom oberen Rand
+		)
+		
+		# Timer für das automatische Ausblenden
+		var timer = get_tree().create_timer(duration)
+		timer.timeout.connect(_on_notification_timeout)
+
+func _on_notification_timeout():
+	if notification_label:
+		notification_label.visible = false
+
+func hide_notification():
+	if notification_label:
+		notification_label.visible = false
+
+func is_notification_visible() -> bool:
+	if notification_label:
+		return notification_label.visible
+	return false
+
+# Optional: Manuelles Ausblenden der Notification bei Klick
+func _input(event):
+	if event is InputEventMouseButton and event.pressed and is_notification_visible():
+		hide_notification()
+"
+
 [node name="PlayerModel" type="CharacterBody2D"]
 position = Vector2(291, 687)
 scale = Vector2(0.07, 0.07)
-collision_mask = 3
-script = SubResource("GDScript_381hh")
+collision_mask = 6
+script = ExtResource("27_player")
 inv = ExtResource("1_e7ml4")
+slimeball_scene = ExtResource("2_y6uwr")
 
 [node name="ColisionArea" type="CollisionShape2D" parent="."]
 position = Vector2(0, 7.14551)
@@ -1757,34 +2893,25 @@ shape = SubResource("RectangleShape2D_uwm2o")
 [node name="PlayerGlow" type="PointLight2D" parent="."]
 position = Vector2(0.000183105, 0)
 color = Color(0.586285, 1, 0.540279, 1)
-energy = 0.9
-shadow_enabled = true
-shadow_filter = 1
-shadow_filter_smooth = 64.0
-texture = ExtResource("1_p71sj")
-texture_scale = 2.5
+shadow_filter = 2
+shadow_filter_smooth = 3.0
+texture = SubResource("GradientTexture2D_0gysh")
+texture_scale = 4.0
+
+[node name="ShieldSprite" type="Sprite2D" parent="."]
+visible = false
+texture = ExtResource("26_vfarp")
+
+[node name="ShieldLight" type="PointLight2D" parent="ShieldSprite"]
+color = Color(0.564706, 1, 1, 1)
+energy = 0.8
+texture = ExtResource("3_vfarp")
 
 [node name="PlayerSprite" type="Sprite2D" parent="."]
 position = Vector2(0.000183105, -71.4286)
-texture = ExtResource("1_4yq4u")
-hframes = 5
-vframes = 3
-
-[node name="AttackSprite" type="AnimatedSprite2D" parent="PlayerSprite"]
-position = Vector2(-0.000110626, 71.4288)
-scale = Vector2(2.1, 1.994)
-sprite_frames = SubResource("SpriteFrames_sgnk3")
-animation = &"swing"
-frame = 7
-frame_progress = 1.0
-speed_scale = 2.0
-
-[node name="AttackArea" type="Area2D" parent="PlayerSprite/AttackSprite"]
-position = Vector2(-8.10623e-06, 1.38283e-05)
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="PlayerSprite/AttackSprite/AttackArea"]
-scale = Vector2(0.8, 0.8)
-shape = SubResource("RectangleShape2D_jxxud")
+texture = ExtResource("5_y6uwr")
+hframes = 4
+vframes = 4
 
 [node name="HitParticles" type="CPUParticles2D" parent="PlayerSprite"]
 emitting = false
@@ -1818,6 +2945,25 @@ offset_bottom = -2288.22
 text = "1"
 metadata/_edit_use_anchors_ = true
 
+[node name="AttackSprite" type="AnimatedSprite2D" parent="PlayerSprite"]
+position = Vector2(85.7144, -14.2861)
+scale = Vector2(2.1, 1.994)
+sprite_frames = SubResource("SpriteFrames_sgnk3")
+animation = &"swing"
+frame = 7
+frame_progress = 1.0
+speed_scale = 2.0
+
+[node name="AttackArea" type="Area2D" parent="PlayerSprite/AttackSprite"]
+position = Vector2(-31.4635, 42.9863)
+collision_layer = 3
+collision_mask = 3
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="PlayerSprite/AttackSprite/AttackArea"]
+position = Vector2(-8.07776, 3.58154)
+scale = Vector2(0.8, 0.8)
+shape = SubResource("RectangleShape2D_jxxud")
+
 [node name="AnimationPlayer" type="AnimationPlayer" parent="."]
 libraries = {
 &"": SubResource("AnimationLibrary_1fd5i")
@@ -1827,13 +2973,14 @@ libraries = {
 position = Vector2(7.62939e-06, 5.34058e-05)
 scale = Vector2(5, 5)
 ignore_rotation = false
-zoom = Vector2(4, 4)
+zoom = Vector2(3.5, 3.5)
 limit_left = -14
 limit_top = 500
-limit_right = 3450
-limit_bottom = 1545
+limit_right = 3600
+limit_bottom = 1850
 limit_smoothed = true
 position_smoothing_enabled = true
+position_smoothing_speed = 4.0
 editor_draw_limits = true
 editor_draw_drag_margin = true
 script = ExtResource("12_4e8m4")
@@ -1860,11 +3007,12 @@ texture_progress = ExtResource("13_d3fsm")
 
 [node name="GameOver" parent="CanvasLayer" instance=ExtResource("16_g18uv")]
 offset_left = 2.0
-offset_top = -13.0
+offset_top = -11.0
 offset_right = 2.0
-offset_bottom = -13.0
+offset_bottom = -11.0
 
 [node name="InvUI" parent="CanvasLayer" instance=ExtResource("15_qbc48")]
+visible = false
 modulate = Color(1, 1, 1, 0.705882)
 anchors_preset = 8
 anchor_left = 0.5
@@ -1885,9 +3033,9 @@ custom_minimum_size = Vector2(40, 40)
 layout_mode = 3
 anchors_preset = 0
 offset_left = 665.0
-offset_top = 517.0
+offset_top = 575.0
 offset_right = 705.0
-offset_bottom = 557.0
+offset_bottom = 615.0
 scale = Vector2(4, 4)
 script = ExtResource("17_1u0f7")
 
@@ -1965,16 +3113,16 @@ stream = ExtResource("24_2ijsl")
 [node name="GPUParticles2D" type="GPUParticles2D" parent="."]
 modulate = Color(0.626766, 0.920037, 0.820692, 1)
 self_modulate = Color(0.34902, 1, 0.768627, 0.996078)
-show_behind_parent = true
 position = Vector2(-0.000976563, 0.0166016)
 scale = Vector2(14.2857, 14.2857)
 amount = 6000
-sub_emitter = NodePath(".")
 texture = ExtResource("25_p1odr")
 lifetime = 10.0
 preprocess = 1.11
-randomness = 0.8
-fixed_fps = 60
+speed_scale = 0.5
+explosiveness = 0.17
+randomness = 1.0
+fixed_fps = 144
 collision_base_size = 0.0
 process_material = SubResource("ParticleProcessMaterial_ypfnu")
 
@@ -1983,3 +3131,14 @@ process_material = SubResource("ParticleProcessMaterial_ypfnu")
 [node name="CollisionShape2D" type="CollisionShape2D" parent="WaterDetector"]
 position = Vector2(0, 14.2891)
 shape = SubResource("RectangleShape2D_p1odr")
+
+[node name="SkillTreeUI" type="CanvasLayer" parent="."]
+layer = 20
+script = SubResource("GDScript_p1odr")
+
+[node name="SkillTree" parent="SkillTreeUI" node_paths=PackedStringArray("player") instance=ExtResource("26_0gysh")]
+offset_left = 2.0
+offset_top = -11.0
+offset_right = 2.0
+offset_bottom = -11.0
+player = NodePath("../..")
