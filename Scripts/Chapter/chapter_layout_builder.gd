@@ -1636,11 +1636,44 @@ func _build_solid_grid() -> Array:
 	_carve_platform_headroom(grid)
 	_ensure_exit_landing(grid)
 	_carve_pickup_pockets(grid)
+	_compact_cave_mask_around_routes(grid)
 	_carve_organic_wall_pockets(grid)
 	var logical_map: Dictionary = TerrainResolver.build_logical_map(grid, level_size)
 	var final_grid: Array = TerrainResolver.duplicate_cells(logical_map)
 	_reinforce_traversal_geometry(final_grid)
 	return final_grid
+
+
+func _compact_cave_mask_around_routes(grid: Array) -> void:
+	# Die Raum-Allocation ist bewusst großzügig, darf aber nicht als sichtbarer
+	# Hohlraum enden. Nur der Bereich, den eine Route, Landefläche oder Tasche
+	# tatsächlich benötigt, bleibt offen; der Rest wird wieder tragender Fels.
+	var protected_nodes: Array = []
+	protected_nodes.append_array(critical_path_nodes)
+	for side_line_variant: Variant in side_path_lines:
+		protected_nodes.append_array(side_line_variant as Array)
+	for room_variant: Variant in side_rooms:
+		var room: Dictionary = room_variant as Dictionary
+		protected_nodes.append_array(room.get("pickup_slots", []) as Array)
+	if protected_nodes.is_empty():
+		return
+	for grid_y: int in range(ROOM_PADDING_TILES, level_size.y - ROOM_PADDING_TILES):
+		var row: PackedByteArray = grid[grid_y] as PackedByteArray
+		for grid_x: int in range(ROOM_PADDING_TILES, level_size.x - ROOM_PADDING_TILES):
+			if row[grid_x] != 0:
+				continue
+			var nearest_score: float = INF
+			for node_variant: Variant in protected_nodes:
+				var node: Vector2i = node_variant as Vector2i
+				# Vertikaler Freiraum ist für Joey wichtiger als ein breiter, leerer
+				# Saal. Diese gewichtete Distanz erzeugt enge Adern statt Streifen.
+				var score: float = absf(float(grid_x - node.x)) + absf(float(grid_y - node.y)) * 1.35
+				nearest_score = minf(nearest_score, score)
+				if nearest_score <= 7.5:
+					break
+			if nearest_score > 7.5:
+				row[grid_x] = 1
+		grid[grid_y] = row
 
 
 func _carve_organic_wall_pockets(grid: Array) -> void:
