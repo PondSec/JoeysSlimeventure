@@ -129,6 +129,7 @@ var parallax_foreground_layer: Node2D
 var normal_cave_foreground_root: Node2D
 var normal_cave_foreground_material: ShaderMaterial
 var lush_biome_backdrop_layer: CanvasLayer
+var lush_biome_foreground_layer: CanvasLayer
 var lush_biome_sprites: Array[Sprite2D] = []
 var lush_biome_regions: Array[Rect2] = []
 var lush_biome_density: Array[float] = []
@@ -214,6 +215,8 @@ func _process(delta: float) -> void:
 	var should_be_visible: bool = lush_biome_strength > 0.003 or target_strength > 0.003
 	if lush_biome_backdrop_layer != null:
 		lush_biome_backdrop_layer.visible = should_be_visible
+	if lush_biome_foreground_layer != null:
+		lush_biome_foreground_layer.visible = should_be_visible
 	if normal_cave_foreground_material != null:
 		normal_cave_foreground_material.set_shader_parameter("lush_strength", lush_biome_strength)
 	for sprite_index: int in range(lush_biome_sprites.size()):
@@ -337,6 +340,7 @@ func _build_runtime_nodes() -> void:
 
 	ui_layer = CanvasLayer.new()
 	ui_layer.name = "ChapterUI"
+	ui_layer.layer = 10
 	add_child(ui_layer)
 	_setup_ui()
 
@@ -541,6 +545,8 @@ func _register_lush_biome_decor_density() -> void:
 func _build_lush_biome_parallax(bounds: Rect2) -> void:
 	if lush_biome_backdrop_layer != null:
 		lush_biome_backdrop_layer.queue_free()
+	if lush_biome_foreground_layer != null:
+		lush_biome_foreground_layer.queue_free()
 	lush_biome_sprites.clear()
 	lush_biome_regions.clear()
 	lush_biome_strength = 0.0
@@ -589,6 +595,12 @@ func _build_lush_biome_parallax(bounds: Rect2) -> void:
 	lush_biome_backdrop_layer.layer = -2
 	lush_biome_backdrop_layer.visible = false
 	add_child(lush_biome_backdrop_layer)
+	lush_biome_foreground_layer = CanvasLayer.new()
+	lush_biome_foreground_layer.name = "LushBiomeForeground"
+	# The close foliage covers Joey and terrain, but remains beneath the HUD.
+	lush_biome_foreground_layer.layer = 5
+	lush_biome_foreground_layer.visible = false
+	add_child(lush_biome_foreground_layer)
 
 	# Back to front: increasingly stronger motion.  Each source is scaled from
 	# the actual viewport plus a safe overscan margin, never to a fraction of the
@@ -598,19 +610,18 @@ func _build_lush_biome_parallax(bounds: Rect2) -> void:
 	# The previous margins made the art read noticeably zoomed-in.
 	var deep_sprite := _create_lush_biome_sprite(deep_texture, shader, 0, 28.0, Vector2(-0.009, -0.004))
 	var mid_sprite := _create_lush_biome_sprite(mid_texture, shader, 1, 76.0, Vector2(-0.030, -0.012))
-	# The close foliage is not parallax-scrolled: it is an actual world anchor in
-	# the lush biome. Joey walks past it at the natural camera rate, which reads
-	# like foreground growth rooted in the cave instead of a sliding UI frame.
-	var foreground_sprite := _create_lush_biome_sprite(foreground_texture, shader, 0, 120.0, Vector2.ZERO, true)
-	foreground_sprite.set_meta("fixed_world_x", center_x)
-	foreground_sprite.position = Vector2(center_x, _get_overlay_camera_center().y)
+	# The close frame follows the same smooth screen-space parallax model as the
+	# deep and mid art, only with a stronger offset.  It is intentionally still
+	# subtle enough that its corners remain attached to the view during jumps.
+	var foreground_sprite := _create_lush_biome_sprite(foreground_texture, shader, 0, 120.0, Vector2(-0.062, -0.020))
+	var foreground_material := foreground_sprite.material as ShaderMaterial
+	if foreground_material != null:
+		foreground_material.set_shader_parameter("alpha_gain", 1.22)
+		foreground_material.set_shader_parameter("edge_feather", 0.06)
 	foreground_sprite.visible = false
 	lush_biome_backdrop_layer.add_child(deep_sprite)
 	lush_biome_backdrop_layer.add_child(mid_sprite)
-	if parallax_foreground_layer == null:
-		foreground_sprite.queue_free()
-		return
-	parallax_foreground_layer.add_child(foreground_sprite)
+	lush_biome_foreground_layer.add_child(foreground_sprite)
 	lush_biome_sprites = [deep_sprite, mid_sprite, foreground_sprite]
 	print("LUSH_BIOME seed=%d center_x=%.0f score=%.1f" % [active_level_seed, center_x, best_score])
 
@@ -662,12 +673,6 @@ func _update_overlay_parallax(sprite: Node2D, world_position: Vector2) -> void:
 	# ParallaxLayer setup: close foreground shifts fastest, distant art slowest.
 	var factor: Vector2 = sprite.get_meta("parallax_factor", Vector2.ZERO) as Vector2
 	var world_space: bool = bool(sprite.get_meta("world_space_overlay", false))
-	if sprite.has_meta("fixed_world_x"):
-		# A map-anchored foreground frame is fixed horizontally at its biome
-		# landmark.  Only its vertical centre follows the camera so it remains a
-		# useful cave border while the player traverses shafts of varying height.
-		sprite.position = Vector2(float(sprite.get_meta("fixed_world_x")), _get_overlay_camera_center().y)
-		return
 	var motion_position: Vector2 = _get_overlay_camera_center() if world_space else world_position
 	if not sprite.has_meta("parallax_anchor"):
 		sprite.set_meta("parallax_anchor", motion_position)

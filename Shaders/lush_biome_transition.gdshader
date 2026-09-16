@@ -6,6 +6,7 @@ render_mode unshaded;
 // the source alpha of the two transparent frame assets.
 uniform float biome_strength : hint_range(0.0, 1.0) = 0.0;
 uniform float edge_feather : hint_range(0.0, 0.45) = 0.14;
+uniform float alpha_gain : hint_range(0.5, 1.5) = 1.0;
 // The gameplay CanvasModulate intentionally keeps the cave dark.  These
 // authored backdrop layers sit outside gameplay lighting, so compensate that
 // global tint here rather than making Joey's lights affect them.
@@ -19,6 +20,6 @@ void fragment() {
 	float top = smoothstep(0.0, edge_feather, UV.y);
 	float bottom = 1.0 - smoothstep(1.0 - edge_feather, 1.0, UV.y);
 	colour.rgb *= art_exposure;
-	colour.a *= soft_strength * left * right * top * bottom;
+	colour.a = clamp(colour.a * alpha_gain, 0.0, 1.0) * soft_strength * left * right * top * bottom;
 	COLOR = colour;
 }
