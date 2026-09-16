@@ -40,6 +40,11 @@ static func validate_layout(input: Dictionary) -> Dictionary:
 		var node_id: String = str(node.get("id", ""))
 		graph[node_id] = PackedStringArray()
 
+	# Mehrere semantische Knoten (kritischer Pfad, Reward, Oberflaechenprobe)
+	# koennen auf derselben Landeflaeche verankert sein. Die echte Flugbahn wird
+	# pro gerichteter Flaechenkombination nur einmal simuliert; alle Knoten
+	# erhalten weiterhin dieselbe physisch gepruefte Kante.
+	var traversal_cache: Dictionary = {}
 	for from_index: int in range(nodes.size()):
 		var from_node: Dictionary = nodes[from_index] as Dictionary
 		for to_index: int in range(nodes.size()):
@@ -48,13 +53,16 @@ static func validate_layout(input: Dictionary) -> Dictionary:
 			var to_node: Dictionary = nodes[to_index] as Dictionary
 			if not _should_probe_edge(from_node, to_node, mobility):
 				continue
-			if _can_traverse_between(
-				grid,
-				level_size,
-				from_node.get("pos", Vector2i.ZERO) as Vector2i,
-				to_node.get("pos", Vector2i.ZERO) as Vector2i,
-				mobility
-			):
+			var from_pos: Vector2i = from_node.get("pos", Vector2i.ZERO) as Vector2i
+			var to_pos: Vector2i = to_node.get("pos", Vector2i.ZERO) as Vector2i
+			var cache_key := "%d:%d>%d:%d" % [from_pos.x, from_pos.y, to_pos.x, to_pos.y]
+			var traversable: bool
+			if traversal_cache.has(cache_key):
+				traversable = bool(traversal_cache[cache_key])
+			else:
+				traversable = _can_traverse_between(grid, level_size, from_pos, to_pos, mobility)
+				traversal_cache[cache_key] = traversable
+			if traversable:
 				var edges: PackedStringArray = graph[str(from_node.get("id", ""))] as PackedStringArray
 				edges.append(str(to_node.get("id", "")))
 				graph[str(from_node.get("id", ""))] = edges
@@ -275,7 +283,11 @@ static func _extend_with_surface_nodes(nodes: Array, grid: Array, size: Vector2i
 		seen["%d:%d" % [node_pos.x, node_pos.y]] = true
 
 	var sample_step: int = max(3, int(mobility.get("main_gap_tiles", 5)))
-	var max_surface_nodes: int = clampi(size.x + int(size.y * 0.5), 96, 160)
+	# Kritischer Pfad, Abzweige und Belohnungen werden vollstaendig geprueft.
+	# Oberflaechen dienen zusaetzlich nur der Softlock-Stichprobe: ein kleines,
+	# gleichmaessiges Budget verhindert hier quadratische Sprungsimulationen und
+	# damit Portal-Haenger auf grossen Hoehlenkarten.
+	var max_surface_nodes: int = clampi(int(round(float(size.x) * 0.42)), 42, 56)
 	var surface_index: int = 0
 	for grid_y: int in range(1, size.y - 1):
 		var grid_x: int = 1
@@ -542,6 +554,8 @@ static func _can_traverse_between(grid: Array, size: Vector2i, from_node: Vector
 	if _can_teleport_between(grid, size, from_node, to_node, mobility):
 		return true
 	return false
+
+
 
 
 static func _fits_mobility_budget(from_node: Vector2i, to_node: Vector2i, mobility: Dictionary, effective_gap_tiles: int = -1) -> bool:

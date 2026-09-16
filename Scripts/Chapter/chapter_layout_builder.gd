@@ -22,6 +22,8 @@ const ROOM_PADDING_TILES := 2
 const CONNECTION_PLATFORM_WIDTH := 4
 const BRANCH_CONNECTION_WIDTH := 5
 
+static var accepted_layout_cache: Dictionary = {}
+
 var level_data: Dictionary = {}
 var level_size: Vector2i = Vector2i.ZERO
 var mobility_profile: Dictionary = {}
@@ -40,8 +42,17 @@ var side_path_lines: Array = []
 
 
 static func build_level_layout(source_level_data: Dictionary, source_level_size: Vector2i, seed: int) -> Dictionary:
+	var cache_key := "%s|%s|%d|%d|%d" % [str(source_level_data.get("title", "")), str(source_level_data.get("level_label", "")), seed, source_level_size.x, source_level_size.y]
+	if accepted_layout_cache.has(cache_key):
+		return (accepted_layout_cache[cache_key] as Dictionary).duplicate(true)
 	var builder := new()
-	return builder._build(source_level_data, source_level_size, seed)
+	var result := builder._build(source_level_data, source_level_size, seed)
+	var validation: Dictionary = result.get("layout_validation", {}) as Dictionary
+	if bool(validation.get("path_valid", false)) and int(validation.get("invalid_jump_count", 0)) == 0 and int(validation.get("unreachable_room_count", 0)) == 0:
+		if accepted_layout_cache.size() >= 24:
+			accepted_layout_cache.erase(accepted_layout_cache.keys().front())
+		accepted_layout_cache[cache_key] = result.duplicate(true)
+	return result
 
 
 func _build(source_level_data: Dictionary, source_level_size: Vector2i, seed: int) -> Dictionary:
@@ -49,6 +60,8 @@ func _build(source_level_data: Dictionary, source_level_size: Vector2i, seed: in
 	level_size = source_level_size
 	layout_style = _resolve_layout_style()
 	mobility_profile = ChapterMobilityProfile.build_for_level(level_data)
+	if layout_style == "graph_hybrid":
+		return _build_graph_hybrid_result()
 
 	var best_candidate: Dictionary = {}
 	var best_score: float = -INF
@@ -105,6 +118,22 @@ func _build(source_level_data: Dictionary, source_level_size: Vector2i, seed: in
 				"spawn": _first_path_node(),
 				"exit": _last_path_node()
 			})
+		# Eine optionale Essenz darf niemals einen ansonsten spielbaren Entwurf
+		# verwerfen. Nicht erreichbare Taschen werden fuer diesen Seed ausgelassen;
+		# der Hauptpfad und alle erreichbaren Inhalte bleiben unverändert.
+		if bool(validation.get("path_valid", false)) and int(validation.get("unreachable_reward_count", 0)) > 0:
+			pickups = _filter_unreachable_pickups(pickups, validation.get("unreachable_rewards", []) as Array)
+			validation = ChapterTraversalValidator.validate_layout({
+				"grid": grid,
+				"level_size": level_size,
+				"mobility_profile": mobility_profile,
+				"rooms": _build_debug_rooms(),
+				"critical_path_nodes": critical_path_nodes.duplicate(true),
+				"side_path_lines": side_path_lines.duplicate(true),
+				"pickups": pickups,
+				"spawn": _first_path_node(),
+				"exit": _last_path_node()
+			})
 		validation["repair_applied"] = repair_applied
 		validation["repair_pass_count"] = repair_passes
 		validation["attempt_index"] = attempt_index
@@ -117,8 +146,11 @@ func _build(source_level_data: Dictionary, source_level_size: Vector2i, seed: in
 		validation["vertical_signature"] = vertical_signature
 		validation["room_variety_score"] = _room_variety_score()
 
-		var candidate: Dictionary = _assemble_result(grid, pickups, enemies, hazards, torches, triggers, boss, validation)
 		var score: float = _score_validation(validation)
+		validation["quality_score"] = score
+		var candidate: Dictionary = _assemble_result(grid, pickups, enemies, hazards, torches, triggers, boss, validation)
+		if OS.get_cmdline_user_args().has("--diagnose-generation"):
+			print("GEN_ATTEMPT=%d path=%s critical_invalid=%d rewards_unreachable=%d rooms_unreachable=%d optional_invalid=%d repairs=%d" % [attempt_index + 1, str(validation.get("path_valid", false)), int(validation.get("invalid_jump_count", 0)), int(validation.get("unreachable_reward_count", 0)), int(validation.get("unreachable_room_count", 0)), int(validation.get("optional_invalid_jump_count", 0)), repair_passes])
 		if best_candidate.is_empty() or score > best_score:
 			best_candidate = candidate
 			best_score = score
@@ -140,6 +172,71 @@ func _build(source_level_data: Dictionary, source_level_size: Vector2i, seed: in
 	return fallback_result
 
 
+func _build_graph_hybrid_result() -> Dictionary:
+	# Konstruktiv statt Versuch/Reparatur: eine Schlange aus engen Hoehlenbändern
+	# führt zuverlässig nach unten. Jede Abstiegsstelle liegt innerhalb des
+	# echten Fall- und Sprungbudgets; seltene Nischen sind nur Zusatzinhalt.
+	var platforms: Array = []
+	var raw_path: Array = []
+	var bands: int = 7
+	var left: int = 13
+	var right: int = level_size.x - 15
+	var start_y: int = 18
+	var step_y: int = 6
+	for band: int in range(bands):
+		var y: int = start_y + band * step_y
+		var from_x: int = left if band % 2 == 0 else right
+		var to_x: int = right if band % 2 == 0 else left
+		platforms.append(_make_platform(mini(from_x, to_x), y, abs(to_x - from_x) + 1, 1, "ledge"))
+		_append_path_point(raw_path, Vector2i(from_x, y))
+		_append_path_point(raw_path, Vector2i(to_x, y))
+		if band < bands - 1:
+			# Die Stufen liegen ausserhalb der Bodenplatte, nicht darunter.
+			var outward: int = 1 if to_x > int(level_size.x * 0.5) else -1
+			var step_one_x: int = to_x + outward * 4
+			var step_two_x: int = to_x + outward * 7
+			platforms.append(_make_platform(step_one_x - 2, y + 2, 5, 1, "ledge"))
+			platforms.append(_make_platform(step_two_x - 2, y + 4, 5, 1, "ledge"))
+			platforms.append(_make_platform(step_one_x - 2, y + step_y, 5, 1, "ledge"))
+			platforms.append(_make_platform(mini(to_x, step_one_x) - 1, y + step_y, 6, 1, "ledge"))
+			_append_path_point(raw_path, Vector2i(step_one_x, y + 2))
+			_append_path_point(raw_path, Vector2i(step_two_x, y + 4))
+			_append_path_point(raw_path, Vector2i(step_one_x, y + step_y))
+			_append_path_point(raw_path, Vector2i(step_one_x, y + step_y))
+			_append_path_point(raw_path, Vector2i(to_x, y + step_y))
+	var path: Array = _densify_path_nodes(raw_path)
+	# Ein seltenes, etwas größeres Landmark liegt in der Mitte; die anderen
+	# Räume bleiben bewusst eng und werden mit kurzen Nischen ergänzt.
+	var rooms: Array = []
+	for band: int in range(bands):
+		var y: int = start_y + band * step_y
+		rooms.append({"id": "band_%d" % band, "role": ROOM_ROLE_LANDMARK if band == 3 else ROOM_ROLE_TRAVERSAL, "entry_node": Vector2i(left if band % 2 == 0 else right, start_y + band * step_y), "exit_node": Vector2i(right if band % 2 == 0 else left, start_y + band * step_y)})
+		if band != 3:
+			var niche_x: int = int(level_size.x * (0.3 if band % 2 == 0 else 0.65))
+			platforms.append(_make_platform(niche_x, y - 4, 7, 1, "ledge"))
+	var grid: Array = _create_solid_grid()
+	for platform_variant: Variant in platforms:
+		var platform: Dictionary = platform_variant as Dictionary
+		_carve_rect(grid, int(platform.x) - 1, int(platform.y) - 5, int(platform.w) + 2, 5)
+		_stamp_rect(grid, int(platform.x), int(platform.y), int(platform.w), 1)
+	# Freie Schaechte an wechselnden Enden verbinden die Hoehlenbänder.
+	for band: int in range(bands - 1):
+		var shaft_x: int = right - 2 if band % 2 == 0 else left - 2
+		_carve_rect(grid, shaft_x, start_y + band * step_y - 5, 5, step_y + 7)
+	# Schacht-Oeffnungen duerfen die Landekante nicht ausstanzen.
+	for platform_variant: Variant in platforms:
+		var platform: Dictionary = platform_variant as Dictionary
+		_stamp_rect(grid, int(platform.x), int(platform.y), int(platform.w), 1)
+	var pickups: Array = []
+	for band: int in range(1, bands):
+		pickups.append({"id": "graph_essence_%d" % band, "x": int(level_size.x * 0.5), "y": start_y + band * step_y - 1, "message": "Essenz in einer Seitennische."})
+	var final_grid: Array = TerrainResolver.duplicate_cells(TerrainResolver.build_logical_map(grid, level_size))
+	var validation := ChapterTraversalValidator.validate_layout({"grid": final_grid, "level_size": level_size, "mobility_profile": mobility_profile, "rooms": rooms, "critical_path_nodes": path, "side_path_lines": [], "pickups": pickups, "spawn": path.front(), "exit": path.back()})
+	validation["layout_signature"] = "graph_spine"
+	validation["room_variety_score"] = 4.0
+	return {"grid": final_grid, "spawn": path.front(), "exit": path.back(), "platforms": platforms, "pickups": pickups, "enemies": level_data.get("enemies", []), "hazards": [], "torches": _place_torches(), "triggers": level_data.get("triggers", []), "boss": {}, "worm_count": 0, "layout_validation": validation, "debug_rooms": rooms, "critical_path_nodes": path, "side_path_lines": [], "mobility_profile": mobility_profile}
+
+
 func _reset_generation_state() -> void:
 	main_rooms.clear()
 	side_rooms.clear()
@@ -149,8 +246,24 @@ func _reset_generation_state() -> void:
 	side_path_lines.clear()
 
 
+func _filter_unreachable_pickups(pickups: Array, unreachable_rewards: Array) -> Array:
+	var blocked: Dictionary = {}
+	for reward_variant: Variant in unreachable_rewards:
+		var reward: Vector2i = reward_variant as Vector2i
+		blocked["%d:%d" % [reward.x, reward.y]] = true
+	var filtered: Array = []
+	for pickup_variant: Variant in pickups:
+		var pickup: Dictionary = pickup_variant as Dictionary
+		var anchor := Vector2i(int(pickup.get("x", 0)), int(pickup.get("y", 0)) + 1)
+		if not blocked.has("%d:%d" % [anchor.x, anchor.y]):
+			filtered.append(pickup)
+	return filtered
+
+
 func _select_generation_profiles() -> void:
-	var horizontal_profiles: Array = ["sweeping", "gauntlet", "terraces", "pockets"]
+	# Hybrid layouts keep a readable left-to-right critical route, then layer
+	# vertical shafts, branches and reconnecting shortcuts around it.
+	var horizontal_profiles: Array = ["sweeping", "gauntlet", "terraces", "pockets", "network"]
 	var vertical_profiles: Array = ["spire", "switchback", "cathedral"]
 	var branch_profiles: Array = ["alcove", "hook", "stepwell"]
 	var vertical_patterns: Array = ["alternating", "spine", "zigzag"]
@@ -168,11 +281,11 @@ func _resolve_layout_style() -> String:
 		return str(level_data.get("layout_style", "horizontal"))
 	var spawn_tile: Vector2i = level_data.get("spawn", Vector2i(4, 28)) as Vector2i
 	var exit_tile: Vector2i = level_data.get("exit", Vector2i(level_size.x - 8, level_size.y - 10)) as Vector2i
-	if level_size.y >= 50:
+	if level_size.y >= 72 and abs(exit_tile.y - spawn_tile.y) >= 28:
 		return "vertical"
-	if abs(exit_tile.y - spawn_tile.y) >= 16:
-		return "vertical"
-	return "horizontal"
+	# A Hollow-Knight-like zone should be a navigable network, not a pure shaft:
+	# retain a horizontal spine while deliberately mixing in vertical rooms.
+	return "hybrid"
 
 
 func _build_main_rooms() -> Array:
@@ -195,6 +308,9 @@ func _build_main_rooms() -> Array:
 		if room_index == role_sequence.size() - 1:
 			desired_exit_y = exit_tile.y
 		var rect_y: int = _room_rect_y(dimensions.y, previous_floor_y, desired_exit_y, role)
+		# Eng überlappende Kammern bilden eine kontinuierliche, absinkende
+		# Höhlenader. Die Vertikalität entsteht über den Höhenversatz, nicht
+		# über unspielbar weit auseinanderliegende Raumspalten.
 		var rect := Rect2i(cursor_x, rect_y, dimensions.x, dimensions.y)
 		var room: Dictionary = {
 			"id": "room_%d" % room_index,
@@ -227,6 +343,12 @@ func _build_main_rooms() -> Array:
 func _target_room_count() -> int:
 	var progress: float = _level_progress()
 	var base_count: int = 8 + int(progress >= 0.08) + int(progress >= 0.26) + int(progress >= 0.48) + int(progress >= 0.72) + int(progress >= 0.9)
+	if layout_style == "hybrid":
+		base_count += 1
+	if layout_style == "deep_hybrid":
+		# Zehn eng gekoppelte Kammern sind dichter als wenige Hallen, lassen
+		# aber genug Breite fuer garantiert begehbare Übergänge und Schleifen.
+		base_count = 10
 	if layout_signature == "pockets" or layout_signature == "gauntlet" or layout_signature == "terraces" or layout_signature == "cathedral":
 		base_count += 1
 	if layout_style == "vertical":
@@ -238,6 +360,8 @@ func _target_room_count() -> int:
 	var max_feasible: int = clampi(int(floor(float(level_size.x) / (13.2 if layout_style == "vertical" else 11.6))), 8, 12)
 	if layout_style == "vertical":
 		max_feasible = clampi(max_feasible, 8, 10)
+	elif layout_style == "deep_hybrid":
+		max_feasible = 10
 	return clampi(min(base_count, max_feasible), 8, 12)
 
 
@@ -249,7 +373,14 @@ func _build_role_sequence(room_count: int) -> Array:
 	var wants_combat: bool = _enemy_budget() > 0
 	var wants_extra_combat: bool = wants_combat and _level_progress() >= 0.58 and layout_signature == "gauntlet"
 	var wants_choke: bool = _hazard_budget() > 0 or layout_signature == "gauntlet"
-	var wants_vertical: bool = layout_style == "vertical" or _level_progress() >= 0.45 or layout_signature == "terraces" or layout_signature == "spire"
+	var lesson_focus: Array = level_data.get("lesson_focus", []) as Array
+	var teaches_vertical: bool = lesson_focus.has("wall_slide") or lesson_focus.has("vertical_routes") or lesson_focus.has("double_jump")
+	var wants_vertical: bool = teaches_vertical or layout_style == "vertical" or layout_style == "hybrid" or _level_progress() >= 0.45 or layout_signature == "terraces" or layout_signature == "spire" or layout_signature == "network"
+	# Eine tiefe Kapitelhoehe braucht mehrere vertikale Knoten. So entsteht eine
+	# lesbare Abstiegsader mit Querverbindungen statt einer einzigen, flachen
+	# Diagonale aus Raeumen.
+	var wants_second_vertical: bool = (layout_style == "vertical" or layout_style == "hybrid" or layout_style == "deep_hybrid") and room_count >= 8
+	var wants_third_vertical: bool = layout_style == "deep_hybrid" and room_count >= 10
 	var wants_landmark: bool = room_count >= 5
 	var wants_extra_landmark: bool = room_count >= 7 and (layout_signature == "cathedral" or layout_signature == "pockets")
 
@@ -259,6 +390,14 @@ func _build_role_sequence(room_count: int) -> Array:
 		if wants_vertical and slot_progress >= (0.22 if layout_style == "vertical" or layout_signature == "spire" else 0.48):
 			roles.append(ROOM_ROLE_VERTICAL)
 			wants_vertical = false
+			continue
+		if wants_second_vertical and slot_progress >= 0.62 and remaining >= 2:
+			roles.append(ROOM_ROLE_VERTICAL)
+			wants_second_vertical = false
+			continue
+		if wants_third_vertical and slot_progress >= 0.78 and remaining >= 2:
+			roles.append(ROOM_ROLE_VERTICAL)
+			wants_third_vertical = false
 			continue
 		if wants_combat and slot_progress >= (0.18 if layout_signature == "gauntlet" else 0.28):
 			roles.append(ROOM_ROLE_COMBAT)
@@ -348,6 +487,12 @@ func _room_dimensions(role: String, difficulty: float) -> Vector2i:
 				size.x += 1
 		_:
 			pass
+	if layout_style == "deep_hybrid":
+		if role == ROOM_ROLE_VERTICAL:
+			size = Vector2i(17, 19 + int(difficulty >= 0.5) * 2)
+		elif role != ROOM_ROLE_START and role != ROOM_ROLE_EXIT and role != ROOM_ROLE_BOSS:
+			size.x = max(_min_room_width(role), size.x - 3)
+			size.y += 1
 	return size
 
 
@@ -502,7 +647,11 @@ func _build_side_rooms(host_rooms: Array, pickup_budget: int) -> Array:
 
 	var progress: float = _level_progress()
 	var desired_branches: int = 4 + int(progress >= 0.12) + int(progress >= 0.34) + int(progress >= 0.56) + int(progress >= 0.78)
-	if layout_signature == "pockets" or branch_signature == "stepwell":
+	if layout_style == "hybrid":
+		desired_branches += 1
+	if layout_style == "deep_hybrid":
+		desired_branches += 2
+	if layout_signature == "pockets" or layout_signature == "network" or branch_signature == "stepwell":
 		desired_branches += 1
 	if host_rooms.size() >= 8:
 		desired_branches += 1
@@ -525,6 +674,8 @@ func _build_side_rooms(host_rooms: Array, pickup_budget: int) -> Array:
 		if branch_signature == "hook":
 			branch_width += 2
 		elif branch_signature == "stepwell":
+			branch_height += 2
+		if layout_style == "hybrid" or layout_style == "vertical" or layout_style == "deep_hybrid":
 			branch_height += 2
 		var host_anchor_y: int = int(round((float(host_room.get("entry_floor_y", 0)) + float(host_room.get("exit_floor_y", 0))) * 0.5))
 		var upward: bool = host_rect.position.y > branch_height + 2
@@ -1328,7 +1479,7 @@ func _build_loop_connectors() -> void:
 	var loop_budget: int = 1 + int(progress >= 0.28) + int(progress >= 0.52) + int(progress >= 0.76)
 	if main_rooms.size() >= 8 and progress >= 0.46:
 		loop_budget += 1
-	if layout_style == "vertical" or layout_signature == "cathedral":
+	if layout_style == "vertical" or layout_style == "hybrid" or layout_signature == "cathedral" or layout_signature == "network":
 		loop_budget += 1
 	loop_budget = clampi(loop_budget, 0, 5)
 	if loop_budget <= 0:
@@ -1830,6 +1981,12 @@ func _place_pickups() -> Array:
 	for room_variant: Variant in side_rooms:
 		for slot_variant: Variant in (room_variant as Dictionary).get("pickup_slots", []) as Array:
 			slots.append(slot_variant)
+	var bonus_pickups := mini(maxi(1, side_rooms.size() / 2), maxi(0, slots.size() - normalized_pickups.size()))
+	for bonus_index: int in bonus_pickups:
+		normalized_pickups.append({
+			"id": "generated_essence_%d_%d" % [int(level_data.get("level_index", 0)) + 1, bonus_index],
+			"message": "Eine warme Essenz liegt abseits des Hauptwegs."
+		})
 	var placed: Array = []
 	for pickup_index: int in range(mini(normalized_pickups.size(), slots.size())):
 		var pickup_data: Dictionary = normalized_pickups[pickup_index] as Dictionary
@@ -1894,6 +2051,10 @@ func _place_enemies() -> Array:
 		room_cursor = mini(room_cursor + 1, room_candidates.size() - 1)
 
 	var bonus_enemy_budget: int = int(_level_progress() >= 0.34) + int(_level_progress() >= 0.58) + int(_level_progress() >= 0.84)
+	# Kapitelstart: nur Fledermäuse, damit Licht, Bewegung und Sprünge zuerst
+	# lesbar werden. Ab Level 4 wächst die Begegnungsdichte schrittweise.
+	if int(level_data.get("chapter_index", 0)) == 1 and int(level_data.get("level_index", 0)) < 3:
+		bonus_enemy_budget = 0
 	for room_variant: Variant in room_candidates:
 		if bonus_enemy_budget <= 0:
 			break
