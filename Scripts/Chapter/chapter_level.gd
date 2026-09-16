@@ -1758,6 +1758,19 @@ func _camera_envelope_rect() -> Rect2:
 
 
 func _calculate_play_bounds_rect() -> Rect2:
+	# Die komplette Logik-Karte ist von Fels umschlossen. Sie als Kameraquelle zu
+	# verwenden, zeigt deshalb bei schmalen Hoehlen grosse, leere Randflaechen.
+	# Die Generator-Raeume und ihre Plattformen beschreiben dagegen genau den
+	# bespielbaren Korridor und bleiben auch bei ungewoehnlich tiefen Seeds stabil.
+	var authored_bounds: Rect2 = _generated_play_bounds_rect()
+	if authored_bounds.size != Vector2.ZERO:
+		authored_bounds = _expand_rect_to_include_point(authored_bounds, _grid_to_world(active_level.get("spawn", Vector2i(4, 28)) as Vector2i) + Vector2(16.0, -48.0), Vector2(128.0, 160.0))
+		var authored_exit_tile: Vector2i = resolved_exit_tile if resolved_exit_tile != Vector2i.ZERO else active_level.get("exit", Vector2i(96, 24)) as Vector2i
+		authored_bounds = _expand_rect_to_include_point(authored_bounds, _grid_to_world(authored_exit_tile) + Vector2(18.0, -18.0), EXIT_VIEW_MARGIN)
+		if exit_gate != null:
+			authored_bounds = _expand_rect_to_include_point(authored_bounds, exit_gate.global_position + Vector2(0.0, -42.0), EXIT_VIEW_MARGIN)
+		return _clamp_rect_to_envelope(authored_bounds, _camera_envelope_rect())
+
 	var has_solid: bool = false
 	var min_x: int = level_size_tiles.x
 	var min_y: int = level_size_tiles.y
@@ -1789,6 +1802,37 @@ func _calculate_play_bounds_rect() -> Rect2:
 	if exit_gate != null:
 		bounds = _expand_rect_to_include_point(bounds, exit_gate.global_position + Vector2(0.0, -42.0), EXIT_VIEW_MARGIN)
 	return _clamp_rect_to_envelope(bounds, _camera_envelope_rect())
+
+
+func _generated_play_bounds_rect() -> Rect2:
+	var bounds := Rect2()
+	var has_geometry: bool = false
+	for room_variant: Variant in active_level.get("debug_rooms", []) as Array:
+		var room: Dictionary = room_variant as Dictionary
+		var room_rect: Rect2i = room.get("rect", Rect2i()) as Rect2i
+		if room_rect.size.x <= 0 or room_rect.size.y <= 0:
+			continue
+		var world_rect := Rect2(
+			_grid_to_world(room_rect.position),
+			Vector2(room_rect.size) * TILE_SIZE
+		)
+		bounds = world_rect if not has_geometry else bounds.merge(world_rect)
+		has_geometry = true
+
+	for platform_variant: Variant in active_level.get("platforms", []) as Array:
+		var platform: Dictionary = platform_variant as Dictionary
+		var width: int = int(platform.get("w", 0))
+		var height: int = int(platform.get("h", 1))
+		if width <= 0 or height <= 0:
+			continue
+		var world_rect := Rect2(
+			_grid_to_world(Vector2i(int(platform.get("x", 0)), int(platform.get("y", 0)) - 4)),
+			Vector2(width, height + 5) * TILE_SIZE
+		)
+		bounds = world_rect if not has_geometry else bounds.merge(world_rect)
+		has_geometry = true
+
+	return bounds.grow(TILE_SIZE * 2.0) if has_geometry else Rect2()
 
 
 func _expand_rect_to_include_point(rect: Rect2, point: Vector2, padding: Vector2) -> Rect2:
