@@ -57,6 +57,7 @@ const PARALLAX_FX_TEXTURE_PATHS := [
 	"res://Assets/Parallax Cave/3fx.png"
 ]
 const LUSH_ATMOSPHERE_PATH := "res://Assets/Parallax Cave/Lush/lush_atmosphere.png"
+const LUSH_WATERFALL_ATMOSPHERE_PATH := "res://Assets/Parallax Cave/Lush/lush_waterfall_atmosphere.png"
 
 const WORLD_BOUND_LEFT_PADDING := 128.0
 const WORLD_BOUND_RIGHT_PADDING := 128.0
@@ -406,6 +407,7 @@ func _build_local_lush_atmosphere(bounds: Rect2) -> void:
 	# broad, deliberately separated pockets; the rest keeps the normal cave
 	# backdrop. The feathered material makes their border disappear into rock.
 	var atmosphere: Texture2D = load(LUSH_ATMOSPHERE_PATH) as Texture2D
+	var waterfall_atmosphere: Texture2D = load(LUSH_WATERFALL_ATMOSPHERE_PATH) as Texture2D
 	var fade_shader: Shader = load("res://Shaders/lush_atmosphere_fade.gdshader") as Shader
 	if atmosphere == null or fade_shader == null:
 		return
@@ -417,9 +419,12 @@ func _build_local_lush_atmosphere(bounds: Rect2) -> void:
 		var progression_ratio: float = (float(index) + 0.7) / float(region_count + 1)
 		var horizontal_jitter: float = region_rng.randf_range(-0.075, 0.075)
 		var vertical_jitter: float = region_rng.randf_range(-0.10, 0.10)
+		# The richer waterfall vista is reserved for a single regional landmark.
+		# It remains deliberately dimmer than the broad atmospheric variant.
+		var use_waterfall_vista: bool = waterfall_atmosphere != null and index == region_count - 1
 		var region := Sprite2D.new()
 		region.name = "LushAtmosphereRegion%d" % index
-		region.texture = atmosphere
+		region.texture = waterfall_atmosphere if use_waterfall_vista else atmosphere
 		region.centered = true
 		region.position = Vector2(
 			bounds.position.x + bounds.size.x * clampf(progression_ratio + horizontal_jitter, 0.16, 0.84),
@@ -427,7 +432,8 @@ func _build_local_lush_atmosphere(bounds: Rect2) -> void:
 		)
 		var scale_factor: float = region_rng.randf_range(0.57, 0.69)
 		region.scale = Vector2(scale_factor, scale_factor)
-		region.modulate = Color(0.68, 0.96, 0.75, region_rng.randf_range(0.25, 0.34))
+		var atmosphere_alpha: float = region_rng.randf_range(0.20, 0.27) if use_waterfall_vista else region_rng.randf_range(0.25, 0.34)
+		region.modulate = Color(0.68, 0.96, 0.75, atmosphere_alpha)
 		var material := ShaderMaterial.new()
 		material.shader = fade_shader
 		material.set_shader_parameter("horizontal_fade", region_rng.randf_range(0.15, 0.22))
