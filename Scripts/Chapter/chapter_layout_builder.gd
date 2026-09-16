@@ -387,11 +387,13 @@ func _build_role_sequence(room_count: int) -> Array:
 	while roles.size() < room_count - 1:
 		var slot_progress: float = float(roles.size()) / maxf(1.0, float(room_count - 2))
 		var remaining: int = room_count - 1 - roles.size()
-		if wants_vertical and slot_progress >= (0.22 if layout_style == "vertical" or layout_signature == "spire" else 0.48):
+		# In hybriden Kapitelhoehlen beginnt die Tiefenader frueh. Dadurch wirkt
+		# der Ausgang nicht wie das Ende einer einzigen langen Rampe.
+		if wants_vertical and slot_progress >= (0.22 if layout_style == "vertical" or layout_signature == "spire" else 0.30):
 			roles.append(ROOM_ROLE_VERTICAL)
 			wants_vertical = false
 			continue
-		if wants_second_vertical and slot_progress >= 0.62 and remaining >= 2:
+		if wants_second_vertical and slot_progress >= 0.54 and remaining >= 2:
 			roles.append(ROOM_ROLE_VERTICAL)
 			wants_second_vertical = false
 			continue
@@ -516,6 +518,11 @@ func _resolve_main_room_dimensions(role_sequence: Array) -> Array:
 	var dimensions: Array = []
 	var widths_total: int = 0
 	var available_total: int = level_size.x - (ROOM_PADDING_TILES * 2) + ROOM_OVERLAP_TILES * maxi(role_sequence.size() - 1, 0)
+	# Vertikale Kapitelkarten nutzen bewusst nicht die gesamte Breite. Die
+	# verbleibende Felsmasse verhindert, dass ein Tor automatisch immer an der
+	# rechten Kartenkante landet, und verdichtet die Hoehlenader.
+	if layout_style == "vertical":
+		available_total -= mini(14, maxi(6, int(level_size.x * 0.12)))
 	for room_index: int in range(role_sequence.size()):
 		var role: String = str(role_sequence[room_index])
 		var difficulty: float = float(room_index) / maxf(1.0, float(role_sequence.size() - 1))
@@ -876,7 +883,13 @@ func _compose_horizontal_path_nodes(room: Dictionary, left_x: int, right_x: int,
 		path_nodes.append(Vector2i(left_x, start_y))
 		var previous_y: int = start_y
 		var pattern: Array = _horizontal_motif_pattern(motif)
-		var variation_scale: int = 1 + int(difficulty >= 0.42 and role != ROOM_ROLE_START and role != ROOM_ROLE_INTRO and role != ROOM_ROLE_EXIT)
+		# Enge, verschachtelte Gangfolgen statt eines sofort lesbaren diagonalen
+		# Hauptwegs. Die Einzelschritte bleiben durch _clamp_path_step und den
+		# echten Traversal-Validator innerhalb des Bewegungsbudgets.
+		var variation_scale: int = 1 + int(
+			(role == ROOM_ROLE_TRAVERSAL or role == ROOM_ROLE_LANDMARK or role == ROOM_ROLE_CHOKE)
+			and (layout_style == "hybrid" or layout_signature == "network" or difficulty >= 0.30)
+		)
 		for segment_index: int in range(1, segment_count):
 			var t: float = float(segment_index) / float(segment_count)
 			var node_x: int = int(round(lerpf(float(left_x + 2), float(right_x - 2), t)))
@@ -1316,8 +1329,13 @@ func _populate_boss_room(room: Dictionary) -> void:
 
 
 func _make_wall_ledge(rect: Rect2i, attach_left: bool, y: int, width_tiles: int) -> Dictionary:
-	var ledge_x: int = rect.position.x + 2 if attach_left else rect.position.x + rect.size.x - width_tiles - 2
-	return _make_platform(ledge_x, y, width_tiles, 1, "ledge")
+	# Ein Wandvorsprung muss in die Hoehlenwand uebergehen. Der alte Abstand
+	# von zwei Zellen liess die Leisten wie schwebende Rechtecke aussehen.
+	# Breite und Tiefe bilden nun einen geschlossenen Felsauslaeufer, dessen
+	# Oberkante weiterhin exakt die validierte Laufflaeche bleibt.
+	var ledge_width: int = width_tiles + 2
+	var ledge_x: int = rect.position.x + 1 if attach_left else rect.position.x + rect.size.x - ledge_width - 1
+	return _make_platform(ledge_x, y, ledge_width, 3, "ledge")
 
 
 func _room_ground_slots(primary_platforms: Array, secondary_platforms: Array, role: String) -> Array:
@@ -2701,11 +2719,16 @@ func _vertical_path_center_x(path_nodes: Array, world_y: int, fallback_x: int) -
 
 
 func _make_platform(x: int, y: int, width_tiles: int, height_tiles: int, style: String) -> Dictionary:
+	var resolved_height: int = height_tiles
+	if style == "ledge":
+		# Plattformen sind keine einreihigen Balken mehr: jede bekommt einen
+		# tragenden Kern; jede dritte ist als unregelmaessiger Felsblock tiefer.
+		resolved_height = maxi(resolved_height, 2 + int(abs(x * 17 + y * 7) % 3 == 0))
 	return {
 		"x": x,
 		"y": y,
 		"w": width_tiles,
-		"h": height_tiles,
+		"h": resolved_height,
 		"style": style
 	}
 

@@ -1119,21 +1119,21 @@ func _spawn_generated_overgrowth(grid: Array) -> void:
 	var cluster_count: int = 0
 	var previous_cluster_x: int = -99
 	for grid_x: int in range(3, level_size_tiles.x - 4):
-		if grid_x - previous_cluster_x < 6:
+		if grid_x - previous_cluster_x < 4:
 			continue
 		for grid_y: int in range(2, level_size_tiles.y - 9):
-			if not _is_vine_anchor(grid, grid_x, grid_y) or rng.randf() > 0.13:
+			if not _is_vine_anchor(grid, grid_x, grid_y) or rng.randf() > 0.19:
 				continue
-			var primary_length: int = rng.randi_range(4, 8)
+			var primary_length: int = rng.randi_range(5, 10)
 			if not _has_vine_clearance(grid, grid_x, grid_y, primary_length):
 				continue
-			_spawn_vine_trail(grid_x, grid_y + 1, primary_length, 0.0, 0.22)
+			_spawn_vine_trail(grid_x, grid_y + 1, primary_length, rng.randf_range(-0.34, 0.34), 0.22)
 
 			var companion_offset: int = -1 if rng.randf() < 0.5 else 1
 			var companion_x: int = grid_x + companion_offset
-			var companion_length: int = maxi(2, primary_length - rng.randi_range(1, 3))
+			var companion_length: int = maxi(3, primary_length - rng.randi_range(1, 4))
 			if _has_vine_clearance(grid, companion_x, grid_y, companion_length):
-				_spawn_vine_trail(companion_x, grid_y + 1 + rng.randi_range(0, 1), companion_length, float(companion_offset) * 0.10, 0.16)
+				_spawn_vine_trail(companion_x, grid_y + 1 + rng.randi_range(0, 1), companion_length, float(companion_offset) * 0.42, 0.16)
 
 			# Ein dritter, kurzer Trieb bricht die Symmetrie und verbindet die
 			# Saeulen optisch zu einem einzelnen organischen Bueschel.
@@ -1141,10 +1141,10 @@ func _spawn_generated_overgrowth(grid: Array) -> void:
 				var tendril_x: int = grid_x - companion_offset
 				var tendril_length: int = rng.randi_range(2, 4)
 				if _has_vine_clearance(grid, tendril_x, grid_y, tendril_length):
-					_spawn_vine_trail(tendril_x, grid_y + 2, tendril_length, float(-companion_offset) * 0.16, 0.12)
+					_spawn_vine_trail(tendril_x, grid_y + 2, tendril_length, float(-companion_offset) * 0.62, 0.12)
 			previous_cluster_x = grid_x
 			cluster_count += 1
-			if cluster_count >= 9:
+			if cluster_count >= 16:
 				return
 			break
 
@@ -1163,17 +1163,24 @@ func _has_vine_clearance(grid: Array, grid_x: int, anchor_y: int, length: int) -
 
 
 func _spawn_vine_trail(grid_x: int, grid_y: int, segment_count: int, rotation: float, light_energy: float) -> void:
+	var start_position := _grid_to_world(Vector2i(grid_x, grid_y)) + Vector2(16.0, 7.0)
+	var horizontal_drift: float = clampf(rotation * 22.0, -12.0, 12.0)
 	for segment_index: int in range(segment_count):
 		var vine: Node2D = VINE_SCENE.instantiate() as Node2D
 		if vine == null:
 			continue
 		decor_root.add_child(vine)
-		vine.global_position = _grid_to_world(Vector2i(grid_x, grid_y + segment_index)) + Vector2(16.0, 0.0)
+		# Die vorbereitete Hub-Ranke wird mit deren dichter 22px-Formation
+		# gesetzt: überlappende Sprigs, seitlicher Drift und Wellen statt einer
+		# klinisch geraden Tile-Spalte.
+		var progress: float = float(segment_index) / maxf(1.0, float(segment_count - 1))
+		var sway_x: float = sin(float(segment_index) * 1.27 + rotation * 4.0) * 5.0
+		vine.global_position = start_position + Vector2(horizontal_drift * progress + sway_x, float(segment_index) * 22.0)
 		# Die Hub-Szene haengt dieselbe Ranken-Szene um 180 Grad gedreht an
 		# Decken. Das bewahrt ihre vorbereitete Blatt-/Licht-Ausrichtung auch
 		# in prozeduralen Hoehlen; nur die kleinen Winkelabweichungen kommen
 		# vom Generator.
-		vine.rotation = PI + rotation
+		vine.rotation = PI + rotation + sin(float(segment_index) * 0.9) * 0.10
 		vine.modulate = Color(0.5, 1.0, 0.46, 1.0)
 		var vine_light: PointLight2D = vine.get_node_or_null("PointLight2D") as PointLight2D
 		if vine_light != null:
