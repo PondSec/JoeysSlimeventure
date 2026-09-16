@@ -1163,13 +1163,13 @@ func _spawn_generated_overgrowth(grid: Array) -> void:
 			var primary_length: int = rng.randi_range(4, 12)
 			if not _has_vine_clearance(grid, grid_x, grid_y, primary_length):
 				continue
-			_spawn_vine_trail(grid_x, grid_y + 1, primary_length, rng.randf_range(-0.34, 0.34), 0.22)
+			_spawn_vine_trail(grid_x, grid_y + 1, primary_length, rng.randf_range(-0.34, 0.34), 0.38)
 
 			var companion_offset: int = -1 if rng.randf() < 0.5 else 1
 			var companion_x: int = grid_x + companion_offset
 			var companion_length: int = maxi(3, primary_length - rng.randi_range(1, 4))
 			if _has_vine_clearance(grid, companion_x, grid_y, companion_length):
-				_spawn_vine_trail(companion_x, grid_y + 1 + rng.randi_range(0, 1), companion_length, float(companion_offset) * 0.42, 0.16)
+				_spawn_vine_trail(companion_x, grid_y + 1 + rng.randi_range(0, 1), companion_length, float(companion_offset) * 0.42, 0.28)
 
 			# Ein dritter, kurzer Trieb bricht die Symmetrie und verbindet die
 			# Saeulen optisch zu einem einzelnen organischen Bueschel.
@@ -1177,7 +1177,7 @@ func _spawn_generated_overgrowth(grid: Array) -> void:
 				var tendril_x: int = grid_x - companion_offset
 				var tendril_length: int = rng.randi_range(2, 4)
 				if _has_vine_clearance(grid, tendril_x, grid_y, tendril_length):
-					_spawn_vine_trail(tendril_x, grid_y + 2, tendril_length, float(-companion_offset) * 0.62, 0.12)
+					_spawn_vine_trail(tendril_x, grid_y + 2, tendril_length, float(-companion_offset) * 0.62, 0.22)
 			previous_cluster_x = grid_x
 			cluster_count += 1
 			if cluster_count >= 90:
@@ -1494,6 +1494,8 @@ func _spawn_lush_canopy(start: Vector2i, span: int, canopy_rng: RandomNumberGene
 	sprite.flip_h = canopy_rng.randf() < 0.5
 	sprite.z_index = 2 if canopy_rng.randf() < 0.35 else 0
 	sprite.modulate = Color(0.86 + canopy_rng.randf() * 0.14, 0.94 + canopy_rng.randf() * 0.06, 0.76 + canopy_rng.randf() * 0.16, 1.0)
+	if canopy_rng.randf() < 0.42:
+		_add_lush_plant_glow(sprite, canopy_rng, 0.11, 0.18)
 	decor_root.add_child(sprite)
 
 
@@ -1694,6 +1696,8 @@ func _spawn_vine_trail(grid_x: int, grid_y: int, segment_count: int, rotation: f
 		# vom Generator.
 		vine.rotation = PI + rotation + sin(float(segment_index) * 0.9) * 0.10
 		vine.modulate = Color(0.5, 1.0, 0.46, 1.0)
+		if segment_index % 3 == 0:
+			vine.self_modulate = Color(0.78, 1.42, 0.72, 1.0)
 		var vine_light: PointLight2D = vine.get_node_or_null("PointLight2D") as PointLight2D
 		if vine_light != null:
 			vine_light.energy = light_energy
