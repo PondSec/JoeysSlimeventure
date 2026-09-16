@@ -536,7 +536,10 @@ func _ready() -> void:
 		api_timer.start()
 		api_script.send_request()
 	_on_inventory_equipment_changed()
-	if not chapter_qa_mode and not _is_chapter_runtime():
+	# Ausgeruestete Sterne sind Begleiter und gehoeren auch in Kapitellevel.
+	# Fangbegegnungen werden vom StarManager selbst nur ausserhalb des
+	# Kapitelmodus aktiviert.
+	if not chapter_qa_mode:
 		_setup_star_manager()
 	update_damage_bonus()
 

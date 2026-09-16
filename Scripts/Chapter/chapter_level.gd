@@ -1169,7 +1169,11 @@ func _spawn_vine_trail(grid_x: int, grid_y: int, segment_count: int, rotation: f
 			continue
 		decor_root.add_child(vine)
 		vine.global_position = _grid_to_world(Vector2i(grid_x, grid_y + segment_index)) + Vector2(16.0, 0.0)
-		vine.rotation = rotation
+		# Die Hub-Szene haengt dieselbe Ranken-Szene um 180 Grad gedreht an
+		# Decken. Das bewahrt ihre vorbereitete Blatt-/Licht-Ausrichtung auch
+		# in prozeduralen Hoehlen; nur die kleinen Winkelabweichungen kommen
+		# vom Generator.
+		vine.rotation = PI + rotation
 		vine.modulate = Color(0.5, 1.0, 0.46, 1.0)
 		var vine_light: PointLight2D = vine.get_node_or_null("PointLight2D") as PointLight2D
 		if vine_light != null:

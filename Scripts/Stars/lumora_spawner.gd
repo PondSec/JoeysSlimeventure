@@ -1,7 +1,7 @@
 extends Node2D
 
 @export var lumora_scene: PackedScene
-@export var spawn_chance: float = 0.05  # 5% Chance zu spawnen
+@export var spawn_chance: float = 0.015  # Seltene freie Begegnung, nicht alle paar Minuten.
 @export var min_spawn_distance: float = 300.0
 @export var max_spawn_distance: float = 500.0
 
@@ -10,6 +10,8 @@ var current_lumora: Node2D = null
 var can_spawn: bool = true
 
 func _ready():
+	if _is_chapter_runtime():
+		return
 	# Finde den Spieler
 	player = get_tree().get_first_node_in_group("players")
 	
@@ -77,6 +79,8 @@ func _start_spawn_check():
 	check_timer.start()
 
 func _try_spawn_lumora():
+	if _is_chapter_runtime():
+		return
 	# 🔥 NEU: Kein Spawning wenn bereits permanente Lumora existiert
 	if _has_permanent_lumora() or current_lumora != null:
 		return
@@ -187,3 +191,7 @@ func _on_player_died():
 	if current_lumora != null:
 		current_lumora.queue_free()
 		current_lumora = null
+
+
+func _is_chapter_runtime() -> bool:
+	return get_tree() != null and not get_tree().get_nodes_in_group("chapter_runtime").is_empty()

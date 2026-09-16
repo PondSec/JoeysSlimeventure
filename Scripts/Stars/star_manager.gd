@@ -10,7 +10,8 @@ const LUMORA_RUNTIME_SAVE_PATH := "user://lumora_runtime_equipped.save"
 const STAR_ENCOUNTER_MIN_DISTANCE := 260.0
 const STAR_ENCOUNTER_MAX_DISTANCE := 520.0
 const STAR_ENCOUNTER_HEIGHT := 82.0
-const STAR_SPAWN_INTERVAL := 18.0
+const STAR_SPAWN_INTERVAL := 60.0
+const STAR_ENCOUNTER_SPAWN_CHANCE := 0.08
 
 var player: CharacterBody2D
 var inv: Inv
@@ -51,6 +52,11 @@ func _initialize() -> void:
 
 
 func _setup_spawn_timer() -> void:
+	# Kapitel sind kuratierte Progressionsraeume: dort erscheinen keine freien
+	# Fangsterne. Bereits ausgeruestete Begleiter werden weiter unten beim
+	# Inventar-Refresh normal erzeugt und bleiben deshalb sichtbar.
+	if _is_chapter_runtime():
+		return
 	if spawn_timer != null and is_instance_valid(spawn_timer):
 		return
 	spawn_timer = Timer.new()
@@ -125,6 +131,8 @@ func _despawn_companion(star_id: String) -> void:
 
 
 func _try_spawn_random_star_encounter() -> void:
+	if _is_chapter_runtime():
+		return
 	if player == null or inv == null:
 		return
 	if active_encounter != null and is_instance_valid(active_encounter):
@@ -134,6 +142,8 @@ func _try_spawn_random_star_encounter() -> void:
 
 	var missing_star_ids := _get_missing_star_ids()
 	if missing_star_ids.is_empty():
+		return
+	if randf() > STAR_ENCOUNTER_SPAWN_CHANCE:
 		return
 
 	var spawn_position := _find_spawn_position()
@@ -246,6 +256,10 @@ func _get_scene_root() -> Node:
 	if player != null and player.get_parent() != null:
 		return player.get_parent()
 	return get_tree().current_scene if get_tree() != null else self
+
+
+func _is_chapter_runtime() -> bool:
+	return get_tree() != null and not get_tree().get_nodes_in_group("chapter_runtime").is_empty()
 
 
 func _attach_companion(companion: Node2D, spawn_position: Vector2) -> void:
