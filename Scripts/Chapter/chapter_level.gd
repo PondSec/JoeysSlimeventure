@@ -1575,8 +1575,8 @@ func _spawn_flora_tile(cell: Vector2i, outward: Vector2i, flora_rng: RandomNumbe
 		sprite.position = _grid_to_world(cell) + Vector2(-16.0, 16.0)
 		sprite.rotation = -PI * 0.5
 	sprite.flip_h = flora_rng.randf() < 0.38
-	if flora_rng.randf() < 0.16:
-		_add_lush_plant_glow(sprite, flora_rng, 0.055, 0.10)
+	if flora_rng.randf() < 0.30:
+		_add_lush_plant_glow(sprite, flora_rng, 0.15, 0.25)
 	decor_root.add_child(sprite)
 
 
@@ -1629,8 +1629,8 @@ func _spawn_lush_landmark(cell: Vector2i, landmark_rng: RandomNumberGenerator) -
 	sprite.position = _ground_flora_position(sprite.texture, cell, sprite.scale)
 	sprite.z_index = 2 if landmark_rng.randf() < 0.35 else 0
 	sprite.modulate = Color(0.92 + landmark_rng.randf() * 0.08, 0.92 + landmark_rng.randf() * 0.08, 1.0, 1.0)
-	if landmark_rng.randf() < 0.58:
-		_add_lush_plant_glow(sprite, landmark_rng, 0.09, 0.15)
+	if landmark_rng.randf() < 0.82:
+		_add_lush_plant_glow(sprite, landmark_rng, 0.22, 0.34)
 	decor_root.add_child(sprite)
 
 
@@ -1643,12 +1643,12 @@ func _add_lush_plant_glow(sprite: Sprite2D, glow_rng: RandomNumberGenerator, min
 		return
 	# Values above one cross the HDR threshold used by the existing environment,
 	# producing a soft bloom only on this selected plant rather than globally.
-	sprite.self_modulate = Color(0.94, glow_rng.randf_range(1.18, 1.34), glow_rng.randf_range(0.82, 0.96), 1.0)
+	sprite.self_modulate = Color(0.98, glow_rng.randf_range(1.42, 1.68), glow_rng.randf_range(0.92, 1.08), 1.0)
 	var glow := PointLight2D.new()
 	glow.name = "LushPlantGlow"
 	glow.texture = glow_texture
 	glow.position = Vector2(0.0, -8.0)
-	glow.texture_scale = glow_rng.randf_range(0.22, 0.36)
+	glow.texture_scale = glow_rng.randf_range(0.38, 0.56)
 	glow.energy = glow_rng.randf_range(min_energy, max_energy)
 	glow.color = Color(0.56 + glow_rng.randf() * 0.16, 1.0, 0.48 + glow_rng.randf() * 0.16, 1.0)
 	glow.shadow_enabled = false
