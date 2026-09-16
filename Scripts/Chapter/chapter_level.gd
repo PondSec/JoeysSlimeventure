@@ -594,9 +594,19 @@ func _build_lush_biome_parallax(bounds: Rect2) -> void:
 	# the actual viewport plus a safe overscan margin, never to a fraction of the
 	# viewport.  This keeps all four borders fully attached to the screen while
 	# retaining parallax movement.
-	var deep_sprite := _create_lush_biome_sprite(deep_texture, shader, 0, 72.0, Vector2(-0.009, -0.004))
-	var mid_sprite := _create_lush_biome_sprite(mid_texture, shader, 1, 136.0, Vector2(-0.030, -0.012))
-	var foreground_sprite := _create_lush_biome_sprite(foreground_texture, shader, 0, 184.0, Vector2(-0.11, -0.022), true)
+	# Preserve the complete frame with a smaller, resolution-independent margin.
+	# The previous margins made the art read noticeably zoomed-in.
+	var deep_sprite := _create_lush_biome_sprite(deep_texture, shader, 0, 28.0, Vector2(-0.009, -0.004))
+	var mid_sprite := _create_lush_biome_sprite(mid_texture, shader, 1, 76.0, Vector2(-0.030, -0.012))
+	# The close frame is intentionally much faster than the two background
+	# layers. It is anchored to the camera before this offset is applied, so all
+	# four screen edges remain covered while it visibly drifts sideways.
+	var foreground_sprite := _create_lush_biome_sprite(foreground_texture, shader, 0, 120.0, Vector2(-0.18, -0.014), true)
+	# Unlike a one-off position shift, scrolling the source UV repeats the full
+	# transparent frame horizontally. The close layer can therefore travel at a
+	# visibly higher rate without ever leaving a bare screen edge behind.
+	foreground_sprite.set_meta("parallax_uv_loop", true)
+	foreground_sprite.set_meta("parallax_screen_limit", Vector2(0.0, 30.0))
 	foreground_sprite.visible = false
 	lush_biome_backdrop_layer.add_child(deep_sprite)
 	lush_biome_backdrop_layer.add_child(mid_sprite)
@@ -663,10 +673,21 @@ func _update_overlay_parallax(sprite: Node2D, world_position: Vector2) -> void:
 	# This retains a clear foreground/deep-background speed difference without
 	# ever pushing a framed texture past its safe overscan at map extremes.
 	var offset := (motion_position - anchor) * factor
+	var looped_horizontally: bool = bool(sprite.get_meta("parallax_uv_loop", false))
+	if looped_horizontally:
+		var sprite_2d := sprite as Sprite2D
+		var material := sprite_2d.material as ShaderMaterial if sprite_2d != null else null
+		if sprite_2d != null and material != null and sprite_2d.texture != null:
+			var loop_span: float = maxf(1.0, float(sprite_2d.texture.get_width()) * absf(sprite_2d.scale.x))
+			material.set_shader_parameter("parallax_uv_offset", fposmod(offset.x / loop_span, 1.0))
+		# The quad itself stays camera-anchored; only its repeated source slides.
+		# That is what keeps the lush frame perfectly flush with the viewport.
+		offset.x = 0.0
 	# World overlays are viewed through the camera zoom.  Limit their final
 	# on-screen shift rather than their raw world units, so their overscan stays
 	# valid at every zoom level and no edge can ever slip inward.
-	var screen_limit := Vector2(108.0, 38.0) if world_space else Vector2(96.0, 34.0)
+	var default_screen_limit := Vector2(108.0, 38.0) if world_space else Vector2(96.0, 34.0)
+	var screen_limit: Vector2 = sprite.get_meta("parallax_screen_limit", default_screen_limit) as Vector2
 	var world_limit := screen_limit / _get_overlay_camera_zoom() if world_space else screen_limit
 	offset.x = clampf(offset.x, -world_limit.x, world_limit.x)
 	offset.y = clampf(offset.y, -world_limit.y, world_limit.y)
@@ -2190,13 +2211,13 @@ func _spawn_lush_special_blooms(grid: Array) -> void:
 		for grid_x: int in range(4, level_size_tiles.x - 4):
 			if placed >= 18:
 				return
-			if grid_x >= lush_biome_density.size() or lush_biome_density[grid_x] < 2.2:
+			if grid_x >= lush_biome_density.size() or lush_biome_density[grid_x] < 1.4:
 				continue
 			var cell := Vector2i(grid_x, grid_y)
 			var key := "%d:%d" % [cell.x, cell.y]
 			if claimed.has(key) or _is_torch_column(grid_x) or not _is_exposed_moss_face(grid, cell, Vector2i.UP) or not _has_ground_moss_shoulders(grid, cell):
 				continue
-			if bloom_rng.randf() > 0.028:
+			if bloom_rng.randf() > 0.060:
 				continue
 			# Wide shoulders preserve readable silhouettes and stop special plants
 			# from merging into accidental walls of leaves.
