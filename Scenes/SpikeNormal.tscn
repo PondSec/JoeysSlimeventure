@@ -20,7 +20,7 @@ var damage = 4
 func _ready():
 	add_to_group(\"spikes\")
 	# Initialisiere die Transparenz - komplett unsichtbar am Anfang
-	modulate.a = 0.3  # Komplett unsichtbar
+	modulate.a = 0.72  # Gefahren muessen vor dem Sprung lesbar bleiben.
 
 func _physics_process(delta: float) -> void:
 	# Timer für die Schadenssichtbarkeit aktualisieren
@@ -83,8 +83,8 @@ func update_visibility_based_on_state():
 			# Beim Leuchten immer volle Sichtbarkeit
 			target_alpha = 1.0
 		else:
-			# Wenn nicht geleuchtet wird: 0.3 wenn Schaden gemacht wurde, sonst 0.0
-			target_alpha = 0.3 if has_dealt_damage else 0.0
+			# Auch ohne Glow bleiben Spikes sichtbar und damit fair lesbar.
+			target_alpha = 0.72
 	
 	# Erstelle einen neuen Tween für den Übergang
 	if tween:

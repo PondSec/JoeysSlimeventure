@@ -22,12 +22,12 @@ position = Vector2(0, -17)
 shape = SubResource("CapsuleShape2D_body")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
-position = Vector2(0, -32)
+position = Vector2(0, -38)
 texture = ExtResource("1_idle")
 hframes = 7
 
 [node name="PointLight2D" type="PointLight2D" parent="."]
-position = Vector2(0, -39)
+position = Vector2(0, -45)
 scale = Vector2(2, 2)
 color = Color(0.82, 0.54, 0.32, 1)
 energy = 0.12

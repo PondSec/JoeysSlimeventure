@@ -1,6 +1,6 @@
 [gd_scene load_steps=5 format=3 uid="uid://dvwm2b4uq1i7r"]
 
-[ext_resource type="Texture2D" uid="uid://dgniyob3cabkp" path="res://Assets/Deko/crystal_pink.png" id="1_crystal"]
+[ext_resource type="Texture2D" path="res://Assets/Items/gold_nugget.png" id="1_crystal"]
 [ext_resource type="Texture2D" uid="uid://bfhvfvveasr1l" path="res://Assets/Light/torch_light.png" id="2_light"]
 [ext_resource type="Script" uid="uid://cq561j2yt6yd" path="res://Scripts/Chapter/essence_fragment.gd" id="3_script"]
 
