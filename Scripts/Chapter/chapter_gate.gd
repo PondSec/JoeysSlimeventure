@@ -2,6 +2,13 @@ extends Node2D
 
 const FEEDBACK_FONT_PATH := "res://Assets/GUI/Font/PixelatedEleganceRegular-ovyAA.ttf"
 const ChapterContent := preload("res://Scripts/Chapter/chapter_content.gd")
+const PORTAL_SHEET := preload("res://Assets/Door/portal_entry_sheet.png")
+const PORTAL_COLUMNS := 8
+const PORTAL_ROWS := 2
+const PORTAL_ENTRY_FPS := 12.0
+const PORTAL_TOP_REGION_HEIGHT := 294.0
+const PORTAL_BOTTOM_REGION_Y := 350.0
+const PORTAL_BOTTOM_REGION_HEIGHT := 294.0
 
 var chapter_index: int = 0
 var gate_title: String = ""
@@ -17,8 +24,9 @@ var local_time: float = 0.0
 var feedback_font: FontFile
 var occupying_player: Node2D
 var sprite_base_position: Vector2 = Vector2.ZERO
+var is_activating: bool = false
 
-@onready var sprite: Sprite2D = $Sprite2D
+@onready var sprite: AnimatedSprite2D = $PortalSprite
 @onready var light: PointLight2D = $PointLight2D
 @onready var title_label: Label = $TitleLabel
 @onready var status_label: Label = $StatusLabel
@@ -28,6 +36,7 @@ var sprite_base_position: Vector2 = Vector2.ZERO
 
 func _ready() -> void:
 	feedback_font = load(FEEDBACK_FONT_PATH) as FontFile
+	_configure_portal_frames()
 	sprite_base_position = sprite.position
 	area.body_entered.connect(_on_area_body_entered)
 	area.body_exited.connect(_on_area_body_exited)
@@ -61,12 +70,14 @@ func configure_exit_gate(title: String, subtitle: String, accent: Color, callbac
 func _process(delta: float) -> void:
 	local_time += delta
 	interact_cooldown = maxf(interact_cooldown - delta, 0.0)
-	sprite.position.y = sprite_base_position.y + sin(local_time * 1.8) * (4.0 if not is_locked else 2.0)
+	# The portal deliberately stays still while idle. Its full animation is a
+	# one-shot entry response, rather than ambient visual noise.
+	sprite.position = sprite_base_position
 	light.energy = lerpf(light.energy, _target_light_energy(), delta * 4.0)
 	var base_scale: float = 0.92 if not player_in_range else 0.98
 	light.texture_scale = lerpf(light.texture_scale, base_scale + sin(local_time * 2.1) * 0.02, delta * 3.0)
 
-	if player_in_range and interact_cooldown <= 0.0 and Input.is_action_just_pressed("Interact"):
+	if player_in_range and not is_activating and interact_cooldown <= 0.0 and Input.is_action_just_pressed("Interact"):
 		_activate_gate()
 
 
@@ -76,8 +87,10 @@ func _apply_theme() -> void:
 		status_label.add_theme_font_override("font", feedback_font)
 		prompt_label.add_theme_font_override("font", feedback_font)
 
-	title_label.text = gate_title
-	title_label.visible = player_in_range
+	# Chapter names and status copy used to cover the portal. Keep the interaction
+	# language intentionally quiet: the only contextual text is the E prompt.
+	title_label.text = ""
+	title_label.visible = false
 	title_label.position = Vector2(-110.0, -112.0)
 	title_label.size = Vector2(220.0, 22.0)
 	title_label.add_theme_color_override("font_color", accent_color.lightened(0.32) if not is_locked else Color(0.62, 0.62, 0.68, 1.0))
@@ -85,16 +98,8 @@ func _apply_theme() -> void:
 	title_label.add_theme_constant_override("outline_size", 5)
 	title_label.add_theme_font_size_override("font_size", 14)
 
-	if is_exit_gate:
-		status_label.text = gate_subtitle
-	elif is_completed:
-		status_label.text = "ABGESCHLOSSEN"
-	elif is_locked:
-		status_label.text = "VERSIEGELT"
-	else:
-		status_label.text = gate_subtitle
-
-	status_label.visible = player_in_range
+	status_label.text = ""
+	status_label.visible = false
 	status_label.position = Vector2(-120.0, -88.0)
 	status_label.size = Vector2(240.0, 20.0)
 	status_label.add_theme_color_override("font_color", accent_color if not is_locked else Color(0.48, 0.48, 0.54, 1.0))
@@ -103,7 +108,7 @@ func _apply_theme() -> void:
 	status_label.add_theme_font_size_override("font_size", 11)
 
 	prompt_label.visible = false
-	prompt_label.text = "[E] weiter" if is_exit_gate else "[E] betreten"
+	prompt_label.text = "E eintreten"
 	prompt_label.position = Vector2(-78.0, 26.0)
 	prompt_label.size = Vector2(156.0, 20.0)
 	prompt_label.add_theme_color_override("font_color", Color(1, 1, 1, 0.96))
@@ -111,9 +116,8 @@ func _apply_theme() -> void:
 	prompt_label.add_theme_constant_override("outline_size", 4)
 	prompt_label.add_theme_font_size_override("font_size", 10)
 
-	sprite.modulate = accent_color.lightened(0.08) if not is_locked else Color(0.3, 0.32, 0.38, 0.96)
-	sprite.scale = Vector2(1.08, 1.28) if not is_exit_gate else Vector2(0.98, 1.16)
-	light.color = accent_color.lerp(Color(0.94, 0.92, 0.84, 1.0), 0.84)
+	sprite.modulate = Color.WHITE if not is_locked else Color(0.38, 0.42, 0.56, 0.82)
+	light.color = Color(0.44, 0.64, 1.0, 1.0)
 	light.energy = _target_light_energy()
 	light.enabled = true
 
@@ -129,7 +133,24 @@ func _target_light_energy() -> float:
 func _activate_gate() -> void:
 	interact_cooldown = 0.35
 	if is_locked:
-		_notify_player("Diese Tuere ist noch versiegelt.", "info")
+		return
+	if is_activating:
+		return
+	_begin_entry()
+
+
+func _begin_entry() -> void:
+	is_activating = true
+	prompt_label.visible = false
+	area.set_deferred("monitoring", false)
+	sprite.frame = 0
+	sprite.play(&"enter")
+	await sprite.animation_finished
+	_complete_entry()
+
+
+func _complete_entry() -> void:
+	if not is_inside_tree():
 		return
 
 	if is_exit_gate and interaction_handler.is_valid():
@@ -142,8 +163,12 @@ func _activate_gate() -> void:
 
 	var started: bool = get_node("/root/ChapterProgress").start_chapter(chapter_index)
 	if not started:
-		var meta: Dictionary = ChapterContent.get_chapter_meta(chapter_index)
-		_notify_player("%s folgt als naechstes Kapitel." % str(meta.get("short_title", "Dieses Kapitel")), "info")
+		is_activating = false
+		area.set_deferred("monitoring", true)
+		if player_in_range:
+			prompt_label.visible = true
+		sprite.stop()
+		sprite.frame = 0
 
 
 func _on_area_body_entered(body: Node2D) -> void:
@@ -151,9 +176,9 @@ func _on_area_body_entered(body: Node2D) -> void:
 		return
 	player_in_range = true
 	occupying_player = body
-	title_label.visible = true
-	status_label.visible = true
-	prompt_label.visible = not is_locked
+	title_label.visible = false
+	status_label.visible = false
+	prompt_label.visible = not is_locked and not is_activating
 	if is_locked:
 		prompt_label.visible = false
 
@@ -166,6 +191,31 @@ func _on_area_body_exited(body: Node2D) -> void:
 	title_label.visible = false
 	status_label.visible = false
 	prompt_label.visible = false
+
+
+func _configure_portal_frames() -> void:
+	var frames := SpriteFrames.new()
+	frames.add_animation(&"enter")
+	frames.set_animation_speed(&"enter", PORTAL_ENTRY_FPS)
+	frames.set_animation_loop(&"enter", false)
+
+	var sheet_size := PORTAL_SHEET.get_size()
+	for frame_index in range(PORTAL_COLUMNS * PORTAL_ROWS):
+		var column := frame_index % PORTAL_COLUMNS
+		var row := frame_index / PORTAL_COLUMNS
+		var x_start := roundf(float(column) * sheet_size.x / float(PORTAL_COLUMNS))
+		var x_end := roundf(float(column + 1) * sheet_size.x / float(PORTAL_COLUMNS))
+		var region_y := 0.0 if row == 0 else PORTAL_BOTTOM_REGION_Y
+		var region_height := PORTAL_TOP_REGION_HEIGHT if row == 0 else PORTAL_BOTTOM_REGION_HEIGHT
+		var atlas := AtlasTexture.new()
+		atlas.atlas = PORTAL_SHEET
+		atlas.region = Rect2(x_start, region_y, x_end - x_start, region_height)
+		frames.add_frame(&"enter", atlas)
+
+	sprite.sprite_frames = frames
+	sprite.animation = &"enter"
+	sprite.frame = 0
+	sprite.pause()
 
 
 func _notify_player(message: String, toast_type: String) -> void:

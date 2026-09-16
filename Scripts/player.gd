@@ -104,6 +104,9 @@ const WALL_JUMP_VELOCITY_Y = -400.0  # Etwas geringere vertikale Geschwindigkeit
 const WALL_JUMP_PUSH_AWAY = 200.0  # Zusätzlicher Abstoß-Effekt
 const WALL_SLIDE_SPEED = 50.0
 const WALL_STICK_TIME = 0.15       # Zeit, in der man sich noch vom Wand abstoßen kann
+const WALL_DETACH_GRACE = 0.12
+const WALL_JUMP_INPUT_LOCK = 0.14
+const WALL_SLIDE_DECELERATION = 2600.0
 const COYOTE_TIME_MAX = 0.12
 const JUMP_BUFFER_MAX = 0.14
 const APEX_GRAVITY_MULTIPLIER = 0.7
@@ -143,6 +146,8 @@ var is_wall_sliding := false
 var can_wall_jump := true
 var last_wall_normal := Vector2.ZERO
 var wall_stick_timer := 0.0
+var wall_detach_timer := 0.0
+var wall_jump_input_lock := 0.0
 var coyote_time := 0.0
 var jump_buffer_time := 0.0
 var air_jumps_available := 0  # Zähler für verfügbare Luftsprünge
@@ -234,6 +239,11 @@ var weapon_idle_rotation := 18.0
 var weapon_base_scale := 10.8
 var weapon_grip_offset_runtime := Vector2(8.0, -8.0)
 var show_equipped_weapon_visual := true
+var weapon_hold_timer := 0.0
+var weapon_visibility_alpha := 0.0
+const WEAPON_HOLD_AFTER_ATTACK := 2.0
+const WEAPON_DRAW_FADE_SPEED := 15.0
+const WEAPON_SHEATHE_FADE_SPEED := 7.0
 var glow_effect: PointLight2D
 @onready var damage_label: Label = $PlayerSprite/CanvasLayer2/DamageLabel# Referenz zum Schadens-Label
 @onready var equipped_weapon_sprite: Sprite2D = $PlayerSprite/EquippedWeaponSprite
@@ -313,34 +323,34 @@ const WEAPON_IDLE_POSITION := Vector2(38.0, 24.0)
 const WEAPON_IDLE_ROTATION := 18.0
 const WEAPON_BASE_SCALE := 10.8
 const WEAPON_GRIP_OFFSET := Vector2(8.0, -8.0)
-const WEAPON_AFTERIMAGE_COUNT := 2
+const WEAPON_AFTERIMAGE_COUNT := 1
 const WEAPON_ATTACK_PROFILES := [
 	{
-		"windup_pos": Vector2(18.0, 34.0),
-		"strike_pos": Vector2(58.0, -2.0),
-		"recover_pos": Vector2(44.0, 14.0),
-		"windup_rot": 126.0,
-		"strike_rot": -42.0,
-		"recover_rot": 10.0,
-		"scale": 11.6,
+		"windup_pos": Vector2(23.0, 22.0),
+		"strike_pos": Vector2(58.0, 3.0),
+		"recover_pos": Vector2(43.0, 12.0),
+		"windup_rot": 54.0,
+		"strike_rot": -30.0,
+		"recover_rot": 8.0,
+		"scale": 11.2,
 	},
 	{
-		"windup_pos": Vector2(16.0, 2.0),
-		"strike_pos": Vector2(62.0, 30.0),
-		"recover_pos": Vector2(46.0, 18.0),
-		"windup_rot": -82.0,
-		"strike_rot": 92.0,
-		"recover_rot": 26.0,
-		"scale": 12.0,
+		"windup_pos": Vector2(18.0, -6.0),
+		"strike_pos": Vector2(61.0, 23.0),
+		"recover_pos": Vector2(45.0, 15.0),
+		"windup_rot": -62.0,
+		"strike_rot": 52.0,
+		"recover_rot": 15.0,
+		"scale": 11.55,
 	},
 	{
-		"windup_pos": Vector2(10.0, -12.0),
-		"strike_pos": Vector2(66.0, 12.0),
-		"recover_pos": Vector2(48.0, -2.0),
-		"windup_rot": -116.0,
-		"strike_rot": 20.0,
-		"recover_rot": -18.0,
-		"scale": 12.4,
+		"windup_pos": Vector2(16.0, -15.0),
+		"strike_pos": Vector2(64.0, 8.0),
+		"recover_pos": Vector2(46.0, -3.0),
+		"windup_rot": 78.0,
+		"strike_rot": -12.0,
+		"recover_rot": -12.0,
+		"scale": 11.9,
 	},
 ]
 var wall_slide_speed_cap := WALL_SLIDE_SPEED
@@ -995,6 +1005,8 @@ func _configure_equipped_weapon_sprite() -> void:
 	equipped_weapon_sprite.centered = true
 	equipped_weapon_sprite.offset = weapon_grip_offset_runtime
 	equipped_weapon_sprite.z_index = 4
+	equipped_weapon_sprite.visible = false
+	equipped_weapon_sprite.self_modulate = Color(1.0, 1.0, 1.0, 0.0)
 
 
 func _setup_weapon_afterimages() -> void:
@@ -1514,7 +1526,9 @@ func _update_runtime_character_animation(delta: float) -> void:
 func _start_weapon_attack_animation(step: int) -> void:
 	weapon_visual_step = clampi(step, 0, WEAPON_ATTACK_PROFILES.size() - 1)
 	weapon_visual_anim_time = 0.0
-	weapon_visual_anim_duration = combo_active_times[weapon_visual_step] + combo_recovery_times[weapon_visual_step]
+	weapon_visual_anim_duration = maxf(combo_active_times[weapon_visual_step] + combo_recovery_times[weapon_visual_step] + 0.16, 0.42)
+	weapon_hold_timer = WEAPON_HOLD_AFTER_ATTACK
+	weapon_visibility_alpha = 1.0
 	weapon_transform_history.clear()
 
 
@@ -1621,18 +1635,18 @@ func _get_weapon_visual_state(facing_sign: float, idle_bob: float) -> Dictionary
 	var position := idle_position
 	var rotation := idle_rotation
 
-	if phase < 0.18:
-		var t := _ease_out_cubic(phase / 0.18)
+	if phase < 0.28:
+		var t := _ease_in_out(phase / 0.28)
 		position = idle_position.lerp(windup_pos, t)
 		rotation = lerpf(idle_rotation, windup_rot, t)
 		scale_amount = lerpf(weapon_base_scale, attack_scale * 0.96, t)
-	elif phase < 0.58:
-		var t := _ease_out_cubic((phase - 0.18) / 0.40)
+	elif phase < 0.64:
+		var t := _ease_in_out((phase - 0.28) / 0.36)
 		position = windup_pos.lerp(strike_pos, t)
 		rotation = lerpf(windup_rot, strike_rot, t)
 		scale_amount = lerpf(attack_scale * 0.96, attack_scale, t)
 	else:
-		var t := _ease_in_out((phase - 0.58) / 0.42)
+		var t := _ease_in_out((phase - 0.64) / 0.36)
 		position = strike_pos.lerp(recover_pos, t)
 		rotation = lerpf(strike_rot, recover_rot, t)
 		scale_amount = lerpf(attack_scale, weapon_base_scale, t)
@@ -1662,7 +1676,13 @@ func _update_equipped_weapon_visual(force_texture_refresh: bool = false) -> void
 	if force_texture_refresh or equipped_weapon_sprite.texture != weapon.texture:
 		equipped_weapon_sprite.texture = weapon.texture
 
-	equipped_weapon_sprite.visible = true
+	var should_show_weapon := is_attacking or weapon_hold_timer > 0.0 or weapon_visibility_alpha > 0.01
+	equipped_weapon_sprite.visible = should_show_weapon
+	if not should_show_weapon:
+		equipped_weapon_sprite.self_modulate = Color(1.0, 1.0, 1.0, 0.0)
+		_update_weapon_afterimages(null, false)
+		return
+	equipped_weapon_sprite.self_modulate = Color(1.0, 1.0, 1.0, weapon_visibility_alpha)
 	var facing_sign := -1.0 if is_facing_left else 1.0
 	var idle_bob := sin(Time.get_ticks_msec() / 180.0) * 2.0
 	var visual_state := _get_weapon_visual_state(facing_sign, idle_bob)
@@ -1821,6 +1841,19 @@ func _physics_process(delta: float) -> void:
 			mana_shield_regen_timer = 0.0
 
 func _process_combat_timers(delta: float) -> void:
+	if wall_detach_timer > 0.0:
+		wall_detach_timer = maxf(wall_detach_timer - delta, 0.0)
+	if wall_jump_input_lock > 0.0:
+		wall_jump_input_lock = maxf(wall_jump_input_lock - delta, 0.0)
+
+	if is_attacking:
+		weapon_hold_timer = WEAPON_HOLD_AFTER_ATTACK
+	elif weapon_hold_timer > 0.0:
+		weapon_hold_timer = maxf(weapon_hold_timer - delta, 0.0)
+	var weapon_target_alpha := 1.0 if is_attacking or weapon_hold_timer > 0.0 else 0.0
+	var weapon_fade_speed := WEAPON_DRAW_FADE_SPEED if weapon_target_alpha > weapon_visibility_alpha else WEAPON_SHEATHE_FADE_SPEED
+	weapon_visibility_alpha = move_toward(weapon_visibility_alpha, weapon_target_alpha, weapon_fade_speed * delta)
+
 	if weapon_visual_anim_time < weapon_visual_anim_duration:
 		weapon_visual_anim_time = min(weapon_visual_anim_time + delta, weapon_visual_anim_duration)
 
@@ -2348,7 +2381,7 @@ func _should_start_hero_slide_from_input() -> bool:
 
 
 func handle_wall_mechanics(delta):
-	var on_air_wall := is_on_wall() and not is_on_floor()
+	var on_air_wall := is_on_wall() and not is_on_floor() and wall_detach_timer <= 0.0
 	var can_slime_wall_slide := has_wall_slide_skill and _character_can("wall_slide", true)
 	var can_hero_wall_jump := _character_can("wall_jump_without_slide", false)
 
@@ -2365,9 +2398,10 @@ func handle_wall_mechanics(delta):
 		can_wall_jump = true
 		last_wall_normal = current_wall_normal
 
-	if can_slime_wall_slide:
+	var can_start_slide := velocity.y >= -18.0
+	if can_slime_wall_slide and can_start_slide:
 		is_wall_sliding = true
-		velocity.y = min(velocity.y, wall_slide_speed_cap)
+		velocity.y = move_toward(velocity.y, minf(velocity.y, wall_slide_speed_cap), WALL_SLIDE_DECELERATION * delta)
 		wall_stick_timer = WALL_STICK_TIME
 		if Input.is_action_just_pressed("up") and can_wall_jump:
 			_perform_profile_wall_jump(current_wall_normal, false)
@@ -2385,6 +2419,9 @@ func _perform_profile_wall_jump(wall_normal: Vector2, hero_kick: bool) -> void:
 	velocity.x = -wall_normal.x * wall_jump_velocity_x_value
 	position.x += -wall_normal.x * (7.0 if hero_kick else 5.0)
 	can_wall_jump = false
+	wall_detach_timer = WALL_DETACH_GRACE
+	wall_jump_input_lock = WALL_JUMP_INPUT_LOCK
+	is_wall_sliding = false
 	runtime_wall_jump_timer = _get_runtime_animation_length("wall_jump")
 	runtime_animation_state = ""
 
@@ -2407,8 +2444,6 @@ func _perform_profile_wall_jump(wall_normal: Vector2, hero_kick: bool) -> void:
 		_squash_player_sprite(Vector2(0.88, 1.14), 0.12)
 	else:
 		$Camera2D.shake(0.12, 0.04)
-		if Input.is_action_pressed("left") or Input.is_action_pressed("right"):
-			velocity.x = 0
 
 func handle_dash(delta: float):
 	if is_hero_ground_sliding:
@@ -2433,12 +2468,14 @@ func handle_dash(delta: float):
 		return
 
 	# Horizontale Bewegung mit unterschiedlicher Beschleunigung in Luft/Boden
+	if wall_jump_input_lock > 0.0:
+		return
 	var target_speed = direction.x * current_speed
 	var acceleration = ACCELERATION if is_on_floor() else AIR_ACCELERATION
 	var deceleration = DECELERATION if is_on_floor() else AIR_DECELERATION
 
 	if direction.x != 0 and sign(direction.x) != sign(velocity.x) and abs(velocity.x) > 10.0:
-		acceleration *= 1.25
+		acceleration *= 1.12
 
 	if direction.x != 0:
 		velocity.x = move_toward(velocity.x, target_speed, acceleration * delta)

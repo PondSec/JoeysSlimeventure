@@ -14,6 +14,8 @@ const CHAPTER_GATE_SCENE := preload("res://Scenes/Chapter/chapter_gate.tscn")
 const CAVE_SLIME_SCENE := preload("res://Scenes/Chapter/Enemies/cave_slime.tscn")
 const CAVE_BAT_SCENE := preload("res://Scenes/Chapter/Enemies/cave_bat.tscn")
 const GLOWCAP_SCENE := preload("res://Scenes/Chapter/Enemies/glowcap.tscn")
+const IRRLICHTKAEFER_SCENE := preload("res://Scenes/Chapter/Enemies/irrlichtkaefer.tscn")
+const ENEMY_AWARENESS_INDICATOR := preload("res://Scripts/Chapter/Enemies/enemy_awareness_indicator.gd")
 const SLIME_KING_SCENE := preload("res://Scenes/Chapter/Enemies/slime_king.tscn")
 const ESSENCE_FRAGMENT_SCENE := preload("res://Scenes/Chapter/Pickups/essence_fragment.tscn")
 const TORCH_SCENE := preload("res://Scenes/torch.tscn")
@@ -58,6 +60,9 @@ const DEBUG_OVERLAY_TOGGLE_KEY := KEY_F2
 const TILE_DEBUG_TOGGLE_KEY := KEY_F3
 const GENERATED_PLANT_LIGHTS_ENABLED := true
 const MAX_GENERATED_PLANT_LIGHTS := 8
+const ENEMY_RESPAWN_DELAY_MIN := 6.0
+const ENEMY_RESPAWN_DELAY_MAX := 10.0
+const ENEMY_RESPAWN_MIN_PLAYER_DISTANCE := 520.0
 
 const PARALLAX_TEXTURE_PATHS := [
 	"res://Assets/Parallax Cave/1.png",
@@ -158,6 +163,9 @@ var decoration_alpha_bounds: Dictionary = {}
 var vegetation_motion_nodes: Array[CanvasItem] = []
 var vegetation_motion_shader: Shader
 var generated_plant_light_count: int = 0
+var enemy_population_target: int = 0
+var enemy_respawn_types: Array[String] = []
+var enemy_respawn_timer: float = -1.0
 
 @onready var shadow: CanvasModulate = $Shadow
 
@@ -194,6 +202,7 @@ func _ready() -> void:
 	_build_parallax_background()
 	_build_normal_cave_foreground()
 	_build_lush_biome_parallax(runtime_play_bounds)
+	_spawn_lush_irrlichtkaefer()
 	_configure_runtime_view()
 	await get_tree().process_frame
 	_position_player_at_spawn()
@@ -204,6 +213,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if player == null:
 		return
+	_update_enemy_population(delta)
 	_update_vegetation_motion(delta)
 	# The ordinary foreground is always present, independent of whether this
 	# seed contains a lush biome.  Keeping it moving here also gives the normal
@@ -875,7 +885,7 @@ func _build_cave_solid_grid(platforms: Array) -> Array:
 		var enemy_type: String = str(enemy_data.get("type", "slime"))
 		var enemy_x: int = int(enemy_data.get("x", 0))
 		var enemy_y: int = int(enemy_data.get("y", 0))
-		if enemy_type == "bat":
+		if enemy_type == "bat" or enemy_type == "irrlichtkaefer":
 			_carve_rect(grid, enemy_x - 3, enemy_y - 3, 7, 5)
 		else:
 			_carve_rect(grid, enemy_x - 2, enemy_y - 3, 5, 4)
@@ -2693,7 +2703,7 @@ func _spawn_pickup(pickup_data: Dictionary) -> void:
 	pickup.call("configure_loot_tier", str(pickup_data.get("loot_tier", "copper")))
 
 
-func _spawn_enemy(enemy_data: Dictionary) -> void:
+func _spawn_enemy(enemy_data: Dictionary, track_population: bool = true) -> void:
 	var enemy_type: String = str(enemy_data.get("type", "slime"))
 	var spawn_position: Vector2 = _grid_to_world(Vector2i(int(enemy_data.get("x", 0)), int(enemy_data.get("y", 0)))) + Vector2(16.0, -12.0)
 	var enemy_scene: PackedScene = null
@@ -2707,6 +2717,8 @@ func _spawn_enemy(enemy_data: Dictionary) -> void:
 		"mushroom":
 			enemy_scene = GLOWCAP_SCENE
 			spawn_position.y += 4.0
+		"irrlichtkaefer":
+			enemy_scene = IRRLICHTKAEFER_SCENE
 		_:
 			return
 
@@ -2714,8 +2726,108 @@ func _spawn_enemy(enemy_data: Dictionary) -> void:
 	if enemy == null:
 		return
 	enemy.set_meta("chapter_enemy_type", enemy_type)
+	# Both authored and replenished enemies count toward the same density cap;
+	# only authored spawns increase that cap.
+	enemy.set_meta("respawn_managed", true)
 	enemy_root.add_child(enemy)
 	enemy.global_position = spawn_position
+	if enemy.has_signal("defeated"):
+		enemy.connect("defeated", Callable(self, "_on_managed_enemy_defeated").bind(enemy_type), CONNECT_ONE_SHOT)
+	_attach_enemy_awareness_indicator(enemy)
+	if track_population:
+		enemy_population_target += 1
+		if not enemy_respawn_types.has(enemy_type):
+			enemy_respawn_types.append(enemy_type)
+
+
+func _attach_enemy_awareness_indicator(enemy: Node2D) -> void:
+	var indicator := Node2D.new()
+	indicator.name = "EnemyAwarenessIndicator"
+	indicator.set_script(ENEMY_AWARENESS_INDICATOR)
+	enemy.add_child(indicator)
+
+
+func _on_managed_enemy_defeated(_enemy_type: String) -> void:
+	if transition_locked or enemy_root == null:
+		return
+	if enemy_respawn_timer < 0.0:
+		enemy_respawn_timer = rng.randf_range(ENEMY_RESPAWN_DELAY_MIN, ENEMY_RESPAWN_DELAY_MAX)
+
+
+func _update_enemy_population(delta: float) -> void:
+	if transition_locked or enemy_population_target <= 0 or enemy_root == null:
+		return
+	if _get_active_managed_enemy_count() >= enemy_population_target:
+		enemy_respawn_timer = -1.0
+		return
+	if enemy_respawn_timer < 0.0:
+		enemy_respawn_timer = rng.randf_range(ENEMY_RESPAWN_DELAY_MIN, ENEMY_RESPAWN_DELAY_MAX)
+		return
+	enemy_respawn_timer -= delta
+	if enemy_respawn_timer > 0.0:
+		return
+
+	var shuffled_types: Array[String] = enemy_respawn_types.duplicate()
+	shuffled_types.shuffle()
+	for enemy_type: String in shuffled_types:
+		var respawn_data := _find_random_enemy_respawn(enemy_type)
+		if not respawn_data.is_empty():
+			_spawn_enemy(respawn_data, false)
+			enemy_respawn_timer = rng.randf_range(ENEMY_RESPAWN_DELAY_MIN, ENEMY_RESPAWN_DELAY_MAX)
+			return
+	enemy_respawn_timer = 2.5
+
+
+func _get_active_managed_enemy_count() -> int:
+	var count := 0
+	for enemy: Node in enemy_root.get_children():
+		if bool(enemy.get_meta("respawn_managed", false)):
+			count += 1
+	return count
+
+
+func _find_random_enemy_respawn(enemy_type: String) -> Dictionary:
+	if solid_grid_cache.is_empty():
+		return {}
+	for _attempt in range(54):
+		var grid_x := rng.randi_range(4, level_size_tiles.x - 5)
+		var floor_y := -1
+		for grid_y in range(4, level_size_tiles.y - 3):
+			if not _is_solid(solid_grid_cache, grid_x, grid_y) and not _is_solid(solid_grid_cache, grid_x, grid_y - 1) and _is_solid(solid_grid_cache, grid_x, grid_y + 1):
+				floor_y = grid_y
+				break
+		if floor_y < 0:
+			continue
+		var world_position := _grid_to_world(Vector2i(grid_x, floor_y)) + Vector2(16.0, -12.0)
+		if player != null and world_position.distance_to(player.global_position) < ENEMY_RESPAWN_MIN_PLAYER_DISTANCE:
+			continue
+		if not _is_enemy_biome_match(enemy_type, world_position):
+			continue
+		return {"type": enemy_type, "x": grid_x, "y": floor_y}
+	return {}
+
+
+func _is_enemy_biome_match(enemy_type: String, world_position: Vector2) -> bool:
+	var lush_strength := _get_lush_biome_strength(world_position)
+	match enemy_type:
+		"irrlichtkaefer":
+			return lush_strength >= 0.70
+		"mushroom":
+			return lush_strength >= 0.18
+		"slime":
+			return lush_strength <= 0.82
+		_:
+			return true
+
+
+func _spawn_lush_irrlichtkaefer() -> void:
+	if lush_biome_regions.is_empty():
+		return
+	var beetle_count := mini(2, lush_biome_regions.size())
+	for _index in range(beetle_count):
+		var beetle_data := _find_random_enemy_respawn("irrlichtkaefer")
+		if not beetle_data.is_empty():
+			_spawn_enemy(beetle_data)
 
 
 func _spawn_story_trigger(trigger_data: Dictionary) -> void:

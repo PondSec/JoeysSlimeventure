@@ -405,6 +405,7 @@ hframes = 4
 vframes = 4
 
 [node name="EquippedWeaponSprite" type="Sprite2D" parent="PlayerSprite"]
+visible = false
 z_index = 1
 position = Vector2(10, 8)
 scale = Vector2(7.8, 7.8)
