@@ -206,7 +206,7 @@ func _process(delta: float) -> void:
 	# seed contains a lush biome.  Keeping it moving here also gives the normal
 	# cave the same depth response as the lush frame.
 	if normal_cave_foreground_root != null:
-		_update_overlay_parallax(normal_cave_foreground_root, player.global_position)
+		_update_overlay_parallax(normal_cave_foreground_root, player.global_position, delta)
 	if lush_biome_sprites.is_empty():
 		return
 	var target_strength := _get_lush_biome_strength(player.global_position)
@@ -226,7 +226,7 @@ func _process(delta: float) -> void:
 		var material := sprite.material as ShaderMaterial
 		if material != null:
 			material.set_shader_parameter("biome_strength", lush_biome_strength)
-		_update_overlay_parallax(sprite, player.global_position)
+		_update_overlay_parallax(sprite, player.global_position, delta)
 
 
 func _resolve_level_seed() -> int:
@@ -601,7 +601,7 @@ func _build_lush_biome_parallax(bounds: Rect2) -> void:
 	# The close frame is intentionally much faster than the two background
 	# layers. It is anchored to the camera before this offset is applied, so all
 	# four screen edges remain covered while it visibly drifts sideways.
-	var foreground_sprite := _create_lush_biome_sprite(foreground_texture, shader, 0, 120.0, Vector2(-0.18, -0.014), true)
+	var foreground_sprite := _create_lush_biome_sprite(foreground_texture, shader, 0, 120.0, Vector2(-0.30, -0.014), true)
 	# Unlike a one-off position shift, scrolling the source UV repeats the full
 	# transparent frame horizontally. The close layer can therefore travel at a
 	# visibly higher rate without ever leaving a bare screen edge behind.
@@ -659,7 +659,7 @@ func _get_overlay_scale(texture: Texture2D, edge_overscan: float, world_space: b
 	return scale_factor
 
 
-func _update_overlay_parallax(sprite: Node2D, world_position: Vector2) -> void:
+func _update_overlay_parallax(sprite: Node2D, world_position: Vector2, delta: float) -> void:
 	# CanvasLayer sprites are screen-space.  Offset them from the screen centre
 	# by a small fraction of the world position, mirroring the existing cave
 	# ParallaxLayer setup: close foreground shifts fastest, distant art slowest.
@@ -679,7 +679,19 @@ func _update_overlay_parallax(sprite: Node2D, world_position: Vector2) -> void:
 		var material := sprite_2d.material as ShaderMaterial if sprite_2d != null else null
 		if sprite_2d != null and material != null and sprite_2d.texture != null:
 			var loop_span: float = maxf(1.0, float(sprite_2d.texture.get_width()) * absf(sprite_2d.scale.x))
-			material.set_shader_parameter("parallax_uv_offset", fposmod(offset.x / loop_span, 1.0))
+			# Player physics advances in discrete ticks while this overlay renders on
+			# every display frame.  Smooth the unwrapped scroll state before sending
+			# it to the shader, which removes the camera/pixel-snap stutter without
+			# delaying the scene's movement perceptibly.
+			if not sprite.has_meta("parallax_uv_anchor_x"):
+				sprite.set_meta("parallax_uv_anchor_x", world_position.x)
+				sprite.set_meta("parallax_uv_scroll", 0.0)
+			var uv_anchor_x: float = float(sprite.get_meta("parallax_uv_anchor_x", world_position.x))
+			var target_scroll: float = (world_position.x - uv_anchor_x) * factor.x / loop_span
+			var current_scroll: float = float(sprite.get_meta("parallax_uv_scroll", target_scroll))
+			current_scroll = lerpf(current_scroll, target_scroll, 1.0 - exp(-18.0 * delta))
+			sprite.set_meta("parallax_uv_scroll", current_scroll)
+			material.set_shader_parameter("parallax_uv_offset", fposmod(current_scroll, 1.0))
 		# The quad itself stays camera-anchored; only its repeated source slides.
 		# That is what keeps the lush frame perfectly flush with the viewport.
 		offset.x = 0.0
