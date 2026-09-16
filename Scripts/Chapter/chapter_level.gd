@@ -30,6 +30,10 @@ const LUSH_LANDMARK_PATHS := [
 	"res://Assets/Deko/lush/lush_landmark_01.png",
 	"res://Assets/Deko/lush/lush_landmark_02.png"
 ]
+const LUSH_CANOPY_PATHS := [
+	"res://Assets/Deko/lush/lush_canopy_00.png",
+	"res://Assets/Deko/lush/lush_canopy_01.png"
+]
 const PLAYER_WORLD_COLLISION_LAYER := 2
 const DEFAULT_CAVE_TILE_SOURCE_ID := 0
 const CAVE_TILE_SIZE := Vector2i(32, 32)
@@ -110,6 +114,7 @@ var rng := RandomNumberGenerator.new()
 var cave_moss_textures: Array = []
 var cave_flora_textures: Array = []
 var lush_landmark_textures: Array = []
+var lush_canopy_textures: Array = []
 
 @onready var shadow: CanvasModulate = $Shadow
 
@@ -440,6 +445,7 @@ func _build_level() -> void:
 	_spawn_world_bounds()
 	_spawn_generated_overgrowth(solid_grid_cache)
 	_spawn_generated_moss(solid_grid_cache)
+	_spawn_lush_canopy_zones(solid_grid_cache)
 	_spawn_generated_flora(solid_grid_cache)
 	_spawn_lush_flower_landmarks(solid_grid_cache)
 
@@ -1186,10 +1192,10 @@ func _spawn_generated_moss(grid: Array) -> void:
 	var claimed: Dictionary = {}
 	var spawned: int = 0
 	var patch_types: Array = [
-		{"outward": Vector2i.UP, "tangent": Vector2i.RIGHT, "rotation": 0.0, "flip_v": false, "chance": 0.24, "budget": 120},
-		{"outward": Vector2i.DOWN, "tangent": Vector2i.RIGHT, "rotation": 0.0, "flip_v": true, "chance": 0.19, "budget": 108},
-		{"outward": Vector2i.RIGHT, "tangent": Vector2i.DOWN, "rotation": PI * 0.5, "flip_v": false, "chance": 0.14, "budget": 74},
-		{"outward": Vector2i.LEFT, "tangent": Vector2i.DOWN, "rotation": -PI * 0.5, "flip_v": false, "chance": 0.14, "budget": 74}
+		{"outward": Vector2i.UP, "tangent": Vector2i.RIGHT, "rotation": 0.0, "flip_v": false, "chance": 0.43, "budget": 250},
+		{"outward": Vector2i.DOWN, "tangent": Vector2i.RIGHT, "rotation": 0.0, "flip_v": true, "chance": 0.38, "budget": 230},
+		{"outward": Vector2i.RIGHT, "tangent": Vector2i.DOWN, "rotation": PI * 0.5, "flip_v": false, "chance": 0.28, "budget": 156},
+		{"outward": Vector2i.LEFT, "tangent": Vector2i.DOWN, "rotation": -PI * 0.5, "flip_v": false, "chance": 0.28, "budget": 156}
 	]
 	for patch_variant: Variant in patch_types:
 		var patch: Dictionary = patch_variant as Dictionary
@@ -1209,17 +1215,13 @@ func _spawn_generated_moss(grid: Array) -> void:
 					continue
 				if not _is_exposed_moss_face(grid, start, outward) or moss_rng.randf() > float(patch.get("chance", 0.0)):
 					continue
-				var patch_length: int = moss_rng.randi_range(3, 8)
+				var patch_length: int = moss_rng.randi_range(6, 15)
 				for patch_step: int in range(patch_length):
 					var cell: Vector2i = start + tangent * patch_step
 					var key := "%d:%d:%d:%d" % [cell.x, cell.y, outward.x, outward.y]
 					if not _is_exposed_moss_face(grid, cell, outward) or _is_torch_column(cell.x):
 						break
 					claimed[key] = true
-					# A rare gap preserves the broken, overgrown edge without turning
-					# a whole patch into an artificial continuous strip.
-					if patch_step > 0 and patch_step < patch_length - 1 and moss_rng.randf() < 0.14:
-						continue
 					_spawn_moss_tile(cell, patch, moss_rng)
 					spawned += 1
 					spawned_on_face += 1
@@ -1255,6 +1257,77 @@ func _get_cave_moss_textures() -> Array:
 		if texture != null:
 			cave_moss_textures.append(texture)
 	return cave_moss_textures
+
+
+func _spawn_lush_canopy_zones(grid: Array) -> void:
+	# Large seamless overhangs are the visual backbone of a lush cave.  Each
+	# zone starts only on a long real ceiling shelf, first seals that shelf with
+	# a continuous moss run, then layers one of the wide canopy modules below.
+	var canopy_rng := RandomNumberGenerator.new()
+	canopy_rng.seed = active_level_seed * 421 + 2719
+	var placed: int = 0
+	var reserved: Dictionary = {}
+	for grid_y: int in range(2, level_size_tiles.y - 5):
+		if placed >= 16:
+			break
+		for grid_x: int in range(2, level_size_tiles.x - 9):
+			if placed >= 16:
+				break
+			var start := Vector2i(grid_x, grid_y)
+			if _is_lush_canopy_reserved(reserved, start) or _is_torch_column(grid_x) or not _is_exposed_moss_face(grid, start, Vector2i.DOWN) or canopy_rng.randf() > 0.16:
+				continue
+			var span: int = canopy_rng.randi_range(5, 8)
+			_reserve_lush_canopy_zone(reserved, start, span)
+			for offset: int in range(span):
+				var moss_cell := start + Vector2i.RIGHT * offset
+				if not _is_exposed_moss_face(grid, moss_cell, Vector2i.DOWN) or _is_torch_column(moss_cell.x):
+					break
+				_spawn_moss_tile(moss_cell, {"rotation": 0.0, "flip_v": true}, canopy_rng)
+			_spawn_lush_canopy(start, span, canopy_rng)
+			placed += 1
+
+
+func _is_lush_canopy_reserved(reserved: Dictionary, center: Vector2i) -> bool:
+	for offset_y: int in range(-5, 6):
+		for offset_x: int in range(-7, 8):
+			if reserved.has("%d:%d" % [center.x + offset_x, center.y + offset_y]):
+				return true
+	return false
+
+
+func _reserve_lush_canopy_zone(reserved: Dictionary, start: Vector2i, span: int) -> void:
+	for offset_y: int in range(-5, 6):
+		for offset_x: int in range(-5, span + 6):
+			reserved["%d:%d" % [start.x + offset_x, start.y + offset_y]] = true
+
+
+func _get_lush_canopy_textures() -> Array:
+	if not lush_canopy_textures.is_empty():
+		return lush_canopy_textures
+	for texture_path: String in LUSH_CANOPY_PATHS:
+		var texture := load(texture_path) as Texture2D
+		if texture != null:
+			lush_canopy_textures.append(texture)
+	return lush_canopy_textures
+
+
+func _spawn_lush_canopy(start: Vector2i, span: int, canopy_rng: RandomNumberGenerator) -> void:
+	var textures: Array = _get_lush_canopy_textures()
+	if decor_root == null or textures.is_empty():
+		return
+	var sprite := Sprite2D.new()
+	sprite.name = "GeneratedLushCanopy"
+	sprite.texture = textures[canopy_rng.randi_range(0, textures.size() - 1)] as Texture2D
+	var scale_amount: float = canopy_rng.randf_range(0.58, 0.72)
+	sprite.scale = Vector2.ONE * scale_amount
+	var rendered_height: float = float(sprite.texture.get_height()) * scale_amount
+	# With Sprite2D centred, this pins the first opaque foliage directly below
+	# the ceiling moss rather than leaving a black separation seam.
+	sprite.position = _grid_to_world(start) + Vector2(float(span) * TILE_SIZE * 0.5, TILE_SIZE + rendered_height * 0.5 - 5.0)
+	sprite.flip_h = canopy_rng.randf() < 0.5
+	sprite.z_index = 2 if canopy_rng.randf() < 0.35 else 0
+	sprite.modulate = Color(0.86 + canopy_rng.randf() * 0.14, 0.94 + canopy_rng.randf() * 0.06, 0.76 + canopy_rng.randf() * 0.16, 1.0)
+	decor_root.add_child(sprite)
 
 
 func _spawn_generated_flora(grid: Array) -> void:
