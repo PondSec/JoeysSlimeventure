@@ -20,6 +20,16 @@ const TORCH_SCENE := preload("res://Scenes/torch.tscn")
 const SPIKE_SCENE := preload("res://Scenes/SpikeNormal.tscn")
 const WORM_SCENE := preload("res://Scenes/worm.tscn")
 const VINE_SCENE := preload("res://Scenes/vine.tscn")
+const MOSS_TILE_PATHS := [
+	"res://Assets/Deko/moss/moss_0.png",
+	"res://Assets/Deko/moss/moss_1.png",
+	"res://Assets/Deko/moss/moss_2.png"
+]
+const LUSH_LANDMARK_PATHS := [
+	"res://Assets/Deko/lush/lush_landmark_00.png",
+	"res://Assets/Deko/lush/lush_landmark_01.png",
+	"res://Assets/Deko/lush/lush_landmark_02.png"
+]
 const PLAYER_WORLD_COLLISION_LAYER := 2
 const DEFAULT_CAVE_TILE_SOURCE_ID := 0
 const CAVE_TILE_SIZE := Vector2i(32, 32)
@@ -97,6 +107,9 @@ var tile_debug_overlay_enabled: bool = false
 var runtime_play_bounds: Rect2 = Rect2()
 var resolved_exit_tile: Vector2i = Vector2i.ZERO
 var rng := RandomNumberGenerator.new()
+var cave_moss_textures: Array = []
+var cave_flora_textures: Array = []
+var lush_landmark_textures: Array = []
 
 @onready var shadow: CanvasModulate = $Shadow
 
@@ -426,6 +439,9 @@ func _build_level() -> void:
 	_spawn_cave_collision_mesh(solid_grid_cache)
 	_spawn_world_bounds()
 	_spawn_generated_overgrowth(solid_grid_cache)
+	_spawn_generated_moss(solid_grid_cache)
+	_spawn_generated_flora(solid_grid_cache)
+	_spawn_lush_flower_landmarks(solid_grid_cache)
 
 	var hazards: Array = active_level.get("hazards", []) as Array
 	for hazard_variant: Variant in hazards:
@@ -1130,12 +1146,12 @@ func _spawn_generated_overgrowth(grid: Array) -> void:
 	var cluster_count: int = 0
 	var previous_cluster_x: int = -99
 	for grid_x: int in range(3, level_size_tiles.x - 4):
-		if grid_x - previous_cluster_x < 3:
+		if grid_x - previous_cluster_x < 2:
 			continue
 		for grid_y: int in range(2, level_size_tiles.y - 9):
-			if not _is_vine_anchor(grid, grid_x, grid_y) or rng.randf() > 0.68:
+			if not _is_vine_anchor(grid, grid_x, grid_y) or rng.randf() > 0.51:
 				continue
-			var primary_length: int = rng.randi_range(3, 10)
+			var primary_length: int = rng.randi_range(4, 12)
 			if not _has_vine_clearance(grid, grid_x, grid_y, primary_length):
 				continue
 			_spawn_vine_trail(grid_x, grid_y + 1, primary_length, rng.randf_range(-0.34, 0.34), 0.22)
@@ -1148,16 +1164,231 @@ func _spawn_generated_overgrowth(grid: Array) -> void:
 
 			# Ein dritter, kurzer Trieb bricht die Symmetrie und verbindet die
 			# Saeulen optisch zu einem einzelnen organischen Bueschel.
-			if rng.randf() < 0.74:
+			if rng.randf() < 0.84:
 				var tendril_x: int = grid_x - companion_offset
 				var tendril_length: int = rng.randi_range(2, 4)
 				if _has_vine_clearance(grid, tendril_x, grid_y, tendril_length):
 					_spawn_vine_trail(tendril_x, grid_y + 2, tendril_length, float(-companion_offset) * 0.62, 0.12)
 			previous_cluster_x = grid_x
 			cluster_count += 1
-			if cluster_count >= 56:
+			if cluster_count >= 90:
 				return
 			break
+
+
+func _spawn_generated_moss(grid: Array) -> void:
+	# Moss grows in coherent wet patches, not as evenly spaced stickers.  Each
+	# patch follows a real exposed rock face and uses the three hand-supplied
+	# 32px variants; the same tiles are flipped/turned for floors, ceilings and
+	# both wall directions.
+	var moss_rng := RandomNumberGenerator.new()
+	moss_rng.seed = active_level_seed * 173 + 401
+	var claimed: Dictionary = {}
+	var spawned: int = 0
+	var patch_types: Array = [
+		{"outward": Vector2i.UP, "tangent": Vector2i.RIGHT, "rotation": 0.0, "flip_v": false, "chance": 0.24, "budget": 120},
+		{"outward": Vector2i.DOWN, "tangent": Vector2i.RIGHT, "rotation": 0.0, "flip_v": true, "chance": 0.19, "budget": 108},
+		{"outward": Vector2i.RIGHT, "tangent": Vector2i.DOWN, "rotation": PI * 0.5, "flip_v": false, "chance": 0.14, "budget": 74},
+		{"outward": Vector2i.LEFT, "tangent": Vector2i.DOWN, "rotation": -PI * 0.5, "flip_v": false, "chance": 0.14, "budget": 74}
+	]
+	for patch_variant: Variant in patch_types:
+		var patch: Dictionary = patch_variant as Dictionary
+		var outward: Vector2i = patch.get("outward", Vector2i.UP) as Vector2i
+		var tangent: Vector2i = patch.get("tangent", Vector2i.RIGHT) as Vector2i
+		var spawned_on_face: int = 0
+		var face_budget: int = int(patch.get("budget", 0))
+		for grid_y: int in range(2, level_size_tiles.y - 2):
+			if spawned_on_face >= face_budget:
+				break
+			for grid_x: int in range(2, level_size_tiles.x - 2):
+				if spawned_on_face >= face_budget:
+					break
+				var start := Vector2i(grid_x, grid_y)
+				var start_key := "%d:%d:%d:%d" % [start.x, start.y, outward.x, outward.y]
+				if claimed.has(start_key) or _is_torch_column(start.x):
+					continue
+				if not _is_exposed_moss_face(grid, start, outward) or moss_rng.randf() > float(patch.get("chance", 0.0)):
+					continue
+				var patch_length: int = moss_rng.randi_range(3, 8)
+				for patch_step: int in range(patch_length):
+					var cell: Vector2i = start + tangent * patch_step
+					var key := "%d:%d:%d:%d" % [cell.x, cell.y, outward.x, outward.y]
+					if not _is_exposed_moss_face(grid, cell, outward) or _is_torch_column(cell.x):
+						break
+					claimed[key] = true
+					# A rare gap preserves the broken, overgrown edge without turning
+					# a whole patch into an artificial continuous strip.
+					if patch_step > 0 and patch_step < patch_length - 1 and moss_rng.randf() < 0.14:
+						continue
+					_spawn_moss_tile(cell, patch, moss_rng)
+					spawned += 1
+					spawned_on_face += 1
+
+
+func _is_exposed_moss_face(grid: Array, cell: Vector2i, outward: Vector2i) -> bool:
+	return _is_solid(grid, cell.x, cell.y) and not _is_solid(grid, cell.x + outward.x, cell.y + outward.y)
+
+
+func _spawn_moss_tile(cell: Vector2i, patch: Dictionary, moss_rng: RandomNumberGenerator) -> void:
+	var textures: Array = _get_cave_moss_textures()
+	if decor_root == null or textures.is_empty():
+		return
+	var moss := Sprite2D.new()
+	moss.name = "GeneratedMoss"
+	moss.texture = textures[moss_rng.randi_range(0, textures.size() - 1)] as Texture2D
+	moss.position = _grid_to_world(cell) + Vector2(16.0, 16.0)
+	moss.rotation = float(patch.get("rotation", 0.0))
+	moss.flip_v = bool(patch.get("flip_v", false))
+	moss.flip_h = moss_rng.randf() < 0.34
+	# Most growth lives behind Joey; a controlled minority overlaps him so dense
+	# fern and moss pockets feel traversed rather than painted on the backdrop.
+	moss.z_index = 2 if moss_rng.randf() < 0.35 else 0
+	moss.modulate = Color(0.82, 1.0, 0.74, 1.0)
+	decor_root.add_child(moss)
+
+
+func _get_cave_moss_textures() -> Array:
+	if not cave_moss_textures.is_empty():
+		return cave_moss_textures
+	for texture_path: String in MOSS_TILE_PATHS:
+		var texture := load(texture_path) as Texture2D
+		if texture != null:
+			cave_moss_textures.append(texture)
+	return cave_moss_textures
+
+
+func _spawn_generated_flora(grid: Array) -> void:
+	# Kleine Flora wird bewusst auf die bereits feuchten Kanten konzentriert.
+	# Dadurch entstehen lesbare, ueppige Nischen statt gleichmaessig verteilter
+	# Dekoration.  Die Hängepflanzen sind eigene Varianten; Bodenpflanzen werden
+	# nur bei realer Auflageflaeche gesetzt.
+	var flora_rng := RandomNumberGenerator.new()
+	flora_rng.seed = active_level_seed * 233 + 907
+	var placed: int = 0
+	var claimed_ground: Dictionary = {}
+	for grid_y: int in range(2, level_size_tiles.y - 2):
+		if placed >= 150:
+			break
+		for grid_x: int in range(2, level_size_tiles.x - 2):
+			if placed >= 150:
+				break
+			var cell := Vector2i(grid_x, grid_y)
+			if not _is_exposed_moss_face(grid, cell, Vector2i.UP) or _is_torch_column(grid_x) or flora_rng.randf() > 0.25:
+				continue
+			var patch_length: int = flora_rng.randi_range(2, 5)
+			for patch_step: int in range(patch_length):
+				var patch_cell := cell + Vector2i.RIGHT * patch_step
+				var key := "%d:%d" % [patch_cell.x, patch_cell.y]
+				if claimed_ground.has(key) or not _is_exposed_moss_face(grid, patch_cell, Vector2i.UP) or _is_torch_column(patch_cell.x):
+					break
+				claimed_ground[key] = true
+				if patch_step > 0 and flora_rng.randf() < 0.18:
+					continue
+				_spawn_flora_tile(patch_cell, Vector2i.UP, flora_rng, false)
+				placed += 1
+
+	# A few long forms make wet ceiling and wall pockets read as naturally
+	# overgrown without covering every traversable surface.
+	for grid_y: int in range(2, level_size_tiles.y - 2):
+		for grid_x: int in range(2, level_size_tiles.x - 2):
+			if placed >= 280:
+				return
+			var cell := Vector2i(grid_x, grid_y)
+			for outward: Vector2i in [Vector2i.DOWN, Vector2i.RIGHT, Vector2i.LEFT]:
+				if not _is_exposed_moss_face(grid, cell, outward) or _is_torch_column(grid_x) or flora_rng.randf() > 0.10:
+					continue
+				_spawn_flora_tile(cell, outward, flora_rng, outward == Vector2i.DOWN)
+				placed += 1
+				break
+
+
+func _get_cave_flora_textures() -> Array:
+	if not cave_flora_textures.is_empty():
+		return cave_flora_textures
+	for texture_index: int in range(20):
+		var texture := load("res://Assets/Deko/flora/flora_%02d.png" % texture_index) as Texture2D
+		if texture != null:
+			cave_flora_textures.append(texture)
+	return cave_flora_textures
+
+
+func _spawn_flora_tile(cell: Vector2i, outward: Vector2i, flora_rng: RandomNumberGenerator, hanging: bool) -> void:
+	var textures: Array = _get_cave_flora_textures()
+	if decor_root == null or textures.is_empty():
+		return
+	var hanging_indices: Array[int] = [5, 7, 17, 19]
+	var ground_indices: Array[int] = [0, 1, 2, 3, 4, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18]
+	var selected_indices: Array[int] = hanging_indices if hanging else ground_indices
+	var sprite := Sprite2D.new()
+	sprite.name = "GeneratedFlora"
+	sprite.texture = textures[selected_indices[flora_rng.randi_range(0, selected_indices.size() - 1)]] as Texture2D
+	# 35% foreground foliage deliberately crosses the player silhouette.
+	sprite.z_index = 2 if flora_rng.randf() < 0.35 else 0
+	sprite.modulate = Color(0.78 + flora_rng.randf() * 0.18, 0.95 + flora_rng.randf() * 0.05, 0.68 + flora_rng.randf() * 0.17, 1.0)
+	if outward == Vector2i.UP:
+		sprite.position = _grid_to_world(cell) + Vector2(16.0, -16.0)
+	elif outward == Vector2i.DOWN:
+		sprite.position = _grid_to_world(cell) + Vector2(16.0, 48.0)
+	elif outward == Vector2i.RIGHT:
+		sprite.position = _grid_to_world(cell) + Vector2(48.0, 16.0)
+		sprite.rotation = PI * 0.5
+	else:
+		sprite.position = _grid_to_world(cell) + Vector2(-16.0, 16.0)
+		sprite.rotation = -PI * 0.5
+	sprite.flip_h = flora_rng.randf() < 0.38
+	decor_root.add_child(sprite)
+
+
+func _spawn_lush_flower_landmarks(grid: Array) -> void:
+	# The three large hand-supplied flowers are sparse enough to act as little
+	# colour landmarks, but numerous enough that lush pockets feel genuinely
+	# inhabited. They only root on solid ground and never touch torch columns.
+	var landmark_rng := RandomNumberGenerator.new()
+	landmark_rng.seed = active_level_seed * 313 + 1709
+	var placed: int = 0
+	var claimed: Dictionary = {}
+	for grid_y: int in range(3, level_size_tiles.y - 3):
+		if placed >= 38:
+			break
+		for grid_x: int in range(3, level_size_tiles.x - 3):
+			if placed >= 38:
+				break
+			var cell := Vector2i(grid_x, grid_y)
+			var key := "%d:%d" % [cell.x, cell.y]
+			if claimed.has(key) or _is_torch_column(grid_x) or not _is_exposed_moss_face(grid, cell, Vector2i.UP) or landmark_rng.randf() > 0.082:
+				continue
+			# A small run of exposed ground is required so these read as rooted
+			# plants, rather than as a one-tile decal on a corner.
+			if not _is_exposed_moss_face(grid, cell + Vector2i.RIGHT, Vector2i.UP):
+				continue
+			claimed[key] = true
+			_spawn_lush_landmark(cell, landmark_rng)
+			placed += 1
+
+
+func _get_lush_landmark_textures() -> Array:
+	if not lush_landmark_textures.is_empty():
+		return lush_landmark_textures
+	for texture_path: String in LUSH_LANDMARK_PATHS:
+		var texture := load(texture_path) as Texture2D
+		if texture != null:
+			lush_landmark_textures.append(texture)
+	return lush_landmark_textures
+
+
+func _spawn_lush_landmark(cell: Vector2i, landmark_rng: RandomNumberGenerator) -> void:
+	var textures: Array = _get_lush_landmark_textures()
+	if decor_root == null or textures.is_empty():
+		return
+	var sprite := Sprite2D.new()
+	sprite.name = "GeneratedLushLandmark"
+	sprite.texture = textures[landmark_rng.randi_range(0, textures.size() - 1)] as Texture2D
+	sprite.position = _grid_to_world(cell) + Vector2(16.0, -16.0)
+	sprite.flip_h = landmark_rng.randf() < 0.5
+	sprite.scale = Vector2.ONE * landmark_rng.randf_range(1.18, 1.42)
+	sprite.z_index = 2 if landmark_rng.randf() < 0.35 else 0
+	sprite.modulate = Color(0.92 + landmark_rng.randf() * 0.08, 0.92 + landmark_rng.randf() * 0.08, 1.0, 1.0)
+	decor_root.add_child(sprite)
 
 
 func _is_vine_anchor(grid: Array, grid_x: int, grid_y: int) -> bool:
