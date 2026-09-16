@@ -1,7 +1,7 @@
 extends Control
 
-@onready var restart_button: TextureButton = $CanvasLayer/Label/TextureButton  # Der Button ist ein Kind von Label
-@onready var death_label: Label = $Label  # Referenz zum Label (falls du das Label auch benötigst)
+@onready var restart_button: TextureButton = get_node_or_null("CanvasLayer/Label/TextureButton") as TextureButton
+@onready var death_label: Label = get_node_or_null("CanvasLayer/Label") as Label
 var player: Node2D  # Referenz zum Spieler
 
 func _ready() -> void:
@@ -14,7 +14,7 @@ func _ready() -> void:
 	restart_button.connect("pressed", Callable(self, "_on_RestartButton_pressed"))
 
 	# Hole den Spieler (Achtung: überprüfe, dass der Spieler korrekt referenziert wird)
-	player = get_node("PlayerModel")
+	player = get_tree().get_first_node_in_group("players") as Node2D
 
 # Funktion, um den Death Screen anzuzeigen, wenn der Spieler stirbt
 func show_death_screen() -> void:

@@ -237,6 +237,115 @@ func _build_graph_hybrid_result() -> Dictionary:
 	return {"grid": final_grid, "spawn": path.front(), "exit": path.back(), "platforms": platforms, "pickups": pickups, "enemies": level_data.get("enemies", []), "hazards": [], "torches": _place_torches(), "triggers": level_data.get("triggers", []), "boss": {}, "worm_count": 0, "layout_validation": validation, "debug_rooms": rooms, "critical_path_nodes": path, "side_path_lines": [], "mobility_profile": mobility_profile}
 
 
+func _build_cave_network_result(seed: int) -> Dictionary:
+	# Makro: ein Rundkurs durch obere und untere Schichten. Der Ausgang liegt
+	# absichtlich am Rand des Kreises, nicht am Ende einer X-Achse. Die Knoten
+	# sind zugleich sichere, reale Landeanker fuer den bestehenden Validator.
+	rng.seed = seed + int(level_data.get("level_index", 0)) * 131
+	var margin := 7
+	var left := margin + rng.randi_range(0, 5)
+	var right := level_size.x - margin - rng.randi_range(0, 5)
+	var top := margin + rng.randi_range(0, 4)
+	var bottom := level_size.y - margin - rng.randi_range(0, 4)
+	var spawn: Vector2i = level_data.get("spawn", Vector2i(left, int(level_size.y * 0.35))) as Vector2i
+	var exit: Vector2i = level_data.get("exit", Vector2i(right, int(level_size.y * 0.65))) as Vector2i
+	spawn = Vector2i(clampi(spawn.x, margin, level_size.x - margin), clampi(spawn.y, top + 4, bottom - 4))
+	exit = Vector2i(clampi(exit.x, margin, level_size.x - margin), clampi(exit.y, top + 4, bottom - 3))
+
+	var hubs: Array = [
+		spawn,
+		Vector2i(left + 10, clampi(spawn.y + 10 + rng.randi_range(-2, 3), top + 3, bottom - 3)),
+		Vector2i(int(level_size.x * 0.42), bottom - 3),
+		Vector2i(right - 15, bottom - 9),
+		Vector2i(right - 7, int(level_size.y * 0.50)),
+		Vector2i(int(level_size.x * 0.64), top + 3),
+		Vector2i(int(level_size.x * 0.34), top + 6),
+		Vector2i(left + 7, int(level_size.y * 0.47)),
+		Vector2i(int(level_size.x * 0.52), int(level_size.y * 0.48)),
+		exit
+	]
+	# Mesoskalige Traversierungsroute: die vielen kurzen Anker halten jeden
+	# Auf- und Abstieg im konservativen Sprungbudget, die sichtbare Hoehle bleibt
+	# trotzdem ein zusammenhaengendes, schwer lesbares Netz.
+	var path: Array = []
+	for hub_index: int in range(hubs.size() - 1):
+		var segment: Array = _densify_path_nodes([hubs[hub_index] as Vector2i, hubs[hub_index + 1] as Vector2i], false)
+		for point_variant: Variant in segment:
+			_append_path_point(path, point_variant as Vector2i)
+	var grid: Array = _create_solid_grid()
+	for hub_index: int in range(hubs.size()):
+		var hub: Vector2i = hubs[hub_index] as Vector2i
+		var radius_x: float = 5.0 + rng.randf_range(0.0, 3.0)
+		var radius_y: float = 4.0 + rng.randf_range(0.0, 3.0)
+		_carve_organic_blob(grid, hub, radius_x, radius_y)
+		if hub_index < hubs.size() - 1:
+			_carve_tunnel(grid, hub, hubs[hub_index + 1] as Vector2i, 5)
+	# Sekundaere Schleifen und Sackgassen liegen ueber und unter der Pflichtader.
+	# Sie erzeugen echte Richtungsentscheidungen, ohne die Pflichtprogression an
+	# einer optionalen Plattform zu haengen.
+	var loops: Array = [
+		[hubs[1], Vector2i(int(level_size.x * 0.22), top + 4), hubs[6]],
+		[hubs[2], Vector2i(int(level_size.x * 0.55), bottom - 2), hubs[4]],
+		[hubs[5], Vector2i(right - 3, top + 11), hubs[4]],
+		[hubs[7], Vector2i(left + 2, int(level_size.y * 0.68)), hubs[2]]
+	]
+	var side_lines: Array = []
+	for loop_variant: Variant in loops:
+		var loop: Array = loop_variant as Array
+		var loop_line: Array = []
+		for point_index: int in range(loop.size() - 1):
+			var loop_segment: Array = _densify_path_nodes([loop[point_index] as Vector2i, loop[point_index + 1] as Vector2i], false)
+			for point_variant: Variant in loop_segment:
+				_append_path_point(loop_line, point_variant as Vector2i)
+		for point_variant: Variant in loop_line:
+			_carve_cave_disc(grid, Vector2(point_variant as Vector2i), 2.2 + rng.randf_range(-0.35, 0.65))
+		side_lines.append(loop_line)
+	var dead_end: Vector2i = Vector2i(int(level_size.x * 0.78), top + 8)
+	_carve_tunnel(grid, hubs[5] as Vector2i, dead_end, 4)
+	_carve_organic_blob(grid, dead_end, 4.5, 3.5)
+
+	var platforms: Array = []
+	for point_variant: Variant in path:
+		var point: Vector2i = point_variant as Vector2i
+		platforms.append(_make_platform(point.x - 2, point.y, 5, 1, "ledge"))
+		_stamp_rect(grid, point.x - 2, point.y, 5, 1)
+		_carve_rect(grid, point.x - 3, point.y - 4, 7, 4)
+	# Die Schleifen bleiben begehbar und zugleich aus jeder Depression wieder
+	# herausfuehrbar: sie erhalten identische, dicht gestaffelte Landeanker.
+	for line_variant: Variant in side_lines:
+		for point_variant: Variant in line_variant as Array:
+			var point: Vector2i = point_variant as Vector2i
+			platforms.append(_make_platform(point.x - 2, point.y, 5, 1, "ledge"))
+			_stamp_rect(grid, point.x - 2, point.y, 5, 1)
+			_carve_rect(grid, point.x - 3, point.y - 4, 7, 4)
+	_carve_rect(grid, dead_end.x - 3, dead_end.y - 4, 7, 4)
+	_stamp_rect(grid, dead_end.x - 2, dead_end.y, 5, 1)
+
+	var pickups: Array = _place_pickups()
+	var final_grid: Array = TerrainResolver.duplicate_cells(TerrainResolver.build_logical_map(grid, level_size))
+	var rooms: Array = []
+	for hub_index: int in range(hubs.size()):
+		rooms.append({"id": "network_hub_%d" % hub_index, "role": ROOM_ROLE_LANDMARK if hub_index == 4 else ROOM_ROLE_VERTICAL, "entry_node": hubs[hub_index], "exit_node": hubs[hub_index]})
+	var validation := ChapterTraversalValidator.validate_layout({"grid": final_grid, "level_size": level_size, "mobility_profile": mobility_profile, "rooms": rooms, "critical_path_nodes": path, "side_path_lines": side_lines, "pickups": pickups, "spawn": spawn, "exit": exit})
+	validation["layout_signature"] = "organic_network"
+	validation["branch_signature"] = "reconnecting_loops"
+	validation["vertical_signature"] = "layered_ring"
+	validation["room_variety_score"] = 7.0
+	return {"grid": final_grid, "spawn": spawn, "exit": exit, "platforms": platforms, "pickups": pickups, "enemies": _place_enemies(), "hazards": [], "torches": _place_torches(), "triggers": _place_triggers(), "boss": {}, "worm_count": 0, "layout_validation": validation, "debug_rooms": rooms, "critical_path_nodes": path, "side_path_lines": side_lines, "mobility_profile": mobility_profile}
+
+
+func _carve_organic_blob(grid: Array, center: Vector2i, radius_x: float, radius_y: float) -> void:
+	for grid_y: int in range(maxi(0, int(floor(center.y - radius_y - 1.0))), mini(level_size.y, int(ceil(center.y + radius_y + 1.0)))):
+		var row: PackedByteArray = grid[grid_y] as PackedByteArray
+		for grid_x: int in range(maxi(0, int(floor(center.x - radius_x - 1.0))), mini(level_size.x, int(ceil(center.x + radius_x + 1.0)))):
+			var nx: float = (float(grid_x) + 0.5 - float(center.x)) / radius_x
+			var ny: float = (float(grid_y) + 0.5 - float(center.y)) / radius_y
+			var wobble: float = sin(float(grid_x) * 1.71 + float(grid_y) * 0.63) * 0.12
+			if nx * nx + ny * ny <= 1.0 + wobble:
+				row[grid_x] = 0
+		grid[grid_y] = row
+
+
 func _reset_generation_state() -> void:
 	main_rooms.clear()
 	side_rooms.clear()
