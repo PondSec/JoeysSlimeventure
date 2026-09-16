@@ -9,7 +9,7 @@ uniform float edge_feather : hint_range(0.0, 0.45) = 0.14;
 // The gameplay CanvasModulate intentionally keeps the cave dark.  These
 // authored backdrop layers sit outside gameplay lighting, so compensate that
 // global tint here rather than making Joey's lights affect them.
-uniform float art_exposure : hint_range(1.0, 8.0) = 4.0;
+uniform float art_exposure : hint_range(1.0, 8.0) = 1.0;
 
 void fragment() {
 	vec4 colour = texture(TEXTURE, UV);

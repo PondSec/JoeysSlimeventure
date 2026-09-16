@@ -34,6 +34,18 @@ const LUSH_CANOPY_PATHS := [
 	"res://Assets/Deko/lush/lush_canopy_00.png",
 	"res://Assets/Deko/lush/lush_canopy_01.png"
 ]
+const WIND_BROADLEAF_PATHS := [
+	"res://Assets/Deko/lush/wind_broadleaf_00.png",
+	"res://Assets/Deko/lush/wind_broadleaf_01.png",
+	"res://Assets/Deko/lush/wind_broadleaf_02.png",
+	"res://Assets/Deko/lush/wind_broadleaf_03.png"
+]
+const WIND_GLOW_FLOWER_PATHS := [
+	"res://Assets/Deko/lush/wind_glow_flower_00.png",
+	"res://Assets/Deko/lush/wind_glow_flower_01.png",
+	"res://Assets/Deko/lush/wind_glow_flower_02.png",
+	"res://Assets/Deko/lush/wind_glow_flower_03.png"
+]
 const PLANT_GLOW_TEXTURE_PATH := "res://Assets/Light/torch_light.png"
 const PLAYER_WORLD_COLLISION_LAYER := 2
 const DEFAULT_CAVE_TILE_SOURCE_ID := 0
@@ -63,7 +75,8 @@ const LUSH_BIOME_TRANSITION_SHADER_PATH := "res://Shaders/lush_biome_transition.
 const NORMAL_CAVE_FOREGROUND_FRAME_PATH := "res://Assets/Parallax Cave/normal_cave_foreground_frame.png"
 const NORMAL_CAVE_FOREGROUND_SHADER_PATH := "res://Shaders/normal_cave_foreground_transition.gdshader"
 const LUSH_BIOME_TRANSITION_DISTANCE := 280.0
-const LUSH_BIOME_SPAWN_EXCLUSION_DISTANCE := 800.0
+const LUSH_BIOME_SPAWN_EXCLUSION_DISTANCE := 640.0
+const MIN_LUSH_BIOME_DENSITY := 4.6
 
 const WORLD_BOUND_LEFT_PADDING := 128.0
 const WORLD_BOUND_RIGHT_PADDING := 128.0
@@ -109,7 +122,7 @@ var exit_gate: Node2D
 var parallax_background: ParallaxBackground
 var parallax_base_fill: Polygon2D
 var parallax_layer_entries: Array = []
-var parallax_foreground_layer: CanvasLayer
+var parallax_foreground_layer: Node2D
 var normal_cave_foreground_root: Node2D
 var normal_cave_foreground_material: ShaderMaterial
 var lush_biome_backdrop_layer: CanvasLayer
@@ -132,6 +145,8 @@ var cave_moss_textures: Array = []
 var cave_flora_textures: Array = []
 var lush_landmark_textures: Array = []
 var lush_canopy_textures: Array = []
+var wind_broadleaf_textures: Array = []
+var wind_glow_flower_textures: Array = []
 var decoration_alpha_bounds: Dictionary = {}
 
 @onready var shadow: CanvasModulate = $Shadow
@@ -423,10 +438,13 @@ func _build_normal_cave_foreground() -> void:
 		parallax_foreground_layer.queue_free()
 	normal_cave_foreground_root = null
 	normal_cave_foreground_material = null
-	parallax_foreground_layer = CanvasLayer.new()
+	# This is deliberately a world-space overlay, not a CanvasLayer.  The old
+	# screen-space layer was glued to the camera and could never show parallax.
+	parallax_foreground_layer = Node2D.new()
 	parallax_foreground_layer.name = "NormalCaveForeground"
-	# Above the playable cave, below the ChapterUI CanvasLayer.
-	parallax_foreground_layer.layer = 0
+	# Above Joey, his weapon and ordinary decoration, below the HUD.
+	parallax_foreground_layer.z_as_relative = false
+	parallax_foreground_layer.z_index = 8
 	add_child(parallax_foreground_layer)
 
 	var texture := load(NORMAL_CAVE_FOREGROUND_FRAME_PATH) as Texture2D
@@ -436,7 +454,10 @@ func _build_normal_cave_foreground() -> void:
 	# The normal foreground always stays locked to the top/bottom screen edges.
 	# Its modest horizontal drift has generous overscan, so it never exposes a
 	# gap while Joey moves through a room or drops down a shaft.
-	normal_cave_foreground_root = _create_overlay_root(texture, 1.18, Vector2(-0.065, 0.0))
+	# The artwork is given real pixel overscan instead of an arbitrary scale.
+	# That guarantees every visible screen edge stays covered, including while
+	# the close frame moves faster than the distant cave layers.
+	normal_cave_foreground_root = _create_overlay_root(texture, 184.0, Vector2(-0.16, 0.0))
 	normal_cave_foreground_material = ShaderMaterial.new()
 	normal_cave_foreground_material.shader = shader
 	normal_cave_foreground_material.set_shader_parameter("lush_strength", 0.0)
@@ -485,20 +506,23 @@ func _register_lush_biome_decor_density() -> void:
 	if decor_root == null or lush_biome_density.is_empty():
 		return
 	for child: Node in decor_root.get_children():
-		if not child is Sprite2D:
+		if not child is CanvasItem:
 			continue
-		var sprite: Sprite2D = child as Sprite2D
 		var weight: float = 0.0
-		match sprite.name:
+		match child.name:
 			"GeneratedFlora":
 				weight = 1.15
+			"GeneratedWindBroadleaf":
+				weight = 2.8
+			"GeneratedWindGlowFlower":
+				weight = 2.4
 			"GeneratedLushCanopy":
 				weight = 3.4
 			"GeneratedLushLandmark":
 				weight = 2.6
 			_:
 				continue
-		var grid_x: int = clampi(int(floor(sprite.global_position.x / TILE_SIZE)), 0, lush_biome_density.size() - 1)
+		var grid_x: int = clampi(int(floor(child.global_position.x / TILE_SIZE)), 0, lush_biome_density.size() - 1)
 		for offset_x: int in range(-3, 4):
 			var sample_x: int = grid_x + offset_x
 			if sample_x < 0 or sample_x >= lush_biome_density.size():
@@ -531,7 +555,7 @@ func _build_lush_biome_parallax(bounds: Rect2) -> void:
 			best_grid_x = grid_x
 	# A decorative patch alone is not a biome. This threshold selects only the
 	# dense, overlapping carpet/canopy areas created by the generator.
-	if best_grid_x < 0 or best_score < 8.0:
+	if best_grid_x < 0 or best_score < MIN_LUSH_BIOME_DENSITY:
 		return
 
 	# Keep this deliberately local: a dense lush pocket, not an all-map skin.
@@ -558,12 +582,13 @@ func _build_lush_biome_parallax(bounds: Rect2) -> void:
 	lush_biome_backdrop_layer.visible = false
 	add_child(lush_biome_backdrop_layer)
 
-	# Back to front: increasingly stronger motion, but intentionally *smaller*
-	# than the camera view.  These are distant biome accents, not enlarged UI
-	# frames; the shader feather keeps their exposed edges seamless.
-	var deep_sprite := _create_lush_biome_sprite(deep_texture, shader, 0, 0.72, Vector2(-0.009, -0.004))
-	var mid_sprite := _create_lush_biome_sprite(mid_texture, shader, 1, 0.62, Vector2(-0.030, -0.012))
-	var foreground_sprite := _create_lush_biome_sprite(foreground_texture, shader, 0, 0.58, Vector2(-0.078, -0.030))
+	# Back to front: increasingly stronger motion.  Each source is scaled from
+	# the actual viewport plus a safe overscan margin, never to a fraction of the
+	# viewport.  This keeps all four borders fully attached to the screen while
+	# retaining parallax movement.
+	var deep_sprite := _create_lush_biome_sprite(deep_texture, shader, 0, 72.0, Vector2(-0.009, -0.004))
+	var mid_sprite := _create_lush_biome_sprite(mid_texture, shader, 1, 136.0, Vector2(-0.030, -0.012))
+	var foreground_sprite := _create_lush_biome_sprite(foreground_texture, shader, 0, 184.0, Vector2(-0.11, -0.022), true)
 	foreground_sprite.visible = false
 	lush_biome_backdrop_layer.add_child(deep_sprite)
 	lush_biome_backdrop_layer.add_child(mid_sprite)
@@ -575,18 +600,14 @@ func _build_lush_biome_parallax(bounds: Rect2) -> void:
 	print("LUSH_BIOME seed=%d center_x=%.0f score=%.1f" % [active_level_seed, center_x, best_score])
 
 
-func _create_lush_biome_sprite(texture: Texture2D, shader: Shader, z_order: int, scale_multiplier: float = 1.0, parallax_factor: Vector2 = Vector2.ZERO) -> Sprite2D:
+func _create_lush_biome_sprite(texture: Texture2D, shader: Shader, z_order: int, edge_overscan: float = 0.0, parallax_factor: Vector2 = Vector2.ZERO, world_space: bool = false) -> Sprite2D:
 	var sprite := Sprite2D.new()
 	sprite.texture = texture
 	sprite.centered = true
-	sprite.position = get_viewport_rect().size * 0.5
-	var viewport_size: Vector2 = get_viewport_rect().size
-	if viewport_size == Vector2.ZERO:
-		viewport_size = Vector2(1920.0, 1080.0)
-	var texture_size := Vector2(texture.get_size())
-	var scale_factor: float = maxf(viewport_size.x / texture_size.x, viewport_size.y / texture_size.y) * scale_multiplier
-	sprite.scale = Vector2.ONE * scale_factor
+	sprite.position = _get_overlay_camera_center() if world_space else get_viewport_rect().size * 0.5
+	sprite.scale = Vector2.ONE * _get_overlay_scale(texture, edge_overscan, world_space)
 	sprite.set_meta("parallax_factor", parallax_factor)
+	sprite.set_meta("world_space_overlay", world_space)
 	sprite.z_index = z_order
 	sprite.light_mask = 0
 	var material := ShaderMaterial.new()
@@ -596,16 +617,28 @@ func _create_lush_biome_sprite(texture: Texture2D, shader: Shader, z_order: int,
 	return sprite
 
 
-func _create_overlay_root(texture: Texture2D, scale_multiplier: float, parallax_factor: Vector2) -> Node2D:
+func _create_overlay_root(texture: Texture2D, edge_overscan: float, parallax_factor: Vector2) -> Node2D:
 	var root := Node2D.new()
-	root.position = get_viewport_rect().size * 0.5
+	root.position = _get_overlay_camera_center()
+	root.scale = Vector2.ONE * _get_overlay_scale(texture, edge_overscan, true)
+	root.set_meta("parallax_factor", parallax_factor)
+	root.set_meta("world_space_overlay", true)
+	return root
+
+
+func _get_overlay_scale(texture: Texture2D, edge_overscan: float, world_space: bool) -> float:
+	# Scale from the visible viewport plus an explicit margin on every side.
+	# This is resolution/zoom independent and avoids the half-screen frames that
+	# occurred when an art-specific multiplier was used.
 	var viewport_size: Vector2 = get_viewport_rect().size
 	if viewport_size == Vector2.ZERO:
 		viewport_size = Vector2(1920.0, 1080.0)
 	var texture_size := Vector2(texture.get_size())
-	root.scale = Vector2.ONE * maxf(viewport_size.x / texture_size.x, viewport_size.y / texture_size.y) * scale_multiplier
-	root.set_meta("parallax_factor", parallax_factor)
-	return root
+	var covered_size := viewport_size + Vector2.ONE * maxf(0.0, edge_overscan) * 2.0
+	var scale_factor: float = maxf(covered_size.x / texture_size.x, covered_size.y / texture_size.y)
+	if world_space:
+		scale_factor /= _get_overlay_camera_zoom()
+	return scale_factor
 
 
 func _update_overlay_parallax(sprite: Node2D, world_position: Vector2) -> void:
@@ -613,16 +646,41 @@ func _update_overlay_parallax(sprite: Node2D, world_position: Vector2) -> void:
 	# by a small fraction of the world position, mirroring the existing cave
 	# ParallaxLayer setup: close foreground shifts fastest, distant art slowest.
 	var factor: Vector2 = sprite.get_meta("parallax_factor", Vector2.ZERO) as Vector2
+	var world_space: bool = bool(sprite.get_meta("world_space_overlay", false))
+	var motion_position: Vector2 = _get_overlay_camera_center() if world_space else world_position
 	if not sprite.has_meta("parallax_anchor"):
-		sprite.set_meta("parallax_anchor", world_position)
-	var anchor: Vector2 = sprite.get_meta("parallax_anchor", world_position) as Vector2
+		sprite.set_meta("parallax_anchor", motion_position)
+	var anchor: Vector2 = sprite.get_meta("parallax_anchor", motion_position) as Vector2
 	# Work from the local camera journey rather than absolute map coordinates.
 	# This retains a clear foreground/deep-background speed difference without
 	# ever pushing a framed texture past its safe overscan at map extremes.
-	var offset := (world_position - anchor) * factor
-	offset.x = clampf(offset.x, -105.0, 105.0)
-	offset.y = clampf(offset.y, -42.0, 42.0)
-	sprite.position = get_viewport_rect().size * 0.5 + offset
+	var offset := (motion_position - anchor) * factor
+	# World overlays are viewed through the camera zoom.  Limit their final
+	# on-screen shift rather than their raw world units, so their overscan stays
+	# valid at every zoom level and no edge can ever slip inward.
+	var screen_limit := Vector2(108.0, 38.0) if world_space else Vector2(96.0, 34.0)
+	var world_limit := screen_limit / _get_overlay_camera_zoom() if world_space else screen_limit
+	offset.x = clampf(offset.x, -world_limit.x, world_limit.x)
+	offset.y = clampf(offset.y, -world_limit.y, world_limit.y)
+	sprite.position = (motion_position if world_space else get_viewport_rect().size * 0.5) + offset
+
+
+func _get_overlay_camera_center() -> Vector2:
+	if player == null:
+		return Vector2.ZERO
+	var camera: Camera2D = player.get_node_or_null("Camera2D") as Camera2D
+	if camera != null:
+		return camera.get_screen_center_position()
+	return player.global_position
+
+
+func _get_overlay_camera_zoom() -> float:
+	if player == null:
+		return 1.0
+	var camera: Camera2D = player.get_node_or_null("Camera2D") as Camera2D
+	if camera != null:
+		return maxf(0.01, camera.zoom.x)
+	return 1.0
 
 
 func _get_lush_biome_strength(world_position: Vector2) -> float:
@@ -723,6 +781,8 @@ func _build_level() -> void:
 	_spawn_lush_canopy_zones(solid_grid_cache)
 	_spawn_generated_flora(solid_grid_cache)
 	_spawn_lush_flower_landmarks(solid_grid_cache)
+	_spawn_wind_broadleaf_plants(solid_grid_cache)
+	_spawn_wind_glow_flowers(solid_grid_cache)
 	_register_lush_biome_decor_density()
 
 	var hazards: Array = active_level.get("hazards", []) as Array
@@ -1555,7 +1615,9 @@ func _spawn_moss_tile(cell: Vector2i, patch: Dictionary, moss_rng: RandomNumberG
 	moss.flip_h = outward != Vector2i.UP and outward != Vector2i.DOWN and moss_rng.randf() < 0.34
 	# Most growth lives behind Joey; a controlled minority overlaps him so dense
 	# fern and moss pockets feel traversed rather than painted on the backdrop.
-	moss.z_index = 2 if moss_rng.randf() < 0.35 else 0
+	# A foreground patch must cover Joey and the equipped weapon together.
+	# Player weapon visuals use z=4, so front vegetation deliberately sits above.
+	moss.z_index = 6 if moss_rng.randf() < 0.35 else 0
 	moss.modulate = Color(0.82, 1.0, 0.74, 1.0)
 	decor_root.add_child(moss)
 
@@ -1767,7 +1829,7 @@ func _spawn_lush_canopy(start: Vector2i, span: int, canopy_rng: RandomNumberGene
 	# the ceiling moss rather than leaving a black separation seam.
 	sprite.position = _grid_to_world(start) + Vector2(float(span) * TILE_SIZE * 0.5, TILE_SIZE + rendered_height * 0.5 - 5.0)
 	sprite.flip_h = canopy_rng.randf() < 0.5
-	sprite.z_index = 2 if canopy_rng.randf() < 0.35 else 0
+	sprite.z_index = 6 if canopy_rng.randf() < 0.35 else 0
 	sprite.modulate = Color(0.86 + canopy_rng.randf() * 0.14, 0.94 + canopy_rng.randf() * 0.06, 0.76 + canopy_rng.randf() * 0.16, 1.0)
 	if canopy_rng.randf() < 0.42:
 		_add_lush_plant_glow(sprite, canopy_rng, 0.11, 0.18)
@@ -1839,7 +1901,7 @@ func _spawn_flora_tile(cell: Vector2i, outward: Vector2i, flora_rng: RandomNumbe
 	sprite.name = "GeneratedFlora"
 	sprite.texture = textures[selected_indices[flora_rng.randi_range(0, selected_indices.size() - 1)]] as Texture2D
 	# 35% foreground foliage deliberately crosses the player silhouette.
-	sprite.z_index = 2 if flora_rng.randf() < 0.35 else 0
+	sprite.z_index = 6 if flora_rng.randf() < 0.35 else 0
 	sprite.modulate = Color(0.78 + flora_rng.randf() * 0.18, 0.95 + flora_rng.randf() * 0.05, 0.68 + flora_rng.randf() * 0.17, 1.0)
 	if outward == Vector2i.UP:
 		sprite.position = _ground_flora_position(sprite.texture, cell, sprite.scale)
@@ -1894,6 +1956,128 @@ func _get_lush_landmark_textures() -> Array:
 	return lush_landmark_textures
 
 
+func _get_wind_broadleaf_textures() -> Array:
+	if not wind_broadleaf_textures.is_empty():
+		return wind_broadleaf_textures
+	for texture_path: String in WIND_BROADLEAF_PATHS:
+		var texture := load(texture_path) as Texture2D
+		if texture != null:
+			wind_broadleaf_textures.append(texture)
+	return wind_broadleaf_textures
+
+
+func _get_wind_glow_flower_textures() -> Array:
+	if not wind_glow_flower_textures.is_empty():
+		return wind_glow_flower_textures
+	for texture_path: String in WIND_GLOW_FLOWER_PATHS:
+		var texture := load(texture_path) as Texture2D
+		if texture != null:
+			wind_glow_flower_textures.append(texture)
+	return wind_glow_flower_textures
+
+
+func _spawn_wind_broadleaf_plants(grid: Array) -> void:
+	# The supplied four images are consecutive wind frames.  They stay rooted on
+	# the same moss-covered floor while the leaves gently sway, so the generator
+	# gains motion without a single hard-coded level placement.
+	if decor_root == null:
+		return
+	var textures: Array = _get_wind_broadleaf_textures()
+	if textures.size() != WIND_BROADLEAF_PATHS.size():
+		return
+	var plant_rng := RandomNumberGenerator.new()
+	plant_rng.seed = active_level_seed * 719 + 4177
+	var placed: int = 0
+	var claimed: Dictionary = {}
+	for grid_y: int in range(3, level_size_tiles.y - 3):
+		if placed >= 24:
+			return
+		for grid_x: int in range(4, level_size_tiles.x - 4):
+			if placed >= 24:
+				return
+			var cell := Vector2i(grid_x, grid_y)
+			var key := "%d:%d" % [cell.x, cell.y]
+			if claimed.has(key) or _is_torch_column(grid_x) or not _is_exposed_moss_face(grid, cell, Vector2i.UP) or not _has_ground_moss_shoulders(grid, cell):
+				continue
+			if plant_rng.randf() > 0.045:
+				continue
+			# Reserve shoulders so these wide leaves never stack into a rigid wall.
+			for offset_x: int in range(-2, 3):
+				claimed["%d:%d" % [cell.x + offset_x, cell.y]] = true
+			var frames := SpriteFrames.new()
+			frames.remove_animation(&"default")
+			frames.add_animation(&"wind")
+			frames.set_animation_speed(&"wind", plant_rng.randf_range(1.25, 1.75))
+			frames.set_animation_loop(&"wind", true)
+			for texture: Texture2D in textures:
+				frames.add_frame(&"wind", texture)
+			var plant := AnimatedSprite2D.new()
+			plant.name = "GeneratedWindBroadleaf"
+			plant.sprite_frames = frames
+			plant.animation = &"wind"
+			plant.frame = plant_rng.randi_range(0, textures.size() - 1)
+			plant.frame_progress = plant_rng.randf()
+			plant.scale = Vector2.ONE * plant_rng.randf_range(0.105, 0.135)
+			plant.position = _ground_flora_position(textures[0] as Texture2D, cell, plant.scale)
+			plant.flip_h = plant_rng.randf() < 0.5
+			plant.z_index = 6 if plant_rng.randf() < 0.35 else 0
+			plant.modulate = Color(0.72, 0.92, 0.78, 1.0)
+			plant.play(&"wind")
+			decor_root.add_child(plant)
+			placed += 1
+
+
+func _spawn_wind_glow_flowers(grid: Array) -> void:
+	# The yellow buds use their supplied four wind frames. Their visible roots
+	# are aligned to the moss surface, and the authored bright buds get only a
+	# restrained HDR tint — no gameplay light is spawned for each flower.
+	if decor_root == null:
+		return
+	var textures: Array = _get_wind_glow_flower_textures()
+	if textures.size() != WIND_GLOW_FLOWER_PATHS.size():
+		return
+	var flower_rng := RandomNumberGenerator.new()
+	flower_rng.seed = active_level_seed * 911 + 6029
+	var placed: int = 0
+	var claimed: Dictionary = {}
+	for grid_y: int in range(3, level_size_tiles.y - 3):
+		if placed >= 18:
+			return
+		for grid_x: int in range(4, level_size_tiles.x - 4):
+			if placed >= 18:
+				return
+			var cell := Vector2i(grid_x, grid_y)
+			var key := "%d:%d" % [cell.x, cell.y]
+			if claimed.has(key) or _is_torch_column(grid_x) or not _is_exposed_moss_face(grid, cell, Vector2i.UP) or not _has_ground_moss_shoulders(grid, cell):
+				continue
+			if flower_rng.randf() > 0.032:
+				continue
+			for offset_x: int in range(-2, 3):
+				claimed["%d:%d" % [cell.x + offset_x, cell.y]] = true
+			var frames := SpriteFrames.new()
+			frames.remove_animation(&"default")
+			frames.add_animation(&"wind")
+			frames.set_animation_speed(&"wind", flower_rng.randf_range(0.95, 1.30))
+			frames.set_animation_loop(&"wind", true)
+			for texture: Texture2D in textures:
+				frames.add_frame(&"wind", texture)
+			var flower := AnimatedSprite2D.new()
+			flower.name = "GeneratedWindGlowFlower"
+			flower.sprite_frames = frames
+			flower.animation = &"wind"
+			flower.frame = flower_rng.randi_range(0, textures.size() - 1)
+			flower.frame_progress = flower_rng.randf()
+			flower.scale = Vector2.ONE * flower_rng.randf_range(0.092, 0.118)
+			flower.position = _ground_flora_position(textures[0] as Texture2D, cell, flower.scale)
+			flower.flip_h = flower_rng.randf() < 0.5
+			flower.z_index = 6 if flower_rng.randf() < 0.35 else 0
+			flower.modulate = Color(0.82, 0.98, 0.66, 1.0)
+			flower.self_modulate = Color(1.10, 1.04, 0.82, 1.0)
+			flower.play(&"wind")
+			decor_root.add_child(flower)
+			placed += 1
+
+
 func _spawn_lush_landmark(cell: Vector2i, landmark_rng: RandomNumberGenerator) -> void:
 	var textures: Array = _get_lush_landmark_textures()
 	if decor_root == null or textures.is_empty():
@@ -1904,7 +2088,7 @@ func _spawn_lush_landmark(cell: Vector2i, landmark_rng: RandomNumberGenerator) -
 	sprite.flip_h = landmark_rng.randf() < 0.5
 	sprite.scale = Vector2.ONE * landmark_rng.randf_range(1.18, 1.42)
 	sprite.position = _ground_flora_position(sprite.texture, cell, sprite.scale)
-	sprite.z_index = 2 if landmark_rng.randf() < 0.35 else 0
+	sprite.z_index = 6 if landmark_rng.randf() < 0.35 else 0
 	sprite.modulate = Color(0.92 + landmark_rng.randf() * 0.08, 0.92 + landmark_rng.randf() * 0.08, 1.0, 1.0)
 	if landmark_rng.randf() < 0.82:
 		_add_lush_plant_glow(sprite, landmark_rng, 0.22, 0.34)
@@ -1932,6 +2116,26 @@ func _add_lush_plant_glow(sprite: Sprite2D, glow_rng: RandomNumberGenerator, min
 	sprite.add_child(glow)
 
 
+func _spawn_lush_glimmer(world_position: Vector2, glimmer_rng: RandomNumberGenerator, z_order: int) -> void:
+	if decor_root == null:
+		return
+	var texture := load(PLANT_GLOW_TEXTURE_PATH) as Texture2D
+	if texture == null:
+		return
+	var glimmer := Sprite2D.new()
+	glimmer.name = "LushGlimmer"
+	glimmer.texture = texture
+	glimmer.global_position = world_position + Vector2(glimmer_rng.randf_range(-8.0, 8.0), glimmer_rng.randf_range(-5.0, 5.0))
+	# Slight HDR modulation intentionally crosses the Environment glow threshold.
+	# This yields a gentle bloom halo without creating a real light source.
+	glimmer.scale = Vector2.ONE * glimmer_rng.randf_range(0.035, 0.060)
+	glimmer.modulate = Color(0.46, 1.0, 0.42, glimmer_rng.randf_range(0.45, 0.72))
+	glimmer.self_modulate = Color(1.25, 1.65, 1.10, 1.0)
+	glimmer.light_mask = 0
+	glimmer.z_index = z_order
+	decor_root.add_child(glimmer)
+
+
 func _is_vine_anchor(grid: Array, grid_x: int, grid_y: int) -> bool:
 	return _is_solid(grid, grid_x, grid_y) and not _is_solid(grid, grid_x, grid_y + 1) and not _is_torch_column(grid_x)
 
@@ -1953,6 +2157,7 @@ func _spawn_vine_trail(grid_x: int, grid_y: int, segment_count: int, rotation: f
 	# the first sprig never appears to float away from the cave ceiling.
 	var start_position := _grid_to_world(Vector2i(grid_x, grid_y)) + Vector2(16.0, 5.0)
 	var horizontal_drift: float = clampf(rotation * 34.0, -18.0, 18.0)
+	var foreground_vine: bool = rng.randf() < 0.35
 	for segment_index: int in range(segment_count):
 		var vine: Node2D = VINE_SCENE.instantiate() as Node2D
 		if vine == null:
@@ -1973,6 +2178,7 @@ func _spawn_vine_trail(grid_x: int, grid_y: int, segment_count: int, rotation: f
 		# in prozeduralen Hoehlen; nur die kleinen Winkelabweichungen kommen
 		# vom Generator.
 		vine.rotation = PI + rotation + sin(float(segment_index) * 0.9) * 0.10
+		vine.z_index = 6 if foreground_vine else 0
 		vine.modulate = Color(0.5, 0.9, 0.46, 1.0)
 		if segment_index % 3 == 0:
 			vine.self_modulate = Color(0.72, 1.04, 0.68, 1.0)
@@ -1983,6 +2189,16 @@ func _spawn_vine_trail(grid_x: int, grid_y: int, segment_count: int, rotation: f
 			# dominating the 2D light pass.
 			vine_light.visible = false
 			vine_light.shadow_enabled = false
+	# A few large hanging clusters carry small magical specks.  They are unlit
+	# sprites (not PointLight2D nodes), so they receive the project bloom without
+	# adding hundreds of dynamic lighting passes.
+	if segment_count >= 6 and rng.randf() < 0.62:
+		var glimmer_count: int = rng.randi_range(2, 4)
+		for glimmer_index: int in range(glimmer_count):
+			var progress: float = float(glimmer_index + 1) / float(glimmer_count + 1)
+			var glimmer_y: float = progress * float(segment_count - 1) * 22.0
+			var glimmer_x: float = horizontal_drift * progress + sin(progress * 8.0 + rotation) * 10.0
+			_spawn_lush_glimmer(start_position + Vector2(glimmer_x, glimmer_y), rng, 6 if foreground_vine else 0)
 
 
 func _is_torch_column(grid_x: int) -> bool:
