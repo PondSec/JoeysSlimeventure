@@ -1,0 +1,32 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Chapter/Boss/crystal_orb.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://Assets/Light/torch_light.png" id="2_light"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_orb"]
+radius = 10.0
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_hurt"]
+radius = 11.0
+
+[node name="CrystalOrb" type="Area2D"]
+collision_layer = 0
+collision_mask = 3
+monitorable = false
+script = ExtResource("1_script")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+position = Vector2(0, -3)
+scale = Vector2(0.34, 0.34)
+texture_filter = 1
+
+[node name="PointLight2D" type="PointLight2D" parent="."]
+position = Vector2(0, -3)
+color = Color(0.25, 0.9, 1, 1)
+energy = 0.24
+texture = ExtResource("2_light")
+texture_scale = 0.34
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, -3)
+shape = SubResource("CircleShape2D_orb")

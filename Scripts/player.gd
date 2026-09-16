@@ -315,8 +315,8 @@ var attack_targets_hit := {}
 var combo_damage_multipliers: Array[float] = []
 var combo_knockback_strengths: Array[float] = []
 var combo_lunge_strengths: Array[float] = []
-var combo_active_times := [0.10, 0.11, 0.13]
-var combo_recovery_times := [0.10, 0.10, 0.13]
+var combo_active_times := [0.28, 0.30, 0.33]
+var combo_recovery_times := [0.12, 0.12, 0.15]
 const ATTACK_REACH_SCALES := [2.1, 2.3, 2.5]
 const ATTACK_FORWARD_OFFSETS := [200.0, 230.0, 260.0]
 const WEAPON_IDLE_POSITION := Vector2(38.0, 24.0)
@@ -1526,7 +1526,10 @@ func _update_runtime_character_animation(delta: float) -> void:
 func _start_weapon_attack_animation(step: int) -> void:
 	weapon_visual_step = clampi(step, 0, WEAPON_ATTACK_PROFILES.size() - 1)
 	weapon_visual_anim_time = 0.0
-	weapon_visual_anim_duration = maxf(combo_active_times[weapon_visual_step] + combo_recovery_times[weapon_visual_step] + 0.16, 0.42)
+	# The visual swing and the damaging part use the same active interval.
+	# This keeps the collision bound to the visible blade rather than to a
+	# leftover wide area from the old attack effect.
+	weapon_visual_anim_duration = maxf(combo_active_times[weapon_visual_step], 0.28)
 	weapon_hold_timer = WEAPON_HOLD_AFTER_ATTACK
 	weapon_visibility_alpha = 1.0
 	weapon_transform_history.clear()
@@ -2739,6 +2742,8 @@ func _try_attack_hit(body: Node) -> void:
 		return
 	if not (target_body.is_in_group("enemies") or target_body.is_in_group("players")):
 		return
+	if target_body.is_in_group("enemies") and not _is_target_on_visible_blade(target_body):
+		return
 
 	var body_id: int = target_body.get_instance_id()
 	if attack_targets_hit.has(body_id):
@@ -2781,6 +2786,24 @@ func _try_attack_hit(body: Node) -> void:
 		_spawn_feedback_text("CRIT %d" % int(damage), Color(1.0, 0.84, 0.38), 1.35)
 	else:
 		_spawn_feedback_text(str(int(damage)), Color(1.0, 0.62, 0.5), 1.0)
+
+
+func _is_target_on_visible_blade(target: Node2D) -> bool:
+	if equipped_weapon_sprite == null or not equipped_weapon_sprite.visible:
+		return false
+	var phase := _weapon_visual_phase()
+	# Only the actual forward sweep can deal damage; wind-up and sheathing do not.
+	if phase < 0.30 or phase > 0.72:
+		return false
+	var grip := weapon_grip_offset_runtime
+	var blade_start := equipped_weapon_sprite.to_global(grip + Vector2(-5.0, 5.0))
+	var blade_tip := equipped_weapon_sprite.to_global(grip + Vector2(14.0, -14.0))
+	var closest := Geometry2D.get_closest_point_to_segment(target.global_position, blade_start, blade_tip)
+	var target_radius := 10.0
+	var configured_radius: Variant = target.get("melee_hit_radius")
+	if configured_radius is float or configured_radius is int:
+		target_radius = float(configured_radius)
+	return target.global_position.distance_to(closest) <= target_radius + 3.0
 
 
 func _apply_hero_hit_feedback(target_body: Node2D, is_crit: bool, landed_finisher: bool) -> void:

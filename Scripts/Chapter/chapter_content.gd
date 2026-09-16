@@ -634,10 +634,10 @@ static func _chapter_one_levels() -> Array:
 			],
 			"worm_count": 0,
 			"boss": {
-				"type": "slime_king",
+				"type": "kristallruecken",
 				"x": 58,
 				"y": 26
 			},
-			"boss_exit_message": "Der Schleimkoenig zerfliesst. Eine neue Tuere antwortet tief im Hub."
+			"boss_exit_message": "Kristallruecken zerfaellt. Eine blaue Energiebahn weist Joey zum Portal."
 		}
 	]

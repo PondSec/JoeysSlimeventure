@@ -11,8 +11,23 @@ enum State {
 	DEAD
 }
 
-const SHEET := preload("res://Assets/Enemy/Irrlichtkaefer/irrlichtkaefer_sheet.png")
 const LIGHT_TEXTURE := preload("res://Assets/Light/torch_light.png")
+const IDLE_FRAMES := [
+	preload("res://Assets/Enemy/Irrlichtkaefer/individual/idle_00.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/idle_01.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/idle_02.png"),
+	preload("res://Assets/Enemy/Irrlichtkaefer/individual/idle_03.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/idle_04.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/idle_05.png")
+]
+const WALK_FRAMES := [
+	preload("res://Assets/Enemy/Irrlichtkaefer/individual/walk_00.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/walk_01.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/walk_02.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/walk_03.png"),
+	preload("res://Assets/Enemy/Irrlichtkaefer/individual/walk_04.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/walk_05.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/walk_06.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/walk_07.png")
+]
+const ATTACK_FRAMES := [
+	preload("res://Assets/Enemy/Irrlichtkaefer/individual/attack_00.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/attack_01.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/attack_02.png"),
+	preload("res://Assets/Enemy/Irrlichtkaefer/individual/attack_03.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/attack_04.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/attack_05.png")
+]
+const DEATH_FRAMES := [
+	preload("res://Assets/Enemy/Irrlichtkaefer/individual/death_00.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/death_01.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/death_02.png"),
+	preload("res://Assets/Enemy/Irrlichtkaefer/individual/death_03.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/death_04.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/death_05.png")
+]
 const CONTACT_COOLDOWN := 0.85
 const BASE_SCALE := Vector2(0.18, 0.18)
 const GRAVITY := 980.0
@@ -59,7 +74,7 @@ func _ready() -> void:
 	_sync_player_reference()
 	hitbox.body_entered.connect(_on_hitbox_body_entered)
 	sprite.scale = BASE_SCALE
-	sprite.play(&"hover")
+	sprite.play(&"walk")
 
 
 func _physics_process(delta: float) -> void:
@@ -173,9 +188,9 @@ func _enter_state(next_state: State) -> void:
 			sprite.play(&"attack")
 		State.RECOVER:
 			orbit_side *= -1.0
-			sprite.play(&"hover")
+			sprite.play(&"walk")
 		State.PATROL, State.STALK:
-			sprite.play(&"hover")
+			sprite.play(&"walk")
 
 
 func _should_notice_player() -> bool:
@@ -274,23 +289,17 @@ func _die() -> void:
 
 func _build_sprite_frames() -> void:
 	var frames := SpriteFrames.new()
-	_add_row_frames(frames, &"idle", 0.0, 222.0, 6, 6.0, false)
-	_add_row_frames(frames, &"hover", 222.0, 235.0, 8, 9.0, true)
-	_add_row_frames(frames, &"attack", 457.0, 240.0, 6, 13.0, false)
-	_add_row_frames(frames, &"death", 707.0, 180.0, 6, 9.0, false)
+	_add_frames(frames, &"idle", IDLE_FRAMES, 6.0, true)
+	_add_frames(frames, &"walk", WALK_FRAMES, 9.0, true)
+	_add_frames(frames, &"attack", ATTACK_FRAMES, 13.0, false)
+	_add_frames(frames, &"death", DEATH_FRAMES, 9.0, false)
 	sprite.sprite_frames = frames
-	sprite.animation = &"hover"
+	sprite.animation = &"walk"
 
 
-func _add_row_frames(frames: SpriteFrames, animation_name: StringName, y: float, height: float, columns: int, fps: float, loop: bool) -> void:
+func _add_frames(frames: SpriteFrames, animation_name: StringName, textures: Array, fps: float, loop: bool) -> void:
 	frames.add_animation(animation_name)
 	frames.set_animation_speed(animation_name, fps)
 	frames.set_animation_loop(animation_name, loop)
-	var sheet_size := SHEET.get_size()
-	for column in range(columns):
-		var x_start := roundf(float(column) * sheet_size.x / float(columns))
-		var x_end := roundf(float(column + 1) * sheet_size.x / float(columns))
-		var atlas := AtlasTexture.new()
-		atlas.atlas = SHEET
-		atlas.region = Rect2(x_start, y, x_end - x_start, height)
-		frames.add_frame(animation_name, atlas)
+	for texture: Texture2D in textures:
+		frames.add_frame(animation_name, texture)

@@ -16,7 +16,8 @@ const CAVE_BAT_SCENE := preload("res://Scenes/Chapter/Enemies/cave_bat.tscn")
 const GLOWCAP_SCENE := preload("res://Scenes/Chapter/Enemies/glowcap.tscn")
 const IRRLICHTKAEFER_SCENE := preload("res://Scenes/Chapter/Enemies/irrlichtkaefer.tscn")
 const ENEMY_AWARENESS_INDICATOR := preload("res://Scripts/Chapter/Enemies/enemy_awareness_indicator.gd")
-const SLIME_KING_SCENE := preload("res://Scenes/Chapter/Enemies/slime_king.tscn")
+const KRISTALLRUECKEN_SCENE := preload("res://Scenes/Chapter/Enemies/kristallruecken.tscn")
+const MAGIC_ENERGY_TRAIL := preload("res://Scripts/Chapter/Boss/magic_energy_trail.gd")
 const ESSENCE_FRAGMENT_SCENE := preload("res://Scenes/Chapter/Pickups/essence_fragment.tscn")
 const TORCH_SCENE := preload("res://Scenes/torch.tscn")
 const SPIKE_SCENE := preload("res://Scenes/SpikeNormal.tscn")
@@ -104,6 +105,8 @@ var player: CharacterBody2D
 var pause_menu: CanvasLayer
 var transition_locked: bool = false
 var boss_gate_revealed: bool = false
+var boss_portal_source := Vector2.ZERO
+var boss_energy_trail: Node2D
 var backdrop_root: Node2D
 var level_root: Node2D
 var wall_tiles: TileMapLayer
@@ -2877,17 +2880,16 @@ func _spawn_boss_if_needed() -> void:
 		return
 
 	var boss_data: Dictionary = active_level.get("boss", {}) as Dictionary
-	var boss: Node2D = SLIME_KING_SCENE.instantiate() as Node2D
+	var boss: Node2D = KRISTALLRUECKEN_SCENE.instantiate() as Node2D
 	if boss == null:
 		return
 
 	enemy_root.add_child(boss)
 	boss.global_position = _grid_to_world(Vector2i(int(boss_data.get("x", 58)), int(boss_data.get("y", 26)))) + Vector2(16.0, -14.0)
 	boss.connect("health_changed", Callable(self, "_on_boss_health_changed"))
-	boss.connect("defeated", Callable(self, "_on_boss_defeated"))
-	boss_bar.visible = true
-	boss_name.visible = true
-	boss_name.text = "KOENIG DER HOEHLENSCHLEIME"
+	boss.connect("death_animation_finished", Callable(self, "_on_boss_death_animation_finished").bind(boss))
+	boss_bar.visible = false
+	boss_name.visible = false
 
 
 func _position_player_at_spawn() -> void:
@@ -3186,20 +3188,27 @@ func _on_story_trigger_entered(body: Node2D, trigger_id: String, message: String
 
 
 func _on_boss_health_changed(current_health_value: int, max_health_value: int) -> void:
-	boss_bar.max_value = float(max_health_value)
-	boss_bar.value = float(current_health_value)
+	# Kristallruecken owns the intentionally small world-space life bar above
+	# its head. Keep the legacy screen-wide bar disabled.
+	boss_bar.visible = false
+	boss_name.visible = false
 
 
-func _on_boss_defeated() -> void:
+func _on_boss_death_animation_finished(boss: Node2D) -> void:
+	if boss_gate_revealed:
+		return
 	boss_gate_revealed = true
+	boss_portal_source = boss.global_position + Vector2(0.0, -26.0)
 	if exit_gate != null:
 		exit_gate.visible = true
 		exit_gate.call("configure_exit_gate", "Zurueck zum Hub", "Kapitel I abgeschlossen", Color(0.92, 0.96, 0.58, 1.0), Callable(self, "_complete_level"))
+		exit_gate.connect("arrival_finished", Callable(self, "_on_boss_portal_arrival_finished"), CONNECT_ONE_SHOT)
+		exit_gate.call("begin_boss_arrival")
 
 	boss_name.visible = false
 	boss_bar.visible = false
 
-	var exit_message: String = str(active_level.get("boss_exit_message", "Die Hoehle wird still."))
+	var exit_message: String = str(active_level.get("boss_exit_message", "Kristallruecken zerfaellt. Eine blaue Spur weist den Weg."))
 	if player != null and player.has_method("_show_feedback_toast"):
 		player.call("_show_feedback_toast", exit_message, "reward", null)
 	if player != null and player.has_method("_show_feedback_banner"):
@@ -3216,7 +3225,19 @@ func _on_boss_defeated() -> void:
 		var spread_x: float = (-24.0 + float(drop_index) * 24.0) + rng.randf_range(-8.0, 8.0)
 		var spread_y: float = rng.randf_range(-18.0, 8.0)
 		pickup.global_position = reward_origin + Vector2(spread_x, spread_y)
-		pickup.set("toast_text", "Koenigliche Essenz geborgen.")
+		pickup.set("toast_text", "Kristallessenz geborgen.")
+
+
+func _on_boss_portal_arrival_finished() -> void:
+	if exit_gate == null:
+		return
+	if boss_energy_trail != null and is_instance_valid(boss_energy_trail):
+		boss_energy_trail.queue_free()
+	boss_energy_trail = MAGIC_ENERGY_TRAIL.new() as Node2D
+	if boss_energy_trail == null:
+		return
+	add_child(boss_energy_trail)
+	boss_energy_trail.call("configure", boss_portal_source, exit_gate.global_position + Vector2(0.0, -24.0))
 
 
 func _complete_level() -> void:

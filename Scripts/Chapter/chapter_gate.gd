@@ -1,5 +1,7 @@
 extends Node2D
 
+signal arrival_finished
+
 const FEEDBACK_FONT_PATH := "res://Assets/GUI/Font/PixelatedEleganceRegular-ovyAA.ttf"
 const ChapterContent := preload("res://Scripts/Chapter/chapter_content.gd")
 const PORTAL_SHEET := preload("res://Assets/Door/portal_entry_sheet.png")
@@ -25,6 +27,8 @@ var feedback_font: FontFile
 var occupying_player: Node2D
 var sprite_base_position: Vector2 = Vector2.ZERO
 var is_activating: bool = false
+var is_arriving: bool = false
+var arrival_elapsed := 0.0
 
 @onready var sprite: AnimatedSprite2D = $PortalSprite
 @onready var light: PointLight2D = $PointLight2D
@@ -76,9 +80,41 @@ func _process(delta: float) -> void:
 	light.energy = lerpf(light.energy, _target_light_energy(), delta * 4.0)
 	var base_scale: float = 0.92 if not player_in_range else 0.98
 	light.texture_scale = lerpf(light.texture_scale, base_scale + sin(local_time * 2.1) * 0.02, delta * 3.0)
+	if is_arriving:
+		arrival_elapsed += delta
+		var total_frames := sprite.sprite_frames.get_frame_count(&"enter") if sprite.sprite_frames != null else 0
+		# Completion follows the terminal animation frame, with a narrow time
+		# fallback for low-FPS/headless runs where AnimatedSprite2D does not emit
+		# its completion signal. The portal is still non-interactable throughout.
+		if (total_frames > 0 and sprite.frame >= total_frames - 1) or arrival_elapsed >= 1.55:
+			_complete_boss_arrival()
 
-	if player_in_range and not is_activating and interact_cooldown <= 0.0 and Input.is_action_just_pressed("Interact"):
+	if player_in_range and not is_activating and not is_arriving and interact_cooldown <= 0.0 and Input.is_action_just_pressed("Interact"):
 		_activate_gate()
+
+
+func begin_boss_arrival() -> void:
+	if is_arriving:
+		return
+	is_arriving = true
+	arrival_elapsed = 0.0
+	prompt_label.visible = false
+	area.set_deferred("monitoring", false)
+	sprite.frame = 0
+	sprite.play(&"enter")
+
+
+func _complete_boss_arrival() -> void:
+	if not is_arriving:
+		return
+	if not is_inside_tree():
+		return
+	is_arriving = false
+	sprite.pause()
+	area.set_deferred("monitoring", true)
+	if player_in_range:
+		prompt_label.visible = true
+	arrival_finished.emit()
 
 
 func _apply_theme() -> void:

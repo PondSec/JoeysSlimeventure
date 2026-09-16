@@ -1,0 +1,41 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Chapter/Boss/kristallruecken.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://Assets/Light/torch_light.png" id="2_light"]
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_body"]
+radius = 32.0
+height = 88.0
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_hitbox"]
+size = Vector2(76, 72)
+
+[node name="Kristallruecken" type="CharacterBody2D"]
+collision_layer = 1
+collision_mask = 2
+script = ExtResource("1_script")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, -44)
+shape = SubResource("CapsuleShape2D_body")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+position = Vector2(0, -63)
+scale = Vector2(0.55, 0.55)
+texture_filter = 1
+
+[node name="PointLight2D" type="PointLight2D" parent="."]
+position = Vector2(12, -56)
+color = Color(0.28, 1, 0.73, 1)
+energy = 0.1
+texture = ExtResource("2_light")
+texture_scale = 0.66
+
+[node name="BodyHitbox" type="Area2D" parent="."]
+collision_layer = 0
+collision_mask = 1
+monitorable = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="BodyHitbox"]
+position = Vector2(0, -42)
+shape = SubResource("RectangleShape2D_hitbox")
