@@ -1873,17 +1873,43 @@ func _carve_polyline_corridor(grid: Array, points: Array, width_tiles: int) -> v
 
 
 func _carve_tunnel(grid: Array, from_node: Vector2i, to_node: Vector2i, width_tiles: int) -> void:
-	var current_x: int = from_node.x
-	var current_y: int = from_node.y
-	var step_x: int = 1 if to_node.x >= current_x else -1
-	while current_x != to_node.x:
-		_carve_rect(grid, current_x - 1, current_y - int(width_tiles / 2), width_tiles, width_tiles)
-		current_x += step_x
-	var step_y: int = 1 if to_node.y >= current_y else -1
-	while current_y != to_node.y:
-		_carve_rect(grid, current_x - int(width_tiles / 2), current_y - 1, width_tiles, width_tiles)
-		current_y += step_y
-	_carve_rect(grid, to_node.x - int(width_tiles / 2), to_node.y - int(width_tiles / 2), width_tiles, width_tiles)
+	# Kanten des abstrakten Routen-Graphen werden als bewegte Hoehlenader
+	# ausgeraeumt, nie mehr als horizontaler Block plus senkrechter Block.
+	# Die Sinus-Auslenkung ist an den Enden null und bewahrt deshalb exakt die
+	# validierten Plattformanker; dazwischen sorgt sie fuer Richtungsinertie.
+	var delta := Vector2(to_node - from_node)
+	var distance: float = delta.length()
+	if distance <= 0.1:
+		_carve_cave_disc(grid, Vector2(from_node), maxf(1.5, float(width_tiles) * 0.5))
+		return
+	var direction := delta / distance
+	var normal := Vector2(-direction.y, direction.x)
+	var sample_count: int = maxi(2, int(ceil(distance * 1.35)))
+	var base_radius: float = maxf(1.5, float(width_tiles) * 0.42)
+	var bend: float = minf(2.4, distance * 0.13) * (1.0 if ((from_node.x * 13 + from_node.y * 7 + to_node.x) % 2) == 0 else -1.0)
+	for sample_index: int in range(sample_count + 1):
+		var t: float = float(sample_index) / float(sample_count)
+		var center := Vector2(from_node).lerp(Vector2(to_node), t)
+		# Eine volle, weich auslaufende Kurve statt zufaelliger Knicke.
+		center += normal * sin(t * PI) * bend
+		var radius_wave: float = sin(t * PI * 2.0 + float((from_node.x + to_node.y) % 5)) * 0.34
+		var radius: float = clampf(base_radius + radius_wave, maxf(1.4, base_radius - 0.5), base_radius + 0.5)
+		_carve_cave_disc(grid, center, radius)
+
+
+func _carve_cave_disc(grid: Array, center: Vector2, radius: float) -> void:
+	var min_x: int = maxi(0, int(floor(center.x - radius)))
+	var max_x: int = mini(level_size.x - 1, int(ceil(center.x + radius)))
+	var min_y: int = maxi(0, int(floor(center.y - radius)))
+	var max_y: int = mini(level_size.y - 1, int(ceil(center.y + radius)))
+	var radius_squared: float = radius * radius
+	for grid_y: int in range(min_y, max_y + 1):
+		var row: PackedByteArray = grid[grid_y] as PackedByteArray
+		for grid_x: int in range(min_x, max_x + 1):
+			var offset := Vector2(float(grid_x) + 0.5, float(grid_y) + 0.5) - center
+			if offset.length_squared() <= radius_squared:
+				row[grid_x] = 0
+		grid[grid_y] = row
 
 
 func _stamp_all_platforms(grid: Array) -> void:
