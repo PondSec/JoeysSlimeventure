@@ -12,7 +12,8 @@ func _run() -> void:
 	var progress: Node = root.get_node("/root/ChapterProgress")
 	progress.reset_progress()
 	progress.active_chapter = 1
-	progress.active_level_index = 0
+	var level_index := _read_level_index()
+	progress.active_level_index = level_index
 	progress.save_progress()
 
 	root.size = Vector2i(1920, 1080)
@@ -58,7 +59,7 @@ func _run() -> void:
 		if screenshot == null or screenshot.is_empty():
 			push_error("CAPTURE_FAIL overview: renderer returned no image; run without --headless.")
 		else:
-			var output_path := "user://chapter_level1_overview_seed_%d.png" % int(level_scene.get("active_level_seed"))
+			var output_path := "user://chapter_level%d_overview_seed_%d.png" % [level_index + 1, int(level_scene.get("active_level_seed"))]
 			var result := screenshot.save_png(output_path)
 			print("CAPTURE overview seed=%d path=%s result=%d" % [int(level_scene.get("active_level_seed")), output_path, result])
 
@@ -68,7 +69,20 @@ func _run() -> void:
 
 
 func _read_seed_override() -> int:
-	for argument: String in OS.get_cmdline_user_args():
+	var arguments := OS.get_cmdline_user_args()
+	for argument: String in arguments:
 		if argument.begins_with("--seed="):
 			return int(argument.trim_prefix("--seed="))
+		if argument.begins_with("seed="):
+			return int(argument.trim_prefix("seed="))
 	return -1
+
+
+func _read_level_index() -> int:
+	var arguments := OS.get_cmdline_user_args()
+	for argument: String in arguments:
+		if argument.begins_with("--level="):
+			return maxi(0, int(argument.trim_prefix("--level=")) - 1)
+		if argument.begins_with("level="):
+			return maxi(0, int(argument.trim_prefix("level=")) - 1)
+	return 0
