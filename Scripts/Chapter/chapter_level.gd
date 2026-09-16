@@ -1112,35 +1112,68 @@ func _spawn_cave_collision_mesh(grid: Array) -> void:
 
 
 func _spawn_generated_overgrowth(grid: Array) -> void:
-	var vine_columns: int = 0
-	for grid_x: int in range(2, level_size_tiles.x - 2):
-		for grid_y: int in range(1, level_size_tiles.y - 6):
-			if not _is_solid(grid, grid_x, grid_y):
+	# Ranken wachsen als kleine, zusammenhaengende Bueschel an natuerlichen
+	# Decken- und Schachtkanten. Einzelne, gleich lange Rasterlinien wirkten wie
+	# Markierungen; unterschiedliche Laengen und versetzte Begleittriebe geben
+	# den Hoehlen das dichte, gemuetliche Dschungel-Gefuehl der Referenz.
+	var cluster_count: int = 0
+	var previous_cluster_x: int = -99
+	for grid_x: int in range(3, level_size_tiles.x - 4):
+		if grid_x - previous_cluster_x < 6:
+			continue
+		for grid_y: int in range(2, level_size_tiles.y - 9):
+			if not _is_vine_anchor(grid, grid_x, grid_y) or rng.randf() > 0.13:
 				continue
-			if _is_solid(grid, grid_x, grid_y + 1):
+			var primary_length: int = rng.randi_range(4, 8)
+			if not _has_vine_clearance(grid, grid_x, grid_y, primary_length):
 				continue
-			if _is_torch_column(grid_x) or rng.randf() > 0.065:
-				continue
-			var segment_count: int = rng.randi_range(3, 6)
-			for segment_index: int in range(segment_count):
-				var vine: Node2D = VINE_SCENE.instantiate() as Node2D
-				if vine == null:
-					continue
-				decor_root.add_child(vine)
-				vine.global_position = _grid_to_world(Vector2i(grid_x, grid_y + 1 + segment_index)) + Vector2(16.0, 0.0)
-			vine_columns += 1
-			# A nearby companion column makes the canopy feel grown together,
-			# while each vertical segment remains visually connected to the next.
-			if rng.randf() < 0.42 and grid_x + 2 < level_size_tiles.x - 2 and _is_solid(grid, grid_x + 2, grid_y) and not _is_solid(grid, grid_x + 2, grid_y + 1) and not _is_torch_column(grid_x + 2):
-				for companion_segment in range(maxi(2, segment_count - 1)):
-					var companion: Node2D = VINE_SCENE.instantiate() as Node2D
-					if companion != null:
-						decor_root.add_child(companion)
-						companion.global_position = _grid_to_world(Vector2i(grid_x + 2, grid_y + 1 + companion_segment)) + Vector2(16.0, 0.0)
-				vine_columns += 1
-			if vine_columns >= 14:
+			_spawn_vine_trail(grid_x, grid_y + 1, primary_length, 0.0, 0.22)
+
+			var companion_offset: int = -1 if rng.randf() < 0.5 else 1
+			var companion_x: int = grid_x + companion_offset
+			var companion_length: int = maxi(2, primary_length - rng.randi_range(1, 3))
+			if _has_vine_clearance(grid, companion_x, grid_y, companion_length):
+				_spawn_vine_trail(companion_x, grid_y + 1 + rng.randi_range(0, 1), companion_length, float(companion_offset) * 0.10, 0.16)
+
+			# Ein dritter, kurzer Trieb bricht die Symmetrie und verbindet die
+			# Saeulen optisch zu einem einzelnen organischen Bueschel.
+			if rng.randf() < 0.58:
+				var tendril_x: int = grid_x - companion_offset
+				var tendril_length: int = rng.randi_range(2, 4)
+				if _has_vine_clearance(grid, tendril_x, grid_y, tendril_length):
+					_spawn_vine_trail(tendril_x, grid_y + 2, tendril_length, float(-companion_offset) * 0.16, 0.12)
+			previous_cluster_x = grid_x
+			cluster_count += 1
+			if cluster_count >= 9:
 				return
 			break
+
+
+func _is_vine_anchor(grid: Array, grid_x: int, grid_y: int) -> bool:
+	return _is_solid(grid, grid_x, grid_y) and not _is_solid(grid, grid_x, grid_y + 1) and not _is_torch_column(grid_x)
+
+
+func _has_vine_clearance(grid: Array, grid_x: int, anchor_y: int, length: int) -> bool:
+	if grid_x < 2 or grid_x >= level_size_tiles.x - 2:
+		return false
+	for offset_y: int in range(1, length + 2):
+		if _is_solid(grid, grid_x, anchor_y + offset_y):
+			return false
+	return true
+
+
+func _spawn_vine_trail(grid_x: int, grid_y: int, segment_count: int, rotation: float, light_energy: float) -> void:
+	for segment_index: int in range(segment_count):
+		var vine: Node2D = VINE_SCENE.instantiate() as Node2D
+		if vine == null:
+			continue
+		decor_root.add_child(vine)
+		vine.global_position = _grid_to_world(Vector2i(grid_x, grid_y + segment_index)) + Vector2(16.0, 0.0)
+		vine.rotation = rotation
+		vine.modulate = Color(0.5, 1.0, 0.46, 1.0)
+		var vine_light: PointLight2D = vine.get_node_or_null("PointLight2D") as PointLight2D
+		if vine_light != null:
+			vine_light.energy = light_energy
 
 
 func _is_torch_column(grid_x: int) -> bool:
