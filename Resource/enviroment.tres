@@ -3,13 +3,13 @@
 [resource]
 background_mode = 3
 glow_enabled = true
-glow_levels/1 = 0.8
-glow_levels/2 = 0.6
-glow_levels/3 = 0.3
-glow_intensity = 1.42
-glow_bloom = 0.28
+glow_levels/1 = 0.42
+glow_levels/2 = 0.22
+glow_levels/3 = 0.08
+glow_intensity = 0.76
+glow_bloom = 0.08
 glow_blend_mode = 0
-glow_hdr_threshold = 0.56
+glow_hdr_threshold = 0.95
 fog_mode = 1
 fog_light_color = Color(0.541176, 0.666667, 0.780392, 1)
 fog_density = 0.02

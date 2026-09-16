@@ -56,8 +56,12 @@ const PARALLAX_FX_TEXTURE_PATHS := [
 	"res://Assets/Parallax Cave/6fx.png",
 	"res://Assets/Parallax Cave/3fx.png"
 ]
-const LUSH_ATMOSPHERE_PATH := "res://Assets/Parallax Cave/Lush/lush_atmosphere.png"
-const LUSH_WATERFALL_ATMOSPHERE_PATH := "res://Assets/Parallax Cave/Lush/lush_waterfall_atmosphere.png"
+const LUSH_PARALLAX_FRAME_PATHS := [
+	"res://Assets/Parallax Cave/Lush/lush_mist_far.png",
+	"res://Assets/Parallax Cave/Lush/lush_arch_soft.png",
+	"res://Assets/Parallax Cave/Lush/lush_arch_dense.png",
+	"res://Assets/Parallax Cave/Lush/lush_shadow_frame.png"
+]
 
 const WORLD_BOUND_LEFT_PADDING := 128.0
 const WORLD_BOUND_RIGHT_PADDING := 128.0
@@ -314,6 +318,9 @@ func _build_parallax_background() -> void:
 			sprite.centered = false
 			sprite.position = Vector2(float(index) * float(texture.get_width()), 0.0)
 			sprite.modulate = Color(1.0, 1.0, 1.0, float(texture_setting.get("alpha", 1.0)))
+			# Point lights are gameplay illumination. They must never wash the
+			# distant parallax into a bright flat screen.
+			sprite.light_mask = 0
 			layer.add_child(sprite)
 
 		var fx_path: String = str(texture_setting.get("fx_path", ""))
@@ -326,6 +333,7 @@ func _build_parallax_background() -> void:
 					fx_sprite.centered = false
 					fx_sprite.position = Vector2(float(index) * float(texture.get_width()), 0.0)
 					fx_sprite.modulate = Color(1.0, 1.0, 1.0, float(texture_setting.get("fx_alpha", 0.1)))
+					fx_sprite.light_mask = 0
 					layer.add_child(fx_sprite)
 
 		parallax_layer_entries.append({
@@ -379,6 +387,7 @@ func _rebuild_backdrop_shapes(bounds: Rect2) -> void:
 		var width: float = rng.randf_range(60.0, 130.0)
 		var height: float = rng.randf_range(90.0, 210.0)
 		stalactite.color = Color(0.08, 0.12, 0.16, 0.28)
+		stalactite.light_mask = 0
 		stalactite.polygon = PackedVector2Array([
 			Vector2(start_x, bounds.position.y - 40.0),
 			Vector2(start_x + width, bounds.position.y - 40.0),
@@ -392,6 +401,7 @@ func _rebuild_backdrop_shapes(bounds: Rect2) -> void:
 		var width: float = rng.randf_range(70.0, 150.0)
 		var height: float = rng.randf_range(70.0, 180.0)
 		stalagmite.color = Color(0.1, 0.14, 0.19, 0.24)
+		stalagmite.light_mask = 0
 		stalagmite.polygon = PackedVector2Array([
 			Vector2(start_x, bounds.end.y + 30.0),
 			Vector2(start_x + width, bounds.end.y + 30.0),
@@ -406,10 +416,15 @@ func _build_local_lush_atmosphere(bounds: Rect2) -> void:
 	# Lushness is regional, not a global screen overlay. Each seed gets a few
 	# broad, deliberately separated pockets; the rest keeps the normal cave
 	# backdrop. The feathered material makes their border disappear into rock.
-	var atmosphere: Texture2D = load(LUSH_ATMOSPHERE_PATH) as Texture2D
-	var waterfall_atmosphere: Texture2D = load(LUSH_WATERFALL_ATMOSPHERE_PATH) as Texture2D
 	var fade_shader: Shader = load("res://Shaders/lush_atmosphere_fade.gdshader") as Shader
-	if atmosphere == null or fade_shader == null:
+	if fade_shader == null:
+		return
+	var parallax_frames: Array[Texture2D] = []
+	for texture_path: String in LUSH_PARALLAX_FRAME_PATHS:
+		var frame: Texture2D = load(texture_path) as Texture2D
+		if frame != null:
+			parallax_frames.append(frame)
+	if parallax_frames.is_empty():
 		return
 
 	var region_rng := RandomNumberGenerator.new()
@@ -419,26 +434,23 @@ func _build_local_lush_atmosphere(bounds: Rect2) -> void:
 		var progression_ratio: float = (float(index) + 0.7) / float(region_count + 1)
 		var horizontal_jitter: float = region_rng.randf_range(-0.075, 0.075)
 		var vertical_jitter: float = region_rng.randf_range(-0.10, 0.10)
-		# The richer waterfall vista is reserved for a single regional landmark.
-		# It remains deliberately dimmer than the broad atmospheric variant.
-		var use_waterfall_vista: bool = waterfall_atmosphere != null and index == region_count - 1
 		var region := Sprite2D.new()
 		region.name = "LushAtmosphereRegion%d" % index
-		region.texture = waterfall_atmosphere if use_waterfall_vista else atmosphere
+		region.texture = parallax_frames[(index + region_rng.randi_range(0, parallax_frames.size() - 1)) % parallax_frames.size()]
 		region.centered = true
 		region.position = Vector2(
 			bounds.position.x + bounds.size.x * clampf(progression_ratio + horizontal_jitter, 0.16, 0.84),
 			bounds.position.y + bounds.size.y * (0.46 + vertical_jitter)
 		)
-		var scale_factor: float = region_rng.randf_range(0.57, 0.69)
+		var scale_factor: float = region_rng.randf_range(0.55, 0.67)
 		region.scale = Vector2(scale_factor, scale_factor)
-		var atmosphere_alpha: float = region_rng.randf_range(0.20, 0.27) if use_waterfall_vista else region_rng.randf_range(0.25, 0.34)
-		region.modulate = Color(0.68, 0.96, 0.75, atmosphere_alpha)
+		region.modulate = Color(0.72, 0.88, 0.76, region_rng.randf_range(0.16, 0.25))
 		var material := ShaderMaterial.new()
 		material.shader = fade_shader
 		material.set_shader_parameter("horizontal_fade", region_rng.randf_range(0.15, 0.22))
 		material.set_shader_parameter("vertical_fade", region_rng.randf_range(0.08, 0.14))
 		region.material = material
+		region.light_mask = 0
 		# This root is rendered behind tile geometry, hazards and Joey. The lush
 		# image adds atmospheric depth but can never hide collision or gameplay.
 		region.z_index = -3
@@ -1692,13 +1704,13 @@ func _add_lush_plant_glow(sprite: Sprite2D, glow_rng: RandomNumberGenerator, min
 		return
 	# Values above one cross the HDR threshold used by the existing environment,
 	# producing a soft bloom only on this selected plant rather than globally.
-	sprite.self_modulate = Color(0.98, glow_rng.randf_range(1.42, 1.68), glow_rng.randf_range(0.92, 1.08), 1.0)
+	sprite.self_modulate = Color(0.92, glow_rng.randf_range(1.02, 1.12), glow_rng.randf_range(0.84, 0.96), 1.0)
 	var glow := PointLight2D.new()
 	glow.name = "LushPlantGlow"
 	glow.texture = glow_texture
 	glow.position = Vector2(0.0, -8.0)
-	glow.texture_scale = glow_rng.randf_range(0.38, 0.56)
-	glow.energy = glow_rng.randf_range(min_energy, max_energy)
+	glow.texture_scale = glow_rng.randf_range(0.30, 0.42)
+	glow.energy = glow_rng.randf_range(min_energy * 0.52, max_energy * 0.52)
 	glow.color = Color(0.56 + glow_rng.randf() * 0.16, 1.0, 0.48 + glow_rng.randf() * 0.16, 1.0)
 	glow.shadow_enabled = false
 	sprite.add_child(glow)
@@ -1742,12 +1754,12 @@ func _spawn_vine_trail(grid_x: int, grid_y: int, segment_count: int, rotation: f
 		# in prozeduralen Hoehlen; nur die kleinen Winkelabweichungen kommen
 		# vom Generator.
 		vine.rotation = PI + rotation + sin(float(segment_index) * 0.9) * 0.10
-		vine.modulate = Color(0.5, 1.0, 0.46, 1.0)
+		vine.modulate = Color(0.5, 0.9, 0.46, 1.0)
 		if segment_index % 3 == 0:
-			vine.self_modulate = Color(0.78, 1.42, 0.72, 1.0)
+			vine.self_modulate = Color(0.72, 1.04, 0.68, 1.0)
 		var vine_light: PointLight2D = vine.get_node_or_null("PointLight2D") as PointLight2D
 		if vine_light != null:
-			vine_light.energy = light_energy
+			vine_light.energy = light_energy * 0.55
 
 
 func _is_torch_column(grid_x: int) -> bool:

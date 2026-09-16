@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cgsbxha2506ov"
-path="res://.godot/imported/lush_atmosphere.png-f18576a54bb61c22ccc11ad617bc05ea.ctex"
+uid="uid://c6lqtvqqwg71o"
+path="res://.godot/imported/lush_shadow_frame.png-65d3f693af3fc047e6ee7b2bc5e3931e.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Assets/Parallax Cave/Lush/lush_atmosphere.png"
-dest_files=["res://.godot/imported/lush_atmosphere.png-f18576a54bb61c22ccc11ad617bc05ea.ctex"]
+source_file="res://Assets/Parallax Cave/Lush/lush_shadow_frame.png"
+dest_files=["res://.godot/imported/lush_shadow_frame.png-65d3f693af3fc047e6ee7b2bc5e3931e.ctex"]
 
 [params]
 

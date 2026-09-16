@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cubuslujnxbqv"
-path="res://.godot/imported/lush_waterfall_atmosphere.png-77eed658b8ffc6cfb6e49fd7b6f36beb.ctex"
+uid="uid://cdti2u5kar4nw"
+path="res://.godot/imported/lush_arch_dense.png-f4ae640198c1b3fac7a0e121e0eacec8.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Assets/Parallax Cave/Lush/lush_waterfall_atmosphere.png"
-dest_files=["res://.godot/imported/lush_waterfall_atmosphere.png-77eed658b8ffc6cfb6e49fd7b6f36beb.ctex"]
+source_file="res://Assets/Parallax Cave/Lush/lush_arch_dense.png"
+dest_files=["res://.godot/imported/lush_arch_dense.png-f4ae640198c1b3fac7a0e121e0eacec8.ctex"]
 
 [params]
 
