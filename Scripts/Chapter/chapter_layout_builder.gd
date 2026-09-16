@@ -489,17 +489,17 @@ func _stamp_network_rock_islands(grid: Array, main_path: Array, side_lines: Arra
 	var placed := 0
 	for grid_y: int in range(ROOM_PADDING_TILES + 4, level_size.y - ROOM_PADDING_TILES - 4, 3):
 		for grid_x: int in range(ROOM_PADDING_TILES + 4, level_size.x - ROOM_PADDING_TILES - 4, 4):
-			if placed >= 12:
+			if placed >= 16:
 				return
 			var signature: int = abs(grid_x * 37 + grid_y * 19 + seed * 7)
 			if signature % 11 != 0:
 				continue
 			var center := Vector2i(grid_x, grid_y)
-			if _network_point_near_route(center, protected_points, 2.75):
+			if _network_point_near_route(center, protected_points, 3.5):
 				continue
-			if not _network_open_area(grid, center, 1, 1):
+			if not _network_open_area(grid, center, 2, 2):
 				continue
-			_stamp_organic_rock(grid, center, 2 if signature % 3 == 0 else 1, 2 if (signature / 5) % 2 == 0 else 1)
+			_stamp_network_outcrop(grid, center, signature)
 			placed += 1
 
 
@@ -528,6 +528,28 @@ func _stamp_network_hanging_rocks(grid: Array, main_path: Array, side_lines: Arr
 				continue
 			_stamp_organic_rock(grid, center, 1 + int(signature % 4 == 0), 1 + int(signature % 7 == 0))
 			placed += 1
+
+
+func _stamp_network_outcrop(grid: Array, center: Vector2i, signature: int) -> void:
+	# Compact random-walk masses make believable, non-rectangular breccia. They
+	# deliberately share edges, so terrain cleanup retains them as real rock.
+	var cells: Dictionary = {"%d:%d" % [center.x, center.y]: center}
+	var cursor: Vector2i = center
+	var directions: Array[Vector2i] = [Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT, Vector2i.UP]
+	var target_cells: int = 6 + signature % 7
+	for step: int in range(target_cells):
+		var direction: Vector2i = directions[(signature + step * 3 + int(abs(cursor.x * 5 + cursor.y * 7))) % directions.size()]
+		var candidate: Vector2i = cursor + direction
+		if abs(candidate.x - center.x) > 3 or abs(candidate.y - center.y) > 2 or not _network_open_area(grid, candidate, 0, 0):
+			candidate = cursor + directions[(signature + step + 1) % directions.size()]
+		if abs(candidate.x - center.x) <= 3 and abs(candidate.y - center.y) <= 2 and _network_open_area(grid, candidate, 0, 0):
+			cells["%d:%d" % [candidate.x, candidate.y]] = candidate
+			cursor = candidate
+	for cell_variant: Variant in cells.values():
+		var cell: Vector2i = cell_variant as Vector2i
+		var row: PackedByteArray = grid[cell.y] as PackedByteArray
+		row[cell.x] = 1
+		grid[cell.y] = row
 
 
 func _network_point_near_route(point: Vector2i, routes: Array, radius: float) -> bool:
@@ -625,8 +647,9 @@ func _network_exploration_anchors(path: Array, side_lines: Array) -> Array:
 	for line_variant: Variant in side_lines:
 		var line: Array = line_variant as Array
 		if line.size() >= 3:
-			anchors.append(line[int(line.size() * 0.58)] as Vector2i)
-	for ratio: float in [0.22, 0.40, 0.61, 0.79]:
+			anchors.append(line[int(line.size() * 0.32)] as Vector2i)
+			anchors.append(line[int(line.size() * 0.68)] as Vector2i)
+	for ratio: float in [0.16, 0.30, 0.46, 0.61, 0.78, 0.89]:
 		if path.size() >= 3:
 			anchors.append(path[clampi(int(float(path.size() - 1) * ratio), 1, path.size() - 2)] as Vector2i)
 	return anchors
@@ -651,7 +674,7 @@ func _network_place_enemies(path: Array, side_lines: Array) -> Array:
 	var source: Array = level_data.get("enemies", []) as Array
 	var anchors: Array = _network_exploration_anchors(path, side_lines)
 	var placed: Array = []
-	var extra_bats: int = 4 + int(_level_progress() >= 0.30) + int(_level_progress() >= 0.62)
+	var extra_bats: int = 6 + int(_level_progress() >= 0.30) + int(_level_progress() >= 0.62)
 	var total: int = mini(anchors.size(), source.size() + extra_bats)
 	for index: int in range(total):
 		var enemy: Dictionary = (source[index] as Dictionary).duplicate(true) if index < source.size() else {"type": "bat", "bonus_spawn": true}
@@ -683,11 +706,11 @@ func _network_place_hazards(path: Array) -> Array:
 func _network_place_torches(path: Array, hubs: Array) -> Array:
 	var source: Array = level_data.get("torches", []) as Array
 	var placed: Array = []
-	var total: int = maxi(4, source.size())
+	var total: int = maxi(8 + int(_level_progress() >= 0.45), source.size() + 4)
 	for index: int in range(total):
-		var anchor: Vector2i = hubs[clampi(1 + index * 2, 1, hubs.size() - 2)] as Vector2i
+		var anchor: Vector2i = hubs[clampi(1 + (index * 3) % (hubs.size() - 2), 1, hubs.size() - 2)] as Vector2i
 		var brightness: float = float((source[index % source.size()] as Dictionary).get("brightness", 1.0)) if not source.is_empty() else 1.0
-		placed.append({"x": anchor.x - 2, "y": anchor.y - 1, "brightness": brightness})
+		placed.append({"x": anchor.x - 2 + (index % 3) - 1, "y": anchor.y - 1 - (index % 2), "brightness": brightness})
 	return placed
 
 
