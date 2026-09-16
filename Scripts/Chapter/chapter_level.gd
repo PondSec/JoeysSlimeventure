@@ -107,6 +107,9 @@ var exit_gate: Node2D
 var parallax_background: ParallaxBackground
 var parallax_base_fill: Polygon2D
 var parallax_layer_entries: Array = []
+var lush_parallax_canvas: CanvasLayer
+var lush_parallax_sprites: Array[Sprite2D] = []
+var lush_parallax_regions: Array[Rect2] = []
 var feedback_font: FontFile
 var cave_tiles_texture: Texture2D
 var cave_tileset: TileSet
@@ -159,6 +162,10 @@ func _ready() -> void:
 	_position_player_at_spawn()
 	_grant_level_one_mobility()
 	_show_level_intro()
+
+
+func _process(delta: float) -> void:
+	_update_lush_parallax_visibility(delta)
 
 
 func _resolve_level_seed() -> int:
@@ -413,9 +420,13 @@ func _rebuild_backdrop_shapes(bounds: Rect2) -> void:
 
 
 func _build_local_lush_atmosphere(bounds: Rect2) -> void:
-	# Lushness is regional, not a global screen overlay. Each seed gets a few
-	# broad, deliberately separated pockets; the rest keeps the normal cave
-	# backdrop. The feathered material makes their border disappear into rock.
+	# Lushness is regional, not a global screen overlay. This is its own canvas
+	# below the game world: it therefore stays normally visible in dark caves,
+	# but no player, torch or plant light can brighten it.
+	if lush_parallax_canvas != null:
+		lush_parallax_canvas.queue_free()
+	lush_parallax_sprites.clear()
+	lush_parallax_regions.clear()
 	var fade_shader: Shader = load("res://Shaders/lush_atmosphere_fade.gdshader") as Shader
 	if fade_shader == null:
 		return
@@ -426,6 +437,14 @@ func _build_local_lush_atmosphere(bounds: Rect2) -> void:
 			parallax_frames.append(frame)
 	if parallax_frames.is_empty():
 		return
+	lush_parallax_canvas = CanvasLayer.new()
+	lush_parallax_canvas.name = "LushParallaxCanvas"
+	lush_parallax_canvas.layer = -2
+	add_child(lush_parallax_canvas)
+	move_child(lush_parallax_canvas, 0)
+	var screen_size: Vector2 = get_viewport_rect().size
+	if screen_size == Vector2.ZERO:
+		screen_size = Vector2(1920.0, 1080.0)
 
 	var region_rng := RandomNumberGenerator.new()
 	region_rng.seed = int(active_level_seed) * 811 + 97
@@ -434,17 +453,20 @@ func _build_local_lush_atmosphere(bounds: Rect2) -> void:
 		var progression_ratio: float = (float(index) + 0.7) / float(region_count + 1)
 		var horizontal_jitter: float = region_rng.randf_range(-0.075, 0.075)
 		var vertical_jitter: float = region_rng.randf_range(-0.10, 0.10)
+		var region_center := Vector2(
+			bounds.position.x + bounds.size.x * clampf(progression_ratio + horizontal_jitter, 0.16, 0.84),
+			bounds.position.y + bounds.size.y * (0.46 + vertical_jitter)
+		)
+		lush_parallax_regions.append(Rect2(region_center - Vector2(bounds.size.x * 0.20, bounds.size.y * 0.65), Vector2(bounds.size.x * 0.40, bounds.size.y * 1.30)))
 		var region := Sprite2D.new()
 		region.name = "LushAtmosphereRegion%d" % index
 		region.texture = parallax_frames[(index + region_rng.randi_range(0, parallax_frames.size() - 1)) % parallax_frames.size()]
 		region.centered = true
-		region.position = Vector2(
-			bounds.position.x + bounds.size.x * clampf(progression_ratio + horizontal_jitter, 0.16, 0.84),
-			bounds.position.y + bounds.size.y * (0.46 + vertical_jitter)
-		)
-		var scale_factor: float = region_rng.randf_range(0.55, 0.67)
-		region.scale = Vector2(scale_factor, scale_factor)
-		region.modulate = Color(0.72, 0.88, 0.76, region_rng.randf_range(0.16, 0.25))
+		region.position = screen_size * 0.5
+		var texture_size := Vector2(region.texture.get_size())
+		var scale_factor: float = maxf(screen_size.x / texture_size.x, screen_size.y / texture_size.y) * 1.10
+		region.scale = Vector2.ONE * scale_factor
+		region.modulate = Color(0.88, 0.96, 0.88, 0.0)
 		var material := ShaderMaterial.new()
 		material.shader = fade_shader
 		material.set_shader_parameter("horizontal_fade", region_rng.randf_range(0.15, 0.22))
@@ -453,8 +475,23 @@ func _build_local_lush_atmosphere(bounds: Rect2) -> void:
 		region.light_mask = 0
 		# This root is rendered behind tile geometry, hazards and Joey. The lush
 		# image adds atmospheric depth but can never hide collision or gameplay.
-		region.z_index = -3
-		backdrop_root.add_child(region)
+		region.z_index = -1
+		lush_parallax_canvas.add_child(region)
+		lush_parallax_sprites.append(region)
+
+
+func _update_lush_parallax_visibility(delta: float) -> void:
+	if lush_parallax_canvas == null or player == null:
+		return
+	var active_region: int = -1
+	for index: int in range(lush_parallax_regions.size()):
+		if lush_parallax_regions[index].has_point(player.global_position):
+			active_region = index
+			break
+	for index: int in range(lush_parallax_sprites.size()):
+		var sprite: Sprite2D = lush_parallax_sprites[index]
+		var target_alpha: float = 0.78 if index == active_region else 0.0
+		sprite.modulate.a = move_toward(sprite.modulate.a, target_alpha, delta * 0.62)
 
 
 func _spawn_player() -> void:
