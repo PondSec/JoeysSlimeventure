@@ -10,6 +10,9 @@ const TOAST_INFO_ICON_PATH := "res://Assets/GUI/Icons/Polish/toast_info.png"
 const TOAST_REWARD_ICON_PATH := "res://Assets/GUI/Icons/Polish/toast_reward.png"
 const TOAST_WARNING_ICON_PATH := "res://Assets/GUI/Icons/Polish/toast_warning.png"
 const TOAST_ERROR_ICON_PATH := "res://Assets/GUI/Icons/Polish/toast_error.png"
+const CAVE_HEALTH_FRAME := preload("res://Assets/UI/Health/cave_frame.png")
+const LUSH_HEALTH_FRAME := preload("res://Assets/UI/Health/lush_frame.png")
+const HEALTH_FILL := preload("res://Assets/UI/Health/fill.png")
 const MAX_VISIBLE_TOASTS := 4
 const TOAST_LABELS := {
 	"info": "SYSTEM",
@@ -63,6 +66,8 @@ var error_icon: Texture2D
 var current_health_value := 0.0
 var low_health_warning_cooldown := 0.0
 var banner_tween: Tween
+var cave_health_frame: TextureRect
+var lush_health_frame: TextureRect
 
 
 func _ready() -> void:
@@ -75,6 +80,7 @@ func _ready() -> void:
 	warning_icon = load(TOAST_WARNING_ICON_PATH)
 	error_icon = load(TOAST_ERROR_ICON_PATH)
 
+	_setup_biome_health_skin()
 	_setup_health_chip_bar()
 	_setup_fullscreen_feedback()
 	_setup_toasts()
@@ -84,6 +90,60 @@ func _ready() -> void:
 	current_health_value = health_bar.value
 	_apply_health_visuals(_get_health_ratio(current_health_value, health_bar.max_value))
 	_sync_label_text(int(current_health_value), int(health_bar.max_value))
+	add_to_group("biome_aware_ui")
+
+
+func _exit_tree() -> void:
+	remove_from_group("biome_aware_ui")
+
+
+## Called by ChapterLevel together with parallax and the other HUD skins.
+func set_biome_weight(theme_id: String, weight: float) -> void:
+	if theme_id != "lush" or cave_health_frame == null or lush_health_frame == null:
+		return
+	var blend := clampf(weight, 0.0, 1.0)
+	cave_health_frame.modulate.a = 1.0 - blend
+	lush_health_frame.modulate.a = blend
+
+
+func _setup_biome_health_skin() -> void:
+	if health_bar == null:
+		return
+	cave_health_frame = _create_health_frame(CAVE_HEALTH_FRAME, "CaveHealthFrame", Vector2(20.0, 10.0))
+	lush_health_frame = _create_health_frame(LUSH_HEALTH_FRAME, "LushHealthFrame", Vector2(20.0, 10.0))
+	add_child(cave_health_frame)
+	add_child(lush_health_frame)
+	move_child(cave_health_frame, health_bar.get_index())
+	move_child(lush_health_frame, health_bar.get_index())
+	lush_health_frame.modulate.a = 0.0
+
+	# Only the fill is a progress control. The frame is an untouched pixel asset
+	# above it, so its detail remains crisp while value animations stay intact.
+	health_bar.position = Vector2(65.0, 41.0)
+	health_bar.size = Vector2(250.0, 25.0)
+	health_bar.texture_under = null
+	health_bar.texture_progress = HEALTH_FILL
+	health_bar.nine_patch_stretch = true
+	health_bar.stretch_margin_left = 12
+	health_bar.stretch_margin_right = 12
+	health_bar.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	health_bar.z_index = 2
+	health_label.position = Vector2(45.0, 17.0)
+	health_label.z_index = 4
+
+
+func _create_health_frame(texture: Texture2D, node_name: String, frame_position: Vector2) -> TextureRect:
+	var frame := TextureRect.new()
+	frame.name = node_name
+	frame.texture = texture
+	frame.position = frame_position
+	frame.size = texture.get_size()
+	frame.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	frame.stretch_mode = TextureRect.STRETCH_KEEP
+	frame.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	frame.z_index = 0
+	return frame
 
 
 func _process(delta: float) -> void:

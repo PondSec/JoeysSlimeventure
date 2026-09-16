@@ -484,8 +484,7 @@ editor_draw_drag_margin = true
 script = ExtResource("12_4e8m4")
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
-layer = 20
-layer = 2
+layer = 60
 script = ExtResource("11_4apbi")
 
 [node name="ProgressBar" type="ProgressBar" parent="CanvasLayer"]
@@ -513,15 +512,18 @@ offset_bottom = -11.0
 [node name="InvUI" parent="CanvasLayer" instance=ExtResource("15_qbc48")]
 
 [node name="HotBar" type="Control" parent="CanvasLayer"]
-modulate = Color(1, 1, 1, 0.705882)
-custom_minimum_size = Vector2(40, 40)
 layout_mode = 3
-anchors_preset = 0
-offset_left = 665.0
-offset_top = 575.0
-offset_right = 705.0
-offset_bottom = 615.0
-scale = Vector2(4, 4)
+anchors_preset = 12
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -527.5
+offset_top = -212.0
+offset_right = 527.5
+offset_bottom = -20.0
+grow_horizontal = 2
+grow_vertical = 0
 script = ExtResource("17_1u0f7")
 
 [node name="NinePatchRect2" type="NinePatchRect" parent="CanvasLayer/HotBar"]

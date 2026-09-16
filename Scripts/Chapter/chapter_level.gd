@@ -223,10 +223,17 @@ func _process(delta: float) -> void:
 	# cave the same depth response as the lush frame.
 	if normal_cave_foreground_root != null:
 		_update_overlay_parallax(normal_cave_foreground_root, player.global_position)
-	if lush_biome_sprites.is_empty():
-		return
-	var target_strength := _get_lush_biome_strength(player.global_position)
+	# UI skins deliberately share the same eased strength as the parallax,
+	# rather than evaluating their own biome boundaries.  This keeps every
+	# visual transition perfectly synchronized and lets future biome UIs join
+	# through the biome_aware_ui group.
+	var target_strength := _get_lush_biome_strength(player.global_position) if not lush_biome_sprites.is_empty() else 0.0
 	lush_biome_strength = move_toward(lush_biome_strength, target_strength, delta * 0.72)
+	get_tree().call_group("biome_aware_ui", "set_biome_weight", "lush", lush_biome_strength)
+	if lush_biome_sprites.is_empty():
+		if normal_cave_foreground_material != null:
+			normal_cave_foreground_material.set_shader_parameter("lush_strength", lush_biome_strength)
+		return
 	var should_be_visible: bool = lush_biome_strength > 0.003 or target_strength > 0.003
 	if lush_biome_backdrop_layer != null:
 		lush_biome_backdrop_layer.visible = should_be_visible

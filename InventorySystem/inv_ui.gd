@@ -10,6 +10,8 @@ const UI_BORDER_SOFT := Color(0.2, 0.33, 0.4, 1.0)
 const UI_OUTLINE := Color(0.01, 0.02, 0.05, 1.0)
 const UI_TEXT := Color(0.9, 0.98, 0.94, 1.0)
 const UI_TEXT_MUTED := Color(0.65, 0.8, 0.76, 1.0)
+const CAVE_INVENTORY_PANEL := preload("res://Assets/UI/Inventory/cave_panel.png")
+const LUSH_INVENTORY_PANEL := preload("res://Assets/UI/Inventory/lush_panel.png")
 
 @export var slot_scene: PackedScene
 
@@ -37,6 +39,7 @@ var dragging_origin: Dictionary = {}
 var dragging_item: Control = null
 var dragging_slot_ref: Dictionary = {}
 var hovered_slot_ref: Dictionary = {}
+var biome_panel_skins: Array[Dictionary] = []
 
 
 func _ready() -> void:
@@ -46,7 +49,9 @@ func _ready() -> void:
 		slot_scene = preload("res://InventorySystem/slot.tscn")
 
 	_apply_styles()
+	_build_biome_skin()
 	_build_slot_views()
+	add_to_group("biome_aware_ui")
 
 	inv.update.connect(update_slots)
 	inv.load_inventory(save_path)
@@ -55,6 +60,49 @@ func _ready() -> void:
 
 	add_child(tooltip)
 	tooltip.visible = false
+
+
+func _exit_tree() -> void:
+	remove_from_group("biome_aware_ui")
+
+
+## Receives the exact same eased strength as cave/lush parallax and hotbar.
+func set_biome_weight(theme_id: String, weight: float) -> void:
+	if theme_id != "lush":
+		return
+	var blend := clampf(weight, 0.0, 1.0)
+	for skin_pair in biome_panel_skins:
+		(skin_pair["cave"] as TextureRect).modulate.a = 1.0 - blend
+		(skin_pair["lush"] as TextureRect).modulate.a = blend
+
+
+func _build_biome_skin() -> void:
+	# Build each functional region separately.  Unlike the previous backdrop,
+	# no pre-composed inventory sheet sits behind the controls: every panel and
+	# every slot owns an isolated cave/lush pixel asset.
+	var panels: Array[PanelContainer] = [preview_panel, equipment_panel, bag_panel, hotbar_panel]
+	for panel: PanelContainer in panels:
+		var cave_skin := _create_biome_panel(CAVE_INVENTORY_PANEL, "CaveSkin")
+		var lush_skin := _create_biome_panel(LUSH_INVENTORY_PANEL, "LushSkin")
+		panel.add_child(cave_skin)
+		panel.add_child(lush_skin)
+		panel.move_child(cave_skin, 0)
+		panel.move_child(lush_skin, 1)
+		lush_skin.modulate.a = 0.0
+		biome_panel_skins.append({"cave": cave_skin, "lush": lush_skin})
+
+
+func _create_biome_panel(texture: Texture2D, node_name: String) -> TextureRect:
+	var skin := TextureRect.new()
+	skin.name = node_name
+	skin.texture = texture
+	skin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	skin.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	skin.stretch_mode = TextureRect.STRETCH_SCALE
+	skin.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	skin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	skin.z_index = -1
+	return skin
 
 
 func _process(_delta: float) -> void:
@@ -312,11 +360,14 @@ func _create_dragging_item(item: InvItem) -> Control:
 
 func _apply_styles() -> void:
 	backdrop.color = Color(0.0, 0.0, 0.0, 0.76)
-	root_panel.add_theme_stylebox_override("panel", _make_flat_style(UI_ROOT_BG, UI_BORDER_SOFT.lightened(0.15), 4, 8, 14))
-	preview_panel.add_theme_stylebox_override("panel", _make_flat_style(UI_SECTION_BG, UI_BORDER, 2, 6, 6))
-	equipment_panel.add_theme_stylebox_override("panel", _make_flat_style(UI_SECTION_BG_ALT, UI_BORDER_SOFT.lightened(0.08), 2, 6, 6))
-	bag_panel.add_theme_stylebox_override("panel", _make_flat_style(UI_SECTION_BG, UI_BORDER_SOFT, 2, 6, 6))
-	hotbar_panel.add_theme_stylebox_override("panel", _make_flat_style(UI_SECTION_BG_ALT, UI_BORDER_SOFT, 2, 6, 6))
+	# The supplied pixel-art sheets provide the visible frame. Containers keep
+	# their layout and interaction behavior, but no longer paint a competing
+	# flat card on top of it.
+	root_panel.add_theme_stylebox_override("panel", _make_flat_style(Color(0.0, 0.0, 0.0, 0.0), Color.TRANSPARENT, 0, 0, 0))
+	preview_panel.add_theme_stylebox_override("panel", _make_flat_style(Color(0.0, 0.0, 0.0, 0.0), Color.TRANSPARENT, 0, 0, 0))
+	equipment_panel.add_theme_stylebox_override("panel", _make_flat_style(Color(0.0, 0.0, 0.0, 0.0), Color.TRANSPARENT, 0, 0, 0))
+	bag_panel.add_theme_stylebox_override("panel", _make_flat_style(Color(0.0, 0.0, 0.0, 0.0), Color.TRANSPARENT, 0, 0, 0))
+	hotbar_panel.add_theme_stylebox_override("panel", _make_flat_style(Color(0.0, 0.0, 0.0, 0.0), Color.TRANSPARENT, 0, 0, 0))
 
 
 func _style_label(label: Label, font_size: int, color: Color, outline_size: int) -> void:
