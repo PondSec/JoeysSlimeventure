@@ -41,6 +41,7 @@ const CAVE_TILE_SIZE := Vector2i(32, 32)
 const CAVE_TEXTURE_PATH := "res://Assets/Tiles/platformertiles.png"
 const DEBUG_OVERLAY_TOGGLE_KEY := KEY_F2
 const TILE_DEBUG_TOGGLE_KEY := KEY_F3
+const GENERATED_PLANT_LIGHTS_ENABLED := false
 
 const PARALLAX_TEXTURE_PATHS := [
 	"res://Assets/Parallax Cave/1.png",
@@ -50,17 +51,10 @@ const PARALLAX_TEXTURE_PATHS := [
 	"res://Assets/Parallax Cave/7.png",
 	"res://Assets/Parallax Cave/9.png"
 ]
-
 const PARALLAX_FX_TEXTURE_PATHS := [
 	"res://Assets/Parallax Cave/8fx.png",
 	"res://Assets/Parallax Cave/6fx.png",
 	"res://Assets/Parallax Cave/3fx.png"
-]
-const LUSH_PARALLAX_FRAME_PATHS := [
-	"res://Assets/Parallax Cave/Lush/lush_mist_far.png",
-	"res://Assets/Parallax Cave/Lush/lush_arch_soft.png",
-	"res://Assets/Parallax Cave/Lush/lush_arch_dense.png",
-	"res://Assets/Parallax Cave/Lush/lush_shadow_frame.png"
 ]
 
 const WORLD_BOUND_LEFT_PADDING := 128.0
@@ -107,9 +101,6 @@ var exit_gate: Node2D
 var parallax_background: ParallaxBackground
 var parallax_base_fill: Polygon2D
 var parallax_layer_entries: Array = []
-var lush_parallax_canvas: CanvasLayer
-var lush_parallax_sprites: Array[Sprite2D] = []
-var lush_parallax_regions: Array[Rect2] = []
 var feedback_font: FontFile
 var cave_tiles_texture: Texture2D
 var cave_tileset: TileSet
@@ -156,16 +147,14 @@ func _ready() -> void:
 	_spawn_pause_menu()
 	_build_level()
 	runtime_play_bounds = _calculate_play_bounds_rect()
+	# Keep the established normal cave depth. The retired lush overlay was a
+	# separate CanvasLayer and is intentionally not recreated here.
 	_build_parallax_background()
 	_configure_runtime_view()
 	await get_tree().process_frame
 	_position_player_at_spawn()
 	_grant_level_one_mobility()
 	_show_level_intro()
-
-
-func _process(delta: float) -> void:
-	_update_lush_parallax_visibility(delta)
 
 
 func _resolve_level_seed() -> int:
@@ -319,14 +308,14 @@ func _build_parallax_background() -> void:
 		layer.motion_mirroring = Vector2(float(texture.get_width()), 0.0)
 		parallax_background.add_child(layer)
 
+		# The renderer culls each Sprite2D outside the camera. Four copies retain
+		# the seamless existing horizontal loop without a per-frame script.
 		for index: int in range(4):
 			var sprite := Sprite2D.new()
 			sprite.texture = texture
 			sprite.centered = false
 			sprite.position = Vector2(float(index) * float(texture.get_width()), 0.0)
 			sprite.modulate = Color(1.0, 1.0, 1.0, float(texture_setting.get("alpha", 1.0)))
-			# Point lights are gameplay illumination. They must never wash the
-			# distant parallax into a bright flat screen.
 			sprite.light_mask = 0
 			layer.add_child(sprite)
 
@@ -343,10 +332,7 @@ func _build_parallax_background() -> void:
 					fx_sprite.light_mask = 0
 					layer.add_child(fx_sprite)
 
-		parallax_layer_entries.append({
-			"layer": layer,
-			"texture": texture
-		})
+		parallax_layer_entries.append({"layer": layer, "texture": texture})
 
 	_update_parallax_background_layout(runtime_play_bounds if runtime_play_bounds.size != Vector2.ZERO else Rect2(Vector2.ZERO, level_size_pixels))
 
@@ -368,7 +354,6 @@ func _update_parallax_background_layout(play_bounds: Rect2) -> void:
 		])
 
 	var vertical_anchor_ratios: Array[float] = [0.06, 0.09, 0.13, 0.18, 0.24, 0.31]
-	var horizontal_start_ratio: float = 0.22
 	for layer_index: int in range(parallax_layer_entries.size()):
 		var entry: Dictionary = parallax_layer_entries[layer_index] as Dictionary
 		var layer: ParallaxLayer = entry.get("layer", null) as ParallaxLayer
@@ -376,7 +361,7 @@ func _update_parallax_background_layout(play_bounds: Rect2) -> void:
 		if layer == null or texture == null:
 			continue
 		var anchor_ratio: float = vertical_anchor_ratios[min(layer_index, vertical_anchor_ratios.size() - 1)]
-		var start_x: float = bounds.position.x - float(texture.get_width()) * horizontal_start_ratio
+		var start_x: float = bounds.position.x - float(texture.get_width()) * 0.22
 		var anchor_y: float = bounds.position.y + bounds.size.y * anchor_ratio - float(texture.get_height()) * 0.08
 		layer.position = Vector2(start_x, anchor_y)
 		layer.motion_mirroring = Vector2(float(texture.get_width()), 0.0)
@@ -415,84 +400,6 @@ func _rebuild_backdrop_shapes(bounds: Rect2) -> void:
 			Vector2(start_x + width * 0.52, bounds.end.y - height)
 		])
 		backdrop_root.add_child(stalagmite)
-
-	_build_local_lush_atmosphere(bounds)
-
-
-func _build_local_lush_atmosphere(bounds: Rect2) -> void:
-	# Lushness is regional, not a global screen overlay. This is its own canvas
-	# below the game world: it therefore stays normally visible in dark caves,
-	# but no player, torch or plant light can brighten it.
-	if lush_parallax_canvas != null:
-		lush_parallax_canvas.queue_free()
-	lush_parallax_sprites.clear()
-	lush_parallax_regions.clear()
-	var fade_shader: Shader = load("res://Shaders/lush_atmosphere_fade.gdshader") as Shader
-	if fade_shader == null:
-		return
-	var parallax_frames: Array[Texture2D] = []
-	for texture_path: String in LUSH_PARALLAX_FRAME_PATHS:
-		var frame: Texture2D = load(texture_path) as Texture2D
-		if frame != null:
-			parallax_frames.append(frame)
-	if parallax_frames.is_empty():
-		return
-	lush_parallax_canvas = CanvasLayer.new()
-	lush_parallax_canvas.name = "LushParallaxCanvas"
-	lush_parallax_canvas.layer = -2
-	add_child(lush_parallax_canvas)
-	move_child(lush_parallax_canvas, 0)
-	var screen_size: Vector2 = get_viewport_rect().size
-	if screen_size == Vector2.ZERO:
-		screen_size = Vector2(1920.0, 1080.0)
-
-	var region_rng := RandomNumberGenerator.new()
-	region_rng.seed = int(active_level_seed) * 811 + 97
-	var region_count: int = 2 + region_rng.randi_range(0, 1)
-	for index: int in range(region_count):
-		var progression_ratio: float = (float(index) + 0.7) / float(region_count + 1)
-		var horizontal_jitter: float = region_rng.randf_range(-0.075, 0.075)
-		var vertical_jitter: float = region_rng.randf_range(-0.10, 0.10)
-		var region_center := Vector2(
-			bounds.position.x + bounds.size.x * clampf(progression_ratio + horizontal_jitter, 0.16, 0.84),
-			bounds.position.y + bounds.size.y * (0.46 + vertical_jitter)
-		)
-		lush_parallax_regions.append(Rect2(region_center - Vector2(bounds.size.x * 0.20, bounds.size.y * 0.65), Vector2(bounds.size.x * 0.40, bounds.size.y * 1.30)))
-		var region := Sprite2D.new()
-		region.name = "LushAtmosphereRegion%d" % index
-		region.texture = parallax_frames[(index + region_rng.randi_range(0, parallax_frames.size() - 1)) % parallax_frames.size()]
-		region.centered = true
-		region.position = screen_size * 0.5
-		var texture_size := Vector2(region.texture.get_size())
-		var scale_factor: float = maxf(screen_size.x / texture_size.x, screen_size.y / texture_size.y) * 1.10
-		region.scale = Vector2.ONE * scale_factor
-		region.modulate = Color(0.88, 0.96, 0.88, 0.0)
-		var material := ShaderMaterial.new()
-		material.shader = fade_shader
-		material.set_shader_parameter("horizontal_fade", region_rng.randf_range(0.15, 0.22))
-		material.set_shader_parameter("vertical_fade", region_rng.randf_range(0.08, 0.14))
-		region.material = material
-		region.light_mask = 0
-		# This root is rendered behind tile geometry, hazards and Joey. The lush
-		# image adds atmospheric depth but can never hide collision or gameplay.
-		region.z_index = -1
-		lush_parallax_canvas.add_child(region)
-		lush_parallax_sprites.append(region)
-
-
-func _update_lush_parallax_visibility(delta: float) -> void:
-	if lush_parallax_canvas == null or player == null:
-		return
-	var active_region: int = -1
-	for index: int in range(lush_parallax_regions.size()):
-		if lush_parallax_regions[index].has_point(player.global_position):
-			active_region = index
-			break
-	for index: int in range(lush_parallax_sprites.size()):
-		var sprite: Sprite2D = lush_parallax_sprites[index]
-		var target_alpha: float = 0.78 if index == active_region else 0.0
-		sprite.modulate.a = move_toward(sprite.modulate.a, target_alpha, delta * 0.62)
-
 
 func _spawn_player() -> void:
 	player = PLAYER_SCENE.instantiate() as CharacterBody2D
@@ -1733,15 +1640,15 @@ func _spawn_lush_landmark(cell: Vector2i, landmark_rng: RandomNumberGenerator) -
 
 
 func _add_lush_plant_glow(sprite: Sprite2D, glow_rng: RandomNumberGenerator, min_energy: float, max_energy: float) -> void:
-	# The chapter environment already enables HDR glow/bloom. A small local
-	# light is therefore enough to make selected flowers feel softly bioluminescent
-	# without turning every plant into a neon beacon.
+	# Keep the soft bioluminescent tint in the sprite itself. Hundreds of tiny
+	# PointLight2D nodes add little to this dark palette but scale poorly with a
+	# dense procedural cave, especially on high-refresh displays.
+	sprite.self_modulate = Color(0.92, glow_rng.randf_range(1.02, 1.12), glow_rng.randf_range(0.84, 0.96), 1.0)
+	if not GENERATED_PLANT_LIGHTS_ENABLED:
+		return
 	var glow_texture := load(PLANT_GLOW_TEXTURE_PATH) as Texture2D
 	if glow_texture == null:
 		return
-	# Values above one cross the HDR threshold used by the existing environment,
-	# producing a soft bloom only on this selected plant rather than globally.
-	sprite.self_modulate = Color(0.92, glow_rng.randf_range(1.02, 1.12), glow_rng.randf_range(0.84, 0.96), 1.0)
 	var glow := PointLight2D.new()
 	glow.name = "LushPlantGlow"
 	glow.texture = glow_texture
@@ -1778,6 +1685,9 @@ func _spawn_vine_trail(grid_x: int, grid_y: int, segment_count: int, rotation: f
 		var vine: Node2D = VINE_SCENE.instantiate() as Node2D
 		if vine == null:
 			continue
+		# Generated vines are decorative. They retain their shader movement, but
+		# never start one timer/physics-leaf chain per segment.
+		vine.set("ambient_leaf_spawning_enabled", false)
 		decor_root.add_child(vine)
 		# Die vorbereitete Hub-Ranke wird mit deren dichter 22px-Formation
 		# gesetzt: überlappende Sprigs, seitlicher Drift und Wellen statt einer
@@ -1796,7 +1706,11 @@ func _spawn_vine_trail(grid_x: int, grid_y: int, segment_count: int, rotation: f
 			vine.self_modulate = Color(0.72, 1.04, 0.68, 1.0)
 		var vine_light: PointLight2D = vine.get_node_or_null("PointLight2D") as PointLight2D
 		if vine_light != null:
-			vine_light.energy = light_energy * 0.55
+			# A dense cluster can contain hundreds of segments. Their separate
+			# shadow-casting lights were invisible at normal camera distance while
+			# dominating the 2D light pass.
+			vine_light.visible = false
+			vine_light.shadow_enabled = false
 
 
 func _is_torch_column(grid_x: int) -> bool:
@@ -1921,7 +1835,10 @@ func _spawn_torch(torch_data: Dictionary) -> void:
 	var brightness: float = float(torch_data.get("brightness", 1.0))
 	var light_node: PointLight2D = torch.get_node_or_null("Light") as PointLight2D
 	if light_node != null:
-		light_node.energy *= brightness * 1.08
+		light_node.energy *= brightness * 0.92
+		# Torch light remains for navigation, but dynamic shadows from every torch
+		# are not distinguishable in the cave and are substantially more expensive.
+		light_node.shadow_enabled = false
 
 
 func _resolve_torch_anchor(requested: Vector2i) -> Vector2i:

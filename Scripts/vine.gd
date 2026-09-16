@@ -4,13 +4,18 @@ extends Sprite2D
 @export var spawn_interval_min: float = 1.5
 @export var spawn_interval_max: float = 4.0
 @export var max_leaves: int = 15  # Maximale Blätter gleichzeitig
+# Handplaced hub vines retain their ambient falling leaves. Procedural cave
+# clusters can opt out before entering the tree: hundreds of independent
+# timers and RigidBody2D leaves were the primary long-session performance cost.
+@export var ambient_leaf_spawning_enabled: bool = true
 
 var current_leaf_count: int = 0
 
 func _ready():
 	if material is ShaderMaterial:
 		material.set_shader_parameter("random_offset", randf() * 100.0)
-	start_spawn_timer()
+	if ambient_leaf_spawning_enabled:
+		start_spawn_timer()
 
 func start_spawn_timer():
 	# Warte zufällige Zeit
