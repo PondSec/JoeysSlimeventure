@@ -102,6 +102,7 @@ var rng := RandomNumberGenerator.new()
 
 
 func _ready() -> void:
+	add_to_group("chapter_runtime")
 	feedback_font = load(FEEDBACK_FONT_PATH) as FontFile
 	cave_tiles_texture = load(CAVE_TEXTURE_PATH) as Texture2D
 
@@ -168,6 +169,19 @@ func _build_runtime_level_data() -> Dictionary:
 		level_copy[key] = generated_layout[key_variant]
 
 	return level_copy
+
+
+func _prewarm_next_level() -> void:
+	if generator_seed_override >= 0:
+		return
+	var chapter_index := int(active_level.get("chapter_index", 0))
+	var next_index := int(active_level.get("level_index", 0)) + 1
+	var next_level := ChapterContent.get_level_data(chapter_index, next_index)
+	if next_level.is_empty():
+		return
+	var next_size := next_level.get("size", Vector2i(100, 40)) as Vector2i
+	var next_seed := int(hash("%s_%s_%d_%d" % [str(next_level.get("title", "")), str(next_level.get("level_label", "")), chapter_index, next_index]))
+	ChapterLayoutBuilder.build_level_layout(next_level, next_size, next_seed)
 
 
 func _input(event: InputEvent) -> void:
@@ -368,6 +382,9 @@ func _spawn_player() -> void:
 	player = PLAYER_SCENE.instantiate() as CharacterBody2D
 	player.name = "PlayerModel"
 	add_child(player)
+	var portal_state: Dictionary = _progress().consume_runtime_player_state()
+	if not portal_state.is_empty() and player.has_method("restore_portal_state"):
+		player.call("restore_portal_state", portal_state)
 
 
 func _spawn_pause_menu() -> void:
@@ -384,8 +401,18 @@ func _grant_level_one_mobility() -> void:
 	var chapter_index: int = int(active_level.get("chapter_index", 0))
 	if chapter_index < 1:
 		return
-	var show_feedback: bool = chapter_index == 1 and int(active_level.get("level_index", -1)) == 0
-	player.call("grant_skill", "wall_slide", show_feedback)
+	var level_index: int = int(active_level.get("level_index", -1))
+	# Glow ist eine Grundfaehigkeit und wird fuer die Lesbarkeit der ersten
+	# Hoehlen garantiert. Bewegungsskills entsprechen exakt dem Profil, mit dem
+	# der Layout-Validator dieses Level gebaut hat.
+	player.call("grant_skill", "glow", false)
+	var enabled_skills: Dictionary = active_level.get("mobility_skills", {}) as Dictionary
+	for skill_name_variant: Variant in enabled_skills.keys():
+		var skill_name: String = str(skill_name_variant)
+		if not bool(enabled_skills[skill_name]):
+			continue
+		var show_feedback: bool = level_index == 0 and skill_name == "wall_slide"
+		player.call("grant_skill", skill_name, show_feedback)
 
 
 func _build_level() -> void:
@@ -1092,9 +1119,9 @@ func _spawn_generated_overgrowth(grid: Array) -> void:
 				continue
 			if _is_solid(grid, grid_x, grid_y + 1):
 				continue
-			if rng.randf() > 0.035:
+			if _is_torch_column(grid_x) or rng.randf() > 0.065:
 				continue
-			var segment_count: int = rng.randi_range(2, 4)
+			var segment_count: int = rng.randi_range(3, 6)
 			for segment_index: int in range(segment_count):
 				var vine: Node2D = VINE_SCENE.instantiate() as Node2D
 				if vine == null:
@@ -1102,9 +1129,25 @@ func _spawn_generated_overgrowth(grid: Array) -> void:
 				decor_root.add_child(vine)
 				vine.global_position = _grid_to_world(Vector2i(grid_x, grid_y + 1 + segment_index)) + Vector2(16.0, 0.0)
 			vine_columns += 1
-			if vine_columns >= 10:
+			# A nearby companion column makes the canopy feel grown together,
+			# while each vertical segment remains visually connected to the next.
+			if rng.randf() < 0.42 and grid_x + 2 < level_size_tiles.x - 2 and _is_solid(grid, grid_x + 2, grid_y) and not _is_solid(grid, grid_x + 2, grid_y + 1) and not _is_torch_column(grid_x + 2):
+				for companion_segment in range(maxi(2, segment_count - 1)):
+					var companion: Node2D = VINE_SCENE.instantiate() as Node2D
+					if companion != null:
+						decor_root.add_child(companion)
+						companion.global_position = _grid_to_world(Vector2i(grid_x + 2, grid_y + 1 + companion_segment)) + Vector2(16.0, 0.0)
+				vine_columns += 1
+			if vine_columns >= 14:
 				return
 			break
+
+
+func _is_torch_column(grid_x: int) -> bool:
+	for torch_variant: Variant in active_level.get("torches", []) as Array:
+		if abs(grid_x - int((torch_variant as Dictionary).get("x", -999))) <= 3:
+			return true
+	return false
 
 
 func _build_cave_tileset() -> TileSet:
@@ -1207,12 +1250,15 @@ func _spawn_hazard(hazard: Dictionary) -> void:
 
 
 func _spawn_torch(torch_data: Dictionary) -> void:
+	var anchor := _resolve_torch_anchor(Vector2i(int(torch_data.get("x", 0)), int(torch_data.get("y", 0))))
+	if anchor == Vector2i.ZERO:
+		return
 	var torch: Node2D = TORCH_SCENE.instantiate() as Node2D
 	if torch == null:
 		return
 
 	torch.visible = true
-	var torch_position: Vector2 = _grid_to_world(Vector2i(int(torch_data.get("x", 0)), int(torch_data.get("y", 0)))) + Vector2(16.0, 8.0)
+	var torch_position: Vector2 = _grid_to_world(anchor + Vector2i(0, 1)) + Vector2(16.0, 8.0)
 	torch.global_position = torch_position
 	decor_root.add_child(torch)
 
@@ -1220,6 +1266,17 @@ func _spawn_torch(torch_data: Dictionary) -> void:
 	var light_node: PointLight2D = torch.get_node_or_null("Light") as PointLight2D
 	if light_node != null:
 		light_node.energy *= brightness * 1.08
+
+
+func _resolve_torch_anchor(requested: Vector2i) -> Vector2i:
+	var x_offsets := [0, -1, 1, -2, 2]
+	var y_offsets := [0, -1, 1, -2, 2, -3, 3, -4, 4]
+	for y_offset: int in y_offsets:
+		for x_offset: int in x_offsets:
+			var candidate := requested + Vector2i(x_offset, y_offset)
+			if _is_solid(solid_grid_cache, candidate.x, candidate.y) and not _is_solid(solid_grid_cache, candidate.x, candidate.y + 1):
+				return candidate
+	return Vector2i.ZERO
 
 
 func _spawn_crystal(_crystal_data: Dictionary) -> void:
@@ -1256,6 +1313,7 @@ func _spawn_enemy(enemy_data: Dictionary) -> void:
 	var enemy: Node2D = enemy_scene.instantiate() as Node2D
 	if enemy == null:
 		return
+	enemy.set_meta("chapter_enemy_type", enemy_type)
 	enemy_root.add_child(enemy)
 	enemy.global_position = spawn_position
 
