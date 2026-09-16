@@ -31,6 +31,7 @@ func _run() -> void:
 		quit()
 		return
 	_capture("spawn", level)
+	await _capture_lush_light_oasis(level, player)
 
 	for checkpoint: int in range(1, 5):
 		await _run_player_segment(110)
@@ -41,6 +42,29 @@ func _run() -> void:
 	level.queue_free()
 	await process_frame
 	quit()
+
+
+func _capture_lush_light_oasis(level: Node, player: CharacterBody2D) -> void:
+	# A direct in-game proof for the generated lighting composition.  The player
+	# is moved into the first procedural oasis so its real PointLight2D, ceiling
+	# shaft, rooted bloom and Joey's sprite are captured in one normal camera view.
+	var oasis_lights: Array[Node] = level.find_children("LushLightOasisGlow", "PointLight2D", true, false)
+	if oasis_lights.is_empty():
+		return
+	var oasis_light := oasis_lights[0] as PointLight2D
+	if oasis_light == null:
+		return
+	player.set_physics_process(false)
+	player.global_position = oasis_light.global_position + Vector2(-34.0, -58.0)
+	player.velocity = Vector2.ZERO
+	var camera := player.get_node_or_null("Camera2D") as Camera2D
+	if camera != null:
+		camera.reset_smoothing()
+		camera.force_update_scroll()
+	for _frame: int in range(4):
+		await process_frame
+	_capture("lush_light_oasis", level)
+	player.set_physics_process(true)
 
 
 func _run_player_segment(frame_count: int) -> void:

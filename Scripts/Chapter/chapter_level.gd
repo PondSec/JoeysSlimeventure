@@ -48,7 +48,7 @@ const WIND_GLOW_FLOWER_PATHS := [
 ]
 const LUSH_SUNBUD_PATH := "res://Assets/Deko/lush/lush_sunbud.png"
 const LUSH_MOONBELL_PATH := "res://Assets/Deko/lush/lush_moonbell.png"
-const PLANT_GLOW_TEXTURE_PATH := "res://Assets/Light/torch_light.png"
+const LUSH_OASIS_LIGHT_TEXTURE_PATH := "res://Assets/Light/light_white.png"
 const VEGETATION_WIND_SHADER_PATH := "res://Shaders/vegetation_wind.gdshader"
 const PLAYER_WORLD_COLLISION_LAYER := 2
 const DEFAULT_CAVE_TILE_SOURCE_ID := 0
@@ -56,7 +56,8 @@ const CAVE_TILE_SIZE := Vector2i(32, 32)
 const CAVE_TEXTURE_PATH := "res://Assets/Tiles/platformertiles.png"
 const DEBUG_OVERLAY_TOGGLE_KEY := KEY_F2
 const TILE_DEBUG_TOGGLE_KEY := KEY_F3
-const GENERATED_PLANT_LIGHTS_ENABLED := false
+const GENERATED_PLANT_LIGHTS_ENABLED := true
+const MAX_GENERATED_PLANT_LIGHTS := 8
 
 const PARALLAX_TEXTURE_PATHS := [
 	"res://Assets/Parallax Cave/1.png",
@@ -156,6 +157,7 @@ var lush_moonbell_texture: Texture2D
 var decoration_alpha_bounds: Dictionary = {}
 var vegetation_motion_nodes: Array[CanvasItem] = []
 var vegetation_motion_shader: Shader
+var generated_plant_light_count: int = 0
 
 @onready var shadow: CanvasModulate = $Shadow
 
@@ -791,6 +793,7 @@ func _grant_level_one_mobility() -> void:
 func _build_level() -> void:
 	var platforms: Array = active_level.get("platforms", []) as Array
 	vegetation_motion_nodes.clear()
+	generated_plant_light_count = 0
 	lush_biome_density.clear()
 	lush_biome_density.resize(level_size_tiles.x)
 	for density_index: int in range(lush_biome_density.size()):
@@ -812,6 +815,7 @@ func _build_level() -> void:
 	_spawn_wind_broadleaf_plants(solid_grid_cache)
 	_spawn_wind_glow_flowers(solid_grid_cache)
 	_spawn_lush_special_blooms(solid_grid_cache)
+	_spawn_lush_light_oases(solid_grid_cache)
 	_register_lush_biome_decor_density()
 
 	var hazards: Array = active_level.get("hazards", []) as Array
@@ -2238,6 +2242,154 @@ func _spawn_lush_special_blooms(grid: Array) -> void:
 			placed += 1
 
 
+func _spawn_lush_light_oases(grid: Array) -> void:
+	# A light oasis is deliberately a rare, authored-looking composition instead
+	# of a light attached to every plant: one luminous bloom, a clear ceiling
+	# opening, a soft angled shaft, and one real local light for Joey and the
+	# moss-covered floor.  It only appears inside already dense lush pockets.
+	if decor_root == null or lush_biome_density.is_empty():
+		return
+	var moonbell := _get_lush_moonbell_texture()
+	var light_texture := load(LUSH_OASIS_LIGHT_TEXTURE_PATH) as Texture2D
+	if moonbell == null or light_texture == null:
+		return
+
+	var oasis_rng := RandomNumberGenerator.new()
+	oasis_rng.seed = active_level_seed * 1489 + 9239
+	var candidates: Array[Dictionary] = []
+	for grid_y: int in range(6, level_size_tiles.y - 3):
+		for grid_x: int in range(4, level_size_tiles.x - 4):
+			if grid_x >= lush_biome_density.size() or lush_biome_density[grid_x] < 2.15:
+				continue
+			var floor_cell := Vector2i(grid_x, grid_y)
+			if _is_torch_column(grid_x) or not _is_exposed_moss_face(grid, floor_cell, Vector2i.UP) or not _has_ground_moss_shoulders(grid, floor_cell):
+				continue
+			var ceiling_cell := _find_lush_light_oasis_ceiling(grid, floor_cell)
+			if ceiling_cell == Vector2i(-1, -1):
+				continue
+			var slant: float = oasis_rng.randf_range(-18.0, 18.0)
+			if not _has_lush_light_beam_clearance(grid, ceiling_cell, floor_cell, slant):
+				continue
+			candidates.append({"floor": floor_cell, "ceiling": ceiling_cell, "slant": slant})
+
+	if candidates.is_empty():
+		return
+	# One or two compositional focal points are enough for a whole generated
+	# level.  Keep them horizontally separated so neither the lights nor their
+	# bloom can stack with Joey's personal glow in one passage.
+	var target_count: int = 1 if candidates.size() < 16 else 2
+	var selected_xs: Array[float] = []
+	for placement_index: int in range(target_count):
+		var best_candidate: Dictionary = {}
+		var best_score: float = -INF
+		for candidate_variant: Variant in candidates:
+			var candidate: Dictionary = candidate_variant as Dictionary
+			var candidate_floor: Vector2i = candidate.get("floor", Vector2i.ZERO) as Vector2i
+			var nearest_distance: float = 9999.0
+			for selected_x: float in selected_xs:
+				nearest_distance = minf(nearest_distance, absf(float(candidate_floor.x) - selected_x))
+			var score: float = nearest_distance + oasis_rng.randf_range(-2.0, 2.0)
+			if score > best_score:
+				best_score = score
+				best_candidate = candidate
+		if best_candidate.is_empty():
+			break
+		var selected_floor: Vector2i = best_candidate.get("floor", Vector2i.ZERO) as Vector2i
+		selected_xs.append(float(selected_floor.x))
+		_spawn_lush_light_oasis(
+			selected_floor,
+			best_candidate.get("ceiling", Vector2i.ZERO) as Vector2i,
+			float(best_candidate.get("slant", 0.0)),
+			moonbell,
+			light_texture,
+			oasis_rng
+		)
+
+
+func _find_lush_light_oasis_ceiling(grid: Array, floor_cell: Vector2i) -> Vector2i:
+	# The shaft can only exist in a genuinely clear vertical pocket.  This avoids
+	# projecting light through generated rock and makes its end always land on
+	# the exact moss surface that roots the luminous plant.
+	for ceiling_y: int in range(floor_cell.y - 4, maxi(1, floor_cell.y - 11), -1):
+		var ceiling_cell := Vector2i(floor_cell.x, ceiling_y)
+		if not _is_exposed_moss_face(grid, ceiling_cell, Vector2i.DOWN):
+			continue
+		var clear: bool = true
+		for open_y: int in range(ceiling_y + 1, floor_cell.y):
+			if _is_solid(grid, floor_cell.x, open_y):
+				clear = false
+				break
+		if clear:
+			return ceiling_cell
+	return Vector2i(-1, -1)
+
+
+func _has_lush_light_beam_clearance(grid: Array, ceiling_cell: Vector2i, floor_cell: Vector2i, slant: float) -> bool:
+	var cell_offset: int = int(round(slant / TILE_SIZE))
+	for step_y: int in range(ceiling_cell.y + 1, floor_cell.y):
+		var progress: float = inverse_lerp(float(ceiling_cell.y + 1), float(floor_cell.y), float(step_y))
+		var sample_x: int = ceiling_cell.x + int(round(float(cell_offset) * (1.0 - progress)))
+		if _is_solid(grid, sample_x, step_y):
+			return false
+	return true
+
+
+func _spawn_lush_light_oasis(floor_cell: Vector2i, ceiling_cell: Vector2i, slant: float, plant_texture: Texture2D, light_texture: Texture2D, oasis_rng: RandomNumberGenerator) -> void:
+	var root_y: float = float(floor_cell.y) * TILE_SIZE + 2.0
+	var target := Vector2(float(floor_cell.x) * TILE_SIZE + TILE_SIZE * 0.5, root_y)
+	var source := Vector2(float(ceiling_cell.x) * TILE_SIZE + TILE_SIZE * 0.5 + slant, float(ceiling_cell.y + 1) * TILE_SIZE + 4.0)
+
+	# The translucent cone belongs behind the solid terrain and plants.  It reads
+	# as a background shaft, while the real PointLight2D below performs the
+	# gameplay illumination on Joey, the bloom and the floor.
+	var beam := Polygon2D.new()
+	beam.name = "LushLightOasisBeam"
+	beam.polygon = PackedVector2Array([
+		source + Vector2(-8.0, 0.0),
+		source + Vector2(8.0, 0.0),
+		target + Vector2(38.0, 0.0),
+		target + Vector2(-38.0, 0.0)
+	])
+	beam.vertex_colors = PackedColorArray([
+		Color(1.6, 4.4, 2.4, 0.08),
+		Color(1.6, 4.4, 2.4, 0.08),
+		Color(1.9, 4.9, 2.7, 0.22),
+		Color(1.9, 4.9, 2.7, 0.22)
+	])
+	beam.z_as_relative = false
+	# One step behind terrain/decor keeps the shaft inside open cave space while
+	# ensuring it remains visible over the distant parallax layers.
+	beam.z_index = -1
+	beam.light_mask = 0
+	decor_root.add_child(beam)
+
+	var bloom := Sprite2D.new()
+	bloom.name = "GeneratedLushLightOasisPlant"
+	bloom.texture = plant_texture
+	bloom.scale = Vector2.ONE * oasis_rng.randf_range(0.040, 0.048)
+	bloom.global_position = _ground_flora_position(plant_texture, floor_cell, bloom.scale)
+	bloom.flip_h = oasis_rng.randf() < 0.5
+	bloom.z_index = 6 if oasis_rng.randf() < 0.35 else 0
+	bloom.modulate = Color(0.70, 0.88, 1.0, 1.0)
+	bloom.self_modulate = Color(0.92, 1.22, 1.32, 1.0)
+	_register_vegetation_motion(bloom, bloom.texture, oasis_rng, true)
+	decor_root.add_child(bloom)
+
+	# One modest real light per oasis is enough to illuminate Joey as he walks
+	# through it.  It is intentionally much smaller and weaker than his skill
+	# glow, so the two lights never wash each other out or create a white core.
+	var light := PointLight2D.new()
+	light.name = "LushLightOasisGlow"
+	light.texture = light_texture
+	light.global_position = target + Vector2(0.0, -26.0)
+	light.texture_scale = 0.095
+	light.energy = oasis_rng.randf_range(0.48, 0.56)
+	light.color = Color(0.50, 1.0, 0.66, 1.0)
+	light.shadow_enabled = false
+	light.add_to_group("lights")
+	decor_root.add_child(light)
+
+
 func _spawn_lush_landmark(cell: Vector2i, landmark_rng: RandomNumberGenerator) -> void:
 	var textures: Array = _get_lush_landmark_textures()
 	if decor_root == null or textures.is_empty():
@@ -2257,41 +2409,47 @@ func _spawn_lush_landmark(cell: Vector2i, landmark_rng: RandomNumberGenerator) -
 
 
 func _add_lush_plant_glow(sprite: Sprite2D, glow_rng: RandomNumberGenerator, min_energy: float, max_energy: float) -> void:
-	# Keep the soft bioluminescent tint in the sprite itself. Hundreds of tiny
-	# PointLight2D nodes add little to this dark palette but scale poorly with a
-	# dense procedural cave, especially on high-refresh displays.
+	# Keep the soft bioluminescent tint in the sprite itself, then grant only a
+	# tiny capped subset a real local light.  This makes a few plants genuinely
+	# illuminate Joey and nearby moss without turning a dense level into dozens
+	# of overlapping light passes.
 	sprite.self_modulate = Color(0.92, glow_rng.randf_range(1.02, 1.12), glow_rng.randf_range(0.84, 0.96), 1.0)
-	if not GENERATED_PLANT_LIGHTS_ENABLED:
+	if not GENERATED_PLANT_LIGHTS_ENABLED or generated_plant_light_count >= MAX_GENERATED_PLANT_LIGHTS or glow_rng.randf() > 0.16:
 		return
-	var glow_texture := load(PLANT_GLOW_TEXTURE_PATH) as Texture2D
+	var glow_texture := load(LUSH_OASIS_LIGHT_TEXTURE_PATH) as Texture2D
 	if glow_texture == null:
 		return
 	var glow := PointLight2D.new()
 	glow.name = "LushPlantGlow"
 	glow.texture = glow_texture
 	glow.position = Vector2(0.0, -8.0)
-	glow.texture_scale = glow_rng.randf_range(0.30, 0.42)
-	glow.energy = glow_rng.randf_range(min_energy * 0.52, max_energy * 0.52)
+	glow.texture_scale = glow_rng.randf_range(0.030, 0.045)
+	glow.energy = glow_rng.randf_range(min_energy * 0.78, max_energy * 0.78)
 	glow.color = Color(0.56 + glow_rng.randf() * 0.16, 1.0, 0.48 + glow_rng.randf() * 0.16, 1.0)
 	glow.shadow_enabled = false
+	glow.add_to_group("lights")
 	sprite.add_child(glow)
+	generated_plant_light_count += 1
 
 
 func _spawn_lush_glimmer(world_position: Vector2, glimmer_rng: RandomNumberGenerator, z_order: int) -> void:
 	if decor_root == null:
 		return
-	var texture := load(PLANT_GLOW_TEXTURE_PATH) as Texture2D
-	if texture == null:
-		return
-	var glimmer := Sprite2D.new()
+	# Do not use the old light PNG as a Sprite2D here: its opaque black border
+	# is fine for a light mask, but appears as a dark rectangle in the game.
+	# These tiny alpha-only diamonds keep the magical specks while having no
+	# rectangular texture footprint at all.
+	var glimmer := Polygon2D.new()
 	glimmer.name = "LushGlimmer"
-	glimmer.texture = texture
 	glimmer.global_position = world_position + Vector2(glimmer_rng.randf_range(-8.0, 8.0), glimmer_rng.randf_range(-5.0, 5.0))
-	# Slight HDR modulation intentionally crosses the Environment glow threshold.
-	# This yields a gentle bloom halo without creating a real light source.
-	glimmer.scale = Vector2.ONE * glimmer_rng.randf_range(0.035, 0.060)
-	glimmer.modulate = Color(0.46, 1.0, 0.42, glimmer_rng.randf_range(0.45, 0.72))
-	glimmer.self_modulate = Color(1.25, 1.65, 1.10, 1.0)
+	var radius: float = glimmer_rng.randf_range(1.2, 2.4)
+	glimmer.polygon = PackedVector2Array([
+		Vector2(0.0, -radius), Vector2(radius, 0.0),
+		Vector2(0.0, radius), Vector2(-radius, 0.0)
+	])
+	# Slight HDR colour crosses the Environment glow threshold without becoming
+	# a gameplay light or placing a transparent texture rectangle over the cave.
+	glimmer.color = Color(0.62, 1.45, 0.56, glimmer_rng.randf_range(0.52, 0.76))
 	glimmer.light_mask = 0
 	glimmer.z_index = z_order
 	decor_root.add_child(glimmer)
