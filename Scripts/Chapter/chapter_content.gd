@@ -262,12 +262,13 @@ static func _chapter_one_levels() -> Array:
 			"title": "Der Erste Tropfen",
 			"subtitle": "Joey lernt, dass ein Slime nicht marschiert, sondern fliesst.",
 			"objective": "Finde den ersten Hohlgang durch kleine Spruenge und sichere Landungen.",
-			"size": Vector2i(116, 44),
+			"size": Vector2i(116, 62),
+			"layout_style": "vertical",
 			# Vorab gegen den echten Bewegungs-Validator geprueft. Dadurch startet
 			# der erste Einstieg ohne zufallsbedingte Wiederholungsversuche.
 			"seed_override": 31777,
-			"spawn": Vector2i(4, 28),
-			"exit": Vector2i(108, 27),
+			"spawn": Vector2i(4, 18),
+			"exit": Vector2i(108, 44),
 			"platforms": [
 				_platform(0, 31, 102, 4, "floor"),
 				_platform(8, 27, 7, 1),
