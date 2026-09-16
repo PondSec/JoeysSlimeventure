@@ -46,6 +46,8 @@ const WIND_GLOW_FLOWER_PATHS := [
 	"res://Assets/Deko/lush/wind_glow_flower_02.png",
 	"res://Assets/Deko/lush/wind_glow_flower_03.png"
 ]
+const LUSH_SUNBUD_PATH := "res://Assets/Deko/lush/lush_sunbud.png"
+const LUSH_MOONBELL_PATH := "res://Assets/Deko/lush/lush_moonbell.png"
 const PLANT_GLOW_TEXTURE_PATH := "res://Assets/Light/torch_light.png"
 const VEGETATION_WIND_SHADER_PATH := "res://Shaders/vegetation_wind.gdshader"
 const PLAYER_WORLD_COLLISION_LAYER := 2
@@ -148,6 +150,8 @@ var lush_landmark_textures: Array = []
 var lush_canopy_textures: Array = []
 var wind_broadleaf_textures: Array = []
 var wind_glow_flower_textures: Array = []
+var lush_sunbud_texture: Texture2D
+var lush_moonbell_texture: Texture2D
 var decoration_alpha_bounds: Dictionary = {}
 var vegetation_motion_nodes: Array[CanvasItem] = []
 var vegetation_motion_shader: Shader
@@ -788,6 +792,7 @@ func _build_level() -> void:
 	_spawn_lush_flower_landmarks(solid_grid_cache)
 	_spawn_wind_broadleaf_plants(solid_grid_cache)
 	_spawn_wind_glow_flowers(solid_grid_cache)
+	_spawn_lush_special_blooms(solid_grid_cache)
 	_register_lush_biome_decor_density()
 
 	var hazards: Array = active_level.get("hazards", []) as Array
@@ -1614,10 +1619,11 @@ func _spawn_moss_tile(cell: Vector2i, patch: Dictionary, moss_rng: RandomNumberG
 		moss.position = _left_wall_moss_position(moss_texture, cell, moss.scale)
 	moss.rotation = float(patch.get("rotation", 0.0))
 	moss.flip_v = bool(patch.get("flip_v", false))
-	# Horizontal flips shift an asymmetric alpha border by one or two pixels and
-	# made seams visible in long carpets.  Surface strips keep a stable edge;
-	# wall pieces can still vary organically through their source variant.
-	moss.flip_h = outward != Vector2i.UP and outward != Vector2i.DOWN and moss_rng.randf() < 0.34
+	# These source sprites have an asymmetric alpha frame.  Rotating then
+	# flipping a wall piece changes its vertical anchor, which was the cause of
+	# isolated chunks apparently hovering next to a wall.  Keep all anchored
+	# moss unflipped; variety comes from the source variant and tint instead.
+	moss.flip_h = false
 	# Most growth lives behind Joey; a controlled minority overlaps him so dense
 	# fern and moss pockets feel traversed rather than painted on the backdrop.
 	# A foreground patch must cover Joey and the equipped weapon together.
@@ -1657,7 +1663,10 @@ func _right_wall_moss_position(texture: Texture2D, cell: Vector2i, sprite_scale:
 	var visible_right_source: float = float(alpha_bounds.end.y - 1) - half_height
 	var visible_top_source: float = float(alpha_bounds.position.x) - half_width
 	var wall_x: float = float(cell.x + 1) * TILE_SIZE
-	return Vector2(wall_x + visible_right_source * sprite_scale.y, float(cell.y) * TILE_SIZE - visible_top_source * sprite_scale.x)
+	# Rotate the floor strip clockwise and overlap the stone lip by one pixel.
+	# The alpha edge then remains flush with the wall rather than leaving a
+	# dark sliver at each 32px seam.
+	return Vector2(wall_x + visible_right_source * sprite_scale.y - 1.0, float(cell.y) * TILE_SIZE - visible_top_source * sprite_scale.x - 0.5)
 
 
 func _left_wall_moss_position(texture: Texture2D, cell: Vector2i, sprite_scale: Vector2) -> Vector2:
@@ -1667,7 +1676,10 @@ func _left_wall_moss_position(texture: Texture2D, cell: Vector2i, sprite_scale: 
 	var visible_right_source: float = float(alpha_bounds.end.y - 1) - half_height
 	var visible_top_source: float = -float(alpha_bounds.end.x - 1) + half_width
 	var wall_x: float = float(cell.x) * TILE_SIZE
-	return Vector2(wall_x - visible_right_source * sprite_scale.y, float(cell.y) * TILE_SIZE - visible_top_source * sprite_scale.x)
+	# Counter-clockwise counterpart of the right wall placement.  The small
+	# inward overlap is intentional: vegetation should cover the rock edge,
+	# never float beside it.
+	return Vector2(wall_x - visible_right_source * sprite_scale.y + 1.0, float(cell.y) * TILE_SIZE - visible_top_source * sprite_scale.x - 0.5)
 
 
 func _get_decoration_alpha_bounds(texture: Texture2D) -> Rect2i:
@@ -1730,6 +1742,7 @@ func _register_vegetation_motion(plant: CanvasItem, texture: Texture2D, motion_r
 	plant.material = material
 	plant.set_meta("vegetation_interaction", 0.0)
 	plant.set_meta("vegetation_direction", 1.0)
+	plant.set_meta("vegetation_interaction_enabled", true)
 	plant.set_meta("vegetation_interaction_radius", clampf(maxf(42.0, float(texture.get_width()) * displayed_scale * 0.48), 42.0, 112.0))
 	vegetation_motion_nodes.append(plant)
 
@@ -1746,6 +1759,11 @@ func _update_vegetation_motion(delta: float) -> void:
 			continue
 		var material := plant.material as ShaderMaterial
 		if material == null:
+			continue
+		if not bool(plant.get_meta("vegetation_interaction_enabled", true)):
+			# Long hanging trails are allowed to keep their independent, rope-like
+			# wind movement, but the player must not yank every segment sideways.
+			material.set_shader_parameter("interaction_strength", 0.0)
 			continue
 		var radius: float = float(plant.get_meta("vegetation_interaction_radius", 48.0))
 		var offset: Vector2 = player.global_position - plant.global_position
@@ -2056,6 +2074,18 @@ func _get_wind_glow_flower_textures() -> Array:
 	return wind_glow_flower_textures
 
 
+func _get_lush_sunbud_texture() -> Texture2D:
+	if lush_sunbud_texture == null:
+		lush_sunbud_texture = load(LUSH_SUNBUD_PATH) as Texture2D
+	return lush_sunbud_texture
+
+
+func _get_lush_moonbell_texture() -> Texture2D:
+	if lush_moonbell_texture == null:
+		lush_moonbell_texture = load(LUSH_MOONBELL_PATH) as Texture2D
+	return lush_moonbell_texture
+
+
 func _spawn_wind_broadleaf_plants(grid: Array) -> void:
 	# The supplied four images are consecutive wind frames.  They stay rooted on
 	# the same moss-covered floor while the leaves gently sway, so the generator
@@ -2140,6 +2170,55 @@ func _spawn_wind_glow_flowers(grid: Array) -> void:
 			placed += 1
 
 
+func _spawn_lush_special_blooms(grid: Array) -> void:
+	# The supplied warm and cool blooms are deliberately restricted to the
+	# strongest lush pockets.  They become recognisable biome accents rather than
+	# random decoration distributed through an ordinary cave.
+	if decor_root == null:
+		return
+	var sunbud := _get_lush_sunbud_texture()
+	var moonbell := _get_lush_moonbell_texture()
+	if sunbud == null or moonbell == null:
+		return
+	var bloom_rng := RandomNumberGenerator.new()
+	bloom_rng.seed = active_level_seed * 1237 + 8453
+	var placed: int = 0
+	var claimed: Dictionary = {}
+	for grid_y: int in range(3, level_size_tiles.y - 3):
+		if placed >= 18:
+			return
+		for grid_x: int in range(4, level_size_tiles.x - 4):
+			if placed >= 18:
+				return
+			if grid_x >= lush_biome_density.size() or lush_biome_density[grid_x] < 2.2:
+				continue
+			var cell := Vector2i(grid_x, grid_y)
+			var key := "%d:%d" % [cell.x, cell.y]
+			if claimed.has(key) or _is_torch_column(grid_x) or not _is_exposed_moss_face(grid, cell, Vector2i.UP) or not _has_ground_moss_shoulders(grid, cell):
+				continue
+			if bloom_rng.randf() > 0.028:
+				continue
+			# Wide shoulders preserve readable silhouettes and stop special plants
+			# from merging into accidental walls of leaves.
+			for offset_x: int in range(-2, 3):
+				claimed["%d:%d" % [cell.x + offset_x, cell.y]] = true
+			var is_moonbell: bool = bloom_rng.randf() < 0.42
+			var bloom := Sprite2D.new()
+			bloom.name = "GeneratedLushMoonbell" if is_moonbell else "GeneratedLushSunbud"
+			bloom.texture = moonbell if is_moonbell else sunbud
+			bloom.scale = Vector2.ONE * bloom_rng.randf_range(0.042, 0.058)
+			bloom.position = _ground_flora_position(bloom.texture, cell, bloom.scale)
+			bloom.flip_h = bloom_rng.randf() < 0.5
+			bloom.z_index = 6 if bloom_rng.randf() < 0.35 else 0
+			bloom.modulate = Color(0.78, 0.88, 1.0, 1.0) if is_moonbell else Color(1.0, 0.90, 0.66, 1.0)
+			# A restrained authored highlight keeps the buds magical without adding
+			# a per-plant gameplay light or washing out the cave.
+			bloom.self_modulate = Color(0.84, 0.94, 1.08, 1.0) if is_moonbell else Color(1.07, 0.98, 0.76, 1.0)
+			_register_vegetation_motion(bloom, bloom.texture, bloom_rng, true)
+			decor_root.add_child(bloom)
+			placed += 1
+
+
 func _spawn_lush_landmark(cell: Vector2i, landmark_rng: RandomNumberGenerator) -> void:
 	var textures: Array = _get_lush_landmark_textures()
 	if decor_root == null or textures.is_empty():
@@ -2221,6 +2300,9 @@ func _spawn_vine_trail(grid_x: int, grid_y: int, segment_count: int, rotation: f
 	var start_position := _grid_to_world(Vector2i(grid_x, grid_y)) + Vector2(16.0, 5.0)
 	var horizontal_drift: float = clampf(rotation * 34.0, -18.0, 18.0)
 	var foreground_vine: bool = rng.randf() < 0.35
+	# One phase per trail, with a tiny offset down the length, makes the
+	# hanging parts swing like a single supple rope instead of unrelated leaves.
+	var trail_wind_phase: float = rng.randf_range(0.0, TAU)
 	for segment_index: int in range(segment_count):
 		var vine: Node2D = VINE_SCENE.instantiate() as Node2D
 		if vine == null:
@@ -2248,8 +2330,16 @@ func _spawn_vine_trail(grid_x: int, grid_y: int, segment_count: int, rotation: f
 		var vine_sprite := vine as Sprite2D
 		if vine_sprite != null:
 			# The ceiling anchor stays visually stable; only the lower leaves gain
-			# the subdued shared sway from the root-to-tip shader.
+			# a very subdued, shared rope sway from the root-to-tip shader.  Unlike
+			# ground flora, vines deliberately ignore player-contact displacement.
 			_register_vegetation_motion(vine_sprite, vine_sprite.texture, rng, false)
+			var vine_material := vine_sprite.material as ShaderMaterial
+			if vine_material != null:
+				var vine_display_scale: float = maxf(0.02, absf(vine_sprite.scale.x))
+				vine_material.set_shader_parameter("wind_phase", trail_wind_phase + float(segment_index) * 0.18)
+				vine_material.set_shader_parameter("sway_pixels", clampf(rng.randf_range(0.38, 0.72) / vine_display_scale, 2.0, 44.0))
+				vine_material.set_shader_parameter("press_pixels", 0.0)
+			vine_sprite.set_meta("vegetation_interaction_enabled", false)
 		var vine_light: PointLight2D = vine.get_node_or_null("PointLight2D") as PointLight2D
 		if vine_light != null:
 			# A dense cluster can contain hundreds of segments. Their separate
@@ -2372,7 +2462,10 @@ func _spawn_hazard(hazard: Dictionary) -> void:
 		if spike == null:
 			continue
 		hazard_root.add_child(spike)
-		spike.global_position = _grid_to_world(Vector2i(base_x + offset_index, base_y)) + Vector2(16.0, -16.0)
+		# The trimmed spike artwork's last opaque row sits a few pixels above its
+		# Sprite2D frame.  Sink the visual anchor into the floor lip so the teeth
+		# are planted on the rock rather than visibly hovering above it.
+		spike.global_position = _grid_to_world(Vector2i(base_x + offset_index, base_y)) + Vector2(16.0, -12.0)
 
 
 func _spawn_torch(torch_data: Dictionary) -> void:
