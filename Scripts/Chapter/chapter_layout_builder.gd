@@ -294,7 +294,7 @@ func _build_cave_network_result(seed: int) -> Dictionary:
 		var landmark: bool = hub_index == 4
 		var radius_x: float = (6.0 + rng.randf_range(0.0, 1.8)) if landmark else (3.2 + rng.randf_range(0.0, 1.7))
 		var radius_y: float = (5.0 + rng.randf_range(0.0, 1.6)) if landmark else (2.8 + rng.randf_range(0.0, 1.5))
-		_carve_organic_blob(grid, hub, radius_x, radius_y)
+		_carve_asymmetric_network_chamber(grid, hub, radius_x, radius_y, hub_index)
 		if hub_index < main_lines.size():
 			# Mandatory route keeps one additional tile of arc clearance; optional
 			# loops and pockets remain deliberately tighter below.
@@ -376,6 +376,21 @@ func _reinforce_network_traversal_geometry(grid: Array, path: Array, platforms: 
 		var platform: Dictionary = platform_variant as Dictionary
 		_stamp_rect(grid, int(platform.get("x", 0)), int(platform.get("y", 0)), max(1, int(platform.get("w", 1))), 1)
 		_carve_rect(grid, int(platform.get("x", 0)) - 1, int(platform.get("y", 0)) - 4, int(platform.get("w", 1)) + 2, 4)
+
+
+func _carve_asymmetric_network_chamber(grid: Array, center: Vector2i, radius_x: float, radius_y: float, chamber_index: int) -> void:
+	_carve_organic_blob(grid, center, radius_x, radius_y)
+	# One deliberately off-centre shoulder keeps a chamber from reading as an
+	# ellipse in a rectangle. The lobe is modest, so normal junctions stay tight.
+	var signature: int = abs(center.x * 29 + center.y * 17 + chamber_index * 43)
+	var side: int = -1 if signature % 2 == 0 else 1
+	var lobe_center := Vector2i(
+		clampi(center.x + side * maxi(1, int(round(radius_x * (0.45 + float(signature % 3) * 0.08)))), ROOM_PADDING_TILES + 2, level_size.x - ROOM_PADDING_TILES - 3),
+		clampi(center.y + ((signature / 3) % 3) - 1, ROOM_PADDING_TILES + 2, level_size.y - ROOM_PADDING_TILES - 3)
+	)
+	var lobe_x: float = maxf(1.7, radius_x * (0.42 + float(signature % 4) * 0.04))
+	var lobe_y: float = maxf(1.45, radius_y * (0.42 + float((signature / 5) % 3) * 0.06))
+	_carve_organic_blob(grid, lobe_center, lobe_x, lobe_y)
 
 
 func _stamp_network_landing(grid: Array, platforms: Array, point: Vector2i, point_index: int, route_index: int) -> void:
@@ -572,7 +587,7 @@ func _carve_network_wall_bites(grid: Array, main_path: Array, side_lines: Array,
 			if _network_point_near_route(point, protected_points, 3.5):
 				continue
 			var signature: int = abs(grid_x * 41 + grid_y * 23 + seed * 11)
-			if signature % 31 != 0 or not _network_is_solid(grid, point):
+			if signature % 13 != 0 or not _network_is_solid(grid, point):
 				continue
 			var empty_neighbor := Vector2i.ZERO
 			for direction: Vector2i in [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT]:
@@ -581,9 +596,12 @@ func _carve_network_wall_bites(grid: Array, main_path: Array, side_lines: Array,
 					break
 			if empty_neighbor == Vector2i.ZERO:
 				continue
-			# Extend a shallow notch inward, not a single pixel-like hole that the
-			# terrain cleanup would immediately fill again.
-			bites.append([point, point - empty_neighbor])
+			# A hooked two-to-three-cell bite makes a recognisable concave corner,
+			# rather than a square pinhole or a straight sawtooth edge.
+			var inward: Vector2i = point - empty_neighbor
+			var perpendicular := Vector2i(-empty_neighbor.y, empty_neighbor.x)
+			var hook: Vector2i = inward + perpendicular * (-1 if signature % 2 == 0 else 1)
+			bites.append([point, inward, hook])
 	for bite_variant: Variant in bites:
 		for cell_variant: Variant in bite_variant as Array:
 			var cell: Vector2i = cell_variant as Vector2i
@@ -674,16 +692,26 @@ func _network_place_torches(path: Array, hubs: Array) -> Array:
 
 
 func _carve_organic_blob(grid: Array, center: Vector2i, radius_x: float, radius_y: float) -> void:
+	# A chamber contour is a low-frequency radial field, not an ellipse with
+	# noise painted over it. Each centre gets a stable phase so its shoulders,
+	# bites and narrow necks differ from every other chamber and every seed.
+	var phase: float = float(abs(center.x * 37 + center.y * 19) % 628) * 0.01
+	var asymmetry: float = 0.16 + float(abs(center.x * 11 - center.y * 7) % 5) * 0.018
 	for grid_y: int in range(maxi(0, int(floor(center.y - radius_y - 1.0))), mini(level_size.y, int(ceil(center.y + radius_y + 1.0)))):
 		var row: PackedByteArray = grid[grid_y] as PackedByteArray
 		for grid_x: int in range(maxi(0, int(floor(center.x - radius_x - 1.0))), mini(level_size.x, int(ceil(center.x + radius_x + 1.0)))):
 			var nx: float = (float(grid_x) + 0.5 - float(center.x)) / radius_x
 			var ny: float = (float(grid_y) + 0.5 - float(center.y)) / radius_y
-			# Two low-frequency fields give chambers lopsided shoulders and small
-			# bites without turning a traversable opening into random noise.
-			var wobble: float = sin(float(grid_x) * 1.17 + float(grid_y) * 0.51) * 0.22 \
-				+ sin(float(grid_x) * 0.43 - float(grid_y) * 1.31) * 0.16
-			if nx * nx + ny * ny <= 1.0 + wobble:
+			var radial_distance: float = sqrt(nx * nx + ny * ny)
+			var angle: float = atan2(ny, nx)
+			# Three broad lobes plus two finer counter-lobes create visible concave
+			# cuts and off-centre shoulders. The local field only softens the tile
+			# edge; it never becomes high-frequency random noise.
+			var contour: float = 1.0 + sin(angle * 3.0 + phase) * asymmetry
+			contour += sin(angle * 5.0 - phase * 1.7) * 0.105
+			contour += sin(angle + phase * 0.6) * 0.07
+			var edge_wobble: float = sin(float(grid_x) * 0.91 + float(grid_y) * 0.37 + phase) * 0.055
+			if radial_distance <= contour + edge_wobble:
 				row[grid_x] = 0
 		grid[grid_y] = row
 
@@ -2377,12 +2405,15 @@ func _carve_tunnel(grid: Array, from_node: Vector2i, to_node: Vector2i, width_ti
 	# made width two and width three carve identically broad corridors.
 	var base_radius: float = maxf(1.12, float(width_tiles) * 0.48)
 	var bend: float = minf(2.4, distance * 0.13) * (1.0 if ((from_node.x * 13 + from_node.y * 7 + to_node.x) % 2) == 0 else -1.0)
+	var secondary_bend: float = bend * (0.28 + float(abs(from_node.y + to_node.x) % 3) * 0.08)
 	for sample_index: int in range(sample_count + 1):
 		var t: float = float(sample_index) / float(sample_count)
 		var center := Vector2(from_node).lerp(Vector2(to_node), t)
-		# Eine volle, weich auslaufende Kurve statt zufaelliger Knicke.
-		center += normal * sin(t * PI) * bend
+		# A primary arc plus a smaller counter-arc produces a continuous, uneven
+		# cave vein while remaining exactly anchored at both endpoints.
+		center += normal * (sin(t * PI) * bend + sin(t * PI * 2.0) * secondary_bend)
 		var radius_wave: float = sin(t * PI * 2.0 + float((from_node.x + to_node.y) % 5)) * 0.34
+		radius_wave += sin(t * PI * 3.0 + float((from_node.y - to_node.x) % 7)) * 0.16
 		var radius: float = clampf(base_radius + radius_wave, maxf(1.05, base_radius - 0.38), base_radius + 0.42)
 		_carve_cave_disc(grid, center, radius)
 
