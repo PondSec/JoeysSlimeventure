@@ -13,6 +13,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	root.set_meta("chapter_qa_mode", true)
 	var progress: Node = root.get_node("/root/ChapterProgress")
 	progress.reset_progress()
 
