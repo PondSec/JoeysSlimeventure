@@ -1328,6 +1328,7 @@ func _spawn_pickup(pickup_data: Dictionary) -> void:
 	pickup_root.add_child(pickup)
 	pickup.global_position = _grid_to_world(Vector2i(int(pickup_data.get("x", 0)), int(pickup_data.get("y", 0)))) + Vector2(16.0, -6.0)
 	pickup.set("toast_text", str(pickup_data.get("message", "Essenzsplitter geborgen.")))
+	pickup.call("configure_loot_tier", str(pickup_data.get("loot_tier", "copper")))
 
 
 func _spawn_enemy(enemy_data: Dictionary) -> void:

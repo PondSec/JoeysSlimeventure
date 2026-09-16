@@ -3,6 +3,11 @@ extends Area2D
 @export var heal_amount: int = 6
 @export var toast_text: String = "Essenzsplitter geborgen."
 
+const COPPER_TEXTURE := preload("res://Assets/Items/copper_nugget.png")
+const SILVER_TEXTURE := preload("res://Assets/Items/iron_nugget.png")
+const GOLD_TEXTURE := preload("res://Assets/Items/gold_nugget.png")
+const DISPLAY_SCALE := 0.52
+
 var hover_time: float = 0.0
 var base_position: Vector2 = Vector2.ZERO
 var collected: bool = false
@@ -16,13 +21,26 @@ func _ready() -> void:
 	body_entered.connect(_on_body_entered)
 
 
+func configure_loot_tier(tier: String) -> void:
+	match tier:
+		"silver":
+			sprite.texture = SILVER_TEXTURE
+			light.color = Color(0.72, 0.84, 1.0, 1.0)
+		"gold":
+			sprite.texture = GOLD_TEXTURE
+			light.color = Color(1.0, 0.77, 0.28, 1.0)
+		_:
+			sprite.texture = COPPER_TEXTURE
+			light.color = Color(1.0, 0.56, 0.27, 1.0)
+
+
 func _process(delta: float) -> void:
 	if collected:
 		return
 	hover_time += delta
 	sprite.position = base_position + Vector2(0.0, sin(hover_time * 2.4) * 4.0)
 	sprite.rotation = sin(hover_time * 1.7) * 0.08
-	sprite.scale = Vector2.ONE * (0.24 + max(sin(hover_time * 2.9), 0.0) * 0.02)
+	sprite.scale = Vector2.ONE * (DISPLAY_SCALE + max(sin(hover_time * 2.9), 0.0) * 0.035)
 	light.energy = 0.58 + max(sin(hover_time * 3.2), 0.0) * 0.12
 
 
@@ -41,6 +59,6 @@ func _on_body_entered(body: Node2D) -> void:
 	var tween: Tween = create_tween()
 	tween.set_parallel(true)
 	tween.tween_property(self, "modulate:a", 0.0, 0.18).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	tween.tween_property(sprite, "scale", Vector2.ONE * 0.38, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.tween_property(sprite, "scale", Vector2.ONE * 0.76, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tween.set_parallel(false)
 	tween.tween_callback(queue_free)

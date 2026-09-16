@@ -1985,12 +1985,24 @@ func _place_pickups() -> Array:
 	for bonus_index: int in bonus_pickups:
 		normalized_pickups.append({
 			"id": "generated_essence_%d_%d" % [int(level_data.get("level_index", 0)) + 1, bonus_index],
-			"message": "Eine warme Essenz liegt abseits des Hauptwegs."
+			"message": "Eine Erzader glitzert abseits des Hauptwegs."
 		})
 	var placed: Array = []
 	for pickup_index: int in range(mini(normalized_pickups.size(), slots.size())):
 		var pickup_data: Dictionary = normalized_pickups[pickup_index] as Dictionary
 		var slot: Vector2i = slots[pickup_index] as Vector2i
+		var loot_roll: float = rng.randf()
+		var loot_tier: String = "copper"
+		if loot_roll >= 0.94:
+			loot_tier = "gold"
+		elif loot_roll >= 0.70:
+			loot_tier = "silver"
+		pickup_data["loot_tier"] = loot_tier
+		pickup_data["message"] = {
+			"copper": "Kupfererz geborgen.",
+			"silver": "Silbererz geborgen.",
+			"gold": "Seltenes Golderz geborgen."
+		}.get(loot_tier, "Kupfererz geborgen.")
 		pickup_data["x"] = slot.x
 		pickup_data["y"] = slot.y
 		placed.append(pickup_data)
