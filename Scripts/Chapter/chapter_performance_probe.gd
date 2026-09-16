@@ -21,6 +21,12 @@ func _run() -> void:
 	var level := CHAPTER_LEVEL_SCENE.instantiate()
 	level.set("generator_seed_override", _read_seed_override())
 	root.add_child(level)
+	if "--hide-parallax-foreground" in OS.get_cmdline_user_args():
+		# Diagnostic switch: isolates the cost of the screen-edge foreground
+		# without changing the normal shipped runtime path.
+		var foreground: CanvasLayer = level.get("parallax_foreground_layer") as CanvasLayer
+		if foreground != null:
+			foreground.visible = false
 	for _frame: int in range(WARMUP_FRAMES):
 		await process_frame
 

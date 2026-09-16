@@ -56,6 +56,14 @@ const PARALLAX_FX_TEXTURE_PATHS := [
 	"res://Assets/Parallax Cave/6fx.png",
 	"res://Assets/Parallax Cave/3fx.png"
 ]
+const LUSH_BIOME_DEEP_BACKDROP_PATH := "res://Assets/Parallax Cave/Lush/lush_biome_deep_backdrop.png"
+const LUSH_BIOME_MID_FRAME_PATH := "res://Assets/Parallax Cave/Lush/lush_biome_mid_frame.png"
+const LUSH_BIOME_FOREGROUND_FRAME_PATH := "res://Assets/Parallax Cave/Lush/lush_biome_foreground_frame.png"
+const LUSH_BIOME_TRANSITION_SHADER_PATH := "res://Shaders/lush_biome_transition.gdshader"
+const NORMAL_CAVE_FOREGROUND_FRAME_PATH := "res://Assets/Parallax Cave/normal_cave_foreground_frame.png"
+const NORMAL_CAVE_FOREGROUND_SHADER_PATH := "res://Shaders/normal_cave_foreground_transition.gdshader"
+const LUSH_BIOME_TRANSITION_DISTANCE := 280.0
+const LUSH_BIOME_SPAWN_EXCLUSION_DISTANCE := 800.0
 
 const WORLD_BOUND_LEFT_PADDING := 128.0
 const WORLD_BOUND_RIGHT_PADDING := 128.0
@@ -101,6 +109,14 @@ var exit_gate: Node2D
 var parallax_background: ParallaxBackground
 var parallax_base_fill: Polygon2D
 var parallax_layer_entries: Array = []
+var parallax_foreground_layer: CanvasLayer
+var normal_cave_foreground_root: Node2D
+var normal_cave_foreground_material: ShaderMaterial
+var lush_biome_backdrop_layer: CanvasLayer
+var lush_biome_sprites: Array[Sprite2D] = []
+var lush_biome_regions: Array[Rect2] = []
+var lush_biome_density: Array[float] = []
+var lush_biome_strength: float = 0.0
 var feedback_font: FontFile
 var cave_tiles_texture: Texture2D
 var cave_tileset: TileSet
@@ -148,13 +164,46 @@ func _ready() -> void:
 	_build_level()
 	runtime_play_bounds = _calculate_play_bounds_rect()
 	# Keep the established normal cave depth. The retired lush overlay was a
-	# separate CanvasLayer and is intentionally not recreated here.
+	# separate CanvasLayer and is intentionally not recreated here outside of a
+	# genuinely dense, registered lush biome.
 	_build_parallax_background()
+	_build_normal_cave_foreground()
+	_build_lush_biome_parallax(runtime_play_bounds)
 	_configure_runtime_view()
 	await get_tree().process_frame
 	_position_player_at_spawn()
 	_grant_level_one_mobility()
 	_show_level_intro()
+
+
+func _process(delta: float) -> void:
+	if player == null:
+		return
+	# The ordinary foreground is always present, independent of whether this
+	# seed contains a lush biome.  Keeping it moving here also gives the normal
+	# cave the same depth response as the lush frame.
+	if normal_cave_foreground_root != null:
+		_update_overlay_parallax(normal_cave_foreground_root, player.global_position)
+	if lush_biome_sprites.is_empty():
+		return
+	var target_strength := _get_lush_biome_strength(player.global_position)
+	lush_biome_strength = move_toward(lush_biome_strength, target_strength, delta * 0.72)
+	var should_be_visible: bool = lush_biome_strength > 0.003 or target_strength > 0.003
+	if lush_biome_backdrop_layer != null:
+		lush_biome_backdrop_layer.visible = should_be_visible
+	if normal_cave_foreground_material != null:
+		normal_cave_foreground_material.set_shader_parameter("lush_strength", lush_biome_strength)
+	for sprite_index: int in range(lush_biome_sprites.size()):
+		var sprite: Sprite2D = lush_biome_sprites[sprite_index]
+		# The first two sprites live in the hidden backdrop CanvasLayer. The
+		# foreground frame sits on the normal foreground canvas and must be
+		# explicitly culled when the player is outside this biome.
+		if sprite_index == lush_biome_sprites.size() - 1:
+			sprite.visible = should_be_visible
+		var material := sprite.material as ShaderMaterial
+		if material != null:
+			material.set_shader_parameter("biome_strength", lush_biome_strength)
+		_update_overlay_parallax(sprite, player.global_position)
 
 
 func _resolve_level_seed() -> int:
@@ -369,6 +418,222 @@ func _update_parallax_background_layout(play_bounds: Rect2) -> void:
 	_rebuild_backdrop_shapes(bounds)
 
 
+func _build_normal_cave_foreground() -> void:
+	if parallax_foreground_layer != null:
+		parallax_foreground_layer.queue_free()
+	normal_cave_foreground_root = null
+	normal_cave_foreground_material = null
+	parallax_foreground_layer = CanvasLayer.new()
+	parallax_foreground_layer.name = "NormalCaveForeground"
+	# Above the playable cave, below the ChapterUI CanvasLayer.
+	parallax_foreground_layer.layer = 0
+	add_child(parallax_foreground_layer)
+
+	var texture := load(NORMAL_CAVE_FOREGROUND_FRAME_PATH) as Texture2D
+	var shader := load(NORMAL_CAVE_FOREGROUND_SHADER_PATH) as Shader
+	if texture == null or shader == null:
+		return
+	# The normal foreground always stays locked to the top/bottom screen edges.
+	# Its modest horizontal drift has generous overscan, so it never exposes a
+	# gap while Joey moves through a room or drops down a shaft.
+	normal_cave_foreground_root = _create_overlay_root(texture, 1.18, Vector2(-0.065, 0.0))
+	normal_cave_foreground_material = ShaderMaterial.new()
+	normal_cave_foreground_material.shader = shader
+	normal_cave_foreground_material.set_shader_parameter("lush_strength", 0.0)
+	# The middle of this source art is fully transparent.  Draw the four visible
+	# edge strips only; it preserves the exact frame while avoiding a costly
+	# fullscreen transparent quad in every normal cave room.
+	var texture_size := Vector2(texture.get_size())
+	var top_height := 190.0
+	var bottom_height := 220.0
+	var side_width := 170.0
+	var middle_height := texture_size.y - top_height - bottom_height
+	var regions: Array[Rect2] = [
+		Rect2(0.0, 0.0, texture_size.x, top_height),
+		Rect2(0.0, texture_size.y - bottom_height, texture_size.x, bottom_height),
+		Rect2(0.0, top_height, side_width, middle_height),
+		Rect2(texture_size.x - side_width, top_height, side_width, middle_height)
+	]
+	for region: Rect2 in regions:
+		var segment := Sprite2D.new()
+		segment.texture = texture
+		segment.centered = true
+		segment.region_enabled = true
+		segment.region_rect = region
+		segment.position = region.get_center() - texture_size * 0.5
+		segment.light_mask = 0
+		segment.material = normal_cave_foreground_material
+		normal_cave_foreground_root.add_child(segment)
+	parallax_foreground_layer.add_child(normal_cave_foreground_root)
+
+
+func _register_lush_biome_span(start_x: int, span: int, density_weight: float) -> void:
+	# Only broad, connected moss/canopy runs feed the biome selector. Isolated
+	# plants must never accidentally turn a normal cave passage into a lush room.
+	for grid_x: int in range(maxi(0, start_x - 2), mini(level_size_tiles.x, start_x + span + 2)):
+		if grid_x < 0 or grid_x >= lush_biome_density.size():
+			continue
+		var distance_from_span: float = absf(float(grid_x - (start_x + span / 2)))
+		var local_weight: float = maxf(0.35, 1.0 - distance_from_span / maxf(1.0, float(span)))
+		lush_biome_density[grid_x] += density_weight * local_weight
+
+
+func _register_lush_biome_decor_density() -> void:
+	# Flora is created in long rooted patches. Sampling those completed patches
+	# makes the backdrop follow visible lush growth rather than an arbitrary
+	# level coordinate, even on seeds without a perfectly flat canopy shelf.
+	if decor_root == null or lush_biome_density.is_empty():
+		return
+	for child: Node in decor_root.get_children():
+		if not child is Sprite2D:
+			continue
+		var sprite: Sprite2D = child as Sprite2D
+		var weight: float = 0.0
+		match sprite.name:
+			"GeneratedFlora":
+				weight = 1.15
+			"GeneratedLushCanopy":
+				weight = 3.4
+			"GeneratedLushLandmark":
+				weight = 2.6
+			_:
+				continue
+		var grid_x: int = clampi(int(floor(sprite.global_position.x / TILE_SIZE)), 0, lush_biome_density.size() - 1)
+		for offset_x: int in range(-3, 4):
+			var sample_x: int = grid_x + offset_x
+			if sample_x < 0 or sample_x >= lush_biome_density.size():
+				continue
+			lush_biome_density[sample_x] += weight * maxf(0.2, 1.0 - absf(float(offset_x)) / 4.0)
+
+
+func _build_lush_biome_parallax(bounds: Rect2) -> void:
+	if lush_biome_backdrop_layer != null:
+		lush_biome_backdrop_layer.queue_free()
+	lush_biome_sprites.clear()
+	lush_biome_regions.clear()
+	lush_biome_strength = 0.0
+	if lush_biome_density.is_empty():
+		return
+
+	var spawn_tile := active_level.get("spawn", Vector2i(level_size_tiles.x / 2, level_size_tiles.y / 2)) as Vector2i
+	var spawn_x: float = float(spawn_tile.x) * TILE_SIZE + TILE_SIZE * 0.5
+	var best_score: float = 0.0
+	var best_grid_x: int = -1
+	for grid_x: int in range(lush_biome_density.size()):
+		var candidate_x: float = float(grid_x) * TILE_SIZE + TILE_SIZE * 0.5
+		# The initial room must remain normal cave.  A lush biome is a destination
+		# inside the generated network, not a full-level filter at spawn.
+		if absf(candidate_x - spawn_x) < LUSH_BIOME_SPAWN_EXCLUSION_DISTANCE:
+			continue
+		var score: float = lush_biome_density[grid_x]
+		if score > best_score:
+			best_score = score
+			best_grid_x = grid_x
+	# A decorative patch alone is not a biome. This threshold selects only the
+	# dense, overlapping carpet/canopy areas created by the generator.
+	if best_grid_x < 0 or best_score < 8.0:
+		return
+
+	# Keep this deliberately local: a dense lush pocket, not an all-map skin.
+	var core_width: float = clampf(bounds.size.x * 0.15, 420.0, 620.0)
+	var center_x: float = float(best_grid_x) * TILE_SIZE + TILE_SIZE * 0.5
+	var region := Rect2(
+		Vector2(center_x - core_width * 0.5, bounds.position.y - 1024.0),
+		Vector2(core_width, bounds.size.y + 2048.0)
+	)
+	lush_biome_regions.append(region)
+
+	var shader := load(LUSH_BIOME_TRANSITION_SHADER_PATH) as Shader
+	var deep_texture := load(LUSH_BIOME_DEEP_BACKDROP_PATH) as Texture2D
+	var mid_texture := load(LUSH_BIOME_MID_FRAME_PATH) as Texture2D
+	var foreground_texture := load(LUSH_BIOME_FOREGROUND_FRAME_PATH) as Texture2D
+	if shader == null or deep_texture == null or mid_texture == null or foreground_texture == null:
+		return
+
+	# These canvases are separate from the lit world canvas. They therefore keep
+	# their authored colours and cannot be brightened by Joey, torches or bloom.
+	lush_biome_backdrop_layer = CanvasLayer.new()
+	lush_biome_backdrop_layer.name = "LushBiomeBackdrop"
+	lush_biome_backdrop_layer.layer = -2
+	lush_biome_backdrop_layer.visible = false
+	add_child(lush_biome_backdrop_layer)
+
+	# Back to front: increasingly stronger motion, but intentionally *smaller*
+	# than the camera view.  These are distant biome accents, not enlarged UI
+	# frames; the shader feather keeps their exposed edges seamless.
+	var deep_sprite := _create_lush_biome_sprite(deep_texture, shader, 0, 0.72, Vector2(-0.009, -0.004))
+	var mid_sprite := _create_lush_biome_sprite(mid_texture, shader, 1, 0.62, Vector2(-0.030, -0.012))
+	var foreground_sprite := _create_lush_biome_sprite(foreground_texture, shader, 0, 0.58, Vector2(-0.078, -0.030))
+	foreground_sprite.visible = false
+	lush_biome_backdrop_layer.add_child(deep_sprite)
+	lush_biome_backdrop_layer.add_child(mid_sprite)
+	if parallax_foreground_layer == null:
+		foreground_sprite.queue_free()
+		return
+	parallax_foreground_layer.add_child(foreground_sprite)
+	lush_biome_sprites = [deep_sprite, mid_sprite, foreground_sprite]
+	print("LUSH_BIOME seed=%d center_x=%.0f score=%.1f" % [active_level_seed, center_x, best_score])
+
+
+func _create_lush_biome_sprite(texture: Texture2D, shader: Shader, z_order: int, scale_multiplier: float = 1.0, parallax_factor: Vector2 = Vector2.ZERO) -> Sprite2D:
+	var sprite := Sprite2D.new()
+	sprite.texture = texture
+	sprite.centered = true
+	sprite.position = get_viewport_rect().size * 0.5
+	var viewport_size: Vector2 = get_viewport_rect().size
+	if viewport_size == Vector2.ZERO:
+		viewport_size = Vector2(1920.0, 1080.0)
+	var texture_size := Vector2(texture.get_size())
+	var scale_factor: float = maxf(viewport_size.x / texture_size.x, viewport_size.y / texture_size.y) * scale_multiplier
+	sprite.scale = Vector2.ONE * scale_factor
+	sprite.set_meta("parallax_factor", parallax_factor)
+	sprite.z_index = z_order
+	sprite.light_mask = 0
+	var material := ShaderMaterial.new()
+	material.shader = shader
+	material.set_shader_parameter("biome_strength", 0.0)
+	sprite.material = material
+	return sprite
+
+
+func _create_overlay_root(texture: Texture2D, scale_multiplier: float, parallax_factor: Vector2) -> Node2D:
+	var root := Node2D.new()
+	root.position = get_viewport_rect().size * 0.5
+	var viewport_size: Vector2 = get_viewport_rect().size
+	if viewport_size == Vector2.ZERO:
+		viewport_size = Vector2(1920.0, 1080.0)
+	var texture_size := Vector2(texture.get_size())
+	root.scale = Vector2.ONE * maxf(viewport_size.x / texture_size.x, viewport_size.y / texture_size.y) * scale_multiplier
+	root.set_meta("parallax_factor", parallax_factor)
+	return root
+
+
+func _update_overlay_parallax(sprite: Node2D, world_position: Vector2) -> void:
+	# CanvasLayer sprites are screen-space.  Offset them from the screen centre
+	# by a small fraction of the world position, mirroring the existing cave
+	# ParallaxLayer setup: close foreground shifts fastest, distant art slowest.
+	var factor: Vector2 = sprite.get_meta("parallax_factor", Vector2.ZERO) as Vector2
+	if not sprite.has_meta("parallax_anchor"):
+		sprite.set_meta("parallax_anchor", world_position)
+	var anchor: Vector2 = sprite.get_meta("parallax_anchor", world_position) as Vector2
+	# Work from the local camera journey rather than absolute map coordinates.
+	# This retains a clear foreground/deep-background speed difference without
+	# ever pushing a framed texture past its safe overscan at map extremes.
+	var offset := (world_position - anchor) * factor
+	offset.x = clampf(offset.x, -105.0, 105.0)
+	offset.y = clampf(offset.y, -42.0, 42.0)
+	sprite.position = get_viewport_rect().size * 0.5 + offset
+
+
+func _get_lush_biome_strength(world_position: Vector2) -> float:
+	var strongest: float = 0.0
+	for region: Rect2 in lush_biome_regions:
+		var from_left: float = smoothstep(region.position.x - LUSH_BIOME_TRANSITION_DISTANCE, region.position.x, world_position.x)
+		var from_right: float = 1.0 - smoothstep(region.end.x, region.end.x + LUSH_BIOME_TRANSITION_DISTANCE, world_position.x)
+		strongest = maxf(strongest, from_left * from_right)
+	return strongest
+
+
 func _rebuild_backdrop_shapes(bounds: Rect2) -> void:
 	for child: Node in backdrop_root.get_children():
 		child.free()
@@ -440,6 +705,10 @@ func _grant_level_one_mobility() -> void:
 
 func _build_level() -> void:
 	var platforms: Array = active_level.get("platforms", []) as Array
+	lush_biome_density.clear()
+	lush_biome_density.resize(level_size_tiles.x)
+	for density_index: int in range(lush_biome_density.size()):
+		lush_biome_density[density_index] = 0.0
 	solid_grid_cache = active_level.get("grid", []) as Array
 	if solid_grid_cache.is_empty():
 		solid_grid_cache = _build_cave_solid_grid(platforms)
@@ -454,6 +723,7 @@ func _build_level() -> void:
 	_spawn_lush_canopy_zones(solid_grid_cache)
 	_spawn_generated_flora(solid_grid_cache)
 	_spawn_lush_flower_landmarks(solid_grid_cache)
+	_register_lush_biome_decor_density()
 
 	var hazards: Array = active_level.get("hazards", []) as Array
 	for hazard_variant: Variant in hazards:
@@ -1403,6 +1673,7 @@ func _spawn_lush_ground_carpet_zones(grid: Array) -> void:
 				claimed[key] = true
 				_spawn_moss_tile(cell, {"outward": Vector2i.UP, "rotation": 0.0, "flip_v": false, "scale": 1.18}, carpet_rng)
 				placed += 1
+			_register_lush_biome_span(start.x, span, 1.0)
 
 
 func _spawn_lush_canopy_zones(grid: Array) -> void:
@@ -1445,6 +1716,7 @@ func _spawn_lush_canopy_zones(grid: Array) -> void:
 			# whole shelf becomes one continuous living canopy.
 			for canopy_offset: int in range(0, span, 3):
 				_spawn_lush_canopy(start + Vector2i.RIGHT * canopy_offset, 5, canopy_rng)
+			_register_lush_biome_span(start.x, span, 2.6)
 			placed += 1
 
 
