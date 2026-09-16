@@ -296,7 +296,9 @@ func _build_cave_network_result(seed: int) -> Dictionary:
 		var radius_y: float = (5.0 + rng.randf_range(0.0, 1.6)) if landmark else (2.8 + rng.randf_range(0.0, 1.5))
 		_carve_organic_blob(grid, hub, radius_x, radius_y)
 		if hub_index < main_lines.size():
-			_carve_network_polyline(grid, main_lines[hub_index] as Array, 2)
+			# Mandatory route keeps one additional tile of arc clearance; optional
+			# loops and pockets remain deliberately tighter below.
+			_carve_network_polyline(grid, main_lines[hub_index] as Array, 3)
 	# Sekundaere Schleifen und Sackgassen liegen ueber und unter der Pflichtader.
 	# Sie erzeugen echte Richtungsentscheidungen, ohne die Pflichtprogression an
 	# einer optionalen Plattform zu haengen.
@@ -354,6 +356,7 @@ func _build_cave_network_result(seed: int) -> Dictionary:
 	var hazards: Array = _network_place_hazards(path)
 	var torches: Array = _network_place_torches(path, hubs)
 	var final_grid: Array = TerrainResolver.duplicate_cells(TerrainResolver.build_logical_map(grid, level_size))
+	_reinforce_network_traversal_geometry(final_grid, path, platforms)
 	var rooms: Array = []
 	for hub_index: int in range(hubs.size()):
 		rooms.append({"id": "network_hub_%d" % hub_index, "role": ROOM_ROLE_LANDMARK if hub_index == 4 else ROOM_ROLE_VERTICAL, "entry_node": hubs[hub_index], "exit_node": hubs[hub_index]})
@@ -363,6 +366,16 @@ func _build_cave_network_result(seed: int) -> Dictionary:
 	validation["vertical_signature"] = "layered_ring"
 	validation["room_variety_score"] = 7.0
 	return {"grid": final_grid, "spawn": spawn, "exit": exit, "platforms": platforms, "pickups": pickups, "enemies": enemies, "hazards": hazards, "torches": torches, "triggers": _place_triggers(), "boss": {}, "worm_count": 0, "layout_validation": validation, "debug_rooms": rooms, "critical_path_nodes": path, "side_path_lines": side_lines, "mobility_profile": mobility_profile}
+
+
+func _reinforce_network_traversal_geometry(grid: Array, path: Array, platforms: Array) -> void:
+	# The terrain cleanup is allowed to sculpt optional cave edges, but it must
+	# not shave the body clearance from the mandatory route afterwards.
+	_carve_network_polyline(grid, path, 3)
+	for platform_variant: Variant in platforms:
+		var platform: Dictionary = platform_variant as Dictionary
+		_stamp_rect(grid, int(platform.get("x", 0)), int(platform.get("y", 0)), max(1, int(platform.get("w", 1))), 1)
+		_carve_rect(grid, int(platform.get("x", 0)) - 1, int(platform.get("y", 0)) - 4, int(platform.get("w", 1)) + 2, 4)
 
 
 func _stamp_network_landing(grid: Array, platforms: Array, point: Vector2i, point_index: int, route_index: int) -> void:
