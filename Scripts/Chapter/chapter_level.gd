@@ -763,8 +763,19 @@ func _draw_cave_wall_tiles(logical_map: Dictionary) -> void:
 				continue
 			var resolved_tile: Dictionary = TileClassifier.resolve_solid_cell(logical_map, cell)
 			var atlas_coords: Vector2i = resolved_tile.get("atlas_coords", Vector2i(1, 1)) as Vector2i
+			if not _has_cave_atlas_tile(atlas_coords):
+				# A logical edge may legitimately classify to a corner that is
+				# absent from a swapped tileset. Never emit a shifted/missing cell.
+				atlas_coords = Vector2i(1, 1)
 			var alternative_tile: int = int(resolved_tile.get("alternative", 0))
 			wall_tiles.set_cell(cell, cave_tile_source_id, atlas_coords, alternative_tile)
+
+
+func _has_cave_atlas_tile(atlas_coords: Vector2i) -> bool:
+	if cave_tileset == null:
+		return false
+	var source: TileSetAtlasSource = cave_tileset.get_source(cave_tile_source_id) as TileSetAtlasSource
+	return source != null and source.has_tile(atlas_coords)
 
 
 func _draw_debug_overlay() -> void:
@@ -1154,16 +1165,21 @@ func _is_vine_anchor(grid: Array, grid_x: int, grid_y: int) -> bool:
 
 
 func _has_vine_clearance(grid: Array, grid_x: int, anchor_y: int, length: int) -> bool:
-	if grid_x < 2 or grid_x >= level_size_tiles.x - 2:
+	# The visual is roughly one tile wide after scaling. Check its shoulders as
+	# well as the stem so a vine cannot be spawned half inside a side wall.
+	if grid_x < 3 or grid_x >= level_size_tiles.x - 3:
 		return false
-	for offset_y: int in range(1, length + 2):
-		if _is_solid(grid, grid_x, anchor_y + offset_y):
-			return false
+	for offset_x: int in range(-1, 2):
+		for offset_y: int in range(1, length + 2):
+			if _is_solid(grid, grid_x + offset_x, anchor_y + offset_y):
+				return false
 	return true
 
 
 func _spawn_vine_trail(grid_x: int, grid_y: int, segment_count: int, rotation: float, light_energy: float) -> void:
-	var start_position := _grid_to_world(Vector2i(grid_x, grid_y)) + Vector2(16.0, 7.0)
+	# Anchor exactly below the supporting tile, with a small visual overlap so
+	# the first sprig never appears to float away from the cave ceiling.
+	var start_position := _grid_to_world(Vector2i(grid_x, grid_y)) + Vector2(16.0, 5.0)
 	var horizontal_drift: float = clampf(rotation * 22.0, -12.0, 12.0)
 	for segment_index: int in range(segment_count):
 		var vine: Node2D = VINE_SCENE.instantiate() as Node2D
