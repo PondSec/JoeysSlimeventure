@@ -99,6 +99,8 @@ static func get_level_data(chapter_index: int, level_index: int) -> Dictionary:
 	level_copy["chapter_index"] = chapter_index
 	level_copy["level_index"] = level_index
 	level_copy["level_label"] = "Level %d / %d" % [level_index + 1, levels.size()]
+	level_copy["mobility_skills"] = _chapter_one_mobility_skills(level_index)
+	level_copy["lesson_focus"] = _chapter_one_lesson_focus(level_index)
 	_normalize_chapter_one_level(level_copy)
 	return level_copy
 
@@ -221,15 +223,51 @@ static func _normalize_chapter_one_level(level_data: Dictionary) -> void:
 	level_data["triggers"] = triggers
 
 
+# Diese Daten sind die verbindliche Lektion pro Abschnitt. Der Generator darf
+# nur Spruenge verlangen, die mit diesen bereits verfuegbaren Faehigkeiten
+# moeglich sind. Neue Faehigkeiten werden erst im folgenden Level gefordert.
+static func _chapter_one_mobility_skills(level_index: int) -> Dictionary:
+	return {
+		"wall_slide": true,
+		"double_jump": level_index >= 6,
+		"wall_run": false,
+		"dash": false,
+		"teleport": false
+	}
+
+
+static func _chapter_one_lesson_focus(level_index: int) -> Array[String]:
+	match level_index:
+		0:
+			return ["movement", "glow", "wall_slide", "safe_landings"]
+		1:
+			return ["wall_slide", "controlled_drop", "basic_combat"]
+		2:
+			return ["glow", "combat", "regeneration_intro"]
+		3:
+			return ["wall_slide", "vertical_routes", "enemy_spacing"]
+		4:
+			return ["glow", "branches", "readable_hazards"]
+		5:
+			return ["wall_slide", "double_jump_unlock", "vertical_preview"]
+		6:
+			return ["double_jump", "combat", "shortcuts"]
+		_:
+			return ["chapter_one_mastery", "double_jump", "boss"]
+
+
 static func _chapter_one_levels() -> Array:
 	return [
 		{
 			"title": "Der Erste Tropfen",
 			"subtitle": "Joey lernt, dass ein Slime nicht marschiert, sondern fliesst.",
 			"objective": "Finde den ersten Hohlgang durch kleine Spruenge und sichere Landungen.",
-			"size": Vector2i(102, 38),
+			"size": Vector2i(116, 44),
+			# Vorab gegen den echten Bewegungs-Validator geprueft. Dadurch startet
+			# der erste Einstieg ohne zufallsbedingte Wiederholungsversuche.
+			"seed_override": 31777,
 			"spawn": Vector2i(4, 28),
-			"exit": Vector2i(96, 24),
+			"exit": Vector2i(108, 27),
 			"platforms": [
 				_platform(0, 31, 102, 4, "floor"),
 				_platform(8, 27, 7, 1),
@@ -244,8 +282,7 @@ static func _chapter_one_levels() -> Array:
 			],
 			"hazards": [],
 			"enemies": [
-				_enemy("slime", 21, 22),
-				_enemy("mushroom", 57, 21)
+				_enemy("bat", 32, 20)
 			],
 			"torches": [
 				_torch(6, 27, 0.95),
@@ -273,9 +310,11 @@ static func _chapter_one_levels() -> Array:
 			"title": "Der Tiefe Riss",
 			"subtitle": "Abwaerts fuehren nur ruhige Augen und saubere Landungen.",
 			"objective": "Lese die Hoehle und falle kontrolliert durch den Riss.",
-			"size": Vector2i(108, 40),
+			"size": Vector2i(122, 46),
+			"layout_style": "vertical",
+			"seed_override": 31777,
 			"spawn": Vector2i(6, 12),
-			"exit": Vector2i(98, 30),
+			"exit": Vector2i(114, 31),
 			"platforms": [
 				_platform(0, 14, 20, 1, "ledge"),
 				_platform(0, 32, 108, 4, "floor"),
@@ -293,8 +332,8 @@ static func _chapter_one_levels() -> Array:
 				_hazard("spikes", 73, 31, 2)
 			],
 			"enemies": [
-				_enemy("slime", 45, 26),
-				_enemy("slime", 80, 22)
+				_enemy("bat", 45, 22),
+				_enemy("bat", 80, 18)
 			],
 			"torches": [
 				_torch(5, 13, 1.0),
@@ -320,9 +359,9 @@ static func _chapter_one_levels() -> Array:
 			"title": "Flatterkamm",
 			"subtitle": "Fledermaeuse zwingen Joey, seine Spruenge im Raum zu timen.",
 			"objective": "Quere die gebrochenen Bruestungen und halte die Luft frei.",
-			"size": Vector2i(118, 38),
+			"size": Vector2i(132, 44),
 			"spawn": Vector2i(4, 28),
-			"exit": Vector2i(110, 24),
+			"exit": Vector2i(124, 26),
 			"platforms": [
 				_platform(0, 31, 20, 4, "floor"),
 				_platform(24, 29, 7, 1),
@@ -342,7 +381,7 @@ static func _chapter_one_levels() -> Array:
 			"enemies": [
 				_enemy("bat", 31, 22),
 				_enemy("bat", 68, 18),
-				_enemy("slime", 109, 23)
+				_enemy("bat", 109, 19)
 			],
 			"torches": [
 				_torch(8, 27, 1.0),
@@ -367,9 +406,9 @@ static func _chapter_one_levels() -> Array:
 			"title": "Schattenrinne",
 			"subtitle": "Joeys Licht ist Schutz und Risiko zugleich.",
 			"objective": "Fuehre dein Glow bewusst durch die dunkle Rinne.",
-			"size": Vector2i(114, 40),
+			"size": Vector2i(130, 46),
 			"spawn": Vector2i(4, 28),
-			"exit": Vector2i(100, 25),
+			"exit": Vector2i(120, 26),
 			"platforms": [
 				_platform(0, 31, 108, 4, "floor"),
 				_platform(14, 28, 8, 1),
@@ -410,9 +449,9 @@ static func _chapter_one_levels() -> Array:
 			"title": "Kristallgraben",
 			"subtitle": "Die Hoehle wird enger, die Kaempfe dichter und die Routen riskanter.",
 			"objective": "Durchbrich das erste Kampffeld und halte den Rhythmus.",
-			"size": Vector2i(132, 44),
+			"size": Vector2i(140, 50),
 			"spawn": Vector2i(5, 29),
-			"exit": Vector2i(112, 24),
+			"exit": Vector2i(130, 27),
 			"platforms": [
 				_platform(0, 32, 120, 4, "floor"),
 				_platform(12, 27, 10, 1),
@@ -461,9 +500,9 @@ static func _chapter_one_levels() -> Array:
 			"title": "Der Vertikale Atem",
 			"subtitle": "Eine steile Kristallschlucht prueft Rhythmus, Blick und Nerven.",
 			"objective": "Steige durch den Schacht auf und halte die Wandwechsel sauber.",
-			"size": Vector2i(104, 62),
-			"spawn": Vector2i(6, 46),
-			"exit": Vector2i(79, 10),
+			"size": Vector2i(118, 64),
+			"spawn": Vector2i(6, 48),
+			"exit": Vector2i(108, 16),
 			"platforms": [
 				_platform(0, 49, 92, 5, "floor"),
 				_platform(12, 43, 10, 1),
@@ -511,9 +550,9 @@ static func _chapter_one_levels() -> Array:
 			"title": "Das Schimmernde Heiligtum",
 			"subtitle": "Der letzte Pruefraum vor dem Mini-Boss bindet alles zusammen.",
 			"objective": "Meistere den Mix aus Schatten, Luftkampf und Nahdruck.",
-			"size": Vector2i(136, 46),
+			"size": Vector2i(144, 52),
 			"spawn": Vector2i(5, 28),
-			"exit": Vector2i(114, 21),
+			"exit": Vector2i(134, 25),
 			"platforms": [
 				_platform(0, 31, 124, 4, "floor"),
 				_platform(15, 26, 9, 1),
@@ -563,9 +602,9 @@ static func _chapter_one_levels() -> Array:
 			"title": "Der Koenig der Hoehlenschleime",
 			"subtitle": "Eine traege Masse, die Joeys neue Form spiegeln will.",
 			"objective": "Besiege den Mini-Boss und sichere Joeys ersten grossen Sieg.",
-			"size": Vector2i(134, 48),
+			"size": Vector2i(146, 54),
 			"spawn": Vector2i(8, 28),
-			"exit": Vector2i(106, 24),
+			"exit": Vector2i(136, 28),
 			"platforms": [
 				_platform(0, 31, 116, 4, "floor"),
 				_platform(20, 25, 10, 1),
