@@ -47,6 +47,7 @@ const WIND_GLOW_FLOWER_PATHS := [
 	"res://Assets/Deko/lush/wind_glow_flower_03.png"
 ]
 const PLANT_GLOW_TEXTURE_PATH := "res://Assets/Light/torch_light.png"
+const VEGETATION_WIND_SHADER_PATH := "res://Shaders/vegetation_wind.gdshader"
 const PLAYER_WORLD_COLLISION_LAYER := 2
 const DEFAULT_CAVE_TILE_SOURCE_ID := 0
 const CAVE_TILE_SIZE := Vector2i(32, 32)
@@ -148,6 +149,8 @@ var lush_canopy_textures: Array = []
 var wind_broadleaf_textures: Array = []
 var wind_glow_flower_textures: Array = []
 var decoration_alpha_bounds: Dictionary = {}
+var vegetation_motion_nodes: Array[CanvasItem] = []
+var vegetation_motion_shader: Shader
 
 @onready var shadow: CanvasModulate = $Shadow
 
@@ -194,6 +197,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if player == null:
 		return
+	_update_vegetation_motion(delta)
 	# The ordinary foreground is always present, independent of whether this
 	# seed contains a lush biome.  Keeping it moving here also gives the normal
 	# cave the same depth response as the lush frame.
@@ -763,6 +767,7 @@ func _grant_level_one_mobility() -> void:
 
 func _build_level() -> void:
 	var platforms: Array = active_level.get("platforms", []) as Array
+	vegetation_motion_nodes.clear()
 	lush_biome_density.clear()
 	lush_biome_density.resize(level_size_tiles.x)
 	for density_index: int in range(lush_biome_density.size()):
@@ -1693,6 +1698,79 @@ func _get_decoration_alpha_bounds(texture: Texture2D) -> Rect2i:
 	return bounds
 
 
+func _get_vegetation_motion_shader() -> Shader:
+	if vegetation_motion_shader == null:
+		vegetation_motion_shader = load(VEGETATION_WIND_SHADER_PATH) as Shader
+	return vegetation_motion_shader
+
+
+func _register_vegetation_motion(plant: CanvasItem, texture: Texture2D, motion_rng: RandomNumberGenerator, root_at_bottom: bool) -> void:
+	# Every procedural plant receives a private material: this is what lets the
+	# wind ripple through a group instead of animating all sprites identically.
+	if plant == null or texture == null:
+		return
+	var shader := _get_vegetation_motion_shader()
+	if shader == null:
+		return
+	var alpha_bounds := _get_decoration_alpha_bounds(texture)
+	var texture_height: float = maxf(1.0, float(texture.get_height()))
+	var root_y: float = float(alpha_bounds.end.y) / texture_height if root_at_bottom else float(alpha_bounds.position.y) / texture_height
+	var displayed_scale: float = maxf(0.02, absf(plant.scale.x))
+	var material := ShaderMaterial.new()
+	material.shader = shader
+	material.set_shader_parameter("wind_phase", motion_rng.randf_range(0.0, TAU))
+	material.set_shader_parameter("wind_world_x", plant.global_position.x)
+	material.set_shader_parameter("sway_pixels", clampf(motion_rng.randf_range(1.35, 2.65) / displayed_scale, 2.0, 72.0))
+	material.set_shader_parameter("press_pixels", clampf(motion_rng.randf_range(5.5, 8.5) / displayed_scale, 4.0, 110.0))
+	material.set_shader_parameter("root_uv_y", clampf(root_y, 0.001, 0.999))
+	material.set_shader_parameter("root_at_bottom", 1.0 if root_at_bottom else 0.0)
+	material.set_shader_parameter("interaction_strength", 0.0)
+	material.set_shader_parameter("interaction_direction", 1.0)
+	material.set_shader_parameter("tint_variation", motion_rng.randf_range(-0.025, 0.025))
+	plant.material = material
+	plant.set_meta("vegetation_interaction", 0.0)
+	plant.set_meta("vegetation_direction", 1.0)
+	plant.set_meta("vegetation_interaction_radius", clampf(maxf(42.0, float(texture.get_width()) * displayed_scale * 0.48), 42.0, 112.0))
+	vegetation_motion_nodes.append(plant)
+
+
+func _update_vegetation_motion(delta: float) -> void:
+	# A plant reacts individually only inside the nearby simulation range. The
+	# shader continues its cheap GPU-only idle wind everywhere else.
+	for node_index: int in range(vegetation_motion_nodes.size() - 1, -1, -1):
+		var plant: CanvasItem = vegetation_motion_nodes[node_index]
+		if not is_instance_valid(plant):
+			vegetation_motion_nodes.remove_at(node_index)
+			continue
+		if plant.global_position.distance_to(player.global_position) > 760.0:
+			continue
+		var material := plant.material as ShaderMaterial
+		if material == null:
+			continue
+		var radius: float = float(plant.get_meta("vegetation_interaction_radius", 48.0))
+		var offset: Vector2 = player.global_position - plant.global_position
+		var horizontal_contact: float = 1.0 - smoothstep(radius * 0.28, radius, absf(offset.x))
+		var vertical_contact: float = 1.0 - smoothstep(radius * 0.45, radius * 1.28, absf(offset.y))
+		var target_strength: float = clampf(horizontal_contact * vertical_contact, 0.0, 1.0)
+		var current_strength: float = float(plant.get_meta("vegetation_interaction", 0.0))
+		# The push is quick, recovery is slow and springy-looking without needing
+		# a physics body on every decorative leaf.
+		var response_rate: float = 15.0 if target_strength > current_strength else 4.8
+		current_strength = lerpf(current_strength, target_strength, 1.0 - exp(-response_rate * delta))
+		var current_direction: float = float(plant.get_meta("vegetation_direction", 1.0))
+		if target_strength > 0.02:
+			var target_direction: float = signf(plant.global_position.x - player.global_position.x)
+			if is_zero_approx(target_direction):
+				target_direction = signf(player.velocity.x)
+			if is_zero_approx(target_direction):
+				target_direction = current_direction
+			current_direction = lerpf(current_direction, target_direction, 1.0 - exp(-10.0 * delta))
+		plant.set_meta("vegetation_interaction", current_strength)
+		plant.set_meta("vegetation_direction", current_direction)
+		material.set_shader_parameter("interaction_strength", current_strength)
+		material.set_shader_parameter("interaction_direction", current_direction)
+
+
 func _get_cave_moss_textures() -> Array:
 	if not cave_moss_textures.is_empty():
 		return cave_moss_textures
@@ -1833,6 +1911,7 @@ func _spawn_lush_canopy(start: Vector2i, span: int, canopy_rng: RandomNumberGene
 	sprite.modulate = Color(0.86 + canopy_rng.randf() * 0.14, 0.94 + canopy_rng.randf() * 0.06, 0.76 + canopy_rng.randf() * 0.16, 1.0)
 	if canopy_rng.randf() < 0.42:
 		_add_lush_plant_glow(sprite, canopy_rng, 0.11, 0.18)
+	_register_vegetation_motion(sprite, sprite.texture, canopy_rng, false)
 	decor_root.add_child(sprite)
 
 
@@ -1916,6 +1995,7 @@ func _spawn_flora_tile(cell: Vector2i, outward: Vector2i, flora_rng: RandomNumbe
 	sprite.flip_h = flora_rng.randf() < 0.38
 	if flora_rng.randf() < 0.30:
 		_add_lush_plant_glow(sprite, flora_rng, 0.15, 0.25)
+	_register_vegetation_motion(sprite, sprite.texture, flora_rng, not hanging)
 	decor_root.add_child(sprite)
 
 
@@ -2004,25 +2084,17 @@ func _spawn_wind_broadleaf_plants(grid: Array) -> void:
 			# Reserve shoulders so these wide leaves never stack into a rigid wall.
 			for offset_x: int in range(-2, 3):
 				claimed["%d:%d" % [cell.x + offset_x, cell.y]] = true
-			var frames := SpriteFrames.new()
-			frames.remove_animation(&"default")
-			frames.add_animation(&"wind")
-			frames.set_animation_speed(&"wind", plant_rng.randf_range(1.25, 1.75))
-			frames.set_animation_loop(&"wind", true)
-			for texture: Texture2D in textures:
-				frames.add_frame(&"wind", texture)
-			var plant := AnimatedSprite2D.new()
+			# Keep one of the supplied frames as a visual variant. The common shader
+			# below supplies the continuous movement, avoiding a choppy four-frame loop.
+			var plant := Sprite2D.new()
 			plant.name = "GeneratedWindBroadleaf"
-			plant.sprite_frames = frames
-			plant.animation = &"wind"
-			plant.frame = plant_rng.randi_range(0, textures.size() - 1)
-			plant.frame_progress = plant_rng.randf()
-			plant.scale = Vector2.ONE * plant_rng.randf_range(0.105, 0.135)
-			plant.position = _ground_flora_position(textures[0] as Texture2D, cell, plant.scale)
+			plant.texture = textures[plant_rng.randi_range(0, textures.size() - 1)] as Texture2D
+			plant.scale = Vector2.ONE * plant_rng.randf_range(0.030, 0.044)
+			plant.position = _ground_flora_position(plant.texture, cell, plant.scale)
 			plant.flip_h = plant_rng.randf() < 0.5
 			plant.z_index = 6 if plant_rng.randf() < 0.35 else 0
 			plant.modulate = Color(0.72, 0.92, 0.78, 1.0)
-			plant.play(&"wind")
+			_register_vegetation_motion(plant, plant.texture, plant_rng, true)
 			decor_root.add_child(plant)
 			placed += 1
 
@@ -2054,26 +2126,16 @@ func _spawn_wind_glow_flowers(grid: Array) -> void:
 				continue
 			for offset_x: int in range(-2, 3):
 				claimed["%d:%d" % [cell.x + offset_x, cell.y]] = true
-			var frames := SpriteFrames.new()
-			frames.remove_animation(&"default")
-			frames.add_animation(&"wind")
-			frames.set_animation_speed(&"wind", flower_rng.randf_range(0.95, 1.30))
-			frames.set_animation_loop(&"wind", true)
-			for texture: Texture2D in textures:
-				frames.add_frame(&"wind", texture)
-			var flower := AnimatedSprite2D.new()
+			var flower := Sprite2D.new()
 			flower.name = "GeneratedWindGlowFlower"
-			flower.sprite_frames = frames
-			flower.animation = &"wind"
-			flower.frame = flower_rng.randi_range(0, textures.size() - 1)
-			flower.frame_progress = flower_rng.randf()
-			flower.scale = Vector2.ONE * flower_rng.randf_range(0.092, 0.118)
-			flower.position = _ground_flora_position(textures[0] as Texture2D, cell, flower.scale)
+			flower.texture = textures[flower_rng.randi_range(0, textures.size() - 1)] as Texture2D
+			flower.scale = Vector2.ONE * flower_rng.randf_range(0.058, 0.078)
+			flower.position = _ground_flora_position(flower.texture, cell, flower.scale)
 			flower.flip_h = flower_rng.randf() < 0.5
 			flower.z_index = 6 if flower_rng.randf() < 0.35 else 0
 			flower.modulate = Color(0.82, 0.98, 0.66, 1.0)
 			flower.self_modulate = Color(1.10, 1.04, 0.82, 1.0)
-			flower.play(&"wind")
+			_register_vegetation_motion(flower, flower.texture, flower_rng, true)
 			decor_root.add_child(flower)
 			placed += 1
 
@@ -2092,6 +2154,7 @@ func _spawn_lush_landmark(cell: Vector2i, landmark_rng: RandomNumberGenerator) -
 	sprite.modulate = Color(0.92 + landmark_rng.randf() * 0.08, 0.92 + landmark_rng.randf() * 0.08, 1.0, 1.0)
 	if landmark_rng.randf() < 0.82:
 		_add_lush_plant_glow(sprite, landmark_rng, 0.22, 0.34)
+	_register_vegetation_motion(sprite, sprite.texture, landmark_rng, true)
 	decor_root.add_child(sprite)
 
 
@@ -2182,6 +2245,11 @@ func _spawn_vine_trail(grid_x: int, grid_y: int, segment_count: int, rotation: f
 		vine.modulate = Color(0.5, 0.9, 0.46, 1.0)
 		if segment_index % 3 == 0:
 			vine.self_modulate = Color(0.72, 1.04, 0.68, 1.0)
+		var vine_sprite := vine as Sprite2D
+		if vine_sprite != null:
+			# The ceiling anchor stays visually stable; only the lower leaves gain
+			# the subdued shared sway from the root-to-tip shader.
+			_register_vegetation_motion(vine_sprite, vine_sprite.texture, rng, false)
 		var vine_light: PointLight2D = vine.get_node_or_null("PointLight2D") as PointLight2D
 		if vine_light != null:
 			# A dense cluster can contain hundreds of segments. Their separate
