@@ -56,6 +56,7 @@ const PARALLAX_FX_TEXTURE_PATHS := [
 	"res://Assets/Parallax Cave/6fx.png",
 	"res://Assets/Parallax Cave/3fx.png"
 ]
+const LUSH_ATMOSPHERE_PATH := "res://Assets/Parallax Cave/Lush/lush_atmosphere.png"
 
 const WORLD_BOUND_LEFT_PADDING := 128.0
 const WORLD_BOUND_RIGHT_PADDING := 128.0
@@ -396,6 +397,46 @@ func _rebuild_backdrop_shapes(bounds: Rect2) -> void:
 			Vector2(start_x + width * 0.52, bounds.end.y - height)
 		])
 		backdrop_root.add_child(stalagmite)
+
+	_build_local_lush_atmosphere(bounds)
+
+
+func _build_local_lush_atmosphere(bounds: Rect2) -> void:
+	# Lushness is regional, not a global screen overlay. Each seed gets a few
+	# broad, deliberately separated pockets; the rest keeps the normal cave
+	# backdrop. The feathered material makes their border disappear into rock.
+	var atmosphere: Texture2D = load(LUSH_ATMOSPHERE_PATH) as Texture2D
+	var fade_shader: Shader = load("res://Shaders/lush_atmosphere_fade.gdshader") as Shader
+	if atmosphere == null or fade_shader == null:
+		return
+
+	var region_rng := RandomNumberGenerator.new()
+	region_rng.seed = int(active_level_seed) * 811 + 97
+	var region_count: int = 2 + region_rng.randi_range(0, 1)
+	for index: int in range(region_count):
+		var progression_ratio: float = (float(index) + 0.7) / float(region_count + 1)
+		var horizontal_jitter: float = region_rng.randf_range(-0.075, 0.075)
+		var vertical_jitter: float = region_rng.randf_range(-0.10, 0.10)
+		var region := Sprite2D.new()
+		region.name = "LushAtmosphereRegion%d" % index
+		region.texture = atmosphere
+		region.centered = true
+		region.position = Vector2(
+			bounds.position.x + bounds.size.x * clampf(progression_ratio + horizontal_jitter, 0.16, 0.84),
+			bounds.position.y + bounds.size.y * (0.46 + vertical_jitter)
+		)
+		var scale_factor: float = region_rng.randf_range(0.57, 0.69)
+		region.scale = Vector2(scale_factor, scale_factor)
+		region.modulate = Color(0.68, 0.96, 0.75, region_rng.randf_range(0.25, 0.34))
+		var material := ShaderMaterial.new()
+		material.shader = fade_shader
+		material.set_shader_parameter("horizontal_fade", region_rng.randf_range(0.15, 0.22))
+		material.set_shader_parameter("vertical_fade", region_rng.randf_range(0.08, 0.14))
+		region.material = material
+		# This root is rendered behind tile geometry, hazards and Joey. The lush
+		# image adds atmospheric depth but can never hide collision or gameplay.
+		region.z_index = -3
+		backdrop_root.add_child(region)
 
 
 func _spawn_player() -> void:
