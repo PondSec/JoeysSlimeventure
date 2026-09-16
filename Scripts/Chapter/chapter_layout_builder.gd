@@ -870,10 +870,14 @@ func _compose_horizontal_path_nodes(room: Dictionary, left_x: int, right_x: int,
 			Vector2i(right_x, end_y)
 		]
 	elif role == ROOM_ROLE_EXIT:
+		# Das Tor liegt in einer inneren Endtasche statt an der rechten
+		# Levelkante. Der verbleibende Felsraum wirkt wie eine optionale,
+		# erkundbare Fortsetzung und verrät die Zielrichtung nicht sofort.
+		var exit_pocket_x: int = rect_lerp_x(left_x, right_x, 0.36)
 		path_nodes = [
 			Vector2i(left_x, start_y),
-			Vector2i(rect_lerp_x(left_x, right_x, 0.45), clampi((start_y + end_y) / 2, min_y, max_y)),
-			Vector2i(right_x, end_y)
+			Vector2i(rect_lerp_x(left_x, exit_pocket_x, 0.52), clampi((start_y + end_y) / 2, min_y, max_y)),
+			Vector2i(exit_pocket_x, end_y)
 		]
 	else:
 		var segment_count: int = max(5, int(ceil(float(right_x - left_x) / 5.2)))
@@ -1632,10 +1636,44 @@ func _build_solid_grid() -> Array:
 	_carve_platform_headroom(grid)
 	_ensure_exit_landing(grid)
 	_carve_pickup_pockets(grid)
+	_carve_organic_wall_pockets(grid)
 	var logical_map: Dictionary = TerrainResolver.build_logical_map(grid, level_size)
 	var final_grid: Array = TerrainResolver.duplicate_cells(logical_map)
 	_reinforce_traversal_geometry(final_grid)
 	return final_grid
+
+
+func _carve_organic_wall_pockets(grid: Array) -> void:
+	# Die Raum-Rects bleiben ausschliesslich ein Layout-Hilfsmittel. Danach
+	# fransen kleine, deterministische Ausbuchtungen die Decke und tiefe
+	# Wandmassen aus. Kritische Laufflaechen werden erst danach wieder
+	# konstruktiv verstärkt, daher bleiben die echten Sprungkanten unberuehrt.
+	var all_rooms: Array = []
+	all_rooms.append_array(main_rooms)
+	all_rooms.append_array(side_rooms)
+	for room_variant: Variant in all_rooms:
+		var room: Dictionary = room_variant as Dictionary
+		var rect: Rect2i = room.get("rect", Rect2i()) as Rect2i
+		var path_nodes: Array = room.get("path_nodes", []) as Array
+		if rect.size.x < 8 or path_nodes.is_empty():
+			continue
+		for grid_x: int in range(rect.position.x + 2, rect.position.x + rect.size.x - 2):
+			var pattern: int = abs(grid_x * 31 + rect.position.y * 17 + int(room.get("index", 0)) * 13) % 11
+			if pattern > 3:
+				continue
+			var notch_width: int = 1 + int(pattern == 0)
+			var ceiling_y: int = _first_ceiling_solid(grid, grid_x, rect)
+			if ceiling_y >= rect.position.y + 1:
+				_carve_rect(grid, grid_x, ceiling_y, notch_width, 1 + int(pattern <= 1))
+
+
+func _first_ceiling_solid(grid: Array, grid_x: int, rect: Rect2i) -> int:
+	for grid_y: int in range(rect.position.y + 1, rect.position.y + rect.size.y - 2):
+		if _grid_is_solid(grid, grid_x, grid_y) and not _grid_is_solid(grid, grid_x, grid_y + 1):
+			return grid_y
+	return -1
+
+
 
 
 func _reinforce_traversal_geometry(grid: Array) -> void:
