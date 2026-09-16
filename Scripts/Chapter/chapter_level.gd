@@ -1133,9 +1133,9 @@ func _spawn_generated_overgrowth(grid: Array) -> void:
 		if grid_x - previous_cluster_x < 4:
 			continue
 		for grid_y: int in range(2, level_size_tiles.y - 9):
-			if not _is_vine_anchor(grid, grid_x, grid_y) or rng.randf() > 0.19:
+			if not _is_vine_anchor(grid, grid_x, grid_y) or rng.randf() > 0.43:
 				continue
-			var primary_length: int = rng.randi_range(5, 10)
+			var primary_length: int = rng.randi_range(4, 11)
 			if not _has_vine_clearance(grid, grid_x, grid_y, primary_length):
 				continue
 			_spawn_vine_trail(grid_x, grid_y + 1, primary_length, rng.randf_range(-0.34, 0.34), 0.22)
@@ -1155,7 +1155,7 @@ func _spawn_generated_overgrowth(grid: Array) -> void:
 					_spawn_vine_trail(tendril_x, grid_y + 2, tendril_length, float(-companion_offset) * 0.62, 0.12)
 			previous_cluster_x = grid_x
 			cluster_count += 1
-			if cluster_count >= 16:
+			if cluster_count >= 32:
 				return
 			break
 
@@ -1959,18 +1959,29 @@ func _resolve_exit_gate_tile() -> Vector2i:
 func _find_spawn_air_tile() -> Vector2i:
 	var fallback_tile: Vector2i = active_level.get("spawn", Vector2i(4, 28)) as Vector2i
 	if solid_grid_cache.is_empty():
-		return fallback_tile
+		return fallback_tile + Vector2i.UP
 
-	var y_offsets: Array[int] = [0, 1, 2, -1, 3, -2, 4, -3, 5, -4, 6, -5, 7, -6, 8]
-	var x_offsets: Array[int] = [0, 1, -1, 2, -2, 3, -3]
-	for y_offset: int in y_offsets:
-		var grid_y: int = clampi(fallback_tile.y + y_offset, 2, level_size_tiles.y - 3)
-		for x_offset: int in x_offsets:
-			var grid_x: int = clampi(fallback_tile.x + x_offset, 1, level_size_tiles.x - 2)
-			if _is_valid_spawn_tile(grid_x, grid_y):
-				return Vector2i(grid_x, grid_y)
+	# Layout anchors are floor cells. The previous search treated the authored
+	# floor coordinate as an air cell and could fall back to a solid tile in a
+	# dense network. Resolve a broad, three-tile-clear landing first.
+	var roots: Array[Vector2i] = [fallback_tile]
+	var critical_path: Array = active_level.get("critical_path_nodes", []) as Array
+	if not critical_path.is_empty():
+		var route_start: Vector2i = critical_path.front() as Vector2i
+		if route_start != fallback_tile:
+			roots.append(route_start)
+	var y_offsets: Array[int] = [0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5, 6, -6, 7, -7, 8]
+	var x_offsets: Array[int] = [0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5]
+	for root: Vector2i in roots:
+		for y_offset: int in y_offsets:
+			var floor_y: int = clampi(root.y + y_offset, 4, level_size_tiles.y - 3)
+			for x_offset: int in x_offsets:
+				var grid_x: int = clampi(root.x + x_offset, 3, level_size_tiles.x - 4)
+				if _is_valid_spawn_floor(grid_x, floor_y):
+					return Vector2i(grid_x, floor_y - 1)
 
-	return fallback_tile
+	# This fallback is still an air coordinate, never the solid authored floor.
+	return Vector2i(clampi(fallback_tile.x, 2, level_size_tiles.x - 3), clampi(fallback_tile.y - 1, 2, level_size_tiles.y - 3))
 
 
 func _surface_world_y_from_point(target_position: Vector2) -> float:
@@ -1994,6 +2005,19 @@ func _is_valid_spawn_tile(grid_x: int, grid_y: int) -> bool:
 	if not _is_solid(solid_grid_cache, grid_x, grid_y + 1):
 		return false
 	return true
+
+
+func _is_valid_spawn_floor(grid_x: int, floor_y: int) -> bool:
+	if not _is_solid(solid_grid_cache, grid_x, floor_y):
+		return false
+	var supporting_cells := 0
+	for offset_x: int in range(-1, 2):
+		if _is_solid(solid_grid_cache, grid_x + offset_x, floor_y):
+			supporting_cells += 1
+		for offset_y: int in range(1, 4):
+			if _is_solid(solid_grid_cache, grid_x + offset_x, floor_y - offset_y):
+				return false
+	return supporting_cells >= 2
 
 
 func _is_valid_exit_tile(grid_x: int, grid_y: int) -> bool:

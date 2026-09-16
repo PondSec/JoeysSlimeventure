@@ -250,8 +250,18 @@ func _build_cave_network_result(seed: int) -> Dictionary:
 	var top := margin + rng.randi_range(0, 4)
 	var bottom := level_size.y - margin - rng.randi_range(0, 4)
 	var spawn: Vector2i = level_data.get("spawn", Vector2i(left, int(level_size.y * 0.35))) as Vector2i
-	var exit: Vector2i = level_data.get("exit", Vector2i(right, int(level_size.y * 0.65))) as Vector2i
 	spawn = Vector2i(clampi(spawn.x, margin, level_size.x - margin), clampi(spawn.y, top + 4, bottom - 4))
+	# The portal is a graph destination, not a fixed right-hand finish line.
+	# Select a widely separated seed-stable zone so repeated runs change the
+	# final spatial question (climb, drop, diagonal return, or far corner).
+	var exit_zones: Array = [
+		Vector2i(right - 3, bottom - 4),
+		Vector2i(left + 9, bottom - 5),
+		Vector2i(int(level_size.x * 0.40), top + 5),
+		Vector2i(int(level_size.x * 0.58), bottom - 3),
+		Vector2i(right - 8, top + 8)
+	]
+	var exit: Vector2i = exit_zones[rng.randi_range(0, exit_zones.size() - 1)] as Vector2i
 	exit = Vector2i(clampi(exit.x, margin, level_size.x - margin), clampi(exit.y, top + 4, bottom - 3))
 
 	var hubs: Array = [
@@ -270,18 +280,23 @@ func _build_cave_network_result(seed: int) -> Dictionary:
 	# Auf- und Abstieg im konservativen Sprungbudget, die sichtbare Hoehle bleibt
 	# trotzdem ein zusammenhaengendes, schwer lesbares Netz.
 	var path: Array = []
+	var main_lines: Array = []
 	for hub_index: int in range(hubs.size() - 1):
-		var segment: Array = _densify_path_nodes([hubs[hub_index] as Vector2i, hubs[hub_index + 1] as Vector2i], false)
+		var segment: Array = _network_densify_path([hubs[hub_index] as Vector2i, hubs[hub_index + 1] as Vector2i], hub_index)
+		main_lines.append(segment)
 		for point_variant: Variant in segment:
 			_append_path_point(path, point_variant as Vector2i)
 	var grid: Array = _create_solid_grid()
 	for hub_index: int in range(hubs.size()):
 		var hub: Vector2i = hubs[hub_index] as Vector2i
-		var radius_x: float = 5.0 + rng.randf_range(0.0, 3.0)
-		var radius_y: float = 4.0 + rng.randf_range(0.0, 3.0)
+		# Most intersections are tight, asymmetric squeezes. Only the middle
+		# landmark earns enough volume to be read as a deliberate chamber.
+		var landmark: bool = hub_index == 4
+		var radius_x: float = (6.0 + rng.randf_range(0.0, 1.8)) if landmark else (3.2 + rng.randf_range(0.0, 1.7))
+		var radius_y: float = (5.0 + rng.randf_range(0.0, 1.6)) if landmark else (2.8 + rng.randf_range(0.0, 1.5))
 		_carve_organic_blob(grid, hub, radius_x, radius_y)
-		if hub_index < hubs.size() - 1:
-			_carve_tunnel(grid, hub, hubs[hub_index + 1] as Vector2i, 5)
+		if hub_index < main_lines.size():
+			_carve_network_polyline(grid, main_lines[hub_index] as Array, 2)
 	# Sekundaere Schleifen und Sackgassen liegen ueber und unter der Pflichtader.
 	# Sie erzeugen echte Richtungsentscheidungen, ohne die Pflichtprogression an
 	# einer optionalen Plattform zu haengen.
@@ -292,22 +307,32 @@ func _build_cave_network_result(seed: int) -> Dictionary:
 		[hubs[7], Vector2i(left + 2, int(level_size.y * 0.68)), hubs[2]]
 	]
 	var side_lines: Array = []
-	for loop_variant: Variant in loops:
-		var loop: Array = loop_variant as Array
+	for loop_index: int in range(loops.size()):
+		var loop: Array = loops[loop_index] as Array
 		var loop_line: Array = []
 		for point_index: int in range(loop.size() - 1):
-			var loop_segment: Array = _densify_path_nodes([loop[point_index] as Vector2i, loop[point_index + 1] as Vector2i], false)
+			var loop_segment: Array = _network_densify_path([loop[point_index] as Vector2i, loop[point_index + 1] as Vector2i], 11 + loop_index * 3 + point_index)
 			for point_variant: Variant in loop_segment:
 				_append_path_point(loop_line, point_variant as Vector2i)
 		# Nebenrouten verwenden dieselbe geschwungene, unterschiedlich breite
 		# Ader wie der Hauptkreis. Die alten, dicht gereihten Scheiben erzeugten
 		# lange, klinisch gerade Innenkanten.
-		for point_index: int in range(loop_line.size() - 1):
-			_carve_tunnel(grid, loop_line[point_index] as Vector2i, loop_line[point_index + 1] as Vector2i, 4)
+		_carve_network_polyline(grid, loop_line, 2)
 		side_lines.append(loop_line)
+	# Kleine, krumme Auslaeufer machen aus den grossen Verbindungen ein
+	# erkundbares Gesteinsnetz.  Sie sind Nebenpfade, keine verkappten
+	# Pflichtspruenge, und erhalten unten dieselben sicheren Landeflaechen.
+	var micro_lines: Array = _network_micro_branches(path, seed)
+	for line_variant: Variant in micro_lines:
+		var micro_line: Array = line_variant as Array
+		_carve_network_polyline(grid, micro_line, 2)
+		if not micro_line.is_empty():
+			var pocket_tip: Vector2i = micro_line.back() as Vector2i
+			_carve_organic_blob(grid, pocket_tip, 2.1 + rng.randf_range(0.0, 0.7), 1.8 + rng.randf_range(0.0, 0.6))
+		side_lines.append(micro_line)
 	var dead_end: Vector2i = Vector2i(int(level_size.x * 0.78), top + 8)
-	_carve_tunnel(grid, hubs[5] as Vector2i, dead_end, 4)
-	_carve_organic_blob(grid, dead_end, 4.5, 3.5)
+	_carve_tunnel(grid, hubs[5] as Vector2i, dead_end, 2)
+	_carve_organic_blob(grid, dead_end, 3.4, 2.8)
 
 	var platforms: Array = []
 	for point_index: int in range(path.size()):
@@ -318,10 +343,16 @@ func _build_cave_network_result(seed: int) -> Dictionary:
 		var line: Array = side_lines[line_index] as Array
 		for point_index: int in range(line.size()):
 			_stamp_network_landing(grid, platforms, line[point_index] as Vector2i, point_index, line_index + 1)
+	_stamp_network_rock_islands(grid, path, side_lines, seed)
+	_stamp_network_hanging_rocks(grid, path, side_lines, seed)
+	_carve_network_wall_bites(grid, path, side_lines, seed)
 	_carve_rect(grid, dead_end.x - 3, dead_end.y - 4, 7, 4)
 	_stamp_rect(grid, dead_end.x - 2, dead_end.y, 5, 1)
 
-	var pickups: Array = _place_pickups()
+	var pickups: Array = _network_place_pickups(path, side_lines)
+	var enemies: Array = _network_place_enemies(path, side_lines)
+	var hazards: Array = _network_place_hazards(path)
+	var torches: Array = _network_place_torches(path, hubs)
 	var final_grid: Array = TerrainResolver.duplicate_cells(TerrainResolver.build_logical_map(grid, level_size))
 	var rooms: Array = []
 	for hub_index: int in range(hubs.size()):
@@ -331,18 +362,302 @@ func _build_cave_network_result(seed: int) -> Dictionary:
 	validation["branch_signature"] = "reconnecting_loops"
 	validation["vertical_signature"] = "layered_ring"
 	validation["room_variety_score"] = 7.0
-	return {"grid": final_grid, "spawn": spawn, "exit": exit, "platforms": platforms, "pickups": pickups, "enemies": _place_enemies(), "hazards": [], "torches": _place_torches(), "triggers": _place_triggers(), "boss": {}, "worm_count": 0, "layout_validation": validation, "debug_rooms": rooms, "critical_path_nodes": path, "side_path_lines": side_lines, "mobility_profile": mobility_profile}
+	return {"grid": final_grid, "spawn": spawn, "exit": exit, "platforms": platforms, "pickups": pickups, "enemies": enemies, "hazards": hazards, "torches": torches, "triggers": _place_triggers(), "boss": {}, "worm_count": 0, "layout_validation": validation, "debug_rooms": rooms, "critical_path_nodes": path, "side_path_lines": side_lines, "mobility_profile": mobility_profile}
 
 
 func _stamp_network_landing(grid: Array, platforms: Array, point: Vector2i, point_index: int, route_index: int) -> void:
 	# Kleine, deterministische Breiten- und Seitenvariationen verhindern, dass
 	# mehrere sichere Landungen zu einer optischen Betonlinie verschmelzen.
 	var signature: int = abs(point.x * 17 + point.y * 31 + point_index * 13 + route_index * 19)
-	var width: int = 4 + signature % 3
+	var width: int = 3 + signature % 2
 	var left: int = point.x - int(width / 2) + (1 if signature % 5 == 0 else 0)
 	platforms.append(_make_platform(left, point.y, width, 1, "ledge"))
 	_stamp_rect(grid, left, point.y, width, 1)
-	_carve_rect(grid, left - 1, point.y - 4, width + 2, 4)
+	_carve_rect(grid, left - 1, point.y - 3, width + 2, 3)
+
+
+func _network_densify_path(points: Array, salt: int) -> Array:
+	# This deliberately uses the strict part of Joey's profile rather than the
+	# looser general corridor budget: every visible ledge-to-ledge step stays
+	# within two vertical tiles and four horizontal tiles.
+	var base: Array = []
+	if points.is_empty():
+		return base
+	base.append(points.front() as Vector2i)
+	for point_index: int in range(1, points.size()):
+		var target: Vector2i = points[point_index] as Vector2i
+		var current: Vector2i = base.back() as Vector2i
+		var guard := 0
+		while (abs(target.x - current.x) > 4 or abs(target.y - current.y) > 2) and guard < 32:
+			var step_x: int = clampi(target.x - current.x, -4, 4)
+			var step_y: int = clampi(target.y - current.y, -2, 2)
+			if step_x == 0 and step_y != 0:
+				step_x = 1 if guard % 2 == 0 else -1
+			current = Vector2i(
+				clampi(current.x + step_x, ROOM_PADDING_TILES + 2, level_size.x - ROOM_PADDING_TILES - 3),
+				clampi(current.y + step_y, ROOM_PADDING_TILES + 2, level_size.y - ROOM_PADDING_TILES - 3)
+			)
+			_append_path_point(base, current)
+			guard += 1
+		_append_path_point(base, target)
+	if base.size() <= 2:
+		return base
+	var shaped: Array = []
+	for index: int in range(base.size()):
+		var point: Vector2i = base[index] as Vector2i
+		if index > 0 and index < base.size() - 1:
+			# One-tile vertical drift is enough to dissolve a visual rail while
+			# keeping successive conservative landings within Joey's jump profile.
+			var wave: float = sin(float(index) * 1.71 + float(salt) * 0.83) + sin(float(index) * 0.61 + float(salt)) * 0.35
+			var candidate_y: int = clampi(point.y + int(round(wave)), ROOM_PADDING_TILES + 2, level_size.y - ROOM_PADDING_TILES - 3)
+			var previous_point: Vector2i = shaped.back() as Vector2i
+			var next_point: Vector2i = base[index + 1] as Vector2i
+			if abs(candidate_y - previous_point.y) <= 2 and abs(next_point.y - candidate_y) <= 2:
+				point.y = candidate_y
+		_append_path_point(shaped, point)
+	return shaped
+
+
+func _carve_network_polyline(grid: Array, points: Array, width_tiles: int) -> void:
+	if points.size() < 2:
+		return
+	for point_index: int in range(points.size() - 1):
+		_carve_tunnel(grid, points[point_index] as Vector2i, points[point_index + 1] as Vector2i, width_tiles)
+
+
+func _network_micro_branches(path: Array, seed: int) -> Array:
+	var branches: Array = []
+	if path.size() < 20:
+		return branches
+	var ratios: Array[float] = [0.10, 0.20, 0.31, 0.42, 0.54, 0.66, 0.76, 0.86]
+	for index: int in range(ratios.size()):
+		var anchor_index: int = clampi(int(float(path.size() - 1) * ratios[index]), 5, path.size() - 6)
+		var anchor: Vector2i = path[anchor_index] as Vector2i
+		var vertical_sign: int = -1 if ((seed + index * 17) % 2 == 0) else 1
+		var horizontal_sign: int = -1 if ((seed + index * 31) % 3 == 0) else 1
+		var bend := Vector2i(
+			clampi(anchor.x + horizontal_sign * (2 + (index % 2)), ROOM_PADDING_TILES + 2, level_size.x - ROOM_PADDING_TILES - 3),
+			clampi(anchor.y + vertical_sign * (3 + (index % 3)), ROOM_PADDING_TILES + 3, level_size.y - ROOM_PADDING_TILES - 4)
+		)
+		var tip := Vector2i(
+			clampi(bend.x + horizontal_sign * (3 + ((seed + index) % 3)), ROOM_PADDING_TILES + 2, level_size.x - ROOM_PADDING_TILES - 3),
+			clampi(bend.y + vertical_sign * (1 + ((seed + index * 3) % 3)), ROOM_PADDING_TILES + 3, level_size.y - ROOM_PADDING_TILES - 4)
+		)
+		var branch: Array = _network_densify_path([anchor, bend, tip], 29 + index)
+		if branch.size() >= 2:
+			branches.append(branch)
+	return branches
+
+
+func _stamp_network_rock_islands(grid: Array, main_path: Array, side_lines: Array, seed: int) -> void:
+	# Off-route rock islands break up otherwise empty caverns.  The generous
+	# route buffer preserves all landings, headroom, spawn and exit space.
+	var protected_points: Array = []
+	for point_variant: Variant in main_path:
+		protected_points.append(point_variant as Vector2i)
+	for line_variant: Variant in side_lines:
+		for point_variant: Variant in line_variant as Array:
+			protected_points.append(point_variant as Vector2i)
+	var placed := 0
+	for grid_y: int in range(ROOM_PADDING_TILES + 4, level_size.y - ROOM_PADDING_TILES - 4, 3):
+		for grid_x: int in range(ROOM_PADDING_TILES + 4, level_size.x - ROOM_PADDING_TILES - 4, 4):
+			if placed >= 12:
+				return
+			var signature: int = abs(grid_x * 37 + grid_y * 19 + seed * 7)
+			if signature % 11 != 0:
+				continue
+			var center := Vector2i(grid_x, grid_y)
+			if _network_point_near_route(center, protected_points, 2.75):
+				continue
+			if not _network_open_area(grid, center, 1, 1):
+				continue
+			_stamp_organic_rock(grid, center, 2 if signature % 3 == 0 else 1, 2 if (signature / 5) % 2 == 0 else 1)
+			placed += 1
+
+
+func _stamp_network_hanging_rocks(grid: Array, main_path: Array, side_lines: Array, seed: int) -> void:
+	# A few small free-standing masses make large air volumes read as carved
+	# caverns.  They are anchored relative to generated routes, never authored
+	# screen coordinates, and leave a full three-tile player headroom beneath.
+	var routes: Array = [main_path]
+	for line_variant: Variant in side_lines:
+		routes.append(line_variant as Array)
+	var placed := 0
+	for route_index: int in range(routes.size()):
+		var route: Array = routes[route_index] as Array
+		if route.size() < 5:
+			continue
+		for ratio: float in [0.18, 0.47, 0.76]:
+			if placed >= 14:
+				return
+			var anchor: Vector2i = route[clampi(int(float(route.size() - 1) * ratio), 2, route.size() - 3)] as Vector2i
+			var signature: int = abs(seed * 13 + route_index * 29 + int(ratio * 100.0))
+			var center := Vector2i(
+				clampi(anchor.x + (signature % 5) - 2, ROOM_PADDING_TILES + 2, level_size.x - ROOM_PADDING_TILES - 3),
+				clampi(anchor.y - 5 - (signature % 2), ROOM_PADDING_TILES + 2, level_size.y - ROOM_PADDING_TILES - 3)
+			)
+			if not _network_open_area(grid, center, 1, 1):
+				continue
+			_stamp_organic_rock(grid, center, 1 + int(signature % 4 == 0), 1 + int(signature % 7 == 0))
+			placed += 1
+
+
+func _network_point_near_route(point: Vector2i, routes: Array, radius: float) -> bool:
+	var radius_squared: float = radius * radius
+	for route_point_variant: Variant in routes:
+		var route_point: Vector2i = route_point_variant as Vector2i
+		if Vector2(point - route_point).length_squared() <= radius_squared:
+			return true
+	return false
+
+
+func _network_open_area(grid: Array, center: Vector2i, radius_x: int, radius_y: int) -> bool:
+	for grid_y: int in range(center.y - radius_y, center.y + radius_y + 1):
+		if grid_y < 0 or grid_y >= level_size.y:
+			return false
+		var row: PackedByteArray = grid[grid_y] as PackedByteArray
+		for grid_x: int in range(center.x - radius_x, center.x + radius_x + 1):
+			if grid_x < 0 or grid_x >= level_size.x or row[grid_x] != 0:
+				return false
+	return true
+
+
+func _stamp_organic_rock(grid: Array, center: Vector2i, radius_x: int, radius_y: int) -> void:
+	# A lopsided diamond with nibbled corners is intentionally used instead of a
+	# filled rectangle.  The TileClassifier can then express real outer/inner
+	# corners from this mask, just like the hand-laid Overworld terrain.
+	for grid_y: int in range(center.y - radius_y, center.y + radius_y + 1):
+		if grid_y < 0 or grid_y >= level_size.y:
+			continue
+		var row: PackedByteArray = grid[grid_y] as PackedByteArray
+		var vertical_distance: int = abs(grid_y - center.y)
+		var span: int = maxi(0, radius_x - int(ceil(float(vertical_distance * radius_x) / float(radius_y + 1))))
+		var row_signature: int = abs(center.x * 17 + center.y * 31 + grid_y * 7)
+		var row_shift: int = (row_signature % 3) - 1 if vertical_distance > 0 else 0
+		for grid_x: int in range(center.x - span + row_shift, center.x + span + row_shift + 1):
+			if grid_x < 0 or grid_x >= level_size.x:
+				continue
+			var is_outer_corner: bool = abs(grid_x - (center.x + row_shift)) == span and vertical_distance > 0
+			if is_outer_corner and (row_signature + grid_x) % 4 == 0:
+				continue
+			row[grid_x] = 1
+		grid[grid_y] = row
+
+
+func _carve_network_wall_bites(grid: Array, main_path: Array, side_lines: Array, seed: int) -> void:
+	# Flat tile shelves read as boxes even when their tunnel centreline bends.
+	# Remove compact, two-cell bites from unprotected outside edges to give each
+	# mass a broken limestone silhouette.  Never erode a landing or its headroom.
+	var protected_points: Array = main_path.duplicate()
+	for line_variant: Variant in side_lines:
+		for point_variant: Variant in line_variant as Array:
+			protected_points.append(point_variant as Vector2i)
+	var bites: Array = []
+	for grid_y: int in range(ROOM_PADDING_TILES + 2, level_size.y - ROOM_PADDING_TILES - 2):
+		for grid_x: int in range(ROOM_PADDING_TILES + 2, level_size.x - ROOM_PADDING_TILES - 2):
+			var point := Vector2i(grid_x, grid_y)
+			if _network_point_near_route(point, protected_points, 3.5):
+				continue
+			var signature: int = abs(grid_x * 41 + grid_y * 23 + seed * 11)
+			if signature % 31 != 0 or not _network_is_solid(grid, point):
+				continue
+			var empty_neighbor := Vector2i.ZERO
+			for direction: Vector2i in [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT]:
+				if not _network_is_solid(grid, point + direction):
+					empty_neighbor = direction
+					break
+			if empty_neighbor == Vector2i.ZERO:
+				continue
+			# Extend a shallow notch inward, not a single pixel-like hole that the
+			# terrain cleanup would immediately fill again.
+			bites.append([point, point - empty_neighbor])
+	for bite_variant: Variant in bites:
+		for cell_variant: Variant in bite_variant as Array:
+			var cell: Vector2i = cell_variant as Vector2i
+			if _network_point_near_route(cell, protected_points, 3.5):
+				continue
+			if cell.x < 0 or cell.y < 0 or cell.x >= level_size.x or cell.y >= level_size.y:
+				continue
+			var row: PackedByteArray = grid[cell.y] as PackedByteArray
+			row[cell.x] = 0
+			grid[cell.y] = row
+
+
+func _network_is_solid(grid: Array, point: Vector2i) -> bool:
+	if point.x < 0 or point.y < 0 or point.x >= level_size.x or point.y >= level_size.y:
+		return false
+	return (grid[point.y] as PackedByteArray)[point.x] != 0
+
+
+func _network_exploration_anchors(path: Array, side_lines: Array) -> Array:
+	var anchors: Array = []
+	for line_variant: Variant in side_lines:
+		var line: Array = line_variant as Array
+		if line.size() >= 3:
+			anchors.append(line[int(line.size() * 0.58)] as Vector2i)
+	for ratio: float in [0.22, 0.40, 0.61, 0.79]:
+		if path.size() >= 3:
+			anchors.append(path[clampi(int(float(path.size() - 1) * ratio), 1, path.size() - 2)] as Vector2i)
+	return anchors
+
+
+func _network_place_pickups(path: Array, side_lines: Array) -> Array:
+	var source: Array = level_data.get("pickups", []) as Array
+	var anchors: Array = _network_exploration_anchors(path, side_lines)
+	var placed: Array = []
+	for index: int in range(mini(maxi(source.size(), 2), anchors.size())):
+		var pickup: Dictionary = (source[index % source.size()] as Dictionary).duplicate(true) if not source.is_empty() else {"id": "network_essence_%d" % index}
+		var anchor: Vector2i = anchors[index] as Vector2i
+		pickup["x"] = anchor.x
+		pickup["y"] = anchor.y - 1
+		pickup["loot_tier"] = "silver" if index % 3 == 0 else "copper"
+		pickup["message"] = "Eine Erzader glitzert in einer engen Seitentasche."
+		placed.append(pickup)
+	return placed
+
+
+func _network_place_enemies(path: Array, side_lines: Array) -> Array:
+	var source: Array = level_data.get("enemies", []) as Array
+	var anchors: Array = _network_exploration_anchors(path, side_lines)
+	var placed: Array = []
+	var extra_bats: int = 4 + int(_level_progress() >= 0.30) + int(_level_progress() >= 0.62)
+	var total: int = mini(anchors.size(), source.size() + extra_bats)
+	for index: int in range(total):
+		var enemy: Dictionary = (source[index] as Dictionary).duplicate(true) if index < source.size() else {"type": "bat", "bonus_spawn": true}
+		var anchor: Vector2i = anchors[index] as Vector2i
+		enemy["type"] = "bat" if index >= source.size() else str(enemy.get("type", "bat"))
+		enemy["x"] = anchor.x + (index % 3) - 1
+		enemy["y"] = anchor.y - 2
+		enemy["room_id"] = "network_route_%d" % index
+		placed.append(enemy)
+	return placed
+
+
+func _network_place_hazards(path: Array) -> Array:
+	var source: Array = level_data.get("hazards", []) as Array
+	var source_count := 0
+	for hazard_variant: Variant in source:
+		source_count += max(1, int((hazard_variant as Dictionary).get("count", 1)))
+	var target_count: int = mini(8 + int(_level_progress() >= 0.45), source_count + 3)
+	var placed: Array = []
+	if path.size() < 16:
+		return placed
+	for index: int in range(target_count):
+		var ratio: float = 0.16 + float(index + 1) / float(target_count + 2) * 0.70
+		var anchor: Vector2i = path[clampi(int(float(path.size() - 1) * ratio), 8, path.size() - 9)] as Vector2i
+		placed.append({"type": "spikes", "x": anchor.x - 1, "y": anchor.y, "count": 1 + int(index % 3 == 0)})
+	return placed
+
+
+func _network_place_torches(path: Array, hubs: Array) -> Array:
+	var source: Array = level_data.get("torches", []) as Array
+	var placed: Array = []
+	var total: int = maxi(4, source.size())
+	for index: int in range(total):
+		var anchor: Vector2i = hubs[clampi(1 + index * 2, 1, hubs.size() - 2)] as Vector2i
+		var brightness: float = float((source[index % source.size()] as Dictionary).get("brightness", 1.0)) if not source.is_empty() else 1.0
+		placed.append({"x": anchor.x - 2, "y": anchor.y - 1, "brightness": brightness})
+	return placed
 
 
 func _carve_organic_blob(grid: Array, center: Vector2i, radius_x: float, radius_y: float) -> void:
@@ -351,7 +666,10 @@ func _carve_organic_blob(grid: Array, center: Vector2i, radius_x: float, radius_
 		for grid_x: int in range(maxi(0, int(floor(center.x - radius_x - 1.0))), mini(level_size.x, int(ceil(center.x + radius_x + 1.0)))):
 			var nx: float = (float(grid_x) + 0.5 - float(center.x)) / radius_x
 			var ny: float = (float(grid_y) + 0.5 - float(center.y)) / radius_y
-			var wobble: float = sin(float(grid_x) * 1.71 + float(grid_y) * 0.63) * 0.12
+			# Two low-frequency fields give chambers lopsided shoulders and small
+			# bites without turning a traversable opening into random noise.
+			var wobble: float = sin(float(grid_x) * 1.17 + float(grid_y) * 0.51) * 0.22 \
+				+ sin(float(grid_x) * 0.43 - float(grid_y) * 1.31) * 0.16
 			if nx * nx + ny * ny <= 1.0 + wobble:
 				row[grid_x] = 0
 		grid[grid_y] = row
@@ -2042,7 +2360,9 @@ func _carve_tunnel(grid: Array, from_node: Vector2i, to_node: Vector2i, width_ti
 	var direction := delta / distance
 	var normal := Vector2(-direction.y, direction.x)
 	var sample_count: int = maxi(2, int(ceil(distance * 1.35)))
-	var base_radius: float = maxf(1.5, float(width_tiles) * 0.42)
+	# Network passages are intentionally close.  The old 1.5-tile lower bound
+	# made width two and width three carve identically broad corridors.
+	var base_radius: float = maxf(1.12, float(width_tiles) * 0.48)
 	var bend: float = minf(2.4, distance * 0.13) * (1.0 if ((from_node.x * 13 + from_node.y * 7 + to_node.x) % 2) == 0 else -1.0)
 	for sample_index: int in range(sample_count + 1):
 		var t: float = float(sample_index) / float(sample_count)
@@ -2050,7 +2370,7 @@ func _carve_tunnel(grid: Array, from_node: Vector2i, to_node: Vector2i, width_ti
 		# Eine volle, weich auslaufende Kurve statt zufaelliger Knicke.
 		center += normal * sin(t * PI) * bend
 		var radius_wave: float = sin(t * PI * 2.0 + float((from_node.x + to_node.y) % 5)) * 0.34
-		var radius: float = clampf(base_radius + radius_wave, maxf(1.4, base_radius - 0.5), base_radius + 0.5)
+		var radius: float = clampf(base_radius + radius_wave, maxf(1.05, base_radius - 0.38), base_radius + 0.42)
 		_carve_cave_disc(grid, center, radius)
 
 

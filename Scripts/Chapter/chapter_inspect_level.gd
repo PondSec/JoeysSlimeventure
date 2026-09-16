@@ -39,6 +39,9 @@ func _run() -> void:
 	var runtime_bounds: Rect2 = level_scene.get("runtime_play_bounds") as Rect2
 	var exit_tile: Vector2i = level_scene.get("resolved_exit_tile") as Vector2i
 	var seed_value: int = int(level_scene.get("active_level_seed"))
+	var player: CharacterBody2D = level_scene.get_node_or_null("PlayerModel") as CharacterBody2D
+	var spawn_air_tile: Vector2i = level_scene.call("_find_spawn_air_tile") as Vector2i
+	var spawn_tile_clear: bool = bool(level_scene.call("_is_valid_spawn_tile", spawn_air_tile.x, spawn_air_tile.y))
 
 	print("INSPECT level=%d seed=%d title=%s path_valid=%s invalid_jumps=%d unreachable_rewards=%d unreachable_rooms=%d softlocks=%d trap_pits=%d repair=%s attempt=%d exit=%s bounds=%s" % [
 		target_level + 1,
@@ -65,6 +68,11 @@ func _run() -> void:
 		int(mobility.get("safe_drop_tiles", 0)),
 		int(mobility.get("readable_drop_tiles", 0)),
 		str(bool((mobility.get("skill_flags", {}) as Dictionary).get("wall_slide", false)))
+	])
+	print("SPAWN_QA air_tile=%s clear=%s player_world=%s" % [
+		str(spawn_air_tile),
+		str(spawn_tile_clear),
+		str(player.global_position if player != null else Vector2.INF)
 	])
 
 	var notes: PackedStringArray = validation.get("notes", PackedStringArray()) as PackedStringArray
