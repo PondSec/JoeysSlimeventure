@@ -4,10 +4,10 @@ signal defeated
 
 const GRAVITY := 1300.0
 const CONTACT_COOLDOWN := 0.8
-const BASE_SPRITE_SCALE := Vector2(0.14, 0.14)
-const SQUASH_SPRITE_SCALE := Vector2(0.18, 0.11)
-const BASE_COLOR := Color(0.52, 0.84, 1.0, 1.0)
-const GLOW_COLOR := Color(0.28, 0.7, 1.0, 1.0)
+const BASE_SPRITE_SCALE := Vector2(0.125, 0.125)
+const SQUASH_SPRITE_SCALE := Vector2(0.158, 0.098)
+const BASE_COLOR := Color(0.92, 0.76, 0.80, 1.0)
+const GLOW_COLOR := Color(1.0, 0.46, 0.54, 1.0)
 const HIT_FLASH_COLOR := Color(1.0, 0.8, 0.84, 1.0)
 
 @export var max_health: int = 32

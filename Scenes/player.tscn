@@ -483,6 +483,7 @@ editor_draw_drag_margin = true
 script = ExtResource("12_4e8m4")
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
+layer = 20
 layer = 2
 script = ExtResource("11_4apbi")
 
