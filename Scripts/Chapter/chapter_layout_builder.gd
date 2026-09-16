@@ -62,6 +62,8 @@ func _build(source_level_data: Dictionary, source_level_size: Vector2i, seed: in
 	mobility_profile = ChapterMobilityProfile.build_for_level(level_data)
 	if layout_style == "graph_hybrid":
 		return _build_graph_hybrid_result()
+	if layout_style == "cave_network":
+		return _build_cave_network_result(seed)
 
 	var best_candidate: Dictionary = {}
 	var best_score: float = -INF
@@ -386,6 +388,10 @@ func _select_generation_profiles() -> void:
 
 
 func _resolve_layout_style() -> String:
+	# Chapter caves use the existing layered-network prototype.  Keep the boss
+	# room on the curated path until its encounter geometry is network-aware.
+	if not level_data.has("boss"):
+		return "cave_network"
 	if level_data.has("layout_style"):
 		return str(level_data.get("layout_style", "horizontal"))
 	var spawn_tile: Vector2i = level_data.get("spawn", Vector2i(4, 28)) as Vector2i
