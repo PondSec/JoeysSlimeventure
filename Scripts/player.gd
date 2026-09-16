@@ -434,6 +434,7 @@ var water_enter_velocity := 0.0
 var is_swimming := false
 
 func _ready() -> void:
+	var chapter_qa_mode := _is_chapter_qa_mode()
 	if OS.has_feature("mobile") or OS.has_feature("web"):
 		setup_touch_controls()
 	var gm = get_node("/root/GameManager")
@@ -446,18 +447,21 @@ func _ready() -> void:
 		set_physics_process(true)
 		
 		# Initialisiere nur für autoritativen Spieler
-		public_key = CryptoKey.new()
-		public_key.load("res://Keys/public.pem")
+		if not chapter_qa_mode:
+			public_key = CryptoKey.new()
+			public_key.load("res://Keys/public.pem")
 	else:
 		$Camera2D.enabled = true
 		set_process_input(true)
 		set_process(true)
 		set_physics_process(true)
-	public_key = CryptoKey.new()
-	# Lade den öffentlichen Schlüssel des Servers
-	public_key.load("res://Keys/public.pem")
+	if not chapter_qa_mode:
+		public_key = CryptoKey.new()
+		# Lade den öffentlichen Schlüssel des Servers
+		public_key.load("res://Keys/public.pem")
 	
-	load_charge_cooldown()
+	if not chapter_qa_mode:
+		load_charge_cooldown()
 	glow_effect = $PlayerGlow
 	glow_effect.visible = false
 	# Initialisiere Angriffsknoten
@@ -513,27 +517,27 @@ func _ready() -> void:
 	stun_timer.wait_time = 0.5
 	stun_timer.one_shot = true
 	stun_timer.connect("timeout", Callable(self, "_on_stun_timer_timeout"))
-	load_dropped_items()
+	if not chapter_qa_mode:
+		load_dropped_items()
 	update_health_bar()
 	damage_timer.start()
 	inv.update.connect(update_health_bonus)
 	inv.update.connect(update_damage_bonus)
 	inv.update.connect(update_crit_bonuses)
 	inv.update.connect(_on_inventory_equipment_changed)
-	add_child(api_script)
-	
-	# Timer für regelmäßige API-Abfragen (alle 3 Sekunden)
-	var api_timer = Timer.new()
-	add_child(api_timer)
-	api_timer.wait_time = 3.0  # Alle 3 Sekunden
-	api_timer.autostart = true
-	api_timer.timeout.connect(_on_api_timer_timeout)
-	api_timer.start()
-	
-	# Sofortige erste Abfrage
-	api_script.send_request()
+	if not chapter_qa_mode:
+		add_child(api_script)
+		# Timer für regelmäßige API-Abfragen (alle 3 Sekunden)
+		var api_timer = Timer.new()
+		add_child(api_timer)
+		api_timer.wait_time = 3.0
+		api_timer.autostart = true
+		api_timer.timeout.connect(_on_api_timer_timeout)
+		api_timer.start()
+		api_script.send_request()
 	_on_inventory_equipment_changed()
-	_setup_star_manager()
+	if not chapter_qa_mode and not _is_chapter_runtime():
+		_setup_star_manager()
 	update_damage_bonus()
 
 	# Timer für Dash initialisieren
@@ -552,14 +556,16 @@ func _ready() -> void:
 	water_area = $WaterDetector
 	water_area.connect("body_entered", Callable(self, "_on_water_entered"))
 	water_area.connect("body_exited", Callable(self, "_on_water_exited"))
-	load_game()
+	if not chapter_qa_mode:
+		load_game()
 	# Verbinde das Signal, wenn ein Skill freigeschaltet wird
 	if skill_tree:
 		var unlock_callable := Callable(self, "_on_skill_unlocked")
 		if not skill_tree.is_connected("skill_unlocked", unlock_callable):
 			skill_tree.connect("skill_unlocked", unlock_callable)
 		print("Wall Slide Skill status: ", has_wall_slide_skill)
-		load_skills()
+		if not chapter_qa_mode:
+			load_skills()
 		_refresh_player_tuning_from_skills()
 		glow_effect.visible = has_glow_skill and is_glowing
 		check_level_completion()
@@ -839,7 +845,32 @@ func _update_footsteps() -> void:
 	sound_cooldown = lerpf(0.34, 0.23, speed_factor)
 
 func _on_api_timer_timeout():
-	api_script.send_request()
+	if api_script.get_parent() != null:
+		api_script.send_request()
+
+
+func _is_chapter_qa_mode() -> bool:
+	return get_tree() != null and get_tree().root.has_meta("chapter_qa_mode")
+
+
+func _is_chapter_runtime() -> bool:
+	return get_tree() != null and not get_tree().get_nodes_in_group("chapter_runtime").is_empty()
+
+
+func get_portal_state() -> Dictionary:
+	return {
+		"character_id": current_character_id,
+		"is_glowing": is_glowing
+	}
+
+
+func restore_portal_state(state: Dictionary) -> void:
+	var character_id := str(state.get("character_id", CharacterCatalog.SLIME_ID))
+	if CharacterCatalog.get_character_meta(character_id).is_empty():
+		character_id = CharacterCatalog.SLIME_ID
+	_apply_character_profile(character_id)
+	is_glowing = bool(state.get("is_glowing", is_glowing))
+	update_glow_state()
 
 func _on_water_entered(body: Node):
 	if body.is_in_group("water"):  # Stelle sicher, dass dein Wasser diese Gruppe hat

@@ -16,6 +16,7 @@ var active_level_index: int = 0
 var chapter_progress: Dictionary = {}
 var seen_flags: Array[String] = []
 var chapter_rewards: Dictionary = {}
+var runtime_player_state: Dictionary = {}
 var pending_hub_banner: String = ""
 var pending_hub_toast: String = ""
 
@@ -192,6 +193,7 @@ func consume_hub_toast() -> String:
 func transition_to(scene_path: String, skip_fade_in: bool = false) -> void:
 	if scene_path.is_empty():
 		return
+	_capture_runtime_player_state()
 
 	_sync_resume_scene(scene_path)
 	var transition_scene: PackedScene = load("res://Scenes/transition.tscn") as PackedScene
@@ -202,6 +204,18 @@ func transition_to(scene_path: String, skip_fade_in: bool = false) -> void:
 	var transition: CanvasLayer = transition_scene.instantiate() as CanvasLayer
 	get_tree().root.add_child(transition)
 	transition.call("play_transition", scene_path, skip_fade_in)
+
+
+func _capture_runtime_player_state() -> void:
+	var player := get_tree().get_first_node_in_group("players")
+	if player != null and player.has_method("get_portal_state"):
+		runtime_player_state = player.call("get_portal_state") as Dictionary
+
+
+func consume_runtime_player_state() -> Dictionary:
+	var state := runtime_player_state.duplicate(true)
+	runtime_player_state.clear()
+	return state
 
 
 func register_completion_marker(marker: String) -> void:
