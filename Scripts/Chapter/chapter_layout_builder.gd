@@ -299,27 +299,25 @@ func _build_cave_network_result(seed: int) -> Dictionary:
 			var loop_segment: Array = _densify_path_nodes([loop[point_index] as Vector2i, loop[point_index + 1] as Vector2i], false)
 			for point_variant: Variant in loop_segment:
 				_append_path_point(loop_line, point_variant as Vector2i)
-		for point_variant: Variant in loop_line:
-			_carve_cave_disc(grid, Vector2(point_variant as Vector2i), 2.2 + rng.randf_range(-0.35, 0.65))
+		# Nebenrouten verwenden dieselbe geschwungene, unterschiedlich breite
+		# Ader wie der Hauptkreis. Die alten, dicht gereihten Scheiben erzeugten
+		# lange, klinisch gerade Innenkanten.
+		for point_index: int in range(loop_line.size() - 1):
+			_carve_tunnel(grid, loop_line[point_index] as Vector2i, loop_line[point_index + 1] as Vector2i, 4)
 		side_lines.append(loop_line)
 	var dead_end: Vector2i = Vector2i(int(level_size.x * 0.78), top + 8)
 	_carve_tunnel(grid, hubs[5] as Vector2i, dead_end, 4)
 	_carve_organic_blob(grid, dead_end, 4.5, 3.5)
 
 	var platforms: Array = []
-	for point_variant: Variant in path:
-		var point: Vector2i = point_variant as Vector2i
-		platforms.append(_make_platform(point.x - 2, point.y, 5, 1, "ledge"))
-		_stamp_rect(grid, point.x - 2, point.y, 5, 1)
-		_carve_rect(grid, point.x - 3, point.y - 4, 7, 4)
+	for point_index: int in range(path.size()):
+		_stamp_network_landing(grid, platforms, path[point_index] as Vector2i, point_index, 0)
 	# Die Schleifen bleiben begehbar und zugleich aus jeder Depression wieder
 	# herausfuehrbar: sie erhalten identische, dicht gestaffelte Landeanker.
-	for line_variant: Variant in side_lines:
-		for point_variant: Variant in line_variant as Array:
-			var point: Vector2i = point_variant as Vector2i
-			platforms.append(_make_platform(point.x - 2, point.y, 5, 1, "ledge"))
-			_stamp_rect(grid, point.x - 2, point.y, 5, 1)
-			_carve_rect(grid, point.x - 3, point.y - 4, 7, 4)
+	for line_index: int in range(side_lines.size()):
+		var line: Array = side_lines[line_index] as Array
+		for point_index: int in range(line.size()):
+			_stamp_network_landing(grid, platforms, line[point_index] as Vector2i, point_index, line_index + 1)
 	_carve_rect(grid, dead_end.x - 3, dead_end.y - 4, 7, 4)
 	_stamp_rect(grid, dead_end.x - 2, dead_end.y, 5, 1)
 
@@ -334,6 +332,17 @@ func _build_cave_network_result(seed: int) -> Dictionary:
 	validation["vertical_signature"] = "layered_ring"
 	validation["room_variety_score"] = 7.0
 	return {"grid": final_grid, "spawn": spawn, "exit": exit, "platforms": platforms, "pickups": pickups, "enemies": _place_enemies(), "hazards": [], "torches": _place_torches(), "triggers": _place_triggers(), "boss": {}, "worm_count": 0, "layout_validation": validation, "debug_rooms": rooms, "critical_path_nodes": path, "side_path_lines": side_lines, "mobility_profile": mobility_profile}
+
+
+func _stamp_network_landing(grid: Array, platforms: Array, point: Vector2i, point_index: int, route_index: int) -> void:
+	# Kleine, deterministische Breiten- und Seitenvariationen verhindern, dass
+	# mehrere sichere Landungen zu einer optischen Betonlinie verschmelzen.
+	var signature: int = abs(point.x * 17 + point.y * 31 + point_index * 13 + route_index * 19)
+	var width: int = 4 + signature % 3
+	var left: int = point.x - int(width / 2) + (1 if signature % 5 == 0 else 0)
+	platforms.append(_make_platform(left, point.y, width, 1, "ledge"))
+	_stamp_rect(grid, left, point.y, width, 1)
+	_carve_rect(grid, left - 1, point.y - 4, width + 2, 4)
 
 
 func _carve_organic_blob(grid: Array, center: Vector2i, radius_x: float, radius_y: float) -> void:
