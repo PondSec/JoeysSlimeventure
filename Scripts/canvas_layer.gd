@@ -13,7 +13,8 @@ const TOAST_ERROR_ICON_PATH := "res://Assets/GUI/Icons/Polish/toast_error.png"
 const CAVE_HEALTH_FRAME := preload("res://Assets/UI/Health/cave_frame.png")
 const LUSH_HEALTH_FRAME := preload("res://Assets/UI/Health/lush_frame.png")
 const HEALTH_FILL := preload("res://Assets/UI/Health/fill_visible.png")
-const MAX_VISIBLE_TOASTS := 5
+const MAX_VISIBLE_TOASTS := 4
+const GAMEPLAY_TOAST_MIN_DURATION := 6.4
 const TOAST_LABELS := {
 	"info": "SYSTEM",
 	"reward": "LOOT",
@@ -75,6 +76,10 @@ var toast_queue_release_pending := false
 
 
 func _ready() -> void:
+	# Pickup messages are HUD feedback, never gameplay simulation.  They must
+	# remain readable through hit-stop and the short pause windows around
+	# transitions, so their own timers always process independently.
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	feedback_font = load(FONT_PATH) as FontFile
 	click_stream = load(UI_CLICK_PATH)
 	confirm_stream = load(UI_CONFIRM_PATH)
@@ -399,6 +404,7 @@ func show_toast(message: String, toast_type: String = "info", icon_texture: Text
 	toast_container.add_child(toast)
 
 	var tween := create_tween()
+	tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
 	tween.set_parallel(true)
 	tween.tween_property(toast, "modulate:a", 1.0, 0.18).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	tween.tween_property(toast, "scale", Vector2.ONE, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
@@ -406,17 +412,13 @@ func show_toast(message: String, toast_type: String = "info", icon_texture: Text
 	if icon_frame:
 		tween.tween_property(icon_frame, "scale", Vector2.ONE, 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tween.set_parallel(false)
-	var default_duration := 4.4 if toast_type != "reward" else 4.8
-	var toast_duration: float = maxf(display_duration, 3.8) if display_duration > 0.0 else default_duration
-	tween.tween_interval(toast_duration)
-	tween.set_parallel(true)
-	tween.tween_property(toast, "modulate:a", 0.0, 0.22).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	tween.tween_property(toast, "scale", Vector2(0.97, 0.97), 0.22).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	tween.set_parallel(false)
-	tween.tween_callback(func() -> void:
-		toast.queue_free()
-		call_deferred("_show_next_queued_toast")
-	)
+	# A SceneTreeTimer with `ignore_time_scale` is deliberately used instead of
+	# a tween interval. Gameplay can briefly slow or pause for combat/scene
+	# transitions; that must not make an "item collected" message vanish before
+	# it has been readable in real time.
+	var default_duration := 6.8 if toast_type != "reward" else 7.2
+	var toast_duration: float = maxf(display_duration, GAMEPLAY_TOAST_MIN_DURATION) if display_duration > 0.0 else default_duration
+	_schedule_gameplay_toast_dismissal(toast, toast_duration)
 
 	if toast_type == "reward":
 		_play_reward_sound()
@@ -424,6 +426,23 @@ func show_toast(message: String, toast_type: String = "info", icon_texture: Text
 		_play_ui_sound(click_stream, -1.0)
 	else:
 		_play_ui_sound(confirm_stream if confirm_stream else click_stream)
+
+
+func _schedule_gameplay_toast_dismissal(toast: PanelContainer, display_duration: float) -> void:
+	await get_tree().create_timer(display_duration, true, false, true).timeout
+	if not is_instance_valid(toast):
+		return
+	var fade_tween := create_tween()
+	fade_tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	fade_tween.set_parallel(true)
+	fade_tween.tween_property(toast, "modulate:a", 0.0, 0.26).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	fade_tween.tween_property(toast, "scale", Vector2(0.97, 0.97), 0.26).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	fade_tween.set_parallel(false)
+	fade_tween.tween_callback(func() -> void:
+		if is_instance_valid(toast):
+			toast.queue_free()
+		call_deferred("_show_next_queued_toast")
+	)
 
 
 func _show_next_queued_toast() -> void:

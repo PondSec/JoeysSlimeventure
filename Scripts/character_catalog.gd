@@ -108,7 +108,10 @@ static func _build_slime_meta() -> Dictionary:
 			# numbers and cadence.  His movement/body identity remains Slime.
 			"combat": {
 				"attack_cooldown": 0.075,
-				"combo_damage": [1.12, 1.48, 1.98],
+				# Combo 3 has three authored contacts. Its per-contact multiplier is
+				# intentionally lower so a complete spin is rewarding without dealing
+				# almost six normal hits at once.
+				"combo_damage": [0.90, 1.08, 0.52],
 				"combo_knockback": [210.0, 305.0, 440.0],
 				"combo_lunge": [145.0, 205.0, 285.0],
 				"combo_active": [0.15, 0.273, 0.5],
@@ -205,7 +208,9 @@ static func _build_male_hero_meta() -> Dictionary:
 				},
 				"combat": {
 					"attack_cooldown": 0.075,
-					"combo_damage": [1.12, 1.48, 1.98],
+					# The Hero finisher has three discrete hit frames; tune each one as a
+					# partial hit rather than charging the full finisher damage three times.
+					"combo_damage": [0.90, 1.08, 0.52],
 					"combo_knockback": [210.0, 305.0, 440.0],
 					"combo_lunge": [145.0, 205.0, 285.0],
 					"momentum_damage_multiplier": 1.24,

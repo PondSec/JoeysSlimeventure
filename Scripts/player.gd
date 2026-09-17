@@ -182,7 +182,7 @@ var is_charging: bool = false
 # Variablen für Bewegung und Status
 var is_glowing := true
 const GLOW_ENERGY_MAX := 100.0
-const GLOW_ENERGY_DRAIN_PER_SECOND := 12.0
+const GLOW_ENERGY_DRAIN_PER_SECOND := 7.0
 const GLOW_ENERGY_RECHARGE_PER_SECOND := 18.0
 const GLOW_MIN_ACTIVATION_ENERGY := 12.0
 var glow_energy := GLOW_ENERGY_MAX
