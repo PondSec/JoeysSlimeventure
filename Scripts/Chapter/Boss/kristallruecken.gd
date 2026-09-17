@@ -465,7 +465,7 @@ func _begin_death() -> void:
 	LootDropper.spawn_independent_drops(self, [
 		{"item": "health_heart", "chance": 1.0, "min_count": 3, "max_count": 4},
 		{"item": "copper_nugget", "chance": 1.0, "min_count": 2, "max_count": 3},
-		{"item": "silver_nugget", "chance": 1.0, "min_count": 2, "max_count": 3},
+		{"item": "iron_nugget", "chance": 1.0, "min_count": 2, "max_count": 3},
 		{"item": "irrlicht_eye", "chance": 0.18},
 		{"item": "gold_nugget", "chance": 0.38, "min_count": 1, "max_count": 2}
 	])

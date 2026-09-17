@@ -5,6 +5,8 @@ const LootDropper := preload("res://Scripts/loot_dropper.gd")
 signal defeated
 signal health_changed(current_health: int, max_health: int)
 
+enum State { IDLE, HOP_TELEGRAPH, SLAM_TELEGRAPH, SUMMON, RECOVER, DEAD }
+
 const GRAVITY := 1450.0
 const CONTACT_COOLDOWN := 1.0
 
@@ -27,6 +29,8 @@ var local_time: float = 0.0
 var is_dead: bool = false
 var pending_slam_land: bool = false
 var was_on_floor_last_frame: bool = false
+var state: State = State.IDLE
+var state_time := 0.0
 
 @onready var sprite: Sprite2D = $Sprite2D
 @onready var hitbox: Area2D = $Hitbox
@@ -49,6 +53,7 @@ func _physics_process(delta: float) -> void:
 
 	local_time += delta
 	anim_timer += delta
+	state_time += delta
 	action_cooldown = maxf(action_cooldown - delta, 0.0)
 	spawn_cooldown = maxf(spawn_cooldown - delta, 0.0)
 	slam_cooldown = maxf(slam_cooldown - delta, 0.0)
@@ -61,8 +66,7 @@ func _physics_process(delta: float) -> void:
 		velocity.x = move_toward(velocity.x, 0.0, 980.0 * delta)
 		if pending_slam_land and not was_on_floor_last_frame:
 			_perform_slam_land()
-		if action_cooldown <= 0.0:
-			_choose_next_action()
+		_process_grounded_state()
 
 	move_and_slide()
 	_update_visuals()
@@ -90,19 +94,48 @@ func _choose_next_action() -> void:
 
 	var health_ratio: float = float(current_health) / float(max(max_health, 1))
 	if health_ratio <= 0.58 and spawn_cooldown <= 0.0:
-		_spawn_minions()
 		action_cooldown = 1.3
 		spawn_cooldown = 6.0
+		_enter_state(State.SUMMON)
 		return
 
 	if health_ratio <= 0.38 and slam_cooldown <= 0.0:
-		_perform_slam_jump()
 		action_cooldown = 1.85
 		slam_cooldown = 5.4
+		_enter_state(State.SLAM_TELEGRAPH)
 		return
 
-	_perform_hop_attack()
 	action_cooldown = 1.15
+	_enter_state(State.HOP_TELEGRAPH)
+
+
+func _process_grounded_state() -> void:
+	match state:
+		State.HOP_TELEGRAPH:
+			if state_time >= 0.28:
+				_perform_hop_attack()
+				_enter_state(State.RECOVER)
+		State.SLAM_TELEGRAPH:
+			if state_time >= 0.46:
+				_perform_slam_jump()
+				_enter_state(State.RECOVER)
+		State.SUMMON:
+			if state_time >= 0.54:
+				_spawn_minions()
+				_enter_state(State.RECOVER)
+		State.RECOVER:
+			if state_time >= 0.34:
+				_enter_state(State.IDLE)
+		State.IDLE:
+			if action_cooldown <= 0.0:
+				_choose_next_action()
+
+
+func _enter_state(next_state: State) -> void:
+	if state == next_state:
+		return
+	state = next_state
+	state_time = 0.0
 
 
 func _perform_hop_attack() -> void:
@@ -125,6 +158,7 @@ func _perform_slam_jump() -> void:
 
 func _perform_slam_land() -> void:
 	pending_slam_land = false
+	_enter_state(State.RECOVER)
 	_squash(Vector2(0.48, 0.58), 0.22)
 	var camera: Camera2D = get_viewport().get_camera_2d()
 	if camera != null and camera.has_method("shake"):
@@ -156,6 +190,15 @@ func _update_visuals() -> void:
 
 	if is_dead:
 		sprite.frame = 14
+	elif state == State.SLAM_TELEGRAPH:
+		sprite.frame = 4
+		sprite.modulate = Color(1.0, 0.76, 0.70, 1.0)
+	elif state == State.HOP_TELEGRAPH:
+		sprite.frame = 3
+		sprite.modulate = Color(1.0, 0.88, 0.72, 1.0)
+	elif state == State.SUMMON:
+		sprite.frame = 2
+		sprite.modulate = Color(0.74, 0.82, 1.0, 1.0)
 	elif not is_on_floor():
 		sprite.frame = 8
 	elif current_health < int(max_health * 0.45):
@@ -184,12 +227,13 @@ func _die() -> void:
 	if is_dead:
 		return
 	is_dead = true
+	state = State.DEAD
 	emit_signal("health_changed", 0, max_health)
 	emit_signal("defeated")
 	LootDropper.spawn_independent_drops(self, [
 		{"item": "health_heart", "chance": 1.0, "min_count": 2, "max_count": 3},
 		{"item": "copper_nugget", "chance": 0.86, "min_count": 1, "max_count": 2},
-		{"item": "silver_nugget", "chance": 0.64, "min_count": 1, "max_count": 2},
+		{"item": "iron_nugget", "chance": 0.64, "min_count": 1, "max_count": 2},
 		{"item": "gold_nugget", "chance": 0.20, "min_count": 1, "max_count": 2},
 		{"item": "bat_artefact", "chance": 0.12}
 	])

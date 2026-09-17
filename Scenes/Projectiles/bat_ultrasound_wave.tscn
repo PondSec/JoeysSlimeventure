@@ -1,0 +1,22 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Chapter/Enemies/bat_ultrasound_wave.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://Assets/Effects/bat_ultrasound_wave.png" id="2_texture"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_wave"]
+size = Vector2(24, 44)
+
+[node name="BatUltrasoundWave" type="Area2D"]
+collision_layer = 0
+collision_mask = 3
+monitorable = false
+script = ExtResource("1_script")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture_filter = 1
+texture = ExtResource("2_texture")
+region_enabled = true
+region_rect = Rect2(0, 92, 154, 534)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_wave")

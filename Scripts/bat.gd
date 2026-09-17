@@ -1,6 +1,7 @@
 extends CharacterBody2D
 
 const LootDropper := preload("res://Scripts/loot_dropper.gd")
+const SONIC_WAVE_SCENE := preload("res://Scenes/Projectiles/bat_ultrasound_wave.tscn")
 
 # Einstellungen
 const SPEED = 140.0
@@ -17,6 +18,10 @@ const DODGE_CHANCE = 0.25
 const MAX_HEALTH = 50
 const ACCELERATION = 8.0
 const DECELERATION = 10.0
+const SONIC_MIN_RANGE = 132.0
+const SONIC_MAX_RANGE = 288.0
+const SONIC_COOLDOWN = 3.4
+const SONIC_TELEGRAPH_DURATION = 0.42
 
 var original_speed := SPEED  # Ursprüngliche Geschwindigkeit speichern
 var current_slow_multiplier := 1.0  # Aktueller Slow-Multiplikator
@@ -40,6 +45,9 @@ var time_since_last_seen := 0.0
 var patrol_points := []
 var current_patrol_index := 0
 var should_attack := false
+var sonic_cooldown := 1.25
+var sonic_charge := 0.0
+var sonic_direction := Vector2.ZERO
 
 # Einstellungen
 const PATROL_CHANCE = 0.9  # 30% Chance zu patrouillieren, wenn der Spieler nicht in Sicht ist
@@ -193,6 +201,11 @@ func _physics_process(delta: float) -> void:
 		find_target()
 		if player == null:  # Immer noch kein Ziel gefunden
 			return  # Nichts tun, bis ein Ziel existiert
+	sonic_cooldown = maxf(sonic_cooldown - delta, 0.0)
+	if _process_sonic_attack(delta):
+		move_and_slide()
+		set_animation()
+		return
 			
 	if normal_hit_streak > 0:
 		streak_timer += delta
@@ -400,6 +413,39 @@ func can_attack() -> bool:
 			and not is_dodging 
 			and is_instance_valid(player)
 			and global_position.distance_to(player.global_position) <= ATTACK_RANGE)
+
+
+func _process_sonic_attack(delta: float) -> bool:
+	if sonic_charge > 0.0:
+		sonic_charge -= delta
+		velocity = velocity.lerp(Vector2.ZERO, delta * 9.0)
+		sprite.modulate = Color(0.68, 0.86, 1.0, 1.0)
+		if sonic_charge <= 0.0:
+			_spawn_sonic_wave()
+			sonic_cooldown = SONIC_COOLDOWN
+			sprite.modulate = Color.WHITE
+		return true
+	if sonic_cooldown > 0.0 or is_dead or is_stunned or is_dodging or current_state != "chase":
+		return false
+	var distance := global_position.distance_to(player.global_position)
+	if distance < SONIC_MIN_RANGE or distance > SONIC_MAX_RANGE:
+		return false
+	# Direction is locked here.  The pulse never adjusts after launch.
+	sonic_direction = (player.global_position - global_position).normalized()
+	sonic_charge = SONIC_TELEGRAPH_DURATION
+	return true
+
+
+func _spawn_sonic_wave() -> void:
+	var wave := SONIC_WAVE_SCENE.instantiate() as Area2D
+	if wave == null:
+		return
+	var launch_direction := sonic_direction if sonic_direction.length_squared() > 0.001 else Vector2.RIGHT
+	var host := get_parent()
+	if host == null:
+		host = get_tree().current_scene
+	host.add_child(wave)
+	wave.call("configure", global_position + launch_direction * 22.0, launch_direction, 245.0, 12)
 		
 func handle_chase(delta: float, distance: float) -> void:
 	if should_attack:
@@ -753,7 +799,7 @@ func drop_loot() -> void:
 		{"item": "health_heart", "chance": 0.54},
 		{"item": "bat_claw", "chance": 0.25},
 		{"item": "copper_nugget", "chance": 0.46},
-		{"item": "silver_nugget", "chance": 0.16},
+		{"item": "iron_nugget", "chance": 0.16},
 		{"item": "iron_nugget", "chance": 0.09},
 		{"item": "gold_nugget", "chance": 0.018},
 		{"item": "bat_artefact", "chance": 0.008}

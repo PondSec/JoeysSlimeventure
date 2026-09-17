@@ -5,7 +5,7 @@ extends Area2D
 const ItemRegistry := preload("res://Scripts/item_registry.gd")
 
 const COPPER_TEXTURE := preload("res://Assets/Items/copper_nugget.png")
-const SILVER_TEXTURE := preload("res://Assets/Items/iron_nugget.png")
+const IRON_TEXTURE := preload("res://Assets/Items/iron_nugget.png")
 const GOLD_TEXTURE := preload("res://Assets/Items/gold_nugget.png")
 const DISPLAY_SCALE := 0.52
 
@@ -25,9 +25,9 @@ func _ready() -> void:
 
 func configure_loot_tier(tier: String) -> void:
 	match tier:
-		"silver":
-			item_id = "silver_nugget"
-			sprite.texture = SILVER_TEXTURE
+		"iron":
+			item_id = "iron_nugget"
+			sprite.texture = IRON_TEXTURE
 			light.color = Color(0.72, 0.84, 1.0, 1.0)
 		"gold":
 			item_id = "gold_nugget"

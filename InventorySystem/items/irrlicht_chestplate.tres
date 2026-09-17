@@ -12,6 +12,7 @@ texture = ExtResource("2_texture")
 rarity = "epic"
 stack_size = 1
 world_texture_region = Rect2(150, 260, 960, 820)
+world_scale = 0.067
 item_type = "relic"
 equip_slot = "armor"
 crit_chance_bonus = 0.04

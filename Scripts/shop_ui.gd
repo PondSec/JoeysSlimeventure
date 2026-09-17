@@ -203,7 +203,7 @@ func _refresh_wallet() -> void:
 	if inv == null:
 		return
 
-	for currency in ["copper", "silver", "gold"]:
+	for currency in ["copper", "iron", "gold"]:
 		wallet_row.add_child(_create_wallet_chip(currency))
 
 

@@ -28,6 +28,9 @@ const LEGACY_SLOT_REDIRECTS := {
 	"star": "star_1",
 }
 const HOTBAR_SLOT_COUNT := 9
+const LEGACY_ITEM_REDIRECTS := {
+	"silver_nugget": "iron_nugget",
+}
 
 @export var slots: Array[InvSlot]
 
@@ -405,6 +408,7 @@ func _deserialize_slot_data(data: Variant, target_slot: InvSlot) -> void:
 		return
 
 	var item_name := String(data.get("item_name", ""))
+	item_name = String(LEGACY_ITEM_REDIRECTS.get(item_name, item_name))
 	var amount := int(data.get("amount", 0))
 	if item_name.is_empty() or amount <= 0:
 		_clear_slot(target_slot)

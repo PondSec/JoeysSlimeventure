@@ -11,9 +11,9 @@ const RECIPES: Array[Dictionary] = [
 		"name": "Irrlichtbrustplatte",
 		"result": "irrlicht_chestplate",
 		"pattern": [
-			"silver_nugget", "irrlicht_carapace", "silver_nugget",
+			"iron_nugget", "irrlicht_carapace", "iron_nugget",
 			"", "irrlicht_eye", "",
-			"", "silver_nugget", ""
+			"", "iron_nugget", ""
 		]
 	},
 	{
