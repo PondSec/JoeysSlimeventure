@@ -633,7 +633,19 @@ func _build_lush_biome_parallax(bounds: Rect2) -> void:
 	# Preserve the complete frame with a smaller, resolution-independent margin.
 	# The previous margins made the art read noticeably zoomed-in.
 	var deep_sprite := _create_lush_biome_sprite(deep_texture, shader, 0, 28.0, Vector2(-0.009, -0.004))
+	# The deepest painted cave receives only a trace of softness; it separates
+	# from the middle frame without losing its authored silhouette.
+	var deep_material := deep_sprite.material as ShaderMaterial
+	if deep_material != null:
+		deep_material.set_shader_parameter("depth_blur", 0.14)
+		deep_material.set_shader_parameter("blur_radius", 0.85)
 	var mid_sprite := _create_lush_biome_sprite(mid_texture, shader, 1, 76.0, Vector2(-0.030, -0.012))
+	# The middle depth is just soft enough to read behind the crisp foreground
+	# foliage and gameplay, without turning the pixel art into a haze.
+	var mid_material := mid_sprite.material as ShaderMaterial
+	if mid_material != null:
+		mid_material.set_shader_parameter("depth_blur", 0.32)
+		mid_material.set_shader_parameter("blur_radius", 1.15)
 	# The close frame follows the same smooth screen-space parallax model as the
 	# deep and mid art, only with a stronger offset.  It is intentionally still
 	# subtle enough that its corners remain attached to the view during jumps.
