@@ -3235,10 +3235,10 @@ func _apply_enemy_hit_feedback(target: Node2D) -> void:
 	var original_material: Material
 	if visual != null:
 		original_material = visual.material
-		# Force the texture itself to white, preserving only its alpha silhouette.
-		# The overbright self-modulate then feeds the existing bloom/light glow.
+		# Force the texture itself to a plain white silhouette, preserving only its
+		# alpha.  Keep modulation at white: this is a crisp hit flash, not bloom.
 		visual.material = _get_enemy_hit_flash_material()
-		visual.self_modulate = Color(4.5, 4.5, 4.5, 1.0)
+		visual.self_modulate = Color.WHITE
 	var hitstop_duration := 0.058 if _is_hero_form_active() else 0.042
 	await get_tree().create_timer(hitstop_duration, true, false, true).timeout
 	if not is_instance_valid(target):
