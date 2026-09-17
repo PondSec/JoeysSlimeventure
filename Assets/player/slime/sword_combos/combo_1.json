@@ -1,0 +1,11 @@
+{
+  "source": "male_hero_deluxe/slime-sword-animation.png",
+  "tag": "combo_1",
+  "frame_count": 3,
+  "source_frames": [
+    102,
+    103,
+    104
+  ],
+  "empty_source_frames_removed": []
+}

@@ -220,6 +220,7 @@ const FALL_DAMAGE = 30  # Schaden, der beim Fallen verursacht wird
 
 # Referenzen zu Knoten
 var attack_sprite: AnimatedSprite2D
+var slime_sword_combo_sprite: Sprite2D
 var attack_area: Area2D
 var attack_collision_shape: CollisionShape2D
 var attack_area_base_position := Vector2.ZERO
@@ -243,9 +244,30 @@ var weapon_grip_offset_runtime := Vector2(8.0, -8.0)
 var show_equipped_weapon_visual := true
 var weapon_hold_timer := 0.0
 var weapon_visibility_alpha := 0.0
+var slime_sword_combo_elapsed := 0.0
+var slime_sword_combo_duration := 0.0
+var slime_sword_combo_step := 0
+var slime_sword_combo_showing_recovery := false
 const WEAPON_HOLD_AFTER_ATTACK := 2.0
 const WEAPON_DRAW_FADE_SPEED := 15.0
 const WEAPON_SHEATHE_FADE_SPEED := 7.0
+const SLIME_SWORD_COMBO_MAIN_TEXTURES := [
+	"res://Assets/player/slime/sword_combos/combo_1.png",
+	"res://Assets/player/slime/sword_combos/combo_2.png",
+	"res://Assets/player/slime/sword_combos/combo_3.png",
+]
+const SLIME_SWORD_COMBO_RECOVERY_TEXTURES := [
+	"res://Assets/player/slime/sword_combos/combo_1_end.png",
+	"res://Assets/player/slime/sword_combos/combo_2_end.png",
+	"res://Assets/player/slime/sword_combos/combo_3_end.png",
+]
+const SLIME_SWORD_COMBO_MAIN_FRAME_COUNTS := [3, 6, 12]
+const SLIME_SWORD_COMBO_RECOVERY_FRAME_COUNTS := [4, 3, 6]
+# Match the Hero form's authored tags exactly, including the recovery sheets.
+const DELUXE_SWORD_COMBO_ACTIVE_TIMES := [0.15, 0.273, 0.5]
+const DELUXE_SWORD_COMBO_RECOVERY_TIMES := [0.222, 0.222, 0.3]
+const SLIME_SWORD_COMBO_SCALE := Vector2(15.625, 15.625)
+const SLIME_SWORD_COMBO_POSITION := Vector2(0.0, -114.0)
 var glow_effect: PointLight2D
 @onready var damage_label: Label = $PlayerSprite/CanvasLayer2/DamageLabel# Referenz zum Schadens-Label
 @onready var equipped_weapon_sprite: Sprite2D = $PlayerSprite/EquippedWeaponSprite
@@ -542,6 +564,7 @@ func _ready() -> void:
 		default_collision_shape_scale = $ColisionArea.scale
 	_apply_default_character_profile()
 	_configure_attack_sprite_visual()
+	_ensure_slime_sword_combo_sprite()
 	_configure_equipped_weapon_sprite()
 	_setup_weapon_afterimages()
 	
@@ -1062,7 +1085,84 @@ func _notify_star_finisher() -> void:
 func _configure_attack_sprite_visual() -> void:
 	if attack_sprite == null:
 		return
+	# Legacy slime attack art is superseded by the Deluxe Sword layer below.
+	# Keep this node inert so it can never flash behind the new combo frames.
+	attack_sprite.stop()
+	attack_sprite.visible = false
 	attack_sprite.self_modulate = Color(1.0, 1.0, 1.0, 0.0)
+
+
+func _ensure_slime_sword_combo_sprite() -> void:
+	if slime_sword_combo_sprite != null and is_instance_valid(slime_sword_combo_sprite):
+		return
+
+	slime_sword_combo_sprite = Sprite2D.new()
+	slime_sword_combo_sprite.name = "SlimeSwordComboSprite"
+	slime_sword_combo_sprite.centered = true
+	slime_sword_combo_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	slime_sword_combo_sprite.position = default_player_sprite_position
+	slime_sword_combo_sprite.scale = SLIME_SWORD_COMBO_SCALE
+	slime_sword_combo_sprite.z_index = $PlayerSprite.z_index + 5
+	slime_sword_combo_sprite.visible = false
+	add_child(slime_sword_combo_sprite)
+
+
+func _start_slime_sword_combo_animation(step: int) -> void:
+	_ensure_slime_sword_combo_sprite()
+	if slime_sword_combo_sprite == null or _is_hero_form_active():
+		return
+
+	slime_sword_combo_step = clampi(step, 0, SLIME_SWORD_COMBO_MAIN_TEXTURES.size() - 1)
+	slime_sword_combo_elapsed = 0.0
+	slime_sword_combo_showing_recovery = false
+	slime_sword_combo_duration = float(DELUXE_SWORD_COMBO_ACTIVE_TIMES[slime_sword_combo_step]) + float(DELUXE_SWORD_COMBO_RECOVERY_TIMES[slime_sword_combo_step])
+	_set_slime_sword_combo_sheet(false)
+
+
+func _set_slime_sword_combo_sheet(show_recovery: bool) -> void:
+	if slime_sword_combo_sprite == null:
+		return
+	var texture_paths := SLIME_SWORD_COMBO_RECOVERY_TEXTURES if show_recovery else SLIME_SWORD_COMBO_MAIN_TEXTURES
+	var frame_counts := SLIME_SWORD_COMBO_RECOVERY_FRAME_COUNTS if show_recovery else SLIME_SWORD_COMBO_MAIN_FRAME_COUNTS
+	var frame_count: int = int(frame_counts[slime_sword_combo_step])
+	slime_sword_combo_sprite.texture = CharacterCatalog.load_texture(String(texture_paths[slime_sword_combo_step]))
+	slime_sword_combo_sprite.hframes = frame_count
+	slime_sword_combo_sprite.vframes = 1
+	slime_sword_combo_sprite.frame = 0
+	slime_sword_combo_sprite.flip_h = is_facing_left
+	slime_sword_combo_sprite.position = SLIME_SWORD_COMBO_POSITION
+	slime_sword_combo_sprite.scale = SLIME_SWORD_COMBO_SCALE
+	slime_sword_combo_sprite.visible = slime_sword_combo_sprite.texture != null
+
+
+func _update_slime_sword_combo_animation(delta: float) -> void:
+	if slime_sword_combo_sprite == null:
+		return
+	if _is_hero_form_active() or not is_attacking or slime_sword_combo_duration <= 0.0:
+		slime_sword_combo_sprite.visible = false
+		return
+
+	slime_sword_combo_elapsed += delta
+	var active_duration: float = float(DELUXE_SWORD_COMBO_ACTIVE_TIMES[slime_sword_combo_step])
+	var recovery_duration: float = float(DELUXE_SWORD_COMBO_RECOVERY_TIMES[slime_sword_combo_step])
+	var show_recovery := slime_sword_combo_elapsed >= active_duration
+	if show_recovery != slime_sword_combo_showing_recovery:
+		slime_sword_combo_showing_recovery = show_recovery
+		_set_slime_sword_combo_sheet(show_recovery)
+
+	var segment_duration := recovery_duration if show_recovery else active_duration
+	var segment_elapsed := slime_sword_combo_elapsed - active_duration if show_recovery else slime_sword_combo_elapsed
+	if segment_elapsed >= segment_duration:
+		slime_sword_combo_sprite.visible = false
+		return
+	var frame_counts := SLIME_SWORD_COMBO_RECOVERY_FRAME_COUNTS if show_recovery else SLIME_SWORD_COMBO_MAIN_FRAME_COUNTS
+	var frame_count: int = int(frame_counts[slime_sword_combo_step])
+	var frame_index := mini(int(floor(segment_elapsed / segment_duration * float(frame_count))), frame_count - 1)
+	slime_sword_combo_sprite.frame = frame_index
+	slime_sword_combo_sprite.flip_h = is_facing_left
+	# Both tracks contain only authored visible cells; nothing loops through an
+	# empty source frame between strike and recovery.
+	slime_sword_combo_sprite.visible = true
 
 
 func _configure_equipped_weapon_sprite() -> void:
@@ -1162,6 +1262,12 @@ func get_current_character_id() -> String:
 
 func _is_hero_form_active() -> bool:
 	return current_character_id == CharacterCatalog.MALE_HERO_ID
+
+
+func _uses_deluxe_sword_combat() -> bool:
+	# Joey's new sword layer uses the same authored three-part combat cadence as
+	# the Hero form; only the character body underneath remains different.
+	return current_character_id == CharacterCatalog.SLIME_ID or _is_hero_form_active()
 
 
 func _is_hero_ledge_busy() -> bool:
@@ -1293,6 +1399,11 @@ func _apply_character_profile(character_id: String) -> void:
 		_end_hero_ground_slide(false)
 	current_character_id = character_id
 	is_hero_form_active = current_character_id == CharacterCatalog.MALE_HERO_ID
+	if slime_sword_combo_sprite != null:
+		slime_sword_combo_sprite.visible = false
+		slime_sword_combo_elapsed = 0.0
+		slime_sword_combo_duration = 0.0
+		slime_sword_combo_showing_recovery = false
 	current_character_meta = CharacterCatalog.get_character_meta(current_character_id)
 	current_character_profile = CharacterCatalog.get_runtime_profile(current_character_id)
 	current_character_capabilities = current_character_profile.get("capabilities", {}) as Dictionary
@@ -1331,8 +1442,9 @@ func _apply_character_profile(character_id: String) -> void:
 		combo_active_times = (hero_combat_config.get("combo_active", [0.15, 0.273, 0.5]) as Array).duplicate()
 		combo_recovery_times = (hero_combat_config.get("combo_recovery", [0.222, 0.222, 0.3]) as Array).duplicate()
 	else:
-		combo_active_times = [0.28, 0.30, 0.33]
-		combo_recovery_times = [0.12, 0.12, 0.15]
+		# Joey now plays the same Deluxe Sword tag timing as the Hero form.
+		combo_active_times = DELUXE_SWORD_COMBO_ACTIVE_TIMES.duplicate()
+		combo_recovery_times = DELUXE_SWORD_COMBO_RECOVERY_TIMES.duplicate()
 	_apply_collision_profile("standing")
 	is_wall_sliding = false
 	is_wall_running = false
@@ -1884,7 +1996,7 @@ func update_facing_direction():
 
 
 func _face_nearest_hero_combat_target() -> bool:
-	if not _is_hero_form_active():
+	if not _uses_deluxe_sword_combat():
 		return false
 	var nearest: Node2D
 	var nearest_distance_squared := HERO_COMBAT_AUTO_AIM_RANGE * HERO_COMBAT_AUTO_AIM_RANGE
@@ -2037,6 +2149,7 @@ func _process_combat_timers(delta: float) -> void:
 
 	if weapon_visual_anim_time < weapon_visual_anim_duration:
 		weapon_visual_anim_time = min(weapon_visual_anim_time + delta, weapon_visual_anim_duration)
+	_update_slime_sword_combo_animation(delta)
 
 	if is_attacking:
 		runtime_attack_elapsed += delta
@@ -3740,8 +3853,9 @@ func perform_attack() -> void:
 	if _is_gameplay_input_blocked() or _is_hero_ledge_busy() or is_stunned or is_charging or is_teleporting:
 		return
 
+	var uses_deluxe_combo := _uses_deluxe_sword_combat()
 	if is_attacking:
-		if _is_hero_form_active():
+		if uses_deluxe_combo:
 			if current_attack_step < 2:
 				# A press during wind-up is intentionally retained until the authored
 				# cancel window; responsive does not mean every frame can cancel.
@@ -3778,11 +3892,11 @@ func perform_attack() -> void:
 	last_attack_time = now
 	
 	if combo_reset_timer > 0.0:
-		attack_combo_count = min(attack_combo_count + 1, 3 if _is_hero_form_active() else MAX_COMBO)
+		attack_combo_count = min(attack_combo_count + 1, 3 if uses_deluxe_combo else MAX_COMBO)
 	else:
 		attack_combo_count = 1
 
-	var combo_index: int = clampi(attack_combo_count - 1, 0, 2 if _is_hero_form_active() else MAX_COMBO - 1)
+	var combo_index: int = clampi(attack_combo_count - 1, 0, 2 if uses_deluxe_combo else MAX_COMBO - 1)
 	current_attack_step = combo_index % 3
 	current_attack_damage_multiplier = combo_damage_multipliers[combo_index]
 	current_attack_knockback_strength = combo_knockback_strengths[combo_index]
@@ -3806,7 +3920,7 @@ func perform_attack() -> void:
 
 	var primary_duration := float(combo_active_times[current_attack_step])
 	var hit_windows: Array[Vector2] = [ATTACK_HIT_WINDOWS[clampi(current_attack_step, 0, ATTACK_HIT_WINDOWS.size() - 1)]]
-	if _is_hero_form_active() and current_attack_step == 2:
+	if uses_deluxe_combo and current_attack_step == 2:
 		# The authored spin has three distinct sword contacts.  Every pulse gets
 		# its own target registry, so a target only receives the contacts it is
 		# physically inside for (one, two, or all three).
@@ -3829,7 +3943,7 @@ func perform_attack() -> void:
 		if not is_instance_valid(self) or sequence_id != attack_sequence_id:
 			return
 		_set_attack_hitbox_active(false)
-		attack_dash_cancel_ready = _is_hero_form_active()
+		attack_dash_cancel_ready = uses_deluxe_combo
 		elapsed_attack_time = hit_end
 
 	var tail_duration := primary_duration - elapsed_attack_time
@@ -3837,7 +3951,7 @@ func perform_attack() -> void:
 		await get_tree().create_timer(tail_duration).timeout
 	if not is_instance_valid(self) or sequence_id != attack_sequence_id or not is_attacking:
 		return
-	if _is_hero_form_active() and hero_combo_queued and current_attack_step < 2:
+	if uses_deluxe_combo and hero_combo_queued and current_attack_step < 2:
 		hero_combo_queued = false
 		is_attacking = false
 		queued_attack_timer = 0.0
@@ -3850,7 +3964,7 @@ func perform_attack() -> void:
 	# Late presses during the authored recovery are still valid chain inputs.
 	# This is the same "read intent, not one exact frame" principle as a jump
 	# buffer, while keeping the visual recovery readable.
-	if _is_hero_form_active() and hero_combo_queued and current_attack_step < 2:
+	if uses_deluxe_combo and hero_combo_queued and current_attack_step < 2:
 		hero_combo_queued = false
 		is_attacking = false
 		queued_attack_timer = 0.0
@@ -3858,7 +3972,7 @@ func perform_attack() -> void:
 		return
 	is_attacking = false
 	damage_timer.start()
-	if _is_hero_form_active():
+	if uses_deluxe_combo:
 		# Missing the input window ends the chain completely, so the matching
 		# recovery animation genuinely returns to idle instead of skipping ahead.
 		attack_combo_count = 0
@@ -4279,11 +4393,16 @@ func sync_attack(combo_step: int = 0):
 	current_attack_step = combo_step
 	runtime_attack_elapsed = 0.0
 	runtime_animation_state = ""
-	_start_weapon_attack_animation(combo_step)
-	$PlayerSprite/AttackSprite.flip_h = is_facing_left
+	if show_equipped_weapon_visual:
+		_start_weapon_attack_animation(combo_step)
+	else:
+		weapon_visual_anim_time = 0.0
+		weapon_visual_anim_duration = 0.0
+	_start_slime_sword_combo_animation(combo_step)
+	if attack_sprite != null:
+		attack_sprite.flip_h = is_facing_left
+		attack_sprite.stop()
 	_update_attack_hitbox(combo_step)
-	$PlayerSprite/AttackSprite.play("swing")
-	$PlayerSprite/AttackSprite.speed_scale = 1.8 + float(combo_step) * 0.18
 	_set_attack_hitbox_active(false)
 	_update_equipped_weapon_visual()
 

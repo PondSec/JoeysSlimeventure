@@ -104,7 +104,20 @@ static func _build_slime_meta() -> Dictionary:
 				"sticky_form": true,
 				"slime_wings": true,
 			},
+			# Joey's Sword+FX track deliberately shares the Hero form's combat
+			# numbers and cadence.  His movement/body identity remains Slime.
+			"combat": {
+				"attack_cooldown": 0.075,
+				"combo_damage": [1.12, 1.48, 1.98],
+				"combo_knockback": [210.0, 305.0, 440.0],
+				"combo_lunge": [145.0, 205.0, 285.0],
+				"combo_active": [0.15, 0.273, 0.5],
+				"combo_recovery": [0.222, 0.222, 0.3],
+			},
 			"weapon_visual": {
+				# Equipped weapons still contribute their inventory stats, but Joey's
+				# visible attacks come solely from the authored Deluxe Sword combo layer.
+				"show_equipped_weapon": false,
 				"idle_position": Vector2(38.0, 24.0),
 				"idle_rotation": 18.0,
 				"base_scale": 10.8,
