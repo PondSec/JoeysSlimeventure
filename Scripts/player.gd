@@ -1889,7 +1889,8 @@ func _face_nearest_hero_combat_target() -> bool:
 		if not (candidate is Node2D) or not is_instance_valid(candidate):
 			continue
 		var enemy := candidate as Node2D
-		if bool(enemy.get("is_dead")):
+		var dead_value: Variant = enemy.get("is_dead")
+		if dead_value is bool and dead_value:
 			continue
 		var health: Variant = enemy.get("current_health")
 		if (health is int or health is float) and float(health) <= 0.0:
@@ -3169,7 +3170,8 @@ func _apply_hero_hit_feedback(target_body: Node2D, is_crit: bool, landed_finishe
 		hero_momentum_attack_timer = maxf(hero_momentum_attack_timer, 0.42)
 		_show_feedback_banner("POGO", Color(0.75, 1.0, 0.92, 1.0), 0.22)
 
-	_run_hero_hitstop(float(hero_combat_config.get("hitstop", 0.042)) * (1.4 if is_crit or landed_finisher else 1.0))
+	# Hitstop is intentionally local to the struck sprite in
+	# _apply_enemy_hit_feedback; never freeze the complete screen here.
 
 
 func _run_hero_hitstop(duration: float) -> void:
@@ -3188,7 +3190,8 @@ func _apply_damage_to_enemy(target: Node, damage_amount: int, knockback_directio
 		return false
 	# Dodging enemies are deliberately invulnerable.  Return a result so the
 	# player gets an explicit DODGE cue instead of a fake damage number.
-	if bool(target.get("is_dodging")):
+	var dodge_value: Variant = target.get("is_dodging")
+	if dodge_value is bool and dodge_value:
 		return false
 
 	var take_damage_arg_count := 0
