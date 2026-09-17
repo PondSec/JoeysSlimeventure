@@ -2121,7 +2121,7 @@
 
         .content-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
             gap: 24px;
         }
 
@@ -2162,8 +2162,8 @@
             margin-bottom: 14px;
             font-size: 1rem;
             max-width: 100%;
-            overflow-wrap: anywhere;
-            word-break: break-word;
+            overflow-wrap: break-word;
+            word-break: normal;
         }
 
         .link-card {
@@ -2207,14 +2207,16 @@
             margin-top: 16px;
         }
 
-        .sprite-gif {
+        .media-tile img.sprite-gif {
             width: min(100%, 228px);
+            height: 188px;
             margin-inline: auto;
+            object-fit: contain;
             image-rendering: pixelated;
             image-rendering: crisp-edges;
         }
 
-        .sprite-gif--boss {
+        .media-tile img.sprite-gif--boss {
             width: min(100%, 248px);
         }
 
@@ -2226,9 +2228,9 @@
 
         .fact-list li,
         .fact-row {
-            display: flex;
-            justify-content: space-between;
-            gap: 16px;
+            display: grid;
+            grid-template-columns: minmax(96px, 0.78fr) minmax(0, 1.22fr);
+            gap: 12px;
             padding: 10px 0;
             border-bottom: 1px solid rgba(255, 255, 255, 0.08);
             align-items: flex-start;
@@ -2237,20 +2239,21 @@
         .fact-list li strong,
         .fact-row strong {
             color: var(--primary);
-            min-width: 140px;
+            min-width: 0;
         }
 
         .fact-list li span,
         .fact-row span {
             flex: 1 1 auto;
             min-width: 0;
-            overflow-wrap: anywhere;
-            word-break: break-word;
-            text-align: left;
+            overflow-wrap: break-word;
+            word-break: normal;
+            text-align: right;
         }
 
         .fact-list--stacked li,
         .fact-list--stacked .fact-row {
+            display: flex;
             flex-direction: column;
             gap: 6px;
         }
