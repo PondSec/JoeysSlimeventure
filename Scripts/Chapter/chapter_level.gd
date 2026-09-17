@@ -948,6 +948,10 @@ func _spawn_player() -> void:
 	player = PLAYER_SCENE.instantiate() as CharacterBody2D
 	player.name = "PlayerModel"
 	add_child(player)
+	# Falling is fatal only beyond the physical bottom of this generated world.
+	# The old global Y=2000 threshold cut off valid deep rooms in larger levels.
+	if player.has_method("set_world_fall_death_y"):
+		player.call("set_world_fall_death_y", level_size_pixels.y + WORLD_BOUND_BOTTOM_PADDING)
 	var portal_state: Dictionary = _progress().consume_runtime_player_state()
 	if not portal_state.is_empty() and player.has_method("restore_portal_state"):
 		player.call("restore_portal_state", portal_state)

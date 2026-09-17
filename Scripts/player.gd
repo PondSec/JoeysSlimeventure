@@ -221,9 +221,10 @@ var dash_cooldown_timer: Timer
 
 var transfer_dialog_scene = preload("res://Scenes/transfer.tscn")
 
-# Konstanten für den Fall-Schaden
-const FALL_DAMAGE_THRESHOLD = 1580  # Y-Position, ab der Schaden verursacht wird
-const FALL_DAMAGE = 30  # Schaden, der beim Fallen verursacht wird
+# A chapter configures this from its generated world. It deliberately starts
+# disabled for menu/test scenes: a local cave depth must never be confused with
+# having fallen out of the world.
+var world_fall_death_y := INF
 
 # Referenzen zu Knoten
 var attack_sprite: AnimatedSprite2D
@@ -2139,7 +2140,7 @@ func _process(delta: float) -> void:
 	if is_landing and !Input.is_action_just_pressed("Attack") and !Input.is_action_just_pressed("Glow"):
 		return
 	
-	if global_position.y > 2000:
+	if global_position.y > world_fall_death_y:
 		current_health = 0
 		update_health_bar()
 		stop_healing()
@@ -2172,6 +2173,11 @@ func _process(delta: float) -> void:
 		print("Charge completed!")
 
 	_update_equipped_weapon_visual()
+
+func set_world_fall_death_y(death_y: float) -> void:
+	# Keep a sane margin even if a caller provides an invalid map extent.
+	world_fall_death_y = death_y if is_finite(death_y) else INF
+
 
 func _physics_process(delta: float) -> void:
 	if is_multiplayer_authority():
