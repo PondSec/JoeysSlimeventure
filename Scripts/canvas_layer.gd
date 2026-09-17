@@ -13,7 +13,7 @@ const TOAST_ERROR_ICON_PATH := "res://Assets/GUI/Icons/Polish/toast_error.png"
 const CAVE_HEALTH_FRAME := preload("res://Assets/UI/Health/cave_frame.png")
 const LUSH_HEALTH_FRAME := preload("res://Assets/UI/Health/lush_frame.png")
 const HEALTH_FILL := preload("res://Assets/UI/Health/fill_visible.png")
-const MAX_VISIBLE_TOASTS := 4
+const MAX_VISIBLE_TOASTS := 5
 const TOAST_LABELS := {
 	"info": "SYSTEM",
 	"reward": "LOOT",
@@ -70,6 +70,7 @@ var cave_health_frame: TextureRect
 var lush_health_frame: TextureRect
 var glow_charge_bar: ProgressBar
 var glow_charge_label: Label
+var toast_queue: Array[Dictionary] = []
 
 
 func _ready() -> void:
@@ -280,7 +281,7 @@ func notify_player_heal(amount: int, current: int, max_health: int) -> void:
 
 func show_loot_toast(item_name: String, icon_texture: Texture2D = null, amount: int = 1) -> void:
 	var quantity_prefix := "+%d " % amount if amount > 1 else "+1 "
-	show_toast(quantity_prefix + item_name, "reward", icon_texture, 3.6)
+	show_toast(quantity_prefix + item_name, "reward", icon_texture, 4.6)
 
 
 func show_notification(message: String) -> void:
@@ -291,15 +292,21 @@ func show_toast(message: String, toast_type: String = "info", icon_texture: Text
 	if not toast_container:
 		return
 	if toast_container.get_child_count() >= MAX_VISIBLE_TOASTS:
-		var oldest_toast: Node = toast_container.get_child(0)
-		if oldest_toast:
-			oldest_toast.queue_free()
+		# Never delete a message just as the player begins to read it. Overflow is
+		# queued and presented as an older toast leaves the lower-right stack.
+		toast_queue.append({
+			"message": message,
+			"toast_type": toast_type,
+			"icon_texture": icon_texture,
+			"display_duration": display_duration,
+		})
+		return
 
 	var effective_icon: Texture2D = icon_texture if icon_texture != null else _get_default_toast_icon(toast_type)
 	var is_default_icon := icon_texture == null and effective_icon != null
 	var toast := PanelContainer.new()
 	toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	toast.custom_minimum_size = Vector2(320, 56)
+	toast.custom_minimum_size = Vector2(350, 62)
 	toast.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	toast.clip_contents = true
 	toast.modulate = Color(1, 1, 1, 0)
@@ -398,13 +405,17 @@ func show_toast(message: String, toast_type: String = "info", icon_texture: Text
 	if icon_frame:
 		tween.tween_property(icon_frame, "scale", Vector2.ONE, 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tween.set_parallel(false)
-	var toast_duration: float = display_duration if display_duration > 0.0 else (2.1 if toast_type != "reward" else 2.5)
+	var default_duration := 4.4 if toast_type != "reward" else 4.8
+	var toast_duration: float = maxf(display_duration, 3.8) if display_duration > 0.0 else default_duration
 	tween.tween_interval(toast_duration)
 	tween.set_parallel(true)
 	tween.tween_property(toast, "modulate:a", 0.0, 0.22).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 	tween.tween_property(toast, "scale", Vector2(0.97, 0.97), 0.22).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 	tween.set_parallel(false)
-	tween.tween_callback(toast.queue_free)
+	tween.tween_callback(func() -> void:
+		toast.queue_free()
+		call_deferred("_show_next_queued_toast")
+	)
 
 	if toast_type == "reward":
 		_play_reward_sound()
@@ -412,6 +423,23 @@ func show_toast(message: String, toast_type: String = "info", icon_texture: Text
 		_play_ui_sound(click_stream, -1.0)
 	else:
 		_play_ui_sound(confirm_stream if confirm_stream else click_stream)
+
+
+func _show_next_queued_toast() -> void:
+	if toast_queue.is_empty() or toast_container == null:
+		return
+	# queue_free completes at the end of the frame. Waiting one frame prevents
+	# the old toast from being counted as visible and preserves FIFO ordering.
+	await get_tree().process_frame
+	if toast_container.get_child_count() >= MAX_VISIBLE_TOASTS:
+		return
+	var queued: Dictionary = toast_queue.pop_front()
+	show_toast(
+		str(queued.get("message", "")),
+		str(queued.get("toast_type", "info")),
+		queued.get("icon_texture", null) as Texture2D,
+		float(queued.get("display_duration", -1.0)),
+	)
 
 
 func show_banner(text: String, accent: Color = Color(1.0, 0.76, 0.32), duration: float = 0.45) -> void:
@@ -484,13 +512,15 @@ func _setup_fullscreen_feedback() -> void:
 func _setup_toasts() -> void:
 	toast_container = VBoxContainer.new()
 	toast_container.name = "GameplayToasts"
-	toast_container.anchors_preset = Control.PRESET_TOP_RIGHT
+	toast_container.anchors_preset = Control.PRESET_BOTTOM_RIGHT
 	toast_container.anchor_left = 1.0
+	toast_container.anchor_top = 1.0
 	toast_container.anchor_right = 1.0
-	toast_container.offset_left = -360.0
-	toast_container.offset_top = 28.0
-	toast_container.offset_right = -26.0
-	toast_container.offset_bottom = 420.0
+	toast_container.anchor_bottom = 1.0
+	toast_container.offset_left = -390.0
+	toast_container.offset_top = -438.0
+	toast_container.offset_right = -24.0
+	toast_container.offset_bottom = -28.0
 	toast_container.alignment = BoxContainer.ALIGNMENT_END
 	toast_container.add_theme_constant_override("separation", 8)
 	toast_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
