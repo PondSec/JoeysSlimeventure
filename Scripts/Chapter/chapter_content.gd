@@ -302,7 +302,7 @@ static func _chapter_one_levels() -> Array:
 			],
 			"triggers": [
 				_tutorial_trigger("c1_l1_intro", 3, 26, 7, 4, "Bewegung und Sprung", "Joey liest die Hoehle ueber Schwung. Kurze, saubere Linien sind sicherer als hektische Korrekturen mitten im Sprung.", "A / D laufen   SHIFT sprinten   SPACE springen", "TUTORIAL", "Kapitel I", Color(0.64, 0.95, 1.0, 1.0)),
-				_tutorial_trigger("c1_l1_mid", 35, 24, 8, 5, "Glowcap lesen", "Wenn Glowcap dein Licht frisst, laedt sie Sporen auf. Nimm Joeys Glow im Lade-Moment kurz raus, dann taumelt der Pilz und wird offen fuer deinen Angriff.", "F fuer Glow   Licht an zum Locken, aus zum Unterbrechen.", "TUTORIAL"),
+				_tutorial_trigger("c1_l1_mid", 35, 24, 8, 5, "Leuchtmaul lesen", "Leuchtmaul beleuchtet die Dunkelheit, bleibt aber wachsam. Trifft Joeys Glow den Pilz, zieht er sich zusammen. Ohne Licht versucht er nur aus naechster Naehe zu beissen.", "F fuer Glow   Licht an: sicher vorbei. Licht aus: Biss lesen und ausweichen.", "TUTORIAL"),
 				_trigger("c1_l1_exit", 92, 22, 5, 5, "Vor dir beginnt die eigentliche Tropfsteinhoehle.", "reward", "Weiter")
 			],
 			"worm_count": 0
