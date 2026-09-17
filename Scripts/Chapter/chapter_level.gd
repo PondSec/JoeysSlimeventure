@@ -2943,10 +2943,10 @@ func _spawn_hazard(hazard: Dictionary) -> void:
 		if spike == null:
 			continue
 		hazard_root.add_child(spike)
-		# The complete authored spike scene is bottom-anchored at local Y=0.
-		# Spawning it directly on the floor lip preserves its full scale, hitbox
-		# and player-glow visibility behaviour instead of producing tiny floaters.
-		spike.global_position = _grid_to_world(floor_cell) + Vector2(16.0, 0.0)
+		# Spike is a centered Sprite2D. Offset its origin by half a tile so its
+		# opaque bottom edge meets the surface; assigning the raw floor cell would
+		# leave its lower half embedded in the terrain.
+		spike.global_position = _grid_to_world(floor_cell) + Vector2(16.0, -16.0)
 		if player != null:
 			spike.call("_on_player_glow_changed", bool(player.get("is_glowing")))
 

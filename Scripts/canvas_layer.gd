@@ -71,6 +71,7 @@ var lush_health_frame: TextureRect
 var glow_charge_bar: ProgressBar
 var glow_charge_label: Label
 var toast_queue: Array[Dictionary] = []
+var toast_queue_release_pending := false
 
 
 func _ready() -> void:
@@ -426,14 +427,24 @@ func show_toast(message: String, toast_type: String = "info", icon_texture: Text
 
 
 func _show_next_queued_toast() -> void:
-	if toast_queue.is_empty() or toast_container == null:
+	if toast_queue_release_pending or toast_queue.is_empty() or toast_container == null:
 		return
+	# Several toasts can finish on the same frame. They must share one deferred
+	# queue drain; otherwise two await continuations can both see a non-empty
+	# queue and the second one receives `nil` from pop_front().
+	toast_queue_release_pending = true
 	# queue_free completes at the end of the frame. Waiting one frame prevents
 	# the old toast from being counted as visible and preserves FIFO ordering.
 	await get_tree().process_frame
+	toast_queue_release_pending = false
 	if toast_container.get_child_count() >= MAX_VISIBLE_TOASTS:
 		return
-	var queued: Dictionary = toast_queue.pop_front()
+	if toast_queue.is_empty():
+		return
+	var queued_value: Variant = toast_queue.pop_front()
+	if not (queued_value is Dictionary):
+		return
+	var queued := queued_value as Dictionary
 	show_toast(
 		str(queued.get("message", "")),
 		str(queued.get("toast_type", "info")),
