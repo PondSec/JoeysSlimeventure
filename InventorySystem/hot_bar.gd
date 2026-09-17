@@ -6,7 +6,7 @@ extends Control
 
 const SLOT_COUNT := 9
 const HOTBAR_SIZE := Vector2(1055.0, 192.0)
-const SLOT_FACE_SCALE := 1.12
+const SLOT_FACE_SCALE := 1.30
 const BIOME_THEMES := {
 	"cave": {
 		"bar": preload("res://Assets/UI/Hotbar/cave_frame.png"),
@@ -16,9 +16,9 @@ const BIOME_THEMES := {
 		# mathematically. The latter made the selected face drift farther right
 		# with every slot.
 		"slot_centers": [
-			Vector2(200.0, 100.0), Vector2(285.0, 100.0), Vector2(370.0, 100.0),
-			Vector2(455.0, 100.0), Vector2(540.0, 100.0), Vector2(625.0, 100.0),
-			Vector2(710.0, 100.0), Vector2(795.0, 100.0), Vector2(880.0, 100.0),
+			Vector2(194.0, 100.0), Vector2(286.0, 100.0), Vector2(378.0, 100.0),
+			Vector2(470.0, 100.0), Vector2(562.0, 100.0), Vector2(654.0, 100.0),
+			Vector2(746.0, 100.0), Vector2(838.0, 100.0), Vector2(930.0, 100.0),
 		],
 	},
 	"lush": {
@@ -26,9 +26,9 @@ const BIOME_THEMES := {
 		"inactive": preload("res://Assets/UI/Hotbar/lush_slot_inactive.png"),
 		"active": preload("res://Assets/UI/Hotbar/lush_slot_active.png"),
 		"slot_centers": [
-			Vector2(200.0, 100.0), Vector2(285.0, 100.0), Vector2(370.0, 100.0),
-			Vector2(455.0, 100.0), Vector2(540.0, 100.0), Vector2(625.0, 100.0),
-			Vector2(710.0, 100.0), Vector2(795.0, 100.0), Vector2(880.0, 100.0),
+			Vector2(194.0, 100.0), Vector2(286.0, 100.0), Vector2(378.0, 100.0),
+			Vector2(470.0, 100.0), Vector2(562.0, 100.0), Vector2(654.0, 100.0),
+			Vector2(746.0, 100.0), Vector2(838.0, 100.0), Vector2(930.0, 100.0),
 		],
 	},
 }

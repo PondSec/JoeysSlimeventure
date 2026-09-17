@@ -5,33 +5,33 @@
 [ext_resource type="Script" path="res://Scripts/Chapter/Enemies/glowcap.gd" id="3_script"]
 
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_body"]
-radius = 13.0
-height = 30.0
+radius = 10.0
+height = 24.0
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_bite"]
-size = Vector2(58, 44)
+size = Vector2(46, 35)
 
 [node name="Glowcap" type="CharacterBody2D"]
 script = ExtResource("3_script")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
-position = Vector2(0, -15)
+position = Vector2(0, -12)
 shape = SubResource("CapsuleShape2D_body")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
-position = Vector2(0, -52)
+position = Vector2(0, -38)
 texture = ExtResource("1_idle")
 
 [node name="PointLight2D" type="PointLight2D" parent="."]
-position = Vector2(0, -55)
-scale = Vector2(2, 2)
+position = Vector2(0, -38)
+scale = Vector2(1, 1)
 color = Color(0.3, 1, 0.89, 1)
-energy = 1.35
+energy = 0.055
 texture = ExtResource("2_light")
-texture_scale = 0.66
+texture_scale = 0.18
 
 [node name="BiteArea" type="Area2D" parent="."]
-position = Vector2(42, -42)
+position = Vector2(31, -29)
 monitoring = false
 monitorable = false
 

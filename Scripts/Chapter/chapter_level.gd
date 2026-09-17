@@ -83,6 +83,27 @@ const LUSH_BIOME_DEEP_BACKDROP_PATH := "res://Assets/Parallax Cave/Lush/lush_bio
 const LUSH_BIOME_MID_FRAME_PATH := "res://Assets/Parallax Cave/Lush/lush_biome_mid_frame.png"
 const LUSH_BIOME_FOREGROUND_FRAME_PATH := "res://Assets/Parallax Cave/Lush/lush_biome_foreground_frame.png"
 const LUSH_BIOME_TRANSITION_SHADER_PATH := "res://Shaders/lush_biome_transition.gdshader"
+const LANDMARK_DEPTH_SHADER_PATH := "res://Shaders/landmark_depth.gdshader"
+const CHAPTER_LUSH_LANDMARK_PATHS := [
+	"res://Assets/Deko/landmarks/lush/lush_landmark_00.png",
+	"res://Assets/Deko/landmarks/lush/lush_landmark_01.png",
+	"res://Assets/Deko/landmarks/lush/lush_landmark_02.png",
+	"res://Assets/Deko/landmarks/lush/lush_landmark_03.png",
+	"res://Assets/Deko/landmarks/lush/lush_landmark_04.png",
+	"res://Assets/Deko/landmarks/lush/lush_landmark_05.png",
+	"res://Assets/Deko/landmarks/lush/lush_landmark_06.png",
+	"res://Assets/Deko/landmarks/lush/lush_landmark_07.png",
+]
+const CHAPTER_CAVE_LANDMARK_PATHS := [
+	"res://Assets/Deko/landmarks/cave/cave_landmark_00.png",
+	"res://Assets/Deko/landmarks/cave/cave_landmark_01.png",
+	"res://Assets/Deko/landmarks/cave/cave_landmark_02.png",
+	"res://Assets/Deko/landmarks/cave/cave_landmark_03.png",
+	"res://Assets/Deko/landmarks/cave/cave_landmark_04.png",
+	"res://Assets/Deko/landmarks/cave/cave_landmark_05.png",
+	"res://Assets/Deko/landmarks/cave/cave_landmark_06.png",
+	"res://Assets/Deko/landmarks/cave/cave_landmark_07.png",
+]
 const NORMAL_CAVE_FOREGROUND_FRAME_PATH := "res://Assets/Parallax Cave/normal_cave_foreground_frame.png"
 const NORMAL_CAVE_FOREGROUND_SHADER_PATH := "res://Shaders/normal_cave_foreground_transition.gdshader"
 const LUSH_BIOME_TRANSITION_DISTANCE := 280.0
@@ -109,6 +130,7 @@ var boss_gate_revealed: bool = false
 var boss_portal_source := Vector2.ZERO
 var boss_energy_trail: Node2D
 var backdrop_root: Node2D
+var landmark_backdrop_root: Node2D
 var level_root: Node2D
 var wall_tiles: TileMapLayer
 var terrain_root: Node2D
@@ -324,6 +346,16 @@ func _build_runtime_nodes() -> void:
 	backdrop_root.name = "BackdropRoot"
 	add_child(backdrop_root)
 	move_child(backdrop_root, 0)
+
+	# Landmark art is its own world-space depth layer. It is deliberately not a
+	# child of BackdropRoot because that root is rebuilt when the play bounds are
+	# recalculated.
+	landmark_backdrop_root = Node2D.new()
+	landmark_backdrop_root.name = "LandmarkBackdrop"
+	landmark_backdrop_root.z_as_relative = false
+	landmark_backdrop_root.z_index = -10
+	add_child(landmark_backdrop_root)
+	move_child(landmark_backdrop_root, 1)
 
 	level_root = Node2D.new()
 	level_root.name = "Level"
@@ -566,6 +598,101 @@ func _register_lush_biome_decor_density() -> void:
 			lush_biome_density[sample_x] += weight * maxf(0.2, 1.0 - absf(float(offset_x)) / 4.0)
 
 
+func _spawn_chapter_landmarks(grid: Array) -> void:
+	# Chapter 1 has eight authored variants of each biome. Indexing directly by
+	# level deliberately avoids reuse: a landmark can become a memory of that
+	# one level instead of a repeated procedural prop.
+	if landmark_backdrop_root == null or int(active_level.get("chapter_index", 0)) != 1:
+		return
+	var level_index: int = int(active_level.get("level_index", -1))
+	if level_index < 0 or level_index >= CHAPTER_LUSH_LANDMARK_PATHS.size() or level_index >= CHAPTER_CAVE_LANDMARK_PATHS.size():
+		return
+
+	var landmark_rng := RandomNumberGenerator.new()
+	landmark_rng.seed = active_level_seed * 4729 + 131
+	_spawn_chapter_landmark(
+		load(CHAPTER_CAVE_LANDMARK_PATHS[level_index]) as Texture2D,
+		grid,
+		false,
+		level_index,
+		landmark_rng
+	)
+	_spawn_chapter_landmark(
+		load(CHAPTER_LUSH_LANDMARK_PATHS[level_index]) as Texture2D,
+		grid,
+		true,
+		level_index,
+		landmark_rng
+	)
+
+
+func _spawn_chapter_landmark(texture: Texture2D, grid: Array, prefer_lush: bool, level_index: int, landmark_rng: RandomNumberGenerator) -> void:
+	if texture == null:
+		return
+	var anchor: Vector2i = _find_chapter_landmark_anchor(grid, prefer_lush, landmark_rng)
+	if anchor.x < 0:
+		return
+	var sprite := Sprite2D.new()
+	sprite.name = "%sLandmark_L%d" % ["Lush" if prefer_lush else "Cave", level_index + 1]
+	sprite.texture = texture
+	# Background motifs are larger than ordinary flora but deliberately smaller
+	# than a gameplay obstacle. Their roots are still embedded in a real floor.
+	var scale_amount: float = 0.54 if prefer_lush else 0.30
+	sprite.scale = Vector2.ONE * scale_amount
+	sprite.position = _ground_flora_position(texture, anchor, sprite.scale)
+	sprite.light_mask = 0
+	sprite.modulate = Color(0.82, 0.88, 0.84, 0.70) if prefer_lush else Color(0.77, 0.75, 0.72, 0.68)
+	var shader := load(LANDMARK_DEPTH_SHADER_PATH) as Shader
+	if shader != null:
+		var material := ShaderMaterial.new()
+		material.shader = shader
+		# Subtler than the mid parallax: recognisable environment landmarks,
+		# never a sharp foreground object competing with Joey.
+		material.set_shader_parameter("softness", 0.25)
+		material.set_shader_parameter("blur_radius", 0.82)
+		material.set_shader_parameter("opacity", 0.82)
+		sprite.material = material
+	landmark_backdrop_root.add_child(sprite)
+
+
+func _find_chapter_landmark_anchor(grid: Array, prefer_lush: bool, landmark_rng: RandomNumberGenerator) -> Vector2i:
+	var strict_candidates: Array[Vector2i] = []
+	var fallback_candidates: Array[Vector2i] = []
+	var spawn: Vector2i = active_level.get("spawn", Vector2i.ZERO) as Vector2i
+	var exit: Vector2i = active_level.get("exit", Vector2i(level_size_tiles.x - 2, level_size_tiles.y - 2)) as Vector2i
+	for grid_y: int in range(6, level_size_tiles.y - 2):
+		for grid_x: int in range(3, level_size_tiles.x - 3):
+			var floor_cell := Vector2i(grid_x, grid_y)
+			if _is_torch_column(grid_x) or not _is_exposed_moss_face(grid, floor_cell, Vector2i.UP) or not _has_ground_moss_shoulders(grid, floor_cell):
+				continue
+			if floor_cell.distance_to(spawn) < 9.0 or floor_cell.distance_to(exit) < 7.0:
+				continue
+			if not _has_landmark_clearance(grid, floor_cell):
+				continue
+			var density: float = lush_biome_density[grid_x] if grid_x < lush_biome_density.size() else 0.0
+			var matches_biome: bool = density >= MIN_LUSH_BIOME_DENSITY if prefer_lush else density < 2.2
+			var usable_fallback: bool = density >= 2.2 if prefer_lush else density < MIN_LUSH_BIOME_DENSITY
+			if matches_biome:
+				strict_candidates.append(floor_cell)
+			elif usable_fallback:
+				fallback_candidates.append(floor_cell)
+	var candidates: Array[Vector2i] = strict_candidates if not strict_candidates.is_empty() else fallback_candidates
+	if candidates.is_empty():
+		return Vector2i(-1, -1)
+	return candidates[landmark_rng.randi_range(0, candidates.size() - 1)]
+
+
+func _has_landmark_clearance(grid: Array, floor_cell: Vector2i) -> bool:
+	# Require a real open alcove above a three-tile floor. This prevents the art
+	# from reading as a sticker inside a wall, while terrain remains in front of
+	# it for a naturally embedded base.
+	for offset_x: int in range(-1, 2):
+		for offset_y: int in range(1, 6):
+			if _is_solid(grid, floor_cell.x + offset_x, floor_cell.y - offset_y):
+				return false
+	return true
+
+
 func _build_lush_biome_parallax(bounds: Rect2) -> void:
 	if lush_biome_backdrop_layer != null:
 		lush_biome_backdrop_layer.queue_free()
@@ -633,19 +760,19 @@ func _build_lush_biome_parallax(bounds: Rect2) -> void:
 	# Preserve the complete frame with a smaller, resolution-independent margin.
 	# The previous margins made the art read noticeably zoomed-in.
 	var deep_sprite := _create_lush_biome_sprite(deep_texture, shader, 0, 28.0, Vector2(-0.009, -0.004))
-	# The deepest painted cave receives only a trace of softness; it separates
-	# from the middle frame without losing its authored silhouette.
+	# The distant cave is visibly defocused, while remaining readable as the
+	# farthest depth plane behind the gameplay silhouette.
 	var deep_material := deep_sprite.material as ShaderMaterial
 	if deep_material != null:
-		deep_material.set_shader_parameter("depth_blur", 0.14)
-		deep_material.set_shader_parameter("blur_radius", 0.85)
+		deep_material.set_shader_parameter("depth_blur", 0.58)
+		deep_material.set_shader_parameter("blur_radius", 1.45)
 	var mid_sprite := _create_lush_biome_sprite(mid_texture, shader, 1, 76.0, Vector2(-0.030, -0.012))
-	# The middle depth is just soft enough to read behind the crisp foreground
-	# foliage and gameplay, without turning the pixel art into a haze.
+	# The middle depth is intentionally more defocused than the landmark layer;
+	# it keeps the camera focus on Joey and the playable foreground.
 	var mid_material := mid_sprite.material as ShaderMaterial
 	if mid_material != null:
-		mid_material.set_shader_parameter("depth_blur", 0.32)
-		mid_material.set_shader_parameter("blur_radius", 1.15)
+		mid_material.set_shader_parameter("depth_blur", 0.46)
+		mid_material.set_shader_parameter("blur_radius", 1.22)
 	# The close frame follows the same smooth screen-space parallax model as the
 	# deep and mid art, only with a stronger offset.  It is intentionally still
 	# subtle enough that its corners remain attached to the view during jumps.
@@ -851,6 +978,7 @@ func _build_level() -> void:
 	_spawn_lush_special_blooms(solid_grid_cache)
 	_spawn_lush_light_oases(solid_grid_cache)
 	_register_lush_biome_decor_density()
+	_spawn_chapter_landmarks(solid_grid_cache)
 
 	var hazards: Array = active_level.get("hazards", []) as Array
 	for hazard_variant: Variant in hazards:

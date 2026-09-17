@@ -34,7 +34,7 @@ const DEATH_FRAMES := [
 
 const GRAVITY := 1180.0
 const FRAME_SECONDS := 0.105
-const BASE_SPRITE_SCALE := Vector2(0.44, 0.44)
+const BASE_SPRITE_SCALE := Vector2(0.30, 0.30)
 const NORMAL_LIGHT := Color(0.30, 1.0, 0.89, 1.0)
 const RECOIL_LIGHT := Color(0.16, 0.42, 0.45, 1.0)
 
@@ -46,8 +46,8 @@ const RECOIL_LIGHT := Color(0.16, 0.42, 0.45, 1.0)
 @export var telegraph_duration := 0.42
 @export var bite_duration := 0.50
 @export var death_duration := 0.72
-@export var dark_light_energy := 1.35
-@export var recoil_light_energy := 0.16
+@export var dark_light_energy := 0.055
+@export var recoil_light_energy := 0.018
 
 var current_health := 42
 var player: Node2D
@@ -73,6 +73,13 @@ func _ready() -> void:
 	_sync_player_reference()
 	bite_area.body_entered.connect(_on_bite_area_body_entered)
 	sprite.scale = BASE_SPRITE_SCALE
+	# Joey and his weapon stay visibly in front of rooted enemies. Their attack
+	# area remains a separate physical system, so this is presentation only.
+	sprite.z_index = -2
+	glow_light.z_index = -3
+	# Its bioluminescence is authored directly in the sprite and caught by the
+	# global bloom. Do not cast a room-sized light from this stationary enemy.
+	glow_light.visible = false
 	_enter_state(State.IDLE, true)
 
 
@@ -171,17 +178,17 @@ func _update_facing() -> void:
 		if not is_zero_approx(horizontal_offset):
 			facing_sign = signf(horizontal_offset)
 	sprite.flip_h = facing_sign < 0.0
-	bite_area.position = Vector2(42.0 * facing_sign, -42.0)
+	bite_area.position = Vector2(31.0 * facing_sign, -29.0)
 
 
 func _update_lighting() -> void:
-	var target_energy := dark_light_energy + sin(local_time * 2.2) * 0.08
+	var target_energy := dark_light_energy + sin(local_time * 2.2) * 0.008
 	var target_color := NORMAL_LIGHT
 	if state == State.RECOIL:
 		target_energy = recoil_light_energy
 		target_color = RECOIL_LIGHT
 	elif state == State.TELEGRAPH:
-		target_energy += 0.22 + sin(state_time * 18.0) * 0.12
+		target_energy += 0.018 + sin(state_time * 18.0) * 0.008
 	glow_light.energy = lerpf(glow_light.energy, target_energy, 0.16)
 	glow_light.color = glow_light.color.lerp(target_color, 0.18)
 
@@ -190,7 +197,9 @@ func _update_sprite() -> void:
 	if hit_flash_timer > 0.0:
 		sprite.modulate = Color(1.0, 0.84, 0.88, 1.0)
 	else:
-		sprite.modulate = Color.WHITE
+		# The glow lives on the mushroom itself; its point light is deliberately
+		# almost imperceptible so it cannot bleach surrounding cave geometry.
+		sprite.modulate = Color(0.84, 1.04, 1.08, 1.0)
 
 	match state:
 		State.IDLE:
