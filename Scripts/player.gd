@@ -9,6 +9,8 @@ const HeroTransformEffectScene := preload("res://Scripts/hero_transform_effect.g
 const HeroCombatEffectScene := preload("res://Scripts/hero_combat_effect.gd")
 const DEBUG_UNLOCK_HERO_FORM := true
 
+var enemy_hit_flash_material: ShaderMaterial
+
 var controls_inverted: bool = false
 const SkillProgression := preload("res://Scripts/skill_progression.gd")
 const DEFAULT_WALK_SPEED := 140.0
@@ -3230,16 +3232,32 @@ func _apply_enemy_hit_feedback(target: Node2D) -> void:
 	var visual := target.get_node_or_null("Sprite2D") as CanvasItem
 	if visual == null:
 		visual = target.get_node_or_null("AnimatedSprite2D") as CanvasItem
+	var original_material: Material
 	if visual != null:
-		visual.self_modulate = Color(3.4, 3.4, 3.4, 1.0)
+		original_material = visual.material
+		# Force the texture itself to white, preserving only its alpha silhouette.
+		# The overbright self-modulate then feeds the existing bloom/light glow.
+		visual.material = _get_enemy_hit_flash_material()
+		visual.self_modulate = Color(4.5, 4.5, 4.5, 1.0)
 	var hitstop_duration := 0.058 if _is_hero_form_active() else 0.042
 	await get_tree().create_timer(hitstop_duration, true, false, true).timeout
 	if not is_instance_valid(target):
 		return
 	if visual != null and is_instance_valid(visual):
 		visual.self_modulate = Color.WHITE
+		visual.material = original_material
 	target.set_physics_process(true)
 	target.remove_meta("combat_hitstop")
+
+
+func _get_enemy_hit_flash_material() -> ShaderMaterial:
+	if enemy_hit_flash_material != null:
+		return enemy_hit_flash_material
+	var shader := Shader.new()
+	shader.code = "shader_type canvas_item;\nvoid fragment() { vec4 tex = texture(TEXTURE, UV); COLOR = vec4(1.0, 1.0, 1.0, tex.a) * COLOR; }"
+	enemy_hit_flash_material = ShaderMaterial.new()
+	enemy_hit_flash_material.shader = shader
+	return enemy_hit_flash_material
 
 
 func _is_target_defeated(target: Node) -> bool:
