@@ -339,7 +339,7 @@
       "short_title": "Tropfsteinhöhle",
       "description": "Feuchte Hallen aus Kalkstein, kaltem Wasser und leuchtenden Kristallen.",
       "status": "Spielbar",
-      "boss": "König der Höhlenschleime",
+      "boss": "Kristallrücken",
       "skill_unlock": "Sticky Form",
       "signature": "Kalkstein, kaltes Wasser, Kristalle"
     },
@@ -424,16 +424,40 @@
       "image": "/assets/media/bat.gif"
     },
     {
-      "name": "Slime King",
-      "slug": "slime-king",
+      "name": "Irrlichtkäfer",
+      "slug": "irrlichtkaefer",
+      "biome": "Lush-Höhle",
+      "role": "Jäger am Boden",
+      "description": "Ein flinker, bodengebundener Käfer. Im Licht wird er entschlossener, springt über kleine Kanten und verfolgt Joey auch über die Grenze seines Bioms hinaus.",
+      "health": 52,
+      "contact_damage": 14,
+      "move_speed": "Patrouille 78 / Jagd 126",
+      "signature": "Sprung über kleine Kanten",
+      "image": "/assets/media/irrlichtkaefer.gif"
+    },
+    {
+      "name": "Leuchtmaul",
+      "slug": "leuchtmaul",
+      "biome": "Lush-Höhle",
+      "role": "Verwurzelter Hinterhalt",
+      "description": "Das Leuchtmaul bleibt an seinem Standort, lockt mit sanftem Pilzlicht und schnappt erst nach klarer Vorbereitung zu. Joeys eigenes Leuchten lässt es sich zusammenziehen.",
+      "health": 42,
+      "contact_damage": 12,
+      "move_speed": "Stationär",
+      "signature": "Telegraphed Bissfenster",
+      "image": "/assets/media/leuchtmaul.gif"
+    },
+    {
+      "name": "Kristallrücken",
+      "slug": "kristallruecken",
       "biome": "Kapitel-I-Mini-Boss",
-      "role": "Bossdruck",
-      "description": "Der träge, schwere Mini-Boss prüft, ob Joeys Movement, Tempo und Hit-Commitment bereits sauber sitzen.",
-      "health": 220,
-      "contact_damage": 18,
-      "move_speed": "Hop-Angriff 210",
-      "signature": "Slam-Schaden 24",
-      "image": null
+      "role": "Muster-Boss",
+      "description": "Der erste Mini-Boss von Kapitel I. Wer seine Kristalladern, Magiekugel und schweren Vorstöße liest, bekommt klare Gegenangriffsfenster.",
+      "health": 330,
+      "contact_damage": 13,
+      "move_speed": "Schwerer Vorstoß",
+      "signature": "Kristallader · Magiekugel · Irrlichtkäfer",
+      "image": "/assets/media/kristallruecken.gif"
     }
   ],
   "items": [
