@@ -38,6 +38,7 @@ var state_time := 0.0
 
 func _ready() -> void:
 	current_health = max_health
+	action_cooldown = randf_range(0.7, 1.5)
 	player = get_tree().get_first_node_in_group("players") as Node2D
 	add_to_group("enemies")
 	hitbox.body_entered.connect(_on_hitbox_body_entered)
@@ -168,7 +169,7 @@ func _perform_slam_land() -> void:
 		var close_enough_x: bool = abs(player.global_position.x - global_position.x) <= 128.0
 		var close_enough_y: bool = abs(player.global_position.y - global_position.y) <= 84.0
 		if close_enough_x and close_enough_y and player.has_method("take_damage"):
-			player.call("take_damage", slam_damage, global_position)
+			player.call_deferred("take_damage", slam_damage, global_position)
 
 
 func _spawn_minions() -> void:
@@ -214,13 +215,15 @@ func _squash(target_scale: Vector2, duration: float) -> void:
 
 
 func _on_hitbox_body_entered(body: Node2D) -> void:
-	if is_dead or contact_cooldown > 0.0:
+	# The boss only hurts through an airborne body-check or the separately
+	# telegraphed landing slam; idling against it is not a hidden attack.
+	if is_dead or contact_cooldown > 0.0 or is_on_floor():
 		return
 	if not body.is_in_group("players"):
 		return
 	contact_cooldown = CONTACT_COOLDOWN
 	if body.has_method("take_damage"):
-		body.call("take_damage", contact_damage, global_position)
+		body.call_deferred("take_damage", contact_damage, global_position)
 
 
 func _die() -> void:

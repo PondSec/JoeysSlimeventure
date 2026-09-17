@@ -72,6 +72,7 @@ func _ready() -> void:
 	current_health = max_health
 	home_position = global_position
 	orbit_side = -1.0 if randf() < 0.5 else 1.0
+	attack_cooldown = randf_range(0.35, 1.15)
 	_build_sprite_frames()
 	add_to_group("enemies")
 	_sync_player_reference()
@@ -267,11 +268,13 @@ func _update_visuals() -> void:
 
 
 func _on_hitbox_body_entered(body: Node2D) -> void:
-	if is_dead or contact_cooldown > 0.0 or not body.is_in_group("players"):
+	# The beetle is dangerous during its visible dart, never while it merely
+	# stalks beside the player.
+	if is_dead or contact_cooldown > 0.0 or state != State.DART or state_time < 0.055 or not body.is_in_group("players"):
 		return
 	contact_cooldown = CONTACT_COOLDOWN
 	if body.has_method("take_damage"):
-		body.call("take_damage", contact_damage, global_position)
+		body.call_deferred("take_damage", contact_damage, global_position)
 
 
 func _die() -> void:
@@ -290,7 +293,7 @@ func _die() -> void:
 	])
 	set_collision_layer_value(1, false)
 	set_collision_mask_value(1, false)
-	hitbox.monitoring = false
+	hitbox.set_deferred("monitoring", false)
 	velocity = Vector2.ZERO
 	glow_light.energy = 0.0
 	sprite.play(&"death")

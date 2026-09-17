@@ -44,8 +44,11 @@ func _ready() -> void:
 	current_health = max_health
 	home_position = global_position
 	orbit_side = -1.0 if randf() < 0.5 else 1.0
+	# Same species should not enter their first attack frame in lockstep.
+	attack_cooldown = randf_range(0.35, 1.25)
 	player = get_tree().get_first_node_in_group("players") as Node2D
 	add_to_group("enemies")
+	add_to_group("cave_bats")
 	hitbox.body_entered.connect(_on_hitbox_body_entered)
 
 
@@ -125,7 +128,7 @@ func _process_orbit(delta: float) -> void:
 		var player_distance := global_position.distance_to(player.global_position)
 		if player_distance <= swoop_trigger_range and not last_attack_was_sonic:
 			_enter_state(State.TELEGRAPH)
-		elif player_distance >= sonic_min_range and player_distance <= sonic_max_range:
+		elif player_distance >= sonic_min_range and player_distance <= sonic_max_range and _has_clear_sonic_window():
 			_enter_state(State.SONIC_TELEGRAPH)
 
 
@@ -150,16 +153,13 @@ func _process_swoop() -> void:
 
 func _process_sonic_telegraph(delta: float) -> void:
 	velocity = velocity.move_toward(Vector2.ZERO, chase_speed * 4.2 * delta)
-	if player != null and is_instance_valid(player):
-		# This is the sole aim calculation.  The spawned wave intentionally never homes.
-		sonic_direction = (player.global_position + _player_velocity() * 0.16 - global_position).normalized()
 	if state_time >= 0.42:
 		_enter_state(State.SONIC_FIRE)
 
 
 func _process_sonic_fire() -> void:
 	_spawn_sonic_wave()
-	attack_cooldown = 2.35
+	attack_cooldown = randf_range(2.15, 3.15)
 	last_attack_was_sonic = true
 	_enter_state(State.RECOVER)
 
@@ -198,6 +198,25 @@ func _enter_state(next_state: State) -> void:
 		return
 	state = next_state
 	state_time = 0.0
+	if next_state == State.SONIC_TELEGRAPH:
+		# Aim once as the blue telegraph starts.  The player can now read the
+		# lane and dodge; the launched wave never re-aims or homes.
+		if player != null and is_instance_valid(player):
+			sonic_direction = (player.global_position + _player_velocity() * 0.16 - global_position).normalized()
+		else:
+			sonic_direction = Vector2.LEFT if sprite.flip_h else Vector2.RIGHT
+
+
+func _has_clear_sonic_window() -> bool:
+	# Nearby bats share a lightweight firing lane.  It avoids identical enemies
+	# stacking their telegraphs and makes each projectile readable on its own.
+	for other in get_tree().get_nodes_in_group("cave_bats"):
+		if other == self or not is_instance_valid(other):
+			continue
+		var other_state: Variant = other.get("state")
+		if other_state in [State.SONIC_TELEGRAPH, State.SONIC_FIRE] and global_position.distance_to((other as Node2D).global_position) < 420.0:
+			return false
+	return true
 
 
 func _can_notice_player(extra_range: float = 0.0) -> bool:
@@ -222,13 +241,14 @@ func _seek_towards(target: Vector2, speed: float, delta: float) -> void:
 
 
 func _on_hitbox_body_entered(body: Node2D) -> void:
-	if is_dead or contact_cooldown > 0.0:
+	# Hovering is positioning; only the clearly telegraphed swoop can connect.
+	if is_dead or contact_cooldown > 0.0 or state != State.SWOOP or state_time < 0.055:
 		return
 	if not body.is_in_group("players"):
 		return
 	contact_cooldown = CONTACT_COOLDOWN
 	if body.has_method("take_damage"):
-		body.call("take_damage", contact_damage, global_position)
+		body.call_deferred("take_damage", contact_damage, global_position)
 
 
 func _die() -> void:

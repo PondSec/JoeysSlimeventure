@@ -226,8 +226,10 @@ func _set_frame(texture: Texture2D) -> void:
 
 func _set_bite_active(active: bool) -> void:
 	bite_active = active
-	bite_area.monitoring = active
-	bite_area.monitorable = active
+	# This function can be reached from a hit signal while physics queries are
+	# flushing.  Deferred toggles avoid an invalid collision-state mutation.
+	bite_area.set_deferred("monitoring", active)
+	bite_area.set_deferred("monitorable", active)
 
 
 func _try_bite(body: Node) -> void:
@@ -238,7 +240,7 @@ func _try_bite(body: Node) -> void:
 	bite_hit_applied = true
 	hit_cooldown = 0.65
 	if body.has_method("take_damage"):
-		body.call("take_damage", bite_damage, global_position)
+		body.call_deferred("take_damage", bite_damage, global_position)
 
 
 func _on_bite_area_body_entered(body: Node2D) -> void:

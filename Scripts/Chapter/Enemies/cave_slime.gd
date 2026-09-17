@@ -42,6 +42,8 @@ var evade_cooldown := 0.0
 func _ready() -> void:
 	current_health = max_health
 	home_position = global_position
+	patrol_side = -1.0 if randf() < 0.5 else 1.0
+	hop_timer = randf_range(0.12, 0.66)
 	player = get_tree().get_first_node_in_group("players") as Node2D
 	add_to_group("enemies")
 	hitbox.body_entered.connect(_on_hitbox_body_entered)
@@ -231,13 +233,15 @@ func _update_animation(_delta: float) -> void:
 
 
 func _on_hitbox_body_entered(body: Node2D) -> void:
-	if is_dead or contact_timer > 0.0:
+	# Walking into the slime is pressure, not invisible damage.  Only the
+	# committed, telegraphed leap has an active contact hit.
+	if is_dead or contact_timer > 0.0 or state != State.LEAP or state_time < 0.075:
 		return
 	if not body.is_in_group("players"):
 		return
 	contact_timer = CONTACT_COOLDOWN
 	if body.has_method("take_damage"):
-		body.call("take_damage", contact_damage, global_position)
+		body.call_deferred("take_damage", contact_damage, global_position)
 
 
 func _die() -> void:

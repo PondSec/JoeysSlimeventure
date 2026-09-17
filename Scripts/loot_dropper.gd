@@ -31,7 +31,15 @@ static func _spawn_pickup(parent: Node, source_position: Vector2, item: InvItem,
 	var pickup := ItemRegistry.create_pickup_for_item(item)
 	if pickup == null:
 		return
-	parent.add_child(pickup)
-	pickup.global_position = source_position + Vector2(randf_range(-9.0, 9.0), -4.0 * index)
-	pickup.apply_impulse(Vector2(randf_range(-54.0, 54.0), randf_range(-142.0, -86.0)))
-	pickup.apply_torque_impulse(randf_range(-12.0, 12.0))
+	var world_position := source_position + Vector2(randf_range(-9.0, 9.0), -4.0 * index)
+	if parent is Node2D:
+		pickup.position = (parent as Node2D).to_local(world_position)
+	else:
+		pickup.position = world_position
+	# Death often originates from an Area2D body_entered signal.  Adding a
+	# RigidBody there mutates the physics space while it is being queried and
+	# caused the visible hitch/error during combat.  Queue both tree insertion
+	# and the launch for the next safe frame, preserving the exact drop motion.
+	parent.call_deferred("add_child", pickup)
+	pickup.call_deferred("apply_impulse", Vector2(randf_range(-54.0, 54.0), randf_range(-142.0, -86.0)))
+	pickup.call_deferred("apply_torque_impulse", randf_range(-12.0, 12.0))

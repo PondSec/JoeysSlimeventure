@@ -290,6 +290,8 @@ var hero_slide_direction := 1.0
 var hero_momentum_attack_timer := 0.0
 var hero_current_attack_had_momentum := false
 var hero_hitstop_active := false
+var damage_invulnerability_timer := 0.0
+var attack_sequence_id := 0
 
 # Deluxe hero traversal state. These states deliberately live beside the
 # runtime animator so gameplay and visual ownership cannot drift apart.
@@ -343,13 +345,23 @@ var current_attack_damage_multiplier := 1.0
 var current_attack_knockback_strength := 220.0
 var current_attack_lunge_strength := 90.0
 var attack_targets_hit := {}
+var attack_hit_window_open := false
+var attack_dash_cancel_ready := false
 var combo_damage_multipliers: Array[float] = []
 var combo_knockback_strengths: Array[float] = []
 var combo_lunge_strengths: Array[float] = []
 var combo_active_times := [0.28, 0.30, 0.33]
 var combo_recovery_times := [0.12, 0.12, 0.15]
-const ATTACK_REACH_SCALES := [2.1, 2.3, 2.5]
-const ATTACK_FORWARD_OFFSETS := [200.0, 230.0, 260.0]
+# Gameplay hitboxes are deliberately compact and live directly under the
+# physics body.  They must never inherit the legacy visual swing's scale.
+## Kept as a compact, character-relative volume (rather than inheriting the
+## oversized visual slash scale), but deliberately reach well beyond the hero's
+## collision body.  A sword swing should connect at its tip, not force contact.
+const ATTACK_HITBOX_SIZES := [Vector2(300.0, 128.0), Vector2(326.0, 140.0), Vector2(356.0, 154.0)]
+const ATTACK_FORWARD_OFFSETS := [165.0, 185.0, 205.0]
+const ATTACK_VERTICAL_OFFSETS := [-52.0, -48.0, -44.0]
+const ATTACK_HIT_WINDOWS := [Vector2(0.035, 0.115), Vector2(0.075, 0.215), Vector2(0.15, 0.385)]
+const PLAYER_HURT_INVULNERABILITY := 0.42
 const WEAPON_IDLE_POSITION := Vector2(38.0, 24.0)
 const WEAPON_IDLE_ROTATION := 18.0
 const WEAPON_BASE_SCALE := 10.8
@@ -507,7 +519,7 @@ func _ready() -> void:
 	glow_effect.visible = false
 	# Initialisiere Angriffsknoten
 	attack_sprite = $PlayerSprite/AttackSprite
-	attack_area = $PlayerSprite/AttackSprite/AttackArea
+	attack_area = $AttackArea
 	attack_collision_shape = attack_area.get_node_or_null("CollisionShape2D")
 	attack_area_base_position = attack_area.position
 	if attack_collision_shape:
@@ -1971,6 +1983,8 @@ func _physics_process(delta: float) -> void:
 			mana_shield_regen_timer = 0.0
 
 func _process_combat_timers(delta: float) -> void:
+	if damage_invulnerability_timer > 0.0:
+		damage_invulnerability_timer = maxf(damage_invulnerability_timer - delta, 0.0)
 	if wall_detach_timer > 0.0:
 		wall_detach_timer = maxf(wall_detach_timer - delta, 0.0)
 	if wall_jump_input_lock > 0.0:
@@ -2772,6 +2786,17 @@ func dash(dir: Vector2):
 		return
 	if is_dashing or is_hero_ground_sliding or _is_hero_ledge_busy() or not can_dash or is_stunned or is_charging:
 		return
+	if is_attacking:
+		# Let an intentional dodge cancel recovery, never the active strike.  This
+		# preserves the committed hit frame while removing the sluggish "stuck in
+		# animation" feeling after a miss.
+		if not _is_hero_form_active() or not attack_dash_cancel_ready:
+			return
+		attack_sequence_id += 1
+		hero_combo_queued = false
+		is_attacking = false
+		attack_dash_cancel_ready = false
+		_set_attack_hitbox_active(false)
 
 	if dir == Vector2.ZERO:
 		dir = _get_preferred_dash_direction()
@@ -2998,7 +3023,7 @@ func is_in_air() -> bool:
 	return not is_on_floor()
 
 func _on_attack_area_body_entered(body):
-	_try_attack_hit(body)
+	_queue_attack_hit(body)
 	
 	# **Luftdruck auf Blätter anwenden**
 	apply_sword_air_pressure()
@@ -3008,9 +3033,9 @@ func _process_active_attack_overlaps() -> void:
 		return
 
 	for body in attack_area.get_overlapping_bodies():
-		_try_attack_hit(body)
+		_queue_attack_hit(body)
 
-func _try_attack_hit(body: Node) -> void:
+func _queue_attack_hit(body: Node) -> void:
 	if not is_attacking or not is_multiplayer_authority():
 		return
 	if not (body is Node2D):
@@ -3036,6 +3061,16 @@ func _try_attack_hit(body: Node) -> void:
 	if is_crit:
 		damage *= current_crit_multiplier
 	var knockback_direction := (target_body.global_position - global_position).normalized()
+	# Physics callbacks may not create/remove collision objects.  Enemies can
+	# die and spawn several drops from this hit, so resolve the gameplay result
+	# one idle tick later after recording the target now.  This prevents a second
+	# overlap from becoming a duplicate hit while keeping the strike responsive.
+	call_deferred("_resolve_attack_hit", target_body, damage, knockback_direction, is_crit)
+
+
+func _resolve_attack_hit(target_body: Node2D, damage: float, knockback_direction: Vector2, is_crit: bool) -> void:
+	if not is_instance_valid(target_body):
+		return
 
 	_notify_star_damage(damage)
 
@@ -3582,6 +3617,8 @@ func perform_attack() -> void:
 	if is_attacking:
 		if _is_hero_form_active():
 			if current_attack_step < 2:
+				# A press during wind-up is intentionally retained until the authored
+				# cancel window; responsive does not mean every frame can cancel.
 				hero_combo_queued = true
 			return
 		queued_attack_timer = ATTACK_QUEUE_TIME
@@ -3601,8 +3638,13 @@ func perform_attack() -> void:
 		_end_hero_ground_slide(false)
 
 	stop_healing()
+	attack_sequence_id += 1
+	var sequence_id := attack_sequence_id
 	is_attacking = true
 	hero_combo_queued = false
+	attack_hit_window_open = false
+	attack_dash_cancel_ready = false
+	_set_attack_hitbox_active(false)
 	attack_targets_hit.clear()
 	last_attack_time = now
 	
@@ -3633,8 +3675,30 @@ func perform_attack() -> void:
 
 	sync_attack.rpc(current_attack_step)  # Synchronisiere den Angriff mit allen Clients
 
-	await get_tree().create_timer(combo_active_times[current_attack_step]).timeout
-	attack_area.monitoring = false
+	var primary_duration := float(combo_active_times[current_attack_step])
+	var requested_window: Vector2 = ATTACK_HIT_WINDOWS[clampi(current_attack_step, 0, ATTACK_HIT_WINDOWS.size() - 1)]
+	var hit_start := clampf(requested_window.x, 0.0, maxf(primary_duration - 0.01, 0.0))
+	var hit_end := clampf(requested_window.y, hit_start + 0.01, primary_duration)
+	if hit_start > 0.0:
+		await get_tree().create_timer(hit_start).timeout
+	if not is_instance_valid(self) or sequence_id != attack_sequence_id or not is_attacking:
+		return
+
+	_set_attack_hitbox_active(true)
+	if _is_hero_form_active():
+		var effect_facing := -1.0 if is_facing_left else 1.0
+		_spawn_hero_slash_effect(current_attack_step, effect_facing)
+	await get_tree().create_timer(maxf(hit_end - hit_start, 0.01)).timeout
+	if not is_instance_valid(self) or sequence_id != attack_sequence_id:
+		return
+	_set_attack_hitbox_active(false)
+	attack_dash_cancel_ready = _is_hero_form_active()
+
+	var tail_duration := primary_duration - hit_end
+	if tail_duration > 0.0:
+		await get_tree().create_timer(tail_duration).timeout
+	if not is_instance_valid(self) or sequence_id != attack_sequence_id or not is_attacking:
+		return
 	if _is_hero_form_active() and hero_combo_queued and current_attack_step < 2:
 		hero_combo_queued = false
 		is_attacking = false
@@ -3643,6 +3707,17 @@ func perform_attack() -> void:
 		return
 
 	await get_tree().create_timer(combo_recovery_times[current_attack_step]).timeout
+	if not is_instance_valid(self) or sequence_id != attack_sequence_id:
+		return
+	# Late presses during the authored recovery are still valid chain inputs.
+	# This is the same "read intent, not one exact frame" principle as a jump
+	# buffer, while keeping the visual recovery readable.
+	if _is_hero_form_active() and hero_combo_queued and current_attack_step < 2:
+		hero_combo_queued = false
+		is_attacking = false
+		queued_attack_timer = 0.0
+		perform_attack()
+		return
 	is_attacking = false
 	damage_timer.start()
 	if _is_hero_form_active():
@@ -3654,6 +3729,16 @@ func perform_attack() -> void:
 	if queued_attack_timer > 0.0:
 		queued_attack_timer = 0.0
 		perform_attack()
+
+
+func _set_attack_hitbox_active(active: bool) -> void:
+	attack_hit_window_open = active
+	if attack_area == null:
+		return
+	attack_area.monitoring = active
+	if active:
+		_process_active_attack_overlaps()
+		apply_sword_air_pressure()
 
 
 func _spawn_hero_slash_effect(combo_index: int, facing_sign: float) -> void:
@@ -3680,17 +3765,16 @@ func _update_attack_hitbox(step: int) -> void:
 	if not attack_area:
 		return
 
-	var active_step: int = clampi(step, 0, ATTACK_REACH_SCALES.size() - 1)
-	var reach_scale: float = float(ATTACK_REACH_SCALES[active_step]) * (1.0 + weapon_attack_reach_bonus)
-	var forward_offset: float = float(ATTACK_FORWARD_OFFSETS[active_step])
+	var active_step: int = clampi(step, 0, ATTACK_HITBOX_SIZES.size() - 1)
+	var reach_scale := 1.0 + weapon_attack_reach_bonus
+	var forward_offset: float = float(ATTACK_FORWARD_OFFSETS[active_step]) * reach_scale
 	var facing_sign = -1.0 if is_facing_left else 1.0
-	attack_area.position = Vector2((abs(attack_area_base_position.x) + forward_offset) * facing_sign, attack_area_base_position.y)
+	attack_area.position = Vector2(forward_offset * facing_sign, float(ATTACK_VERTICAL_OFFSETS[active_step]))
 
-	if attack_collision_shape:
-		attack_collision_shape.scale = Vector2(
-			attack_shape_base_scale.x * reach_scale,
-			attack_shape_base_scale.y
-		)
+	if attack_collision_shape and attack_collision_shape.shape is RectangleShape2D:
+		attack_collision_shape.position = Vector2.ZERO
+		attack_collision_shape.scale = Vector2.ONE
+		(attack_collision_shape.shape as RectangleShape2D).size = ATTACK_HITBOX_SIZES[active_step] * reach_scale
 
 # Leuchteffekt aktualisieren
 func update_glow_state() -> void:
@@ -3713,8 +3797,17 @@ func set_controls_inverted(inverted: bool):
 func take_damage(amount: int, hit_source: Vector2):
 	if !is_multiplayer_authority():
 		return
-	if dash_invulnerability_timer > 0.0:
+	if dash_invulnerability_timer > 0.0 or damage_invulnerability_timer > 0.0:
 		return
+	# One hit gets a clear reaction.  Overlapping bodies/projectiles cannot turn
+	# a single mistake into an unreadable burst of contact damage.
+	damage_invulnerability_timer = PLAYER_HURT_INVULNERABILITY
+	if is_attacking:
+		attack_sequence_id += 1
+		hero_combo_queued = false
+		is_attacking = false
+		attack_dash_cancel_ready = false
+		_set_attack_hitbox_active(false)
 	# Schadensreduktion anwenden
 	var reduced_damage = amount * (1.0 - damage_reduction)
 	reduced_damage = max(1, int(reduced_damage))  # Mindestens 1 Schaden
@@ -3782,7 +3875,9 @@ func take_damage(amount: int, hit_source: Vector2):
 	# Tod prüfen
 	if current_health <= 0:
 		current_health = 0
-		die()
+		# Contact damage is delivered from physics callbacks.  Death drops items
+		# and therefore must start outside the active collision query.
+		call_deferred("die")
 	
 	update_health_bar()
 
@@ -4047,14 +4142,11 @@ func sync_attack(combo_step: int = 0):
 	runtime_attack_elapsed = 0.0
 	runtime_animation_state = ""
 	_start_weapon_attack_animation(combo_step)
-	if _is_hero_form_active():
-		var facing_sign := -1.0 if is_facing_left else 1.0
-		_spawn_hero_slash_effect(combo_step, facing_sign)
 	$PlayerSprite/AttackSprite.flip_h = is_facing_left
 	_update_attack_hitbox(combo_step)
 	$PlayerSprite/AttackSprite.play("swing")
 	$PlayerSprite/AttackSprite.speed_scale = 1.8 + float(combo_step) * 0.18
-	attack_area.monitoring = true
+	_set_attack_hitbox_active(false)
 	_update_equipped_weapon_visual()
 
 @rpc("any_peer", "call_local", "reliable")

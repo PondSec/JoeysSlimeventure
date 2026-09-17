@@ -103,6 +103,7 @@ var loot_table = [
 
 func _ready() -> void:
 	randomize()
+	sonic_cooldown = randf_range(0.35, 1.35)
 	add_to_group("enemies")
 	add_to_group("bats")
 	bat_position = global_position
@@ -311,7 +312,7 @@ func _process_sonic_attack(delta: float) -> bool:
 		sprite.modulate = Color(0.78, 0.9, 1.0, 1.0)
 		if sonic_charge <= 0.0:
 			_spawn_sonic_wave()
-			sonic_cooldown = SONIC_COOLDOWN
+			sonic_cooldown = SONIC_COOLDOWN * randf_range(0.82, 1.28)
 			sprite.modulate = Color.WHITE
 		return true
 	if sonic_cooldown > 0.0 or is_dead or is_stunned or is_dodging or current_state != "chase":
