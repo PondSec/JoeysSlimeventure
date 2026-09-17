@@ -14,6 +14,7 @@ const SLOT_CENTER_Y := 52.0
 const FRAME_SIZE := Vector2(590.0, 116.0)
 const FRAME_POSITION := Vector2((HOTBAR_SIZE.x - FRAME_SIZE.x) * 0.5, 7.0)
 const ITEM_ICON_MAX_SIZE := 39.0
+const ITEM_ICON_BOX_SIZE := Vector2(ITEM_ICON_MAX_SIZE, ITEM_ICON_MAX_SIZE)
 const HOTBAR_FONT := preload("res://Assets/GUI/Font/PixelatedEleganceRegular-ovyAA.ttf")
 const BIOME_THEMES := {
 	"cave": {
@@ -32,7 +33,7 @@ const BIOME_THEMES := {
 
 var selected_slot_index := 0
 var _theme_nodes: Dictionary = {}
-var _item_icons: Array[Sprite2D] = []
+var _item_icons: Array[TextureRect] = []
 var _amount_labels: Array[Label] = []
 var _icon_content_rect_cache: Dictionary = {}
 var _biome_weights := {"cave": 1.0, "lush": 0.0}
@@ -100,11 +101,17 @@ func _build_item_layers() -> void:
 	# few source pixels at their decorative edges, but never shift an item icon.
 	for slot_index in range(SLOT_COUNT):
 		var item_center := _slot_center(slot_index)
-		var icon := Sprite2D.new()
+		# A fixed control box makes the visible content centre independently of a
+		# source PNG's transparent padding. Sprite2D regions can retain an atlas
+		# origin on imported assets, which caused the subtle left/up drift here.
+		var icon := TextureRect.new()
 		icon.name = "Item%d" % (slot_index + 1)
-		# Keep the opaque item centered on the exact center of its slot face.
-		icon.position = item_center
+		icon.position = item_center - ITEM_ICON_BOX_SIZE * 0.5
+		icon.size = ITEM_ICON_BOX_SIZE
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		icon.z_index = 5
 		add_child(icon)
 		_item_icons.append(icon)
@@ -184,20 +191,18 @@ func _create_slot_number(slot_number: int, center: Vector2, theme_id: String) ->
 	return number
 
 
-func _apply_item_icon(icon: Sprite2D, texture: Texture2D) -> void:
+func _apply_item_icon(icon: TextureRect, texture: Texture2D) -> void:
 	# Several item files contain asymmetric transparent padding. Rendering only
 	# their opaque rectangle keeps the visible pixels centered in every slot.
 	icon.texture = texture
 	if texture == null:
-		icon.region_enabled = false
 		return
 
 	var content_rect := _get_icon_content_rect(texture)
-	icon.region_enabled = true
-	icon.region_rect = content_rect
-	var longest_side := maxf(content_rect.size.x, content_rect.size.y)
-	var icon_scale := ITEM_ICON_MAX_SIZE / longest_side if longest_side > 0.0 else 1.0
-	icon.scale = Vector2(icon_scale, icon_scale)
+	var atlas := AtlasTexture.new()
+	atlas.atlas = texture
+	atlas.region = content_rect
+	icon.texture = atlas
 
 
 func _get_icon_content_rect(texture: Texture2D) -> Rect2:

@@ -24,6 +24,7 @@ const TORCH_SCENE := preload("res://Scenes/torch.tscn")
 const SPIKE_SCENE := preload("res://Scenes/SpikeNormal.tscn")
 const WORM_SCENE := preload("res://Scenes/worm.tscn")
 const VINE_SCENE := preload("res://Scenes/vine.tscn")
+const FALLING_LEAF_SCENE := preload("res://Scenes/Deko/leaf.tscn")
 const MOSS_TILE_PATHS := [
 	"res://Assets/Deko/moss/moss_0.png",
 	"res://Assets/Deko/moss/moss_1.png",
@@ -62,6 +63,10 @@ const DEBUG_OVERLAY_TOGGLE_KEY := KEY_F2
 const TILE_DEBUG_TOGGLE_KEY := KEY_F3
 const GENERATED_PLANT_LIGHTS_ENABLED := true
 const MAX_GENERATED_PLANT_LIGHTS := 8
+const MAX_AMBIENT_LUSH_LEAVES := 12
+const AMBIENT_LUSH_LEAF_MIN_INTERVAL := 1.25
+const AMBIENT_LUSH_LEAF_MAX_INTERVAL := 3.4
+const AMBIENT_LUSH_LEAF_MAX_SOURCE_DISTANCE := 720.0
 const ENEMY_RESPAWN_DELAY_MIN := 6.0
 const ENEMY_RESPAWN_DELAY_MAX := 10.0
 const ENEMY_RESPAWN_MIN_PLAYER_DISTANCE := 520.0
@@ -194,6 +199,10 @@ var decoration_alpha_bounds: Dictionary = {}
 var vegetation_motion_nodes: Array[CanvasItem] = []
 var vegetation_motion_shader: Shader
 var generated_plant_light_count: int = 0
+var ceiling_leaf_sources: Array[Dictionary] = []
+var ambient_lush_leaf_count: int = 0
+var ambient_lush_leaf_timer: float = 0.0
+var ambient_lush_leaf_rng := RandomNumberGenerator.new()
 var enemy_population_target: int = 0
 var enemy_respawn_types: Array[String] = []
 var enemy_respawn_timer: float = -1.0
@@ -247,6 +256,7 @@ func _process(delta: float) -> void:
 		return
 	_update_enemy_population(delta)
 	_update_vegetation_motion(delta)
+	_update_ambient_lush_leaves(delta)
 	# The ordinary foreground is always present, independent of whether this
 	# seed contains a lush biome.  Keeping it moving here also gives the normal
 	# cave the same depth response as the lush frame.
@@ -968,6 +978,10 @@ func _build_level() -> void:
 	var platforms: Array = active_level.get("platforms", []) as Array
 	vegetation_motion_nodes.clear()
 	generated_plant_light_count = 0
+	ceiling_leaf_sources.clear()
+	ambient_lush_leaf_count = 0
+	ambient_lush_leaf_rng.seed = active_level_seed * 193 + 6221
+	ambient_lush_leaf_timer = ambient_lush_leaf_rng.randf_range(AMBIENT_LUSH_LEAF_MIN_INTERVAL, AMBIENT_LUSH_LEAF_MAX_INTERVAL)
 	lush_biome_density.clear()
 	lush_biome_density.resize(level_size_tiles.x)
 	for density_index: int in range(lush_biome_density.size()):
@@ -2129,6 +2143,9 @@ func _spawn_lush_canopy(start: Vector2i, span: int, canopy_rng: RandomNumberGene
 		_add_lush_plant_glow(sprite, canopy_rng, 0.11, 0.18)
 	_register_vegetation_motion(sprite, sprite.texture, canopy_rng, false)
 	decor_root.add_child(sprite)
+	# Hand-placed vines retain their own leaf emitters. Procedural canopy plants
+	# feed one shared ambience system, avoiding a timer/physics chain per plant.
+	_register_ceiling_leaf_source(sprite, minf(float(span) * TILE_SIZE * 0.36, 58.0), rendered_height * 0.18)
 
 
 func _spawn_generated_flora(grid: Array) -> void:
@@ -2213,6 +2230,9 @@ func _spawn_flora_tile(cell: Vector2i, outward: Vector2i, flora_rng: RandomNumbe
 		_add_lush_plant_glow(sprite, flora_rng, 0.15, 0.25)
 	_register_vegetation_motion(sprite, sprite.texture, flora_rng, not hanging)
 	decor_root.add_child(sprite)
+	if hanging:
+		var texture_height := float(sprite.texture.get_height()) * absf(sprite.scale.y)
+		_register_ceiling_leaf_source(sprite, maxf(8.0, float(sprite.texture.get_width()) * absf(sprite.scale.x) * 0.24), texture_height * 0.16)
 
 
 func _spawn_lush_flower_landmarks(grid: Array) -> void:
@@ -2709,6 +2729,68 @@ func _spawn_vine_trail(grid_x: int, grid_y: int, segment_count: int, rotation: f
 			var glimmer_y: float = progress * float(segment_count - 1) * 22.0
 			var glimmer_x: float = horizontal_drift * progress + sin(progress * 8.0 + rotation) * 10.0
 			_spawn_lush_glimmer(start_position + Vector2(glimmer_x, glimmer_y), rng, 6 if foreground_vine else 0)
+
+
+func _register_ceiling_leaf_source(source: Sprite2D, horizontal_spread: float, vertical_offset: float) -> void:
+	if source == null:
+		return
+	ceiling_leaf_sources.append({
+		"source": weakref(source),
+		"horizontal_spread": maxf(4.0, horizontal_spread),
+		"vertical_offset": maxf(0.0, vertical_offset),
+	})
+
+
+func _update_ambient_lush_leaves(delta: float) -> void:
+	# This deliberately supplements only generated ceiling plants. Regular vine
+	# scenes already own their authored leaf behaviour, so they are not doubled.
+	if decor_root == null or ceiling_leaf_sources.is_empty() or ambient_lush_leaf_count >= MAX_AMBIENT_LUSH_LEAVES:
+		return
+	if _get_lush_biome_strength(player.global_position) <= 0.04:
+		return
+	ambient_lush_leaf_timer -= delta
+	if ambient_lush_leaf_timer > 0.0:
+		return
+
+	var nearby_sources: Array[Dictionary] = []
+	for source_data: Dictionary in ceiling_leaf_sources:
+		var source_ref := source_data.get("source") as WeakRef
+		var source := source_ref.get_ref() as Sprite2D if source_ref != null else null
+		if source != null and is_instance_valid(source) and source.global_position.distance_to(player.global_position) <= AMBIENT_LUSH_LEAF_MAX_SOURCE_DISTANCE:
+			nearby_sources.append(source_data)
+	if nearby_sources.is_empty():
+		ambient_lush_leaf_timer = 0.55
+		return
+
+	var selected: Dictionary = nearby_sources[ambient_lush_leaf_rng.randi_range(0, nearby_sources.size() - 1)]
+	var selected_ref := selected.get("source") as WeakRef
+	var selected_source := selected_ref.get_ref() as Sprite2D if selected_ref != null else null
+	if selected_source == null or not is_instance_valid(selected_source):
+		ambient_lush_leaf_timer = 0.2
+		return
+
+	var leaf := FALLING_LEAF_SCENE.instantiate() as RigidBody2D
+	if leaf == null:
+		return
+	decor_root.add_child(leaf)
+	var spread := float(selected.get("horizontal_spread", 10.0))
+	var vertical_offset := float(selected.get("vertical_offset", 0.0))
+	leaf.global_position = selected_source.global_position + Vector2(
+		ambient_lush_leaf_rng.randf_range(-spread, spread),
+		vertical_offset + ambient_lush_leaf_rng.randf_range(-3.0, 5.0)
+	)
+	leaf.apply_central_impulse(Vector2(
+		ambient_lush_leaf_rng.randf_range(-9.0, 9.0),
+		ambient_lush_leaf_rng.randf_range(-7.0, -1.0)
+	))
+	leaf.z_index = selected_source.z_index + 1
+	ambient_lush_leaf_count += 1
+	leaf.tree_exiting.connect(_on_ambient_lush_leaf_removed)
+	ambient_lush_leaf_timer = ambient_lush_leaf_rng.randf_range(AMBIENT_LUSH_LEAF_MIN_INTERVAL, AMBIENT_LUSH_LEAF_MAX_INTERVAL)
+
+
+func _on_ambient_lush_leaf_removed() -> void:
+	ambient_lush_leaf_count = maxi(0, ambient_lush_leaf_count - 1)
 
 
 func _is_torch_column(grid_x: int) -> bool:
