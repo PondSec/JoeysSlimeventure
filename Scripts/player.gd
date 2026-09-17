@@ -363,6 +363,7 @@ const ATTACK_HITBOX_SIZES := [Vector2(300.0, 128.0), Vector2(326.0, 140.0), Vect
 const ATTACK_FORWARD_OFFSETS := [165.0, 185.0, 205.0]
 const ATTACK_VERTICAL_OFFSETS := [-52.0, -48.0, -44.0]
 const ATTACK_HIT_WINDOWS := [Vector2(0.035, 0.115), Vector2(0.075, 0.215), Vector2(0.15, 0.385)]
+const HERO_FINISHER_HIT_WINDOWS := [Vector2(0.14, 0.18), Vector2(0.245, 0.29), Vector2(0.355, 0.405)]
 const PLAYER_HURT_INVULNERABILITY := 0.42
 const HERO_COMBAT_AUTO_AIM_RANGE := 460.0
 const ENEMY_DAMAGE_SCALE := 0.82
@@ -3119,7 +3120,7 @@ func _resolve_attack_hit(target_body: Node2D, damage: float, knockback_direction
 			_spawn_feedback_text("DODGE", Color(0.68, 0.88, 1.0), 0.92)
 			return
 		landed_finisher = target_body.is_in_group("enemies") and _is_target_defeated(target_body)
-		_apply_enemy_hit_feedback(target_body)
+		_apply_enemy_hit_feedback(target_body, knockback_direction, current_attack_knockback_strength)
 
 	if _is_hero_form_active():
 		_apply_hero_hit_feedback(target_body, is_crit, landed_finisher)
@@ -3224,10 +3225,20 @@ func _get_target_combat_health(target: Node) -> float:
 	return -1.0
 
 
-func _apply_enemy_hit_feedback(target: Node2D) -> void:
+func _apply_enemy_hit_feedback(target: Node2D, knockback_direction: Vector2, knockback_strength: float) -> void:
+	# A follow-up contact (for example a later sword-spin pulse) is still a real
+	# hit.  It refreshes the local freeze instead of being silently discarded,
+	# while keeping one coherent knockback at the end of the impact string.
+	var hitstop_until := Time.get_ticks_msec() * 0.001 + 0.5
 	if target.has_meta("combat_hitstop"):
+		target.set_meta("combat_hitstop_until", hitstop_until)
+		target.set_meta("combat_hitstop_direction", knockback_direction)
+		target.set_meta("combat_hitstop_strength", knockback_strength)
 		return
 	target.set_meta("combat_hitstop", true)
+	target.set_meta("combat_hitstop_until", hitstop_until)
+	target.set_meta("combat_hitstop_direction", knockback_direction)
+	target.set_meta("combat_hitstop_strength", knockback_strength)
 	target.set_physics_process(false)
 	var visual := target.get_node_or_null("Sprite2D") as CanvasItem
 	if visual == null:
@@ -3239,8 +3250,27 @@ func _apply_enemy_hit_feedback(target: Node2D) -> void:
 		# alpha.  Keep modulation at white: this is a crisp hit flash, not bloom.
 		visual.material = _get_enemy_hit_flash_material()
 		visual.self_modulate = Color.WHITE
-	var hitstop_duration := 0.058 if _is_hero_form_active() else 0.042
-	await get_tree().create_timer(hitstop_duration, true, false, true).timeout
+	# Every confirmed melee hit gets the same readable impact pause.  The enemy
+	# is held first, then physically displaced; its chase state cannot erase the
+	# knockback on the very next frame.
+	while is_instance_valid(target):
+		var until_value: Variant = target.get_meta("combat_hitstop_until", hitstop_until)
+		var remaining := float(until_value) - Time.get_ticks_msec() * 0.001
+		if remaining <= 0.0:
+			break
+		await get_tree().create_timer(minf(remaining, 0.05), true, false, true).timeout
+	if not is_instance_valid(target):
+		return
+	var stored_direction: Variant = target.get_meta("combat_hitstop_direction", knockback_direction)
+	var stored_strength: Variant = target.get_meta("combat_hitstop_strength", knockback_strength)
+	var push_direction := (stored_direction as Vector2).normalized()
+	if push_direction.length_squared() <= 0.001:
+		push_direction = Vector2.LEFT if is_facing_left else Vector2.RIGHT
+	var push_distance := clampf(float(stored_strength) * 0.14, 32.0, 72.0)
+	var knockback_tween := target.create_tween()
+	knockback_tween.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	knockback_tween.tween_property(target, "global_position", target.global_position + push_direction * push_distance, 0.16)
+	await knockback_tween.finished
 	if not is_instance_valid(target):
 		return
 	if visual != null and is_instance_valid(visual):
@@ -3248,6 +3278,9 @@ func _apply_enemy_hit_feedback(target: Node2D) -> void:
 		visual.material = original_material
 	target.set_physics_process(true)
 	target.remove_meta("combat_hitstop")
+	target.remove_meta("combat_hitstop_until")
+	target.remove_meta("combat_hitstop_direction")
+	target.remove_meta("combat_hitstop_strength")
 
 
 func _get_enemy_hit_flash_material() -> ShaderMaterial:
@@ -3772,25 +3805,34 @@ func perform_attack() -> void:
 	sync_attack.rpc(current_attack_step)  # Synchronisiere den Angriff mit allen Clients
 
 	var primary_duration := float(combo_active_times[current_attack_step])
-	var requested_window: Vector2 = ATTACK_HIT_WINDOWS[clampi(current_attack_step, 0, ATTACK_HIT_WINDOWS.size() - 1)]
-	var hit_start := clampf(requested_window.x, 0.0, maxf(primary_duration - 0.01, 0.0))
-	var hit_end := clampf(requested_window.y, hit_start + 0.01, primary_duration)
-	if hit_start > 0.0:
-		await get_tree().create_timer(hit_start).timeout
-	if not is_instance_valid(self) or sequence_id != attack_sequence_id or not is_attacking:
-		return
+	var hit_windows: Array[Vector2] = [ATTACK_HIT_WINDOWS[clampi(current_attack_step, 0, ATTACK_HIT_WINDOWS.size() - 1)]]
+	if _is_hero_form_active() and current_attack_step == 2:
+		# The authored spin has three distinct sword contacts.  Every pulse gets
+		# its own target registry, so a target only receives the contacts it is
+		# physically inside for (one, two, or all three).
+		hit_windows = HERO_FINISHER_HIT_WINDOWS
+	var elapsed_attack_time := 0.0
+	for pulse_index in range(hit_windows.size()):
+		var requested_window := hit_windows[pulse_index]
+		var hit_start := clampf(requested_window.x, elapsed_attack_time, maxf(primary_duration - 0.01, 0.0))
+		var hit_end := clampf(requested_window.y, hit_start + 0.01, primary_duration)
+		if hit_start > elapsed_attack_time:
+			await get_tree().create_timer(hit_start - elapsed_attack_time).timeout
+		if not is_instance_valid(self) or sequence_id != attack_sequence_id or not is_attacking:
+			return
+		attack_targets_hit.clear()
+		_set_attack_hitbox_active(true)
+		if _is_hero_form_active():
+			var effect_facing := -1.0 if is_facing_left else 1.0
+			_spawn_hero_slash_effect(current_attack_step, effect_facing)
+		await get_tree().create_timer(maxf(hit_end - hit_start, 0.01)).timeout
+		if not is_instance_valid(self) or sequence_id != attack_sequence_id:
+			return
+		_set_attack_hitbox_active(false)
+		attack_dash_cancel_ready = _is_hero_form_active()
+		elapsed_attack_time = hit_end
 
-	_set_attack_hitbox_active(true)
-	if _is_hero_form_active():
-		var effect_facing := -1.0 if is_facing_left else 1.0
-		_spawn_hero_slash_effect(current_attack_step, effect_facing)
-	await get_tree().create_timer(maxf(hit_end - hit_start, 0.01)).timeout
-	if not is_instance_valid(self) or sequence_id != attack_sequence_id:
-		return
-	_set_attack_hitbox_active(false)
-	attack_dash_cancel_ready = _is_hero_form_active()
-
-	var tail_duration := primary_duration - hit_end
+	var tail_duration := primary_duration - elapsed_attack_time
 	if tail_duration > 0.0:
 		await get_tree().create_timer(tail_duration).timeout
 	if not is_instance_valid(self) or sequence_id != attack_sequence_id or not is_attacking:
