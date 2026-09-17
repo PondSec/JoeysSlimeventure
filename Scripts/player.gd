@@ -233,6 +233,7 @@ var attack_area: Area2D
 var attack_collision_shape: CollisionShape2D
 var attack_area_base_position := Vector2.ZERO
 var attack_shape_base_scale := Vector2.ONE
+var blade_hit_hull_cache: Dictionary = {}
 var equipped_weapon: InvItem
 var equipped_weapon_name := ""
 var weapon_attack_reach_bonus := 0.0
@@ -3282,6 +3283,7 @@ func _on_attack_area_body_entered(body):
 func _process_active_attack_overlaps() -> void:
 	if not is_attacking or not attack_area or not attack_area.monitoring:
 		return
+	_sync_attack_hitbox_to_visible_blade()
 
 	for body in attack_area.get_overlapping_bodies():
 		_queue_attack_hit(body)
@@ -4109,6 +4111,7 @@ func _set_attack_hitbox_active(active: bool) -> void:
 		return
 	attack_area.monitoring = active
 	if active:
+		_sync_attack_hitbox_to_visible_blade()
 		_process_active_attack_overlaps()
 		apply_sword_air_pressure()
 
@@ -4136,6 +4139,11 @@ func _spawn_hero_slash_effect(combo_index: int, facing_sign: float) -> void:
 func _update_attack_hitbox(step: int) -> void:
 	if not attack_area:
 		return
+	# As soon as the authored Sword+FX frame is available it owns collision.
+	# This fallback only covers the tiny setup interval before frame zero has
+	# reached the renderer (and non-Deluxe legacy attacks).
+	if _sync_attack_hitbox_to_visible_blade():
+		return
 
 	var active_step: int = clampi(step, 0, ATTACK_HITBOX_SIZES.size() - 1)
 	var reach_scale := 1.0 + weapon_attack_reach_bonus
@@ -4143,10 +4151,126 @@ func _update_attack_hitbox(step: int) -> void:
 	var facing_sign = -1.0 if is_facing_left else 1.0
 	attack_area.position = Vector2(forward_offset * facing_sign, float(ATTACK_VERTICAL_OFFSETS[active_step]))
 
-	if attack_collision_shape and attack_collision_shape.shape is RectangleShape2D:
+	if attack_collision_shape:
 		attack_collision_shape.position = Vector2.ZERO
 		attack_collision_shape.scale = Vector2.ONE
+		if not (attack_collision_shape.shape is RectangleShape2D):
+			attack_collision_shape.shape = RectangleShape2D.new()
 		(attack_collision_shape.shape as RectangleShape2D).size = ATTACK_HITBOX_SIZES[active_step] * reach_scale
+
+
+func _get_active_blade_visual() -> Sprite2D:
+	if _is_hero_form_active():
+		if runtime_animation_state.begins_with("combo_") and runtime_body_sprite != null and is_instance_valid(runtime_body_sprite):
+			return runtime_body_sprite
+		return null
+	if slime_sword_combo_sprite != null and is_instance_valid(slime_sword_combo_sprite) and slime_sword_combo_sprite.visible:
+		return slime_sword_combo_sprite
+	return null
+
+
+func _sync_attack_hitbox_to_visible_blade() -> bool:
+	if attack_area == null or attack_collision_shape == null or not _uses_deluxe_sword_combat():
+		return false
+	var blade_visual := _get_active_blade_visual()
+	if blade_visual == null or blade_visual.texture == null:
+		return false
+	var local_hull := _get_blade_hull_for_visible_frame(blade_visual, _is_hero_form_active())
+	if local_hull.size() < 3:
+		return false
+
+	# The pixel hull lives in the displayed frame's local coordinates. Transform
+	# every point through the exact Sprite2D that is rendering it, including the
+	# frame scale and the current horizontal flip, then convert it back into the
+	# AttackArea's coordinate space for physics.
+	var collision_points := PackedVector2Array()
+	for point: Vector2 in local_hull:
+		var rendered_point := point
+		if blade_visual.flip_h:
+			rendered_point.x = -rendered_point.x
+		var world_point := blade_visual.to_global(rendered_point)
+		collision_points.append(attack_collision_shape.to_local(world_point))
+	var transformed_hull := Geometry2D.convex_hull(collision_points)
+	if transformed_hull.size() < 3:
+		return false
+
+	attack_area.position = Vector2.ZERO
+	attack_area.rotation = 0.0
+	attack_collision_shape.position = Vector2.ZERO
+	attack_collision_shape.rotation = 0.0
+	attack_collision_shape.scale = Vector2.ONE
+	var blade_shape := attack_collision_shape.shape as ConvexPolygonShape2D
+	if blade_shape == null:
+		blade_shape = ConvexPolygonShape2D.new()
+		attack_collision_shape.shape = blade_shape
+	blade_shape.points = transformed_hull
+	return true
+
+
+func _get_blade_hull_for_visible_frame(visual: Sprite2D, hero_frame: bool) -> PackedVector2Array:
+	var texture := visual.texture
+	if texture == null:
+		return PackedVector2Array()
+	var source_rect := _get_visible_sprite_source_rect(visual)
+	var frame_key := "%s:%d:%d:%d:%d:%s" % [
+		texture.resource_path,
+		int(source_rect.position.x), int(source_rect.position.y),
+		int(source_rect.size.x), int(source_rect.size.y),
+		"hero" if hero_frame else "slime",
+	]
+	if blade_hit_hull_cache.has(frame_key):
+		return blade_hit_hull_cache[frame_key] as PackedVector2Array
+
+	var image := texture.get_image()
+	if image == null or image.is_empty():
+		return PackedVector2Array()
+	var start_x := clampi(int(source_rect.position.x), 0, image.get_width() - 1)
+	var start_y := clampi(int(source_rect.position.y), 0, image.get_height() - 1)
+	var end_x := clampi(int(source_rect.end.x), start_x + 1, image.get_width())
+	var end_y := clampi(int(source_rect.end.y), start_y + 1, image.get_height())
+	var points := PackedVector2Array()
+	# Two-pixel samples preserve the authored sword arc while keeping cache
+	# construction cheap. The slime strip contains sword/FX only; Hero frames
+	# additionally filter for the bright steel/arc palette to exclude his body.
+	for pixel_y in range(start_y, end_y, 2):
+		for pixel_x in range(start_x, end_x, 2):
+			var color := image.get_pixel(pixel_x, pixel_y)
+			if not _is_blade_hit_pixel(color, hero_frame):
+				continue
+			points.append(Vector2(
+				float(pixel_x - start_x) - source_rect.size.x * 0.5,
+				float(pixel_y - start_y) - source_rect.size.y * 0.5
+			))
+	var hull := Geometry2D.convex_hull(points) if points.size() >= 3 else PackedVector2Array()
+	blade_hit_hull_cache[frame_key] = hull
+	return hull
+
+
+func _get_visible_sprite_source_rect(visual: Sprite2D) -> Rect2:
+	if visual.region_enabled and visual.region_rect.size.x > 0.0 and visual.region_rect.size.y > 0.0:
+		return visual.region_rect
+	var texture_size := visual.texture.get_size()
+	var hframes := maxi(visual.hframes, 1)
+	var vframes := maxi(visual.vframes, 1)
+	var frame_size := Vector2(texture_size.x / float(hframes), texture_size.y / float(vframes))
+	var frame_index := clampi(visual.frame, 0, hframes * vframes - 1)
+	return Rect2(
+		Vector2(float(frame_index % hframes) * frame_size.x, float(int(frame_index / hframes)) * frame_size.y),
+		frame_size
+	)
+
+
+func _is_blade_hit_pixel(color: Color, hero_frame: bool) -> bool:
+	if color.a <= 0.12:
+		return false
+	if not hero_frame:
+		return true
+	# Deluxe Hero frames contain the whole body. Only the high-value blade steel,
+	# cyan edge and white swing trail feed the collision hull; skin, cape and
+	# torso pixels can never enlarge an attack into a body-sized hitbox.
+	var bright_steel := color.r >= 0.72 and color.g >= 0.72 and color.b >= 0.72
+	var cyan_edge := color.b >= 0.48 and color.b >= color.r * 1.14 and color.b >= color.g * 1.05
+	return bright_steel or cyan_edge
 
 # Leuchteffekt aktualisieren
 func update_glow_state() -> void:
