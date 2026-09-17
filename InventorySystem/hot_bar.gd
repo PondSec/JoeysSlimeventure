@@ -6,22 +6,29 @@ extends Control
 
 const SLOT_COUNT := 9
 const HOTBAR_SIZE := Vector2(1055.0, 192.0)
-const SLOT_CENTERS := [
-	Vector2(207.0, 92.0), Vector2(279.0, 92.0), Vector2(350.0, 92.0),
-	Vector2(420.0, 92.0), Vector2(490.0, 92.0), Vector2(560.0, 92.0),
-	Vector2(630.0, 92.0), Vector2(700.0, 92.0), Vector2(770.0, 92.0),
-]
-
 const BIOME_THEMES := {
 	"cave": {
 		"bar": preload("res://Assets/UI/Hotbar/cave_bar.png"),
 		"inactive": preload("res://Assets/UI/Hotbar/cave_slot_inactive.png"),
 		"active": preload("res://Assets/UI/Hotbar/cave_slot_active.png"),
+		# These are measured from the assembled cave source, not distributed
+		# mathematically. The latter made the selected face drift farther right
+		# with every slot.
+		"slot_centers": [
+			Vector2(220.5, 100.0), Vector2(297.5, 100.0), Vector2(374.0, 100.0),
+			Vector2(450.0, 100.0), Vector2(526.5, 100.0), Vector2(604.0, 100.0),
+			Vector2(681.0, 100.0), Vector2(758.0, 100.0), Vector2(835.5, 100.0),
+		],
 	},
 	"lush": {
 		"bar": preload("res://Assets/UI/Hotbar/lush_bar.png"),
 		"inactive": preload("res://Assets/UI/Hotbar/lush_slot_inactive.png"),
 		"active": preload("res://Assets/UI/Hotbar/lush_slot_active.png"),
+		"slot_centers": [
+			Vector2(216.0, 100.0), Vector2(295.0, 100.0), Vector2(372.0, 100.0),
+			Vector2(448.5, 100.0), Vector2(525.0, 100.0), Vector2(602.5, 100.0),
+			Vector2(680.0, 100.0), Vector2(757.5, 100.0), Vector2(835.0, 100.0),
+		],
 	},
 }
 
@@ -54,6 +61,7 @@ func _build_theme_layers() -> void:
 	for theme_id_variant in BIOME_THEMES.keys():
 		var theme_id := String(theme_id_variant)
 		var definition: Dictionary = BIOME_THEMES[theme_id]
+		var slot_centers: Array = definition["slot_centers"]
 		var theme_root := Control.new()
 		theme_root.name = "%sTheme" % theme_id.capitalize()
 		theme_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -68,12 +76,12 @@ func _build_theme_layers() -> void:
 		var inactive_slots: Array[TextureRect] = []
 		var active_slots: Array[TextureRect] = []
 		for slot_index in range(SLOT_COUNT):
-			var inactive := _create_slot_face(definition["inactive"] as Texture2D, SLOT_CENTERS[slot_index])
+			var inactive := _create_slot_face(definition["inactive"] as Texture2D, slot_centers[slot_index] as Vector2)
 			inactive.name = "Inactive%d" % (slot_index + 1)
 			theme_root.add_child(inactive)
 			inactive_slots.append(inactive)
 
-			var active := _create_slot_face(definition["active"] as Texture2D, SLOT_CENTERS[slot_index])
+			var active := _create_slot_face(definition["active"] as Texture2D, slot_centers[slot_index] as Vector2)
 			active.name = "Active%d" % (slot_index + 1)
 			theme_root.add_child(active)
 			active_slots.append(active)
@@ -86,10 +94,13 @@ func _build_theme_layers() -> void:
 
 
 func _build_item_layers() -> void:
+	# Item contents follow the common visual grid. Theme faces may differ by a
+	# few source pixels at their decorative edges, but never shift an item icon.
+	var item_slot_centers: Array = BIOME_THEMES["cave"]["slot_centers"]
 	for slot_index in range(SLOT_COUNT):
 		var icon := Sprite2D.new()
 		icon.name = "Item%d" % (slot_index + 1)
-		icon.position = SLOT_CENTERS[slot_index] + Vector2(0.0, -3.0)
+		icon.position = item_slot_centers[slot_index] + Vector2(0.0, -3.0)
 		icon.scale = Vector2(0.50, 0.50)
 		icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		icon.z_index = 5
@@ -98,7 +109,7 @@ func _build_item_layers() -> void:
 
 		var amount := Label.new()
 		amount.name = "Amount%d" % (slot_index + 1)
-		amount.position = SLOT_CENTERS[slot_index] + Vector2(11.0, 13.0)
+		amount.position = item_slot_centers[slot_index] + Vector2(11.0, 13.0)
 		amount.size = Vector2(23.0, 22.0)
 		amount.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		amount.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM

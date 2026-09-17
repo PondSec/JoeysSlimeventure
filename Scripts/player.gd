@@ -2742,8 +2742,9 @@ func _try_attack_hit(body: Node) -> void:
 		return
 	if not (target_body.is_in_group("enemies") or target_body.is_in_group("players")):
 		return
-	if target_body.is_in_group("enemies") and not _is_target_on_visible_blade(target_body):
-		return
+	# AttackArea is the gameplay-authoritative sword hitbox.  The former visual
+	# blade projection could drift from the animated sprite pivot and reject
+	# every valid overlap, leaving enemies completely immune.
 
 	var body_id: int = target_body.get_instance_id()
 	if attack_targets_hit.has(body_id):

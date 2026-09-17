@@ -12,7 +12,7 @@ const TOAST_WARNING_ICON_PATH := "res://Assets/GUI/Icons/Polish/toast_warning.pn
 const TOAST_ERROR_ICON_PATH := "res://Assets/GUI/Icons/Polish/toast_error.png"
 const CAVE_HEALTH_FRAME := preload("res://Assets/UI/Health/cave_frame.png")
 const LUSH_HEALTH_FRAME := preload("res://Assets/UI/Health/lush_frame.png")
-const HEALTH_FILL := preload("res://Assets/UI/Health/fill.png")
+const HEALTH_FILL := preload("res://Assets/UI/Health/fill_visible.png")
 const MAX_VISIBLE_TOASTS := 4
 const TOAST_LABELS := {
 	"info": "SYSTEM",
@@ -119,8 +119,11 @@ func _setup_biome_health_skin() -> void:
 
 	# Only the fill is a progress control. The frame is an untouched pixel asset
 	# above it, so its detail remains crisp while value animations stay intact.
-	health_bar.position = Vector2(65.0, 41.0)
-	health_bar.size = Vector2(250.0, 25.0)
+	# The source fill had transparent canvas below its red pixels.  The trimmed
+	# version is therefore placed at the actual inner opening and reaches its
+	# lower border at every health value.
+	health_bar.position = Vector2(65.0, 42.0)
+	health_bar.size = Vector2(250.0, 23.0)
 	health_bar.texture_under = null
 	health_bar.texture_progress = HEALTH_FILL
 	health_bar.nine_patch_stretch = true
@@ -204,7 +207,6 @@ func notify_player_hit(amount: int, current: int, max_health: int) -> void:
 	_flash_overlay(damage_flash, clamp(0.12 + float(amount) / max(max_health, 1) * 0.55, 0.12, 0.32))
 	_punch_control(health_bar, Vector2(1.06, 1.08), 0.16)
 	_punch_control(health_label, Vector2(1.08, 1.08), 0.16)
-	_punch_control(hotbar, Vector2(1.03, 1.03), 0.18)
 
 	var ratio := _get_health_ratio(current, max_health)
 	if ratio <= 0.25 and low_health_warning_cooldown <= 0.0:

@@ -524,6 +524,8 @@ offset_right = 527.5
 offset_bottom = -20.0
 grow_horizontal = 2
 grow_vertical = 0
+scale = Vector2(0.85, 0.85)
+pivot_offset = Vector2(527.5, 192)
 script = ExtResource("17_1u0f7")
 
 [node name="NinePatchRect2" type="NinePatchRect" parent="CanvasLayer/HotBar"]
