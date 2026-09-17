@@ -102,7 +102,7 @@ func Insert(item: InvItem) -> bool:
 	# This keeps partial resource stacks together instead of creating duplicates.
 	if stack_size > 1:
 		for slot in slots:
-			if slot.item and slot.item.name == item.name and slot.amount < stack_size:
+			if slot.item and _items_share_stack(slot.item, item) and slot.amount < stack_size:
 				slot.amount += 1
 				_notify_inventory_changed()
 				return true
@@ -137,7 +137,7 @@ func can_insert(item: InvItem, amount: int = 1) -> bool:
 	var stack_size: int = maxi(item.stack_size, 1)
 
 	for slot in slots:
-		if stack_size > 1 and slot.item and slot.item.name == item.name and slot.amount < stack_size:
+		if stack_size > 1 and slot.item and _items_share_stack(slot.item, item) and slot.amount < stack_size:
 			remaining -= min(stack_size - slot.amount, remaining)
 		elif slot.item == null:
 			remaining -= min(stack_size, remaining)
@@ -444,7 +444,7 @@ func _normalize_slot(slot: InvSlot) -> void:
 func _merge_matching_slots(source: InvSlot, target: InvSlot) -> bool:
 	if source == null or target == null or source.item == null or target.item == null:
 		return false
-	if source.item.name != target.item.name or source.item.stack_size <= 1:
+	if not _items_share_stack(source.item, target.item) or source.item.stack_size <= 1:
 		return false
 
 	var free_space: int = maxi(target.item.stack_size - target.amount, 0)
@@ -458,6 +458,10 @@ func _merge_matching_slots(source: InvSlot, target: InvSlot) -> bool:
 	_normalize_slot(source)
 	_normalize_slot(target)
 	return true
+
+
+func _items_share_stack(first: InvItem, second: InvItem) -> bool:
+	return first != null and second != null and first.get_stack_key() == second.get_stack_key()
 
 
 func _swap_slot_contents(first: InvSlot, second: InvSlot) -> void:

@@ -6,6 +6,7 @@
 [resource]
 script = ExtResource("1_4pyk4")
 name = "iron_nugget"
+stack_key = "silver_currency"
 texture = ExtResource("2_osvqn")
 health_bonus = 0.0
 damage_bonus = 0.0

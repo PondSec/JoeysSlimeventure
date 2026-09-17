@@ -160,6 +160,10 @@ func update_slots() -> void:
 	var weapon_item := inv.get_equipped_item("weapon")
 	if player_preview and player_preview.has_method("set_preview_item"):
 		player_preview.call("set_preview_item", weapon_item if weapon_item else ItemRegistry.get_default_weapon())
+		var player := get_tree().get_first_node_in_group("players")
+		var hero_form_active := player != null and bool(player.get("is_hero_form_active"))
+		if player_preview.has_method("set_hero_form_active"):
+			player_preview.call("set_hero_form_active", hero_form_active)
 
 
 func _build_slot_views() -> void:

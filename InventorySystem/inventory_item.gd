@@ -16,6 +16,9 @@ class_name InvItem
 @export_enum("none", "weapon", "relic", "charm", "star") var equip_slot: String = "none"
 @export var rarity: String = "common"
 @export var stack_size: int = 64
+# Different legacy resources may intentionally represent the same currency.
+# Leave this empty for the item's own name to remain its stack identity.
+@export var stack_key: String = ""
 @export var attack_power_bonus: int = 0
 @export var attack_speed_bonus: float = 0.0
 @export var attack_reach_bonus: float = 0.0
@@ -32,6 +35,10 @@ func get_display_name() -> String:
 
 func is_stackable() -> bool:
 	return stack_size > 1
+
+
+func get_stack_key() -> String:
+	return stack_key if not stack_key.is_empty() else name
 
 
 func can_equip_to(slot_name: String) -> bool:
