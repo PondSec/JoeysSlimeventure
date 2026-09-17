@@ -266,7 +266,9 @@ const SLIME_SWORD_COMBO_RECOVERY_FRAME_COUNTS := [4, 3, 6]
 # Match the Hero form's authored tags exactly, including the recovery sheets.
 const DELUXE_SWORD_COMBO_ACTIVE_TIMES := [0.15, 0.273, 0.5]
 const DELUXE_SWORD_COMBO_RECOVERY_TIMES := [0.222, 0.222, 0.3]
-const SLIME_SWORD_COMBO_SCALE := Vector2(15.625, 15.625)
+# Slightly larger than the Hero canvas scale so the Sword+FX read cleanly next
+# to Joey's broader silhouette, without changing their authored pivot/timing.
+const SLIME_SWORD_COMBO_SCALE := Vector2(17.5, 17.5)
 const SLIME_SWORD_COMBO_POSITION := Vector2(0.0, -114.0)
 var glow_effect: PointLight2D
 @onready var damage_label: Label = $PlayerSprite/CanvasLayer2/DamageLabel# Referenz zum Schadens-Label
