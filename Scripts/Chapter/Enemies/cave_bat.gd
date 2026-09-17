@@ -12,6 +12,10 @@ const EVADE_COOLDOWN_MAX := 2.35
 const EVADE_WINDUP_DURATION := 0.055
 const EVADE_DASH_DURATION := 0.165
 const EVADE_DASH_SPEED := 410.0
+const WORLD_COLLISION_MASK := 2
+const FLIGHT_PROBE_DISTANCE := 54.0
+const FLIGHT_DETOUR_DISTANCE := 118.0
+const FLIGHT_DETOUR_TIME := 0.52
 
 enum State { PATROL, ORBIT, TELEGRAPH, SWOOP, SONIC_TELEGRAPH, SONIC_FIRE, EVADE, RECOVER, DEAD }
 
@@ -45,6 +49,8 @@ var evade_direction := Vector2.ZERO
 # Exposed for the player hit resolver.  Only the actual dash is invulnerable;
 # the short read before it is deliberately hittable.
 var is_dodging := false
+var detour_target := Vector2.ZERO
+var detour_time_left := 0.0
 
 @onready var sprite: Sprite2D = $Sprite2D
 @onready var hitbox: Area2D = $Hitbox
@@ -95,6 +101,7 @@ func _physics_process(delta: float) -> void:
 			_process_recover(delta)
 
 	move_and_slide()
+	_note_flight_collision()
 	sprite.flip_h = velocity.x < 0.0
 	if state == State.SONIC_TELEGRAPH:
 		sprite.modulate = Color(0.66, 0.86, 1.0, 1.0)
@@ -270,12 +277,59 @@ func _player_velocity() -> Vector2:
 
 
 func _seek_towards(target: Vector2, speed: float, delta: float) -> void:
-	var to_target: Vector2 = target - global_position
+	detour_time_left = maxf(detour_time_left - delta, 0.0)
+	var steering_target := target
+	if detour_time_left > 0.0 and detour_target.distance_to(global_position) > 18.0:
+		steering_target = detour_target
+	var to_target: Vector2 = steering_target - global_position
 	var desired: Vector2 = Vector2.ZERO
 	if to_target.length() > 1.0:
 		var desired_speed: float = minf(speed, to_target.length() * 4.0)
-		desired = to_target.normalized() * desired_speed
+		desired = _steer_around_world(to_target.normalized(), target) * desired_speed
 	velocity = velocity.lerp(desired, delta * 4.6)
+
+
+func _steer_around_world(desired_direction: Vector2, final_target: Vector2) -> Vector2:
+	if get_world_2d() == null or desired_direction.length_squared() <= 0.001:
+		return desired_direction
+	var query := PhysicsRayQueryParameters2D.create(global_position, global_position + desired_direction * FLIGHT_PROBE_DISTANCE)
+	query.collision_mask = WORLD_COLLISION_MASK
+	query.exclude = [get_rid()]
+	var hit := get_world_2d().direct_space_state.intersect_ray(query)
+	if hit.is_empty():
+		return desired_direction
+	var normal: Vector2 = hit.get("normal", Vector2.UP) as Vector2
+	var tangent := Vector2(-normal.y, normal.x).normalized()
+	var target_direction := (final_target - global_position).normalized()
+	# Prefer the side that still makes progress towards the goal.  When the goal
+	# is exactly above/below a ledge, each bat keeps its own orbit side so a pack
+	# naturally splits around the obstacle instead of piling up underneath it.
+	if absf(tangent.dot(target_direction)) < 0.12:
+		tangent *= orbit_side
+	elif tangent.dot(target_direction) < 0.0:
+		tangent = -tangent
+	var detour := (tangent * 0.92 + normal * 0.38).normalized()
+	detour_target = global_position + detour * FLIGHT_DETOUR_DISTANCE
+	detour_time_left = FLIGHT_DETOUR_TIME
+	return detour
+
+
+func _note_flight_collision() -> void:
+	if get_slide_collision_count() <= 0:
+		return
+	var collision := get_slide_collision(0)
+	if collision == null:
+		return
+	var normal := collision.get_normal()
+	var tangent := Vector2(-normal.y, normal.x).normalized()
+	if absf(tangent.dot(velocity.normalized())) < 0.15:
+		tangent *= orbit_side
+	elif tangent.dot(velocity) < 0.0:
+		tangent = -tangent
+	# Collision feedback wins over the direct goal for a short moment, which is
+	# what prevents a flying enemy from pressing against one cave wall forever.
+	detour_target = global_position + (tangent * 0.88 + normal * 0.42).normalized() * FLIGHT_DETOUR_DISTANCE
+	detour_time_left = FLIGHT_DETOUR_TIME
 
 
 func _on_hitbox_body_entered(body: Node2D) -> void:

@@ -2930,6 +2930,11 @@ func _spawn_hazard(hazard: Dictionary) -> void:
 	var base_y: int = int(hazard.get("y", 0))
 	var count: int = max(1, int(hazard.get("count", 1)))
 	for offset_index: int in range(count):
+		var floor_cell := _resolve_safe_spike_floor(Vector2i(base_x + offset_index, base_y))
+		if floor_cell == Vector2i.ZERO:
+			# A hazard is never allowed to become a floating trap just because its
+			# authored tile disappeared during terrain resolution.
+			continue
 		var spike: Node2D = SPIKE_SCENE.instantiate() as Node2D
 		if spike == null:
 			continue
@@ -2937,9 +2942,63 @@ func _spawn_hazard(hazard: Dictionary) -> void:
 		# The complete authored spike scene is bottom-anchored at local Y=0.
 		# Spawning it directly on the floor lip preserves its full scale, hitbox
 		# and player-glow visibility behaviour instead of producing tiny floaters.
-		spike.global_position = _grid_to_world(Vector2i(base_x + offset_index, base_y)) + Vector2(16.0, 0.0)
+		spike.global_position = _grid_to_world(floor_cell) + Vector2(16.0, 0.0)
 		if player != null:
 			spike.call("_on_player_glow_changed", bool(player.get("is_glowing")))
+
+
+func _resolve_safe_spike_floor(requested: Vector2i) -> Vector2i:
+	# Hazards are authored before final terrain carving.  Resolve them again on
+	# the finished solid grid: a solid floor, two free cells of headroom and no
+	# foreground plant are all mandatory.  The compact search keeps a trap near
+	# its designed encounter instead of relocating it across the room.
+	if solid_grid_cache.is_empty():
+		return Vector2i.ZERO
+	var x_offsets: Array[int] = [0, -1, 1, -2, 2, -3, 3, -4, 4, -5, 5, -6, 6]
+	var y_offsets: Array[int] = [0, -1, 1, -2, 2, -3, 3, -4, 4, -5, 5, -6, 6, -7, 7, -8, 8]
+	for y_offset: int in y_offsets:
+		var floor_y := requested.y + y_offset
+		for x_offset: int in x_offsets:
+			var floor_x := requested.x + x_offset
+			if not _is_valid_spike_floor(floor_x, floor_y):
+				continue
+			var cell := Vector2i(floor_x, floor_y)
+			if _foreground_plant_blocks_spike(cell):
+				continue
+			return cell
+	return Vector2i.ZERO
+
+
+func _is_valid_spike_floor(grid_x: int, floor_y: int) -> bool:
+	if grid_x < 1 or grid_x >= level_size_tiles.x - 1 or floor_y < 2 or floor_y >= level_size_tiles.y - 1:
+		return false
+	if not _is_solid(solid_grid_cache, grid_x, floor_y):
+		return false
+	# Never bury a spike in a wall/ceiling or put it into a one-pixel crack.
+	return not _is_solid(solid_grid_cache, grid_x, floor_y - 1) and not _is_solid(solid_grid_cache, grid_x, floor_y - 2)
+
+
+func _foreground_plant_blocks_spike(floor_cell: Vector2i) -> bool:
+	if decor_root == null:
+		return false
+	var spike_position := _grid_to_world(floor_cell) + Vector2(16.0, -12.0)
+	for child: Node in decor_root.get_children():
+		if not (child is Sprite2D):
+			continue
+		var plant_name := String(child.name)
+		var is_foreground_plant := plant_name.begins_with("GeneratedFlora") \
+			or plant_name.begins_with("GeneratedLushCanopy") \
+			or plant_name.begins_with("GeneratedLushLandmark") \
+			or plant_name.begins_with("GeneratedWind") \
+			or plant_name.begins_with("GeneratedLushMoonbell") \
+			or plant_name.begins_with("GeneratedLushSunbud") \
+			or plant_name.begins_with("GeneratedLushLightOasisPlant")
+		if not is_foreground_plant:
+			continue
+		var plant := child as Sprite2D
+		if absf(plant.global_position.x - spike_position.x) <= 36.0 and absf(plant.global_position.y - spike_position.y) <= 48.0:
+			return true
+	return false
 
 
 func _spawn_torch(torch_data: Dictionary) -> void:

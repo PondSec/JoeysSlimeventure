@@ -15,6 +15,11 @@ const FRAME_SIZE := Vector2(590.0, 116.0)
 const FRAME_POSITION := Vector2((HOTBAR_SIZE.x - FRAME_SIZE.x) * 0.5, 7.0)
 const ITEM_ICON_MAX_SIZE := 39.0
 const ITEM_ICON_BOX_SIZE := Vector2(ITEM_ICON_MAX_SIZE, ITEM_ICON_MAX_SIZE)
+# The lush slots have a taller ornamental bottom edge than their cave
+# counterparts.  Their actual usable centre is four source pixels higher than
+# the texture midpoint, so item content follows that interior, not the PNG
+# rectangle.  This is blended during the biome transition.
+const LUSH_ITEM_CONTENT_Y_OFFSET := -4.0
 const HOTBAR_FONT := preload("res://Assets/GUI/Font/PixelatedEleganceRegular-ovyAA.ttf")
 const BIOME_THEMES := {
 	"cave": {
@@ -37,6 +42,7 @@ var _item_icons: Array[TextureRect] = []
 var _amount_labels: Array[Label] = []
 var _icon_content_rect_cache: Dictionary = {}
 var _biome_weights := {"cave": 1.0, "lush": 0.0}
+var _item_content_offset := Vector2.ZERO
 
 
 func _ready() -> void:
@@ -97,10 +103,11 @@ func _build_theme_layers() -> void:
 
 
 func _build_item_layers() -> void:
-	# Item contents follow the common visual grid. Theme faces may differ by a
-	# few source pixels at their decorative edges, but never shift an item icon.
+	# Item contents follow the *usable* visual grid rather than a source image's
+	# outer rectangle.  The actual position is refreshed below when the biome
+	# skin changes.
 	for slot_index in range(SLOT_COUNT):
-		var item_center := _slot_center(slot_index)
+		var item_center := _item_slot_center(slot_index)
 		# A fixed control box makes the visible content centre independently of a
 		# source PNG's transparent padding. Sprite2D regions can retain an atlas
 		# origin on imported assets, which caused the subtle left/up drift here.
@@ -174,6 +181,19 @@ func _slot_center(slot_index: int) -> Vector2:
 	return FRAME_POSITION + Vector2(first_center_x + SLOT_PITCH * slot_index, SLOT_CENTER_Y)
 
 
+func _item_slot_center(slot_index: int) -> Vector2:
+	return _slot_center(slot_index) + _item_content_offset
+
+
+func _layout_item_layers() -> void:
+	for slot_index in range(SLOT_COUNT):
+		var item_center := _item_slot_center(slot_index)
+		if slot_index < _item_icons.size():
+			_item_icons[slot_index].position = item_center - ITEM_ICON_BOX_SIZE * 0.5
+		if slot_index < _amount_labels.size():
+			_amount_labels[slot_index].position = item_center + Vector2(1.0, 4.0)
+
+
 func _create_slot_number(slot_number: int, center: Vector2, theme_id: String) -> Label:
 	var number := Label.new()
 	number.text = str(slot_number)
@@ -245,6 +265,10 @@ func set_biome_weight(theme_id: String, weight: float) -> void:
 
 
 func _apply_biome_weights() -> void:
+	var desired_item_offset := Vector2(0.0, LUSH_ITEM_CONTENT_Y_OFFSET * float(_biome_weights.get("lush", 0.0)))
+	if not _item_content_offset.is_equal_approx(desired_item_offset):
+		_item_content_offset = desired_item_offset
+		_layout_item_layers()
 	for theme_id_variant in _theme_nodes.keys():
 		var theme_id := String(theme_id_variant)
 		var nodes: Dictionary = _theme_nodes[theme_id]
