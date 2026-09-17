@@ -565,6 +565,7 @@ func _ready() -> void:
 	inv.update.connect(update_health_bonus)
 	inv.update.connect(update_damage_bonus)
 	inv.update.connect(update_crit_bonuses)
+	inv.update.connect(update_defense_bonuses)
 	inv.update.connect(_on_inventory_equipment_changed)
 	if not chapter_qa_mode:
 		add_child(api_script)
@@ -577,6 +578,7 @@ func _ready() -> void:
 		api_timer.start()
 		api_script.send_request()
 	_on_inventory_equipment_changed()
+	update_defense_bonuses()
 	# Ausgeruestete Sterne sind Begleiter und gehoeren auch in Kapitellevel.
 	# Fangbegegnungen werden vom StarManager selbst nur ausserhalb des
 	# Kapitelmodus aktiviert.
@@ -947,6 +949,22 @@ func update_damage_bonus():
 
 	damage_multiplier = bonus
 	attack_damage = int((base_attack_damage + flat_bonus) * damage_multiplier)
+
+
+func update_defense_bonuses() -> void:
+	var equipment_reduction := 0.0
+	var glow_multiplier := 1.0
+	for item in _get_equipped_items():
+		equipment_reduction += item.damage_reduction_bonus
+		glow_multiplier = min(glow_multiplier, item.glow_range_multiplier)
+	# Keep active-buff reductions intact; this function is called whenever the
+	# inventory changes, not only when a buff refreshes.
+	for buff_type: Variant in active_buffs.keys():
+		if String(buff_type) in ["damage_reduction", "constant_damage_reduction"]:
+			equipment_reduction += float(active_buffs[buff_type])
+	damage_reduction = clampf(equipment_reduction, 0.0, 0.8)
+	if glow_effect:
+		glow_effect.set("custom_range", 300.0 * glow_multiplier)
 
 func update_health_bonus():
 	var bonus = 1.0
@@ -3819,6 +3837,17 @@ func heal(amount: int):
 	update_health_bar()
 
 func collect(item) -> bool:
+	if item == null:
+		return false
+	if item.pickup_heal > 0:
+		# Leave a heart in the level when Joey is already at full health; it is a
+		# tactical healing pickup, not an item that should be wasted invisibly.
+		if current_health >= max_health:
+			return false
+		var restored := mini(item.pickup_heal, max_health - current_health)
+		_restore_health(restored)
+		_show_feedback_toast("Lebensherz: +%d LP" % restored, "reward", item.texture)
+		return true
 	var inserted := inv.Insert(item)
 	if inserted:
 		_show_loot_feedback(item)
@@ -5169,6 +5198,7 @@ func _update_stats_from_buffs() -> void:
 	
 	# Endgültigen Schaden berechnen
 	attack_damage = int(base_attack_damage * final_damage_multiplier)
+	update_defense_bonuses()
 	
 	print("🎯 FINAL - Walk: ", WALK_SPEED, " Run: ", RUN_SPEED, " Damage: ", attack_damage, " Reduction: ", damage_reduction)
 

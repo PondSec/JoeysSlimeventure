@@ -2549,7 +2549,7 @@ func _place_pickups() -> Array:
 		var slot: Vector2i = slots[pickup_index] as Vector2i
 		var loot_roll: float = rng.randf()
 		var loot_tier: String = "copper"
-		if loot_roll >= 0.94:
+		if loot_roll >= 0.98:
 			loot_tier = "gold"
 		elif loot_roll >= 0.70:
 			loot_tier = "silver"

@@ -1,5 +1,7 @@
 extends CharacterBody2D
 
+const LootDropper := preload("res://Scripts/loot_dropper.gd")
+
 ## Leuchtmaul is deliberately rooted in place. It lights a dark pocket of
 ## cave, waits for Joey to pass, then commits to a clearly readable bite.
 signal defeated
@@ -259,6 +261,12 @@ func _die() -> void:
 	state = State.DEAD
 	state_time = 0.0
 	emit_signal("defeated")
+	LootDropper.spawn_independent_drops(self, [
+		{"item": "health_heart", "chance": 0.52},
+		{"item": "copper_nugget", "chance": 0.34},
+		{"item": "silver_nugget", "chance": 0.14},
+		{"item": "bat_artefact", "chance": 0.015}
+	])
 	set_collision_layer_value(1, false)
 	set_collision_mask_value(1, false)
 	_set_bite_active(false)

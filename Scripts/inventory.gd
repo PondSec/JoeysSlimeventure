@@ -7,6 +7,7 @@ signal update
 const ItemRegistry := preload("res://Scripts/item_registry.gd")
 const EQUIPMENT_SLOT_ORDER := [
 	"weapon",
+	"armor",
 	"relic_1",
 	"relic_2",
 	"relic_3",
@@ -17,6 +18,7 @@ const EQUIPMENT_SLOT_ORDER := [
 ]
 const EQUIPMENT_LAYOUT := [
 	{"title": "Weapon", "slots": ["weapon"]},
+	{"title": "Armor", "slots": ["armor"]},
 	{"title": "Relics", "slots": ["relic_1", "relic_2", "relic_3"]},
 	{"title": "Stars", "slots": ["star_1", "star_2", "star_3"]},
 	{"title": "Charm", "slots": ["charm"]},

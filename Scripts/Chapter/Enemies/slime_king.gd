@@ -1,5 +1,7 @@
 extends CharacterBody2D
 
+const LootDropper := preload("res://Scripts/loot_dropper.gd")
+
 signal defeated
 signal health_changed(current_health: int, max_health: int)
 
@@ -184,6 +186,13 @@ func _die() -> void:
 	is_dead = true
 	emit_signal("health_changed", 0, max_health)
 	emit_signal("defeated")
+	LootDropper.spawn_independent_drops(self, [
+		{"item": "health_heart", "chance": 1.0, "min_count": 2, "max_count": 3},
+		{"item": "copper_nugget", "chance": 0.86, "min_count": 1, "max_count": 2},
+		{"item": "silver_nugget", "chance": 0.64, "min_count": 1, "max_count": 2},
+		{"item": "gold_nugget", "chance": 0.20, "min_count": 1, "max_count": 2},
+		{"item": "bat_artefact", "chance": 0.12}
+	])
 	var death_tween: Tween = create_tween()
 	death_tween.set_parallel(true)
 	death_tween.tween_property(self, "modulate:a", 0.0, 0.35).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)

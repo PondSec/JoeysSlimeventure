@@ -1,5 +1,7 @@
 extends CharacterBody2D
 
+const LootDropper := preload("res://Scripts/loot_dropper.gd")
+
 # Einstellungen
 const SPEED = 140.0
 const FAST_SPEED = 220.0
@@ -747,22 +749,15 @@ func die() -> void:
 	respawn()
 
 func drop_loot() -> void:
-	var loot_table = get_loot_table()  # Holt die aktuelle Loot-Table
-	var roll = randf()
-	var cumulative_chance = 0.0
-	
-	for item in loot_table:
-		cumulative_chance += item["chance"]
-		if roll < cumulative_chance:
-			if item["scene"] == null:
-				return
-			
-			var dropped_item = item["scene"].instantiate()
-			dropped_item.global_position = global_position
-			dropped_item.apply_impulse(Vector2(randf_range(-50, 50), -100))
-			dropped_item.apply_torque_impulse(randf_range(-10, 10))
-			get_parent().add_child(dropped_item)
-			return
+	LootDropper.spawn_independent_drops(self, [
+		{"item": "health_heart", "chance": 0.54},
+		{"item": "bat_claw", "chance": 0.25},
+		{"item": "copper_nugget", "chance": 0.46},
+		{"item": "silver_nugget", "chance": 0.16},
+		{"item": "iron_nugget", "chance": 0.09},
+		{"item": "gold_nugget", "chance": 0.018},
+		{"item": "bat_artefact", "chance": 0.008}
+	])
 
 func respawn() -> void:
 	if was_called:  # Gerufene Fledermäuse respawnen nicht

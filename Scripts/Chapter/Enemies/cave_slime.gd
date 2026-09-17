@@ -1,5 +1,7 @@
 extends CharacterBody2D
 
+const LootDropper := preload("res://Scripts/loot_dropper.gd")
+
 signal defeated
 
 const GRAVITY := 1300.0
@@ -144,6 +146,12 @@ func _die() -> void:
 	set_collision_layer_value(1, false)
 	set_collision_mask_value(1, false)
 	emit_signal("defeated")
+	LootDropper.spawn_independent_drops(self, [
+		{"item": "health_heart", "chance": 0.56},
+		{"item": "copper_nugget", "chance": 0.46},
+		{"item": "silver_nugget", "chance": 0.12},
+		{"item": "gold_nugget", "chance": 0.008}
+	])
 
 	var death_tween: Tween = create_tween()
 	death_tween.set_parallel(true)

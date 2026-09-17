@@ -59,6 +59,10 @@ func show_tooltip(item: InvItem, pointer_position: Vector2) -> void:
 		stat_lines.append("[color=#f9dd7d]Crit-Chance:[/color] %+d%%" % int(round(item.crit_chance_bonus * 100.0)))
 	if item.crit_damage_bonus != 0.0:
 		stat_lines.append("[color=#f9dd7d]Crit-Schaden:[/color] %+d%%" % int(round(item.crit_damage_bonus * 100.0)))
+	if item.damage_reduction_bonus != 0.0:
+		stat_lines.append("[color=#8fe6ff]Schadensreduktion:[/color] %+d%%" % int(round(item.damage_reduction_bonus * 100.0)))
+	if item.glow_range_multiplier < 1.0:
+		stat_lines.append("[color=#a9b7b4]Leuchtradius:[/color] %d%%" % int(round(item.glow_range_multiplier * 100.0)))
 	if item.throw_damage != 0.0:
 		stat_lines.append("[color=#ffb97a]Wurfschaden:[/color] %d" % int(round(item.throw_damage)))
 	if item.drop_chance > 0.0:

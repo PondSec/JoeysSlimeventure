@@ -8,6 +8,7 @@ script = ExtResource("1_item")
 name = "silver_nugget"
 stack_key = "silver_currency"
 texture = ExtResource("2_texture")
+stack_key = "silver_nugget"
 health_bonus = 0.0
 damage_bonus = 0.0
 crit_chance_bonus = 0.0

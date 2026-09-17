@@ -1,5 +1,7 @@
 extends CharacterBody2D
 
+const LootDropper := preload("res://Scripts/loot_dropper.gd")
+
 signal defeated
 
 enum State {
@@ -278,6 +280,14 @@ func _die() -> void:
 	is_dead = true
 	state = State.DEAD
 	emit_signal("defeated")
+	LootDropper.spawn_independent_drops(self, [
+		{"item": "health_heart", "chance": 0.54},
+		{"item": "copper_nugget", "chance": 0.50},
+		{"item": "silver_nugget", "chance": 0.18},
+		{"item": "irrlicht_carapace", "chance": 0.08},
+		{"item": "irrlicht_eye", "chance": 0.025},
+		{"item": "gold_nugget", "chance": 0.012}
+	])
 	set_collision_layer_value(1, false)
 	set_collision_mask_value(1, false)
 	hitbox.monitoring = false

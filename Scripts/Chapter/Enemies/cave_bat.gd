@@ -1,5 +1,7 @@
 extends CharacterBody2D
 
+const LootDropper := preload("res://Scripts/loot_dropper.gd")
+
 signal defeated
 
 const CONTACT_COOLDOWN := 0.85
@@ -119,6 +121,13 @@ func _die() -> void:
 		return
 	is_dead = true
 	emit_signal("defeated")
+	LootDropper.spawn_independent_drops(self, [
+		{"item": "health_heart", "chance": 0.52},
+		{"item": "bat_claw", "chance": 0.26},
+		{"item": "copper_nugget", "chance": 0.42},
+		{"item": "silver_nugget", "chance": 0.16},
+		{"item": "gold_nugget", "chance": 0.012}
+	])
 	var death_tween: Tween = create_tween()
 	death_tween.set_parallel(true)
 	death_tween.tween_property(self, "modulate:a", 0.0, 0.18).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
