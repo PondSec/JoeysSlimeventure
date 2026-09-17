@@ -4,6 +4,7 @@ class_name CharacterCatalog
 
 const SLIME_ID := "slime"
 const MALE_HERO_ID := "male_hero"
+const HERO_DELUXE_SHEETS := "res://Assets/player/hero/individual_sheets/"
 
 static var _texture_cache: Dictionary = {}
 
@@ -126,7 +127,7 @@ static func _build_male_hero_meta() -> Dictionary:
 		"description": "Ein humanoider Runner mit kontrolliertem, etwas schwererem Platforming und eigenem Animationsset.",
 		"accent": Color("F58BD0"),
 		"preview": {
-			"texture_path": "res://Assets/Heros/male/male_hero-idle.png",
+			"texture_path": HERO_DELUXE_SHEETS + "male_hero-idle.png",
 			"hframes": 10,
 			"vframes": 1,
 			"fps": 9.0,
@@ -151,7 +152,7 @@ static func _build_male_hero_meta() -> Dictionary:
 					"air_jump_velocity": -425.0,
 					"wall_jump_velocity_x": 470.0,
 					"wall_jump_velocity_y": -485.0,
-					"wall_slide_speed": 0.0,
+					"wall_slide_speed": 76.0,
 					"wall_run_vertical_speed": 0.0,
 					"dash_speed": 570.0,
 					"dash_duration": 0.15,
@@ -172,8 +173,9 @@ static func _build_male_hero_meta() -> Dictionary:
 					},
 				},
 				"capabilities": {
-					"wall_slide": false,
-					"wall_jump_without_slide": true,
+					"wall_slide": true,
+					"wall_jump_without_slide": false,
+					"ledge_grab": true,
 					"ground_slide": true,
 					"sticky_form": false,
 					"slime_wings": false,
@@ -196,6 +198,10 @@ static func _build_male_hero_meta() -> Dictionary:
 					"momentum_damage_multiplier": 1.24,
 					"momentum_lunge_bonus": 85.0,
 					"hitstop": 0.042,
+					# These match the authored Deluxe sheets exactly: every frame is shown
+					# before the corresponding recovery sheet is allowed to take over.
+					"combo_active": [0.15, 0.273, 0.5],
+					"combo_recovery": [0.222, 0.222, 0.3],
 				},
 				"weapon_visual": {
 					"show_equipped_weapon": false,
@@ -216,172 +222,203 @@ static func _build_male_hero_meta() -> Dictionary:
 					"wall_jump": "res://Assets/Sounds/Polish/phase_jump_2.ogg",
 				},
 			"animations": {
+				"design": {
+					"texture_path": HERO_DELUXE_SHEETS + "male_hero-design.png",
+					"hframes": 1,
+					"vframes": 1,
+					"fps": 1.0,
+					"loop": true,
+				},
 				"idle": {
-					"texture_path": "res://Assets/Heros/male/male_hero-idle.png",
+					"texture_path": HERO_DELUXE_SHEETS + "male_hero-idle.png",
 					"hframes": 10,
 					"vframes": 1,
 					"fps": 9.0,
 					"loop": true,
 				},
 				"walk": {
-					"texture_path": "res://Assets/Heros/male/male_hero-walk.png",
+					"texture_path": HERO_DELUXE_SHEETS + "male_hero-walk.png",
 					"hframes": 10,
 					"vframes": 1,
 					"fps": 11.0,
 					"loop": true,
 				},
 				"run": {
-					"texture_path": "res://Assets/Heros/male/male_hero-run.png",
+					"texture_path": HERO_DELUXE_SHEETS + "male_hero-run.png",
 					"hframes": 10,
 					"vframes": 1,
 					"fps": 14.0,
 					"loop": true,
 				},
 				"run_to_idle": {
-					"texture_path": "res://Assets/Heros/male/male_hero-run_to_idle.png",
+					"texture_path": HERO_DELUXE_SHEETS + "male_hero-run_to_idle.png",
 					"hframes": 7,
 					"vframes": 1,
 					"fps": 16.0,
 					"loop": false,
 				},
 				"idle_turn": {
-					"texture_path": "res://Assets/Heros/male/male_hero-idle_turn.png",
+					"texture_path": HERO_DELUXE_SHEETS + "male_hero-idle_turn.png",
 					"hframes": 4,
 					"vframes": 1,
 					"fps": 18.0,
 					"loop": false,
 				},
 				"walk_turn": {
-					"texture_path": "res://Assets/Heros/male/male_hero-walk_turn.png",
+					"texture_path": HERO_DELUXE_SHEETS + "male_hero-walk_turn.png",
 					"hframes": 4,
 					"vframes": 1,
 					"fps": 18.0,
 					"loop": false,
 				},
 				"run_turn": {
-					"texture_path": "res://Assets/Heros/male/male_hero-run_turn.png",
+					"texture_path": HERO_DELUXE_SHEETS + "male_hero-run_turn.png",
 					"hframes": 4,
 					"vframes": 1,
 					"fps": 18.0,
 					"loop": false,
 				},
 				"jump": {
-					"texture_path": "res://Assets/Heros/male/male_hero-jump.png",
+					"texture_path": HERO_DELUXE_SHEETS + "male_hero-jump.png",
 					"hframes": 6,
 					"vframes": 1,
 					"fps": 16.0,
 					"loop": false,
 				},
 				"fall": {
-					"texture_path": "res://Assets/Heros/male/male_hero-fall.png",
+					"texture_path": HERO_DELUXE_SHEETS + "male_hero-fall.png",
 					"hframes": 4,
 					"vframes": 1,
 					"fps": 16.0,
 					"loop": false,
 				},
 				"fall_loop": {
-					"texture_path": "res://Assets/Heros/male/male_hero-fall_loop.png",
+					"texture_path": HERO_DELUXE_SHEETS + "male_hero-fall_loop.png",
 					"hframes": 3,
 					"vframes": 1,
 					"fps": 8.0,
 					"loop": true,
 				},
-				"landing": {
-					"texture_path": "res://Assets/Heros/male/male_hero-run_to_idle.png",
-					"hframes": 7,
-					"vframes": 1,
-					"fps": 16.0,
-					"loop": false,
-				},
-				"hard_landing": {
-					"texture_path": "res://Assets/Heros/male/male_hero-slide.png",
-					"hframes": 8,
-					"vframes": 1,
-					"fps": 18.0,
-					"loop": false,
-				},
-				"ground_slide": {
-					"texture_path": "res://Assets/Heros/male/male_hero-slide.png",
+				"slide": {
+					"texture_path": HERO_DELUXE_SHEETS + "male_hero-slide.png",
 					"hframes": 8,
 					"vframes": 1,
 					"fps": 22.0,
 					"loop": true,
 				},
 				"wall_slide": {
-					"texture_path": "res://Assets/Heros/male/male_hero-wall_slide.png",
+					"texture_path": HERO_DELUXE_SHEETS + "male_hero-wall_slide.png",
 					"hframes": 4,
 					"vframes": 1,
 					"fps": 8.0,
 					"loop": true,
 				},
 				"wall_jump": {
-					"texture_path": "res://Assets/Heros/male/male_hero-wall_jump.png",
+					"texture_path": HERO_DELUXE_SHEETS + "male_hero-wall_jump.png",
 					"hframes": 4,
 					"vframes": 1,
 					"fps": 16.0,
 					"loop": false,
 				},
 				"dash": {
-					"texture_path": "res://Assets/Heros/male/male_hero-dash.png",
+					"texture_path": HERO_DELUXE_SHEETS + "male_hero-dash.png",
 					"hframes": 5,
 					"vframes": 1,
 					"fps": 20.0,
 					"loop": false,
 				},
-				"attack_1": {
-					"texture_path": "res://Assets/Heros/male/male_hero-combo_1.png",
+				"combo_1": {
+					"texture_path": HERO_DELUXE_SHEETS + "male_hero-combo_1.png",
 					"hframes": 3,
 					"vframes": 1,
 					"fps": 20.0,
 					"loop": false,
 				},
-				"attack_1_end": {
-					"texture_path": "res://Assets/Heros/male/male_hero-combo_1_end.png",
+				"combo_1_end": {
+					"texture_path": HERO_DELUXE_SHEETS + "male_hero-combo_1_end.png",
 					"hframes": 4,
 					"vframes": 1,
 					"fps": 18.0,
 					"loop": false,
 				},
-				"attack_2": {
-					"texture_path": "res://Assets/Heros/male/male_hero-combo_2.png",
+				"combo_2": {
+					"texture_path": HERO_DELUXE_SHEETS + "male_hero-combo_2.png",
 					"hframes": 6,
 					"vframes": 1,
 					"fps": 22.0,
 					"loop": false,
 				},
-				"attack_2_end": {
-					"texture_path": "res://Assets/Heros/male/male_hero-combo_2_end.png",
+				"combo_2_end": {
+					"texture_path": HERO_DELUXE_SHEETS + "male_hero-combo_2_end.png",
 					"hframes": 4,
 					"vframes": 1,
 					"fps": 18.0,
 					"loop": false,
 				},
-				"attack_3": {
-					"texture_path": "res://Assets/Heros/male/male_hero-combo_3.png",
+				"combo_3": {
+					"texture_path": HERO_DELUXE_SHEETS + "male_hero-combo_3.png",
 					"hframes": 12,
 					"vframes": 1,
 					"fps": 24.0,
 					"loop": false,
 				},
-				"attack_3_end": {
-					"texture_path": "res://Assets/Heros/male/male_hero-combo_3_end.png",
+				"combo_3_end": {
+					"texture_path": HERO_DELUXE_SHEETS + "male_hero-combo_3_end.png",
 					"hframes": 6,
 					"vframes": 1,
 					"fps": 20.0,
 					"loop": false,
 				},
 				"hurt": {
-					"texture_path": "res://Assets/Heros/male/male_hero-hurt.png",
+					"texture_path": HERO_DELUXE_SHEETS + "male_hero-hurt.png",
 					"hframes": 6,
 					"vframes": 1,
 					"fps": 18.0,
 					"loop": false,
 				},
 				"death": {
-					"texture_path": "res://Assets/Heros/male/male_hero-death.png",
+					"texture_path": HERO_DELUXE_SHEETS + "male_hero-death.png",
 					"hframes": 23,
 					"vframes": 1,
 					"fps": 20.0,
+					"loop": false,
+				},
+				"ledge_hang": {
+					"texture_path": HERO_DELUXE_SHEETS + "male_hero-ledge_hang.png",
+					"hframes": 7,
+					"vframes": 1,
+					"fps": 5.0,
+					"loop": true,
+					# Frame analysis: frames 1–4 are a settling descent (their visual
+					# centers shift every frame). Frames 5–7 share the steady hang pose
+					# and are the only frames valid for a seamless idle loop.
+					"frame_sequence": [4, 5, 6],
+				},
+				"ledge_grab": {
+					# The same sheet's arrival sequence: play once as the hero catches
+					# the lip, then hand over to ledge_hang's stable loop.
+					"texture_path": HERO_DELUXE_SHEETS + "male_hero-ledge_hang.png",
+					"hframes": 7,
+					"vframes": 1,
+					"fps": 14.0,
+					"loop": false,
+					"frame_sequence": [0, 1, 2, 3],
+				},
+				"ledge_reach": {
+					# A blocked pull-up briefly reaches toward the lip, then returns to
+					# the hang pose. The reverse frames avoid a visible hard cut.
+					"texture_path": HERO_DELUXE_SHEETS + "male_hero-ledge_climb.png",
+					"hframes": 11,
+					"vframes": 1,
+					"fps": 18.0,
+					"loop": false,
+					"frame_sequence": [0, 1, 2, 3, 2, 1, 0],
+				},
+				"ledge_climb": {
+					"texture_path": HERO_DELUXE_SHEETS + "male_hero-ledge_climb.png",
+					"hframes": 11,
+					"vframes": 1,
+					"fps": 18.0,
 					"loop": false,
 				},
 			},

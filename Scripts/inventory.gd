@@ -25,6 +25,7 @@ const LEGACY_SLOT_REDIRECTS := {
 	"relic": "relic_1",
 	"star": "star_1",
 }
+const HOTBAR_SLOT_COUNT := 9
 
 @export var slots: Array[InvSlot]
 
@@ -97,6 +98,8 @@ func Insert(item: InvItem) -> bool:
 		return false
 
 	var stack_size: int = maxi(item.stack_size, 1)
+	# Existing stacks always win, regardless of where the player put them.
+	# This keeps partial resource stacks together instead of creating duplicates.
 	if stack_size > 1:
 		for slot in slots:
 			if slot.item and slot.item.name == item.name and slot.amount < stack_size:
@@ -104,7 +107,19 @@ func Insert(item: InvItem) -> bool:
 				_notify_inventory_changed()
 				return true
 
-	for slot in slots:
+	# New pickups occupy the visible quick-access slots first. The hotbar is the
+	# final nine inventory slots, while the bag remains the overflow area.
+	var hotbar_start := maxi(slots.size() - HOTBAR_SLOT_COUNT, 0)
+	for slot_index in range(hotbar_start, slots.size()):
+		var slot: InvSlot = slots[slot_index]
+		if slot.item == null:
+			slot.item = item
+			slot.amount = 1
+			_notify_inventory_changed()
+			return true
+
+	for slot_index in range(hotbar_start):
+		var slot: InvSlot = slots[slot_index]
 		if slot.item == null:
 			slot.item = item
 			slot.amount = 1
@@ -166,7 +181,17 @@ func remove_amount(item_names: Array[String], amount: int) -> bool:
 func swap_slots(index1: int, index2: int) -> void:
 	if index1 < 0 or index1 >= slots.size() or index2 < 0 or index2 >= slots.size():
 		return
-	_swap_slot_contents(slots[index1], slots[index2])
+	if index1 == index2:
+		return
+
+	var first_slot := slots[index1]
+	var second_slot := slots[index2]
+	# Dropping a stackable item on the same item combines both slots before a
+	# regular swap is considered. The overflow stays in the dragged source slot.
+	if _merge_matching_slots(first_slot, second_slot):
+		_notify_inventory_changed()
+		return
+	_swap_slot_contents(first_slot, second_slot)
 	_notify_inventory_changed()
 
 
@@ -414,6 +439,25 @@ func _normalize_slot(slot: InvSlot) -> void:
 	slot.amount = clamp(slot.amount, 1, max_stack)
 	if slot.item.stack_size <= 1:
 		slot.amount = 1
+
+
+func _merge_matching_slots(source: InvSlot, target: InvSlot) -> bool:
+	if source == null or target == null or source.item == null or target.item == null:
+		return false
+	if source.item.name != target.item.name or source.item.stack_size <= 1:
+		return false
+
+	var free_space: int = maxi(target.item.stack_size - target.amount, 0)
+	if free_space <= 0:
+		return false
+	var moved_amount: int = mini(source.amount, free_space)
+	if moved_amount <= 0:
+		return false
+	target.amount += moved_amount
+	source.amount -= moved_amount
+	_normalize_slot(source)
+	_normalize_slot(target)
+	return true
 
 
 func _swap_slot_contents(first: InvSlot, second: InvSlot) -> void:

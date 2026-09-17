@@ -291,6 +291,37 @@ var hero_momentum_attack_timer := 0.0
 var hero_current_attack_had_momentum := false
 var hero_hitstop_active := false
 
+# Deluxe hero traversal state. These states deliberately live beside the
+# runtime animator so gameplay and visual ownership cannot drift apart.
+var is_hero_ledge_hanging := false
+var is_hero_ledge_climbing := false
+var hero_ledge_settle_timer := 0.0
+var hero_ledge_reach_timer := 0.0
+var hero_ledge_side := 0.0
+var hero_ledge_top := Vector2.ZERO
+var hero_ledge_climb_start := Vector2.ZERO
+var hero_ledge_climb_target := Vector2.ZERO
+var hero_ledge_climb_elapsed := 0.0
+const HERO_LEDGE_CLIMB_DURATION := 11.0 / 18.0
+const HERO_LEDGE_PROBE_REACH := 18.0
+const HERO_LEDGE_RELEASE_SPEED := 230.0
+const HERO_FALL_TRANSITION_TIME := 0.32
+# The Deluxe hang sheet is centered on its frame, while the grasping hands are
+# visibly above the physics body's origin. Keep the hands on the ledge, not the
+# collision rectangle's midpoint.
+const HERO_LEDGE_HANG_ROOT_BELOW_TOP := 25.0
+# A ledge must have a real vertical face beneath it; tiny steps are traversed
+# by normal movement and must never become a hang point.
+# The hero's physics box is intentionally much smaller than the Deluxe sprite.
+# This is 105% of the rendered feet-to-head height at the current world scale,
+# not 120% of the compact collision box.
+const HERO_LEDGE_MIN_FACE_HEIGHT := 70.0
+const HERO_LEDGE_FACE_SAMPLE_COUNT := 6
+
+# A buffered input chains immediately at the end of the authored strike sheet.
+# Without that input, the matching *_end sheet is allowed to finish in full.
+var hero_combo_queued := false
+
 # Variablen für das Lebenssystem
 var max_health: int = 100
 var current_health: int = 100
@@ -1098,6 +1129,10 @@ func _is_hero_form_active() -> bool:
 	return current_character_id == CharacterCatalog.MALE_HERO_ID
 
 
+func _is_hero_ledge_busy() -> bool:
+	return _is_hero_form_active() and (is_hero_ledge_hanging or is_hero_ledge_climbing)
+
+
 func _character_can(capability_name: String, default_value: bool = false) -> bool:
 	return bool(current_character_capabilities.get(capability_name, default_value))
 
@@ -1186,6 +1221,33 @@ func _get_collision_half_width_world() -> float:
 	return rect.size.x * collision_shape.scale.x * absf(global_scale.x) * 0.5
 
 
+func _get_collision_half_height_world() -> float:
+	var collision_shape := get_node_or_null("ColisionArea") as CollisionShape2D
+	if collision_shape == null or not (collision_shape.shape is RectangleShape2D):
+		return 28.0
+	var rect := collision_shape.shape as RectangleShape2D
+	return rect.size.y * collision_shape.scale.y * absf(global_scale.y) * 0.5
+
+
+func _can_hero_stand_at(stand_position: Vector2) -> bool:
+	# Test the real standing collision shape at the eventual landing position.
+	# This rejects a pull-up beneath a ceiling or into a narrow overhang before
+	# any traversal state or visual is allowed to change.
+	var collision_shape := get_node_or_null("ColisionArea") as CollisionShape2D
+	if collision_shape == null or collision_shape.shape == null:
+		return false
+	var shape_query := PhysicsShapeQueryParameters2D.new()
+	shape_query.shape = collision_shape.shape
+	var target_transform: Transform2D = collision_shape.global_transform
+	target_transform.origin += stand_position - global_position
+	shape_query.transform = target_transform
+	shape_query.collision_mask = collision_mask
+	shape_query.exclude = [get_rid()]
+	shape_query.collide_with_bodies = true
+	shape_query.collide_with_areas = false
+	return get_world_2d().direct_space_state.intersect_shape(shape_query, 1).is_empty()
+
+
 func _apply_default_character_profile() -> void:
 	_apply_character_profile(CharacterCatalog.SLIME_ID)
 
@@ -1230,6 +1292,12 @@ func _apply_character_profile(character_id: String) -> void:
 	weapon_base_scale = float(weapon_visual.get("base_scale", WEAPON_BASE_SCALE))
 	weapon_grip_offset_runtime = weapon_visual.get("grip_offset", WEAPON_GRIP_OFFSET)
 	_configure_character_audio()
+	if _is_hero_form_active():
+		combo_active_times = (hero_combat_config.get("combo_active", [0.15, 0.273, 0.5]) as Array).duplicate()
+		combo_recovery_times = (hero_combat_config.get("combo_recovery", [0.222, 0.222, 0.3]) as Array).duplicate()
+	else:
+		combo_active_times = [0.28, 0.30, 0.33]
+		combo_recovery_times = [0.12, 0.12, 0.15]
 	_apply_collision_profile("standing")
 	is_wall_sliding = false
 	is_wall_running = false
@@ -1287,6 +1355,11 @@ func _apply_character_profile(character_id: String) -> void:
 	runtime_hurt_timer = 0.0
 	runtime_dash_timer = 0.0
 	runtime_death_active = false
+	is_hero_ledge_hanging = false
+	is_hero_ledge_climbing = false
+	hero_ledge_settle_timer = 0.0
+	hero_ledge_reach_timer = 0.0
+	hero_combo_queued = false
 	was_descending = false
 	last_floor_velocity = 0.0
 
@@ -1299,14 +1372,23 @@ func _get_runtime_character_animation_descriptor(animation_name: String) -> Dict
 	if not uses_runtime_character_animation:
 		return {}
 	var animations: Dictionary = current_character_profile.get("animations", {}) as Dictionary
-	if animations.has(animation_name):
-		return (animations[animation_name] as Dictionary).duplicate(true)
+	var resolved_animation_name := animation_name
+	match animation_name:
+		"landing":
+			resolved_animation_name = "run_to_idle"
+		"hard_landing", "ground_slide":
+			resolved_animation_name = "slide"
+	if animations.has(resolved_animation_name):
+		return (animations[resolved_animation_name] as Dictionary).duplicate(true)
 	if animations.has("idle"):
 		return (animations["idle"] as Dictionary).duplicate(true)
 	return {}
 
 
 func _get_runtime_animation_frame_count(descriptor: Dictionary) -> int:
+	var frame_sequence: Array = descriptor.get("frame_sequence", []) as Array
+	if not frame_sequence.is_empty():
+		return frame_sequence.size()
 	var hframes := maxi(int(descriptor.get("hframes", 1)), 1)
 	var vframes := maxi(int(descriptor.get("vframes", 1)), 1)
 	return maxi(int(descriptor.get("frame_count", hframes * vframes)), 1)
@@ -1344,7 +1426,11 @@ func _apply_runtime_animation_frame(animation_name: String, frame_index: int) ->
 	var hframes := maxi(int(descriptor.get("hframes", 1)), 1)
 	var vframes := maxi(int(descriptor.get("vframes", 1)), 1)
 	var frame_count := _get_runtime_animation_frame_count(descriptor)
-	var clamped_frame := clampi(frame_index, 0, frame_count - 1)
+	var source_frame_count := hframes * vframes
+	var animation_frame := clampi(frame_index, 0, frame_count - 1)
+	var frame_sequence: Array = descriptor.get("frame_sequence", []) as Array
+	var source_frame := int(frame_sequence[animation_frame]) if not frame_sequence.is_empty() else animation_frame + maxi(int(descriptor.get("frame_offset", 0)), 0)
+	var clamped_frame := clampi(source_frame, 0, source_frame_count - 1)
 	var frame_size := Vector2(
 		float(texture.get_width()) / float(hframes),
 		float(texture.get_height()) / float(vframes)
@@ -1448,13 +1534,21 @@ func _resolve_runtime_animation_name() -> String:
 	if runtime_hurt_timer > 0.0:
 		return "hurt"
 	if is_attacking:
-		var attack_name := "attack_%d" % (current_attack_step + 1)
+		var attack_name := "combo_%d" % (current_attack_step + 1)
 		var active_window: float = float(combo_active_times[current_attack_step])
 		if runtime_attack_elapsed > active_window and not _get_runtime_character_animation_descriptor("%s_end" % attack_name).is_empty():
 			return "%s_end" % attack_name
 		return attack_name
+	if is_hero_ledge_climbing:
+		return "ledge_climb"
+	if is_hero_ledge_hanging:
+		if hero_ledge_reach_timer > 0.0:
+			return "ledge_reach"
+		if hero_ledge_settle_timer > 0.0:
+			return "ledge_grab"
+		return "ledge_hang"
 	if is_hero_ground_sliding:
-		return "ground_slide"
+		return "slide"
 	if is_landing:
 		if not _get_runtime_character_animation_descriptor(runtime_landing_animation).is_empty():
 			return runtime_landing_animation
@@ -1488,7 +1582,7 @@ func _update_runtime_character_animation(delta: float) -> void:
 
 	if not is_on_floor() and velocity.y > 22.0:
 		if not was_descending:
-			runtime_fall_transition_timer = _get_runtime_animation_length("fall")
+			runtime_fall_transition_timer = maxf(_get_runtime_animation_length("fall"), HERO_FALL_TRANSITION_TIME)
 			runtime_animation_state = ""
 		was_descending = true
 	elif is_on_floor() or velocity.y <= 0.0:
@@ -1516,7 +1610,11 @@ func _update_runtime_character_animation(delta: float) -> void:
 	var fps := maxf(float(descriptor.get("fps", 1.0)), 0.01)
 	var frame_index := int(floor(runtime_animation_elapsed * fps))
 	if bool(descriptor.get("loop", false)):
-		frame_index %= frame_count
+		var loop_start_frame: int = clampi(int(descriptor.get("loop_start_frame", 0)), 0, frame_count - 1)
+		if loop_start_frame > 0 and frame_index >= frame_count:
+			frame_index = loop_start_frame + (frame_index - frame_count) % (frame_count - loop_start_frame)
+		else:
+			frame_index %= frame_count
 	else:
 		frame_index = mini(frame_index, frame_count - 1)
 
@@ -1707,8 +1805,17 @@ func update_facing_direction():
 		return
 
 	var previous_facing := is_facing_left
-	
-	if abs(direction.x) > 0.0:
+
+	# Deluxe wall/ledge frames are authored facing right. Derive one stable
+	# horizontal flip from the contacted surface and do not let mouse facing
+	# re-flip the sprite in the same physics frame.
+	if is_wall_sliding:
+		# The Deluxe wall-slide sheet's native orientation is opposite to the
+		# generic movement sprite, so wall contact needs the inverted facing.
+		is_facing_left = last_wall_normal.x < 0.0
+	elif is_hero_ledge_hanging or is_hero_ledge_climbing:
+		is_facing_left = hero_ledge_side < 0.0
+	elif abs(direction.x) > 0.0:
 		is_facing_left = direction.x < 0
 	elif Input.is_action_pressed("left"):
 		is_facing_left = true
@@ -1718,7 +1825,7 @@ func update_facing_direction():
 		var mouse_pos = get_global_mouse_position()
 		is_facing_left = mouse_pos.x < global_position.x
 
-	if uses_runtime_character_animation and previous_facing != is_facing_left and is_on_floor() and not is_attacking and not is_landing and not is_dashing and not is_hero_ground_sliding:
+	if uses_runtime_character_animation and previous_facing != is_facing_left and is_on_floor() and not is_attacking and not is_landing and not is_dashing and not is_hero_ground_sliding and not is_wall_sliding and not is_hero_ledge_hanging and not is_hero_ledge_climbing:
 		var speed: float = absf(velocity.x)
 		if speed > maxf(RUN_SPEED * 0.72, 120.0):
 			runtime_turn_animation = "run_turn"
@@ -1773,7 +1880,7 @@ func _process(delta: float) -> void:
 		return
 	
 	# Angriff ausführen oder für Combo puffern
-	if Input.is_action_just_pressed("Attack"):
+	if Input.is_action_just_pressed("Attack") and not _is_hero_ledge_busy():
 		perform_attack()
 	
 	if Input.is_action_just_pressed("throw_slimeball") and slimeball_scene and not _is_hero_form_active():
@@ -1815,17 +1922,19 @@ func _physics_process(delta: float) -> void:
 		if is_in_water:
 			apply_water_physics(delta)
 		else:
-			handle_jump_mechanics(delta)
-			handle_wall_mechanics(delta)
-			handle_dash(delta)
-			handle_wall_run(delta)
-			handle_slime_wings(delta)
+			var ledge_locked := _handle_hero_ledge(delta)
+			if not ledge_locked:
+				handle_jump_mechanics(delta)
+				handle_wall_mechanics(delta)
+				handle_dash(delta)
+				handle_wall_run(delta)
+				handle_slime_wings(delta)
+
+				if not is_gliding and not is_dashing and not is_sticky_form_active and not is_hero_ground_sliding:
+					apply_gravity(delta)
+
+				handle_sticky_form_mechanics(delta)
 			
-			if not is_gliding and not is_dashing and not is_sticky_form_active and not is_hero_ground_sliding:
-				apply_gravity(delta)
-			
-			handle_sticky_form_mechanics(delta)
-		
 			move_and_slide()
 			_process_active_attack_overlaps()
 			update_facing_direction()
@@ -2385,7 +2494,7 @@ func _should_start_hero_slide_from_input() -> bool:
 
 func handle_wall_mechanics(delta):
 	var on_air_wall := is_on_wall() and not is_on_floor() and wall_detach_timer <= 0.0
-	var can_slime_wall_slide := has_wall_slide_skill and _character_can("wall_slide", true)
+	var can_wall_slide := _character_can("wall_slide", false) and (_is_hero_form_active() or has_wall_slide_skill)
 	var can_hero_wall_jump := _character_can("wall_jump_without_slide", false)
 
 	if not on_air_wall:
@@ -2396,24 +2505,174 @@ func handle_wall_mechanics(delta):
 			wall_stick_timer -= delta
 		return
 
-	var current_wall_normal = get_wall_normal()
+	var current_wall_normal: Vector2 = get_wall_normal()
 	if current_wall_normal != last_wall_normal:
 		can_wall_jump = true
 		last_wall_normal = current_wall_normal
 
 	var can_start_slide := velocity.y >= -18.0
-	if can_slime_wall_slide and can_start_slide:
+	var is_pressing_into_wall: bool = absf(direction.x) > 0.1 and signf(direction.x) == -current_wall_normal.x
+	if can_wall_slide and can_start_slide and is_pressing_into_wall:
 		is_wall_sliding = true
 		velocity.y = move_toward(velocity.y, minf(velocity.y, wall_slide_speed_cap), WALL_SLIDE_DECELERATION * delta)
 		wall_stick_timer = WALL_STICK_TIME
 		if Input.is_action_just_pressed("up") and can_wall_jump:
-			_perform_profile_wall_jump(current_wall_normal, false)
+			_perform_profile_wall_jump(current_wall_normal, _is_hero_form_active())
 	elif can_hero_wall_jump:
 		is_wall_sliding = false
 		if Input.is_action_just_pressed("up") and can_wall_jump:
 			_perform_profile_wall_jump(current_wall_normal, true)
 	else:
 		is_wall_sliding = false
+
+
+func _handle_hero_ledge(delta: float) -> bool:
+	if not _is_hero_form_active() or not _character_can("ledge_grab", false):
+		return false
+
+	if is_hero_ledge_climbing:
+		hero_ledge_climb_elapsed = minf(hero_ledge_climb_elapsed + delta, HERO_LEDGE_CLIMB_DURATION)
+		# The climb sheet already moves the body from below the lip to the top.
+		# Moving CharacterBody2D as well would make the hero visibly float.
+		velocity = Vector2.ZERO
+		if hero_ledge_climb_elapsed >= HERO_LEDGE_CLIMB_DURATION:
+			global_position = hero_ledge_climb_target
+			is_hero_ledge_climbing = false
+			is_hero_ledge_hanging = false
+			wall_detach_timer = WALL_DETACH_GRACE
+			runtime_stop_timer = _get_runtime_animation_length("run_to_idle")
+			runtime_animation_state = ""
+		return true
+
+	if is_hero_ledge_hanging:
+		var hang_input := direction.x
+		velocity = Vector2.ZERO
+		direction.x = 0.0
+		if hero_ledge_settle_timer > 0.0:
+			hero_ledge_settle_timer = maxf(hero_ledge_settle_timer - delta, 0.0)
+			return true
+		if hero_ledge_reach_timer > 0.0:
+			hero_ledge_reach_timer = maxf(hero_ledge_reach_timer - delta, 0.0)
+			return true
+		if Input.is_action_just_pressed("up"):
+			var stand_target := _get_hero_ledge_climb_target()
+			if _can_hero_stand_at(stand_target):
+				_start_hero_ledge_climb()
+			else:
+				# There is no clearance above this real cliff. Keep the body locked
+				# to the hang point and only play the authored reach-and-return.
+				hero_ledge_reach_timer = _get_runtime_animation_length("ledge_reach")
+				runtime_animation_state = ""
+		elif Input.is_action_just_pressed("down") or (absf(hang_input) > 0.1 and signf(hang_input) != hero_ledge_side):
+			_release_hero_ledge()
+		return true
+
+	if is_on_floor() or is_dashing or is_attacking or velocity.y < 0.0 or wall_detach_timer > 0.0:
+		return false
+
+	var travel_side: float = signf(direction.x)
+	if travel_side == 0.0:
+		travel_side = signf(velocity.x)
+	if travel_side == 0.0:
+		return false
+	# A ledge grab must be intentional: the player has to hold towards the wall.
+	if signf(direction.x) != travel_side:
+		return false
+
+	var ledge := _find_hero_ledge(travel_side)
+	if ledge.is_empty():
+		return false
+
+	hero_ledge_side = travel_side
+	hero_ledge_top = ledge.get("top", global_position) as Vector2
+	global_position = ledge.get("hang_position", global_position) as Vector2
+	velocity = Vector2.ZERO
+	is_wall_sliding = false
+	is_hero_ledge_hanging = true
+	hero_ledge_settle_timer = _get_runtime_animation_length("ledge_grab")
+	hero_ledge_reach_timer = 0.0
+	runtime_animation_state = ""
+	_squash_player_sprite(Vector2(0.94, 1.06), 0.10)
+	return true
+
+
+func _find_hero_ledge(side: float) -> Dictionary:
+	var space_state := get_world_2d().direct_space_state
+	var half_width := _get_collision_half_width_world()
+	var half_height := _get_collision_half_height_world()
+	var chest_y := global_position.y - half_height * 0.42
+	var wall_from := Vector2(global_position.x + side * maxf(half_width - 2.0, 2.0), chest_y)
+	var wall_to := wall_from + Vector2(side * HERO_LEDGE_PROBE_REACH, 0.0)
+	var wall_query := PhysicsRayQueryParameters2D.create(wall_from, wall_to, 0xFFFFFFFF, [get_rid()])
+	var wall_hit := space_state.intersect_ray(wall_query)
+	if wall_hit.is_empty():
+		return {}
+
+	# The upper probe has to be clear, otherwise this is a full-height wall.
+	var head_from := global_position + Vector2(side * maxf(half_width - 1.0, 2.0), -half_height - 4.0)
+	var head_to := head_from + Vector2(side * HERO_LEDGE_PROBE_REACH, 0.0)
+	var head_query := PhysicsRayQueryParameters2D.create(head_from, head_to, 0xFFFFFFFF, [get_rid()])
+	if not space_state.intersect_ray(head_query).is_empty():
+		return {}
+
+	# Locate the horizontal top surface just beyond the wall face.
+	var top_x := (wall_hit.get("position", wall_to) as Vector2).x + side * 4.0
+	var top_from := Vector2(top_x, global_position.y - half_height - 28.0)
+	var top_to := top_from + Vector2(0.0, half_height + 64.0)
+	var top_query := PhysicsRayQueryParameters2D.create(top_from, top_to, 0xFFFFFFFF, [get_rid()])
+	var top_hit := space_state.intersect_ray(top_query)
+	if top_hit.is_empty():
+		return {}
+
+	var top := top_hit.get("position", top_to) as Vector2
+	if top.y < global_position.y - half_height - 54.0 or top.y > global_position.y + 8.0:
+		return {}
+
+	# Do not latch onto a single-tile step. A usable ledge needs a continuous
+	# wall face at least as tall as the hero, otherwise the climb destination
+	# would either be inside a ceiling or on a surface too short to stand on.
+	# Test the whole face, rather than only its lowest point. A single low point
+	# can hit unrelated geometry beneath a short ledge and falsely validate it.
+	for sample_index in range(1, HERO_LEDGE_FACE_SAMPLE_COUNT + 1):
+		var sample_ratio: float = float(sample_index) / float(HERO_LEDGE_FACE_SAMPLE_COUNT)
+		var face_y: float = top.y + HERO_LEDGE_MIN_FACE_HEIGHT * sample_ratio
+		var face_from := Vector2(top.x - side * HERO_LEDGE_PROBE_REACH, face_y)
+		var face_to := face_from + Vector2(side * HERO_LEDGE_PROBE_REACH * 2.0, 0.0)
+		var face_query := PhysicsRayQueryParameters2D.create(face_from, face_to, 0xFFFFFFFF, [get_rid()])
+		if space_state.intersect_ray(face_query).is_empty():
+			return {}
+	return {
+		"top": top,
+		"hang_position": Vector2(top.x - side * (half_width + 2.0), top.y + HERO_LEDGE_HANG_ROOT_BELOW_TOP),
+	}
+
+
+func _get_hero_ledge_climb_target() -> Vector2:
+	return Vector2(
+		hero_ledge_top.x + hero_ledge_side * (_get_collision_half_width_world() + 4.0),
+		hero_ledge_top.y - _get_collision_ground_offset_world() - 1.0
+	)
+
+
+func _start_hero_ledge_climb() -> void:
+	is_hero_ledge_hanging = false
+	is_hero_ledge_climbing = true
+	hero_ledge_settle_timer = 0.0
+	hero_ledge_reach_timer = 0.0
+	hero_ledge_climb_elapsed = 0.0
+	hero_ledge_climb_start = global_position
+	hero_ledge_climb_target = _get_hero_ledge_climb_target()
+	runtime_animation_state = ""
+	$Camera2D.shake(0.75, 0.08)
+	_squash_player_sprite(Vector2(0.92, 1.10), 0.12)
+
+
+func _release_hero_ledge() -> void:
+	is_hero_ledge_hanging = false
+	hero_ledge_reach_timer = 0.0
+	velocity = Vector2(-hero_ledge_side * HERO_LEDGE_RELEASE_SPEED, 135.0)
+	wall_detach_timer = WALL_DETACH_GRACE
+	runtime_animation_state = ""
 
 
 func _perform_profile_wall_jump(wall_normal: Vector2, hero_kick: bool) -> void:
@@ -2493,7 +2752,7 @@ func _get_preferred_dash_direction() -> Vector2:
 func dash(dir: Vector2):
 	if !has_dash_skill:
 		return
-	if is_dashing or is_hero_ground_sliding or not can_dash or is_stunned or is_charging:
+	if is_dashing or is_hero_ground_sliding or _is_hero_ledge_busy() or not can_dash or is_stunned or is_charging:
 		return
 
 	if dir == Vector2.ZERO:
@@ -2504,7 +2763,9 @@ func dash(dir: Vector2):
 	dash_direction = dir.normalized()
 	dash_elapsed = 0.0
 	dash_invulnerability_timer = DASH_INVULNERABILITY_TIME
-	runtime_dash_timer = dash_duration
+	# Movement ends on the responsive dash timing; the Deluxe visual continues
+	# through its final two frames instead of being cut short.
+	runtime_dash_timer = maxf(dash_duration, _get_runtime_animation_length("dash"))
 	runtime_animation_state = ""
 	dash_timer.wait_time = dash_duration
 	dash_cooldown_timer.wait_time = dash_cooldown
@@ -3146,7 +3407,8 @@ func die() -> void:
 	velocity = Vector2.ZERO
 
 	if runtime_death_active:
-		var death_wait := clampf(_get_runtime_animation_length("death"), 0.35, 0.85)
+		# Death is intentionally never shortened: the Deluxe sheet has 23 frames.
+		var death_wait := maxf(_get_runtime_animation_length("death"), 0.35)
 		await get_tree().create_timer(death_wait).timeout
 
 	# Kollisionsabfrage deaktivieren, damit Items nicht aufgesammelt werden
@@ -3296,10 +3558,14 @@ func _create_world_pickup(item_or_name: Variant) -> RigidBody2D:
 # Angriff ausführen
 @rpc("call_local", "reliable")
 func perform_attack() -> void:
-	if _is_gameplay_input_blocked() or is_stunned or is_charging or is_teleporting:
+	if _is_gameplay_input_blocked() or _is_hero_ledge_busy() or is_stunned or is_charging or is_teleporting:
 		return
 
 	if is_attacking:
+		if _is_hero_form_active():
+			if current_attack_step < 2:
+				hero_combo_queued = true
+			return
 		queued_attack_timer = ATTACK_QUEUE_TIME
 		return
 
@@ -3318,15 +3584,16 @@ func perform_attack() -> void:
 
 	stop_healing()
 	is_attacking = true
+	hero_combo_queued = false
 	attack_targets_hit.clear()
 	last_attack_time = now
 	
 	if combo_reset_timer > 0.0:
-		attack_combo_count = min(attack_combo_count + 1, MAX_COMBO)
+		attack_combo_count = min(attack_combo_count + 1, 3 if _is_hero_form_active() else MAX_COMBO)
 	else:
 		attack_combo_count = 1
 
-	var combo_index: int = clampi(attack_combo_count - 1, 0, MAX_COMBO - 1)
+	var combo_index: int = clampi(attack_combo_count - 1, 0, 2 if _is_hero_form_active() else MAX_COMBO - 1)
 	current_attack_step = combo_index % 3
 	current_attack_damage_multiplier = combo_damage_multipliers[combo_index]
 	current_attack_knockback_strength = combo_knockback_strengths[combo_index]
@@ -3350,10 +3617,21 @@ func perform_attack() -> void:
 
 	await get_tree().create_timer(combo_active_times[current_attack_step]).timeout
 	attack_area.monitoring = false
+	if _is_hero_form_active() and hero_combo_queued and current_attack_step < 2:
+		hero_combo_queued = false
+		is_attacking = false
+		queued_attack_timer = 0.0
+		perform_attack()
+		return
 
 	await get_tree().create_timer(combo_recovery_times[current_attack_step]).timeout
 	is_attacking = false
 	damage_timer.start()
+	if _is_hero_form_active():
+		# Missing the input window ends the chain completely, so the matching
+		# recovery animation genuinely returns to idle instead of skipping ahead.
+		attack_combo_count = 0
+		combo_reset_timer = 0.0
 
 	if queued_attack_timer > 0.0:
 		queued_attack_timer = 0.0
@@ -3869,7 +4147,7 @@ func _on_jump_button_pressed():
 	jump_buffer_time = 0.1
 
 func _on_attack_button_pressed():
-	if _is_gameplay_input_blocked():
+	if _is_gameplay_input_blocked() or _is_hero_ledge_busy():
 		return
 	perform_attack()
 

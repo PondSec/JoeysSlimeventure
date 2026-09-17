@@ -516,14 +516,14 @@ anchor_left = 0.5
 anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = -527.5
-offset_top = -212.0
-offset_right = 527.5
-offset_bottom = -20.0
+offset_left = -340.0
+offset_top = -154.0
+offset_right = 340.0
+offset_bottom = -22.0
 grow_horizontal = 2
 grow_vertical = 0
 scale = Vector2(1, 1)
-pivot_offset = Vector2(527.5, 192)
+pivot_offset = Vector2(340, 132)
 script = ExtResource("17_1u0f7")
 
 [node name="HealthLabel" type="Label" parent="CanvasLayer"]

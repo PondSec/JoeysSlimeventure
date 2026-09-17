@@ -5,14 +5,15 @@ extends Control
 ## themes can be registered in BIOME_THEMES without touching item-slot logic.
 
 const SLOT_COUNT := 9
-const HOTBAR_SIZE := Vector2(1055.0, 192.0)
+const HOTBAR_SIZE := Vector2(680.0, 132.0)
 # The source frames are deliberately very large.  The HUD uses a compact
 # presentation frame, while slot faces retain their own authored size.
-const SLOT_FACE_SCALE := 1.12
-const SLOT_PITCH := 78.0
-const SLOT_CENTER_Y := 77.0
-const FRAME_SIZE := Vector2(780.0, 165.0)
-const FRAME_POSITION := Vector2((HOTBAR_SIZE.x - FRAME_SIZE.x) * 0.5, 18.0)
+const SLOT_FACE_SCALE := 0.76
+const SLOT_PITCH := 57.0
+const SLOT_CENTER_Y := 52.0
+const FRAME_SIZE := Vector2(590.0, 116.0)
+const FRAME_POSITION := Vector2((HOTBAR_SIZE.x - FRAME_SIZE.x) * 0.5, 7.0)
+const ITEM_ICON_MAX_SIZE := 39.0
 const HOTBAR_FONT := preload("res://Assets/GUI/Font/PixelatedEleganceRegular-ovyAA.ttf")
 const BIOME_THEMES := {
 	"cave": {
@@ -33,6 +34,7 @@ var selected_slot_index := 0
 var _theme_nodes: Dictionary = {}
 var _item_icons: Array[Sprite2D] = []
 var _amount_labels: Array[Label] = []
+var _icon_content_rect_cache: Dictionary = {}
 var _biome_weights := {"cave": 1.0, "lush": 0.0}
 
 
@@ -100,8 +102,7 @@ func _build_item_layers() -> void:
 		var item_center := _slot_center(slot_index)
 		var icon := Sprite2D.new()
 		icon.name = "Item%d" % (slot_index + 1)
-		icon.position = item_center + Vector2(0.0, -3.0)
-		icon.scale = Vector2(0.50, 0.50)
+		icon.position = item_center + Vector2(0.0, -2.0)
 		icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		icon.z_index = 5
 		add_child(icon)
@@ -109,14 +110,14 @@ func _build_item_layers() -> void:
 
 		var amount := Label.new()
 		amount.name = "Amount%d" % (slot_index + 1)
-		amount.position = item_center + Vector2(11.0, 13.0)
-		amount.size = Vector2(23.0, 22.0)
+		amount.position = item_center + Vector2(1.0, 4.0)
+		amount.size = Vector2(24.0, 20.0)
 		amount.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		amount.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
-		amount.add_theme_font_size_override("font_size", 20)
+		amount.add_theme_font_size_override("font_size", 17)
 		amount.add_theme_color_override("font_color", Color(1.0, 0.95, 0.84, 1.0))
 		amount.add_theme_color_override("font_outline_color", Color(0.02, 0.03, 0.05, 1.0))
-		amount.add_theme_constant_override("outline_size", 3)
+		amount.add_theme_constant_override("outline_size", 2)
 		amount.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		amount.z_index = 6
 		add_child(amount)
@@ -168,18 +169,63 @@ func _slot_center(slot_index: int) -> Vector2:
 func _create_slot_number(slot_number: int, center: Vector2, theme_id: String) -> Label:
 	var number := Label.new()
 	number.text = str(slot_number)
-	number.position = center + Vector2(-15.0, 31.0)
-	number.size = Vector2(30.0, 21.0)
+	number.position = center + Vector2(-12.0, 21.0)
+	number.size = Vector2(24.0, 17.0)
 	number.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	number.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	number.add_theme_font_override("font", HOTBAR_FONT)
-	number.add_theme_font_size_override("font_size", 19)
+	number.add_theme_font_size_override("font_size", 14)
 	number.add_theme_color_override("font_color", Color(0.96, 0.93, 0.83, 1.0) if theme_id == "cave" else Color(0.88, 1.0, 0.76, 1.0))
 	number.add_theme_color_override("font_outline_color", Color(0.025, 0.035, 0.05, 1.0))
-	number.add_theme_constant_override("outline_size", 3)
+	number.add_theme_constant_override("outline_size", 2)
 	number.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	number.z_index = 4
 	return number
+
+
+func _apply_item_icon(icon: Sprite2D, texture: Texture2D) -> void:
+	# Several item files contain asymmetric transparent padding. Rendering only
+	# their opaque rectangle keeps the visible pixels centered in every slot.
+	icon.texture = texture
+	if texture == null:
+		icon.region_enabled = false
+		return
+
+	var content_rect := _get_icon_content_rect(texture)
+	icon.region_enabled = true
+	icon.region_rect = content_rect
+	var longest_side := maxf(content_rect.size.x, content_rect.size.y)
+	var icon_scale := ITEM_ICON_MAX_SIZE / longest_side if longest_side > 0.0 else 1.0
+	icon.scale = Vector2(icon_scale, icon_scale)
+
+
+func _get_icon_content_rect(texture: Texture2D) -> Rect2:
+	if _icon_content_rect_cache.has(texture):
+		return _icon_content_rect_cache[texture] as Rect2
+
+	var fallback := Rect2(Vector2.ZERO, texture.get_size())
+	var image := texture.get_image()
+	if image == null or image.is_empty():
+		_icon_content_rect_cache[texture] = fallback
+		return fallback
+
+	var min_x := image.get_width()
+	var min_y := image.get_height()
+	var max_x := -1
+	var max_y := -1
+	for y in range(image.get_height()):
+		for x in range(image.get_width()):
+			if image.get_pixel(x, y).a > 0.01:
+				min_x = mini(min_x, x)
+				min_y = mini(min_y, y)
+				max_x = maxi(max_x, x)
+				max_y = maxi(max_y, y)
+
+	var content_rect := fallback
+	if max_x >= min_x and max_y >= min_y:
+		content_rect = Rect2(min_x, min_y, max_x - min_x + 1, max_y - min_y + 1)
+	_icon_content_rect_cache[texture] = content_rect
+	return content_rect
 
 
 ## The ChapterLevel drives this with exactly its parallax `lush_biome_strength`.
@@ -217,7 +263,7 @@ func update_hotbar() -> void:
 		var has_item := slot != null and slot.item != null
 		var icon := _item_icons[slot_index]
 		icon.visible = has_item
-		icon.texture = slot.item.texture if has_item else null
+		_apply_item_icon(icon, slot.item.texture if has_item else null)
 		var amount := _amount_labels[slot_index]
 		amount.text = str(slot.amount) if has_item and slot.amount > 1 else ""
 	highlight_selected_slot()
