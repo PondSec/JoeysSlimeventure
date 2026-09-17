@@ -4,7 +4,7 @@
 [ext_resource type="PackedScene" uid="uid://btd70wfyuwmhw" path="res://Scenes/PauseMenu.tscn" id="2_go701"]
 [ext_resource type="PackedScene" uid="uid://ccep15ieo6o6o" path="res://Scenes/torch.tscn" id="3_5a7ea"]
 [ext_resource type="PackedScene" uid="uid://dqykudmd26o2q" path="res://Scenes/bat.tscn" id="4_8j60k"]
-[ext_resource type="Texture2D" uid="uid://cimvb1apxwlty" path="res://Assets/block.png" id="5_fo5ed"]
+[ext_resource type="Texture2D" uid="uid://cimvb1apxwlty" path="res://Assets/enemy_path.png" id="5_fo5ed"]
 
 [sub_resource type="GDScript" id="GDScript_a02cp"]
 script/source = "extends Node2D

@@ -3,7 +3,7 @@
 [ext_resource type="Texture2D" uid="uid://82opar247kat" path="res://Assets/Tiles/platformertiles.png" id="1_x6kbu"]
 [ext_resource type="PackedScene" uid="uid://c8bjyoq5oxoup" path="res://Scenes/door.tscn" id="2_gdcnv"]
 [ext_resource type="PackedScene" uid="uid://ccep15ieo6o6o" path="res://Scenes/torch.tscn" id="3_pca0e"]
-[ext_resource type="Texture2D" uid="uid://cimvb1apxwlty" path="res://Assets/block.png" id="4_p4gcg"]
+[ext_resource type="Texture2D" uid="uid://cimvb1apxwlty" path="res://Assets/enemy_path.png" id="4_p4gcg"]
 [ext_resource type="PackedScene" uid="uid://dx4m8ks5y31ax" path="res://Scenes/vine.tscn" id="4_y4o00"]
 [ext_resource type="PackedScene" uid="uid://dqcxhb7h3mjuk" path="res://Scenes/worm.tscn" id="5_ms07d"]
 [ext_resource type="PackedScene" uid="uid://b6ublycstdj8n" path="res://Scenes/player.tscn" id="5_v84nj"]
