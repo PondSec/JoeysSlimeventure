@@ -16,10 +16,12 @@ func _run() -> void:
 	root.set_meta("chapter_qa_mode", true)
 	root.size = Vector2i(1600, 900)
 	var progress: Node = root.get_node("/root/ChapterProgress")
-	progress.reset_progress()
+	# This capture is visual QA only.  Never reset or save the player's campaign
+	# progress merely to render a biome screenshot.
+	var previous_chapter: int = int(progress.active_chapter)
+	var previous_level_index: int = int(progress.active_level_index)
 	progress.active_chapter = 1
 	progress.active_level_index = 1
-	progress.save_progress()
 
 	var level := CHAPTER_LEVEL_SCENE.instantiate()
 	level.set("generator_seed_override", _read_seed_override())
@@ -41,7 +43,22 @@ func _run() -> void:
 		return
 	var clearance: float = float(level.call("_player_spawn_clearance"))
 	player.global_position = Vector2(float(landing_cell.x) * TILE_SIZE + TILE_SIZE * 0.5, float(landing_cell.y + 1) * TILE_SIZE - clearance)
+	if _focus_landmark_requested():
+		var landmarks := level.get_node_or_null("LandmarkBackdrop")
+		if landmarks != null:
+			for landmark in landmarks.get_children():
+				if landmark.name.begins_with("LushLandmark") and landmark is Node2D:
+					# Anchors are placed at a valid floor; this keeps the camera on
+					# the actual integrated landmark without changing level state.
+					player.global_position = (landmark as Node2D).global_position + Vector2(0.0, -96.0)
+					print("CAPTURE_LANDMARK name=%s pos=%s scale=%s texture=%s" % [landmark.name, str((landmark as Node2D).global_position), str((landmark as Node2D).scale), str((landmark as Sprite2D).texture.resource_path)])
+					break
 	player.velocity = Vector2.ZERO
+	var camera := player.get_node_or_null("Camera2D") as Camera2D
+	if camera != null:
+		camera.enabled = true
+		camera.make_current()
+		camera.reset_smoothing()
 	for _frame: int in range(20):
 		await process_frame
 		await physics_frame
@@ -50,6 +67,8 @@ func _run() -> void:
 
 	level.queue_free()
 	await process_frame
+	progress.active_chapter = previous_chapter
+	progress.active_level_index = previous_level_index
 	quit()
 
 
@@ -76,3 +95,7 @@ func _read_seed_override() -> int:
 		if argument.begins_with("--seed="):
 			return int(argument.trim_prefix("--seed="))
 	return 3456
+
+
+func _focus_landmark_requested() -> bool:
+	return "--focus-landmark" in OS.get_cmdline_user_args()

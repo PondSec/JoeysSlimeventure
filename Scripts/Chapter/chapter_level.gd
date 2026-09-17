@@ -104,6 +104,11 @@ const CHAPTER_CAVE_LANDMARK_PATHS := [
 	"res://Assets/Deko/landmarks/cave/cave_landmark_06.png",
 	"res://Assets/Deko/landmarks/cave/cave_landmark_07.png",
 ]
+# A shuffled chapter deck, rather than level 1 -> landmark 1.  Each entry is
+# used once across the eight Chapter-1 levels, and cave/lush do not mirror one
+# another inside a level.
+const CHAPTER_LUSH_LANDMARK_ORDER := [5, 2, 7, 0, 6, 3, 1, 4]
+const CHAPTER_CAVE_LANDMARK_ORDER := [1, 6, 3, 7, 0, 4, 2, 5]
 const NORMAL_CAVE_FOREGROUND_FRAME_PATH := "res://Assets/Parallax Cave/normal_cave_foreground_frame.png"
 const NORMAL_CAVE_FOREGROUND_SHADER_PATH := "res://Shaders/normal_cave_foreground_transition.gdshader"
 const LUSH_BIOME_TRANSITION_DISTANCE := 280.0
@@ -353,7 +358,10 @@ func _build_runtime_nodes() -> void:
 	landmark_backdrop_root = Node2D.new()
 	landmark_backdrop_root.name = "LandmarkBackdrop"
 	landmark_backdrop_root.z_as_relative = false
-	landmark_backdrop_root.z_index = -10
+	# Share the normal world depth: sibling ordering draws this root after the
+	# ParallaxBackground but before Level/Terrain, so the landmark is visible
+	# through an alcove while terrain and Joey still cover its embedded base.
+	landmark_backdrop_root.z_index = 0
 	add_child(landmark_backdrop_root)
 	move_child(landmark_backdrop_root, 1)
 
@@ -605,20 +613,22 @@ func _spawn_chapter_landmarks(grid: Array) -> void:
 	if landmark_backdrop_root == null or int(active_level.get("chapter_index", 0)) != 1:
 		return
 	var level_index: int = int(active_level.get("level_index", -1))
-	if level_index < 0 or level_index >= CHAPTER_LUSH_LANDMARK_PATHS.size() or level_index >= CHAPTER_CAVE_LANDMARK_PATHS.size():
+	if level_index < 0 or level_index >= CHAPTER_LUSH_LANDMARK_ORDER.size() or level_index >= CHAPTER_CAVE_LANDMARK_ORDER.size():
 		return
+	var lush_asset_index: int = CHAPTER_LUSH_LANDMARK_ORDER[level_index]
+	var cave_asset_index: int = CHAPTER_CAVE_LANDMARK_ORDER[level_index]
 
 	var landmark_rng := RandomNumberGenerator.new()
 	landmark_rng.seed = active_level_seed * 4729 + 131
 	_spawn_chapter_landmark(
-		load(CHAPTER_CAVE_LANDMARK_PATHS[level_index]) as Texture2D,
+		load(CHAPTER_CAVE_LANDMARK_PATHS[cave_asset_index]) as Texture2D,
 		grid,
 		false,
 		level_index,
 		landmark_rng
 	)
 	_spawn_chapter_landmark(
-		load(CHAPTER_LUSH_LANDMARK_PATHS[level_index]) as Texture2D,
+		load(CHAPTER_LUSH_LANDMARK_PATHS[lush_asset_index]) as Texture2D,
 		grid,
 		true,
 		level_index,
@@ -635,22 +645,25 @@ func _spawn_chapter_landmark(texture: Texture2D, grid: Array, prefer_lush: bool,
 	var sprite := Sprite2D.new()
 	sprite.name = "%sLandmark_L%d" % ["Lush" if prefer_lush else "Cave", level_index + 1]
 	sprite.texture = texture
-	# Background motifs are larger than ordinary flora but deliberately smaller
-	# than a gameplay obstacle. Their roots are still embedded in a real floor.
-	var scale_amount: float = 0.54 if prefer_lush else 0.30
+	# These are background landmarks, not set pieces the player can collide with.
+	# Full content-aware crops are larger than the old, accidentally quartered
+	# source textures, so the authored silhouettes stay restrained at this scale.
+	# Landmarks should read as a small set-piece behind Joey, not a decorative icon.
+	# Keep them visibly present without competing with terrain or foreground props.
+	var scale_amount: float = 0.24 if prefer_lush else 0.17
 	sprite.scale = Vector2.ONE * scale_amount
 	sprite.position = _ground_flora_position(texture, anchor, sprite.scale)
 	sprite.light_mask = 0
-	sprite.modulate = Color(0.82, 0.88, 0.84, 0.70) if prefer_lush else Color(0.77, 0.75, 0.72, 0.68)
+	sprite.modulate = Color(0.94, 0.98, 0.95, 1.0) if prefer_lush else Color(0.94, 0.90, 0.85, 1.0)
 	var shader := load(LANDMARK_DEPTH_SHADER_PATH) as Shader
 	if shader != null:
 		var material := ShaderMaterial.new()
 		material.shader = shader
 		# Subtler than the mid parallax: recognisable environment landmarks,
 		# never a sharp foreground object competing with Joey.
-		material.set_shader_parameter("softness", 0.25)
-		material.set_shader_parameter("blur_radius", 0.82)
-		material.set_shader_parameter("opacity", 0.82)
+		material.set_shader_parameter("softness", 0.18)
+		material.set_shader_parameter("blur_radius", 0.55)
+		material.set_shader_parameter("opacity", 1.0)
 		sprite.material = material
 	landmark_backdrop_root.add_child(sprite)
 

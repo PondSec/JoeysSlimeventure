@@ -6,30 +6,24 @@ extends Control
 
 const SLOT_COUNT := 9
 const HOTBAR_SIZE := Vector2(1055.0, 192.0)
-const SLOT_FACE_SCALE := 1.30
+# The source frames are deliberately very large.  The HUD uses a compact
+# presentation frame, while slot faces retain their own authored size.
+const SLOT_FACE_SCALE := 1.12
+const SLOT_PITCH := 78.0
+const SLOT_CENTER_Y := 77.0
+const FRAME_SIZE := Vector2(780.0, 165.0)
+const FRAME_POSITION := Vector2((HOTBAR_SIZE.x - FRAME_SIZE.x) * 0.5, 18.0)
+const HOTBAR_FONT := preload("res://Assets/GUI/Font/PixelatedEleganceRegular-ovyAA.ttf")
 const BIOME_THEMES := {
 	"cave": {
 		"bar": preload("res://Assets/UI/Hotbar/cave_frame.png"),
 		"inactive": preload("res://Assets/UI/Hotbar/cave_slot_inactive.png"),
 		"active": preload("res://Assets/UI/Hotbar/cave_slot_active.png"),
-		# These are measured from the assembled cave source, not distributed
-		# mathematically. The latter made the selected face drift farther right
-		# with every slot.
-		"slot_centers": [
-			Vector2(194.0, 100.0), Vector2(286.0, 100.0), Vector2(378.0, 100.0),
-			Vector2(470.0, 100.0), Vector2(562.0, 100.0), Vector2(654.0, 100.0),
-			Vector2(746.0, 100.0), Vector2(838.0, 100.0), Vector2(930.0, 100.0),
-		],
 	},
 	"lush": {
 		"bar": preload("res://Assets/UI/Hotbar/lush_frame.png"),
 		"inactive": preload("res://Assets/UI/Hotbar/lush_slot_inactive.png"),
 		"active": preload("res://Assets/UI/Hotbar/lush_slot_active.png"),
-		"slot_centers": [
-			Vector2(194.0, 100.0), Vector2(286.0, 100.0), Vector2(378.0, 100.0),
-			Vector2(470.0, 100.0), Vector2(562.0, 100.0), Vector2(654.0, 100.0),
-			Vector2(746.0, 100.0), Vector2(838.0, 100.0), Vector2(930.0, 100.0),
-		],
 	},
 }
 
@@ -45,8 +39,6 @@ var _biome_weights := {"cave": 1.0, "lush": 0.0}
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	add_to_group("biome_aware_ui")
-	# Kept only as a scene compatibility anchor; rendering is now layered below.
-	$NinePatchRect2.visible = false
 	_build_theme_layers()
 	_build_item_layers()
 	inv.update.connect(update_hotbar)
@@ -62,7 +54,6 @@ func _build_theme_layers() -> void:
 	for theme_id_variant in BIOME_THEMES.keys():
 		var theme_id := String(theme_id_variant)
 		var definition: Dictionary = BIOME_THEMES[theme_id]
-		var slot_centers: Array = definition["slot_centers"]
 		var theme_root := Control.new()
 		theme_root.name = "%sTheme" % theme_id.capitalize()
 		theme_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -70,38 +61,46 @@ func _build_theme_layers() -> void:
 		theme_root.z_index = 1
 		add_child(theme_root)
 
-		var bar := _create_texture_rect(definition["bar"] as Texture2D, HOTBAR_SIZE, TextureRect.STRETCH_SCALE)
+		var bar := _create_frame(definition["bar"] as Texture2D)
 		bar.name = "Frame"
 		theme_root.add_child(bar)
 
 		var inactive_slots: Array[TextureRect] = []
 		var active_slots: Array[TextureRect] = []
+		var slot_numbers: Array[Label] = []
 		for slot_index in range(SLOT_COUNT):
-			var inactive := _create_slot_face(definition["inactive"] as Texture2D, slot_centers[slot_index] as Vector2)
+			var slot_center := _slot_center(slot_index)
+			var inactive := _create_slot_face(definition["inactive"] as Texture2D, slot_center)
 			inactive.name = "Inactive%d" % (slot_index + 1)
 			theme_root.add_child(inactive)
 			inactive_slots.append(inactive)
 
-			var active := _create_slot_face(definition["active"] as Texture2D, slot_centers[slot_index] as Vector2)
+			var active := _create_slot_face(definition["active"] as Texture2D, slot_center)
 			active.name = "Active%d" % (slot_index + 1)
 			theme_root.add_child(active)
 			active_slots.append(active)
+
+			var number := _create_slot_number(slot_index + 1, slot_center, theme_id)
+			number.name = "Number%d" % (slot_index + 1)
+			theme_root.add_child(number)
+			slot_numbers.append(number)
 
 		_theme_nodes[theme_id] = {
 			"bar": bar,
 			"inactive": inactive_slots,
 			"active": active_slots,
+			"numbers": slot_numbers,
 		}
 
 
 func _build_item_layers() -> void:
 	# Item contents follow the common visual grid. Theme faces may differ by a
 	# few source pixels at their decorative edges, but never shift an item icon.
-	var item_slot_centers: Array = BIOME_THEMES["cave"]["slot_centers"]
 	for slot_index in range(SLOT_COUNT):
+		var item_center := _slot_center(slot_index)
 		var icon := Sprite2D.new()
 		icon.name = "Item%d" % (slot_index + 1)
-		icon.position = item_slot_centers[slot_index] + Vector2(0.0, -3.0)
+		icon.position = item_center + Vector2(0.0, -3.0)
 		icon.scale = Vector2(0.50, 0.50)
 		icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		icon.z_index = 5
@@ -110,7 +109,7 @@ func _build_item_layers() -> void:
 
 		var amount := Label.new()
 		amount.name = "Amount%d" % (slot_index + 1)
-		amount.position = item_slot_centers[slot_index] + Vector2(11.0, 13.0)
+		amount.position = item_center + Vector2(11.0, 13.0)
 		amount.size = Vector2(23.0, 22.0)
 		amount.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		amount.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
@@ -139,11 +138,48 @@ func _create_texture_rect(
 	return rect
 
 
+func _create_frame(texture: Texture2D) -> Sprite2D:
+	# TextureRect keeps a texture's minimum size in some control-layout paths.
+	# A Sprite2D gives the supplied decorative frame one exact on-screen size.
+	var frame := Sprite2D.new()
+	frame.texture = texture
+	frame.position = FRAME_POSITION
+	frame.centered = false
+	frame.scale = FRAME_SIZE / texture.get_size()
+	frame.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	return frame
+
+
 func _create_slot_face(texture: Texture2D, center: Vector2) -> TextureRect:
 	var face_size := texture.get_size() * SLOT_FACE_SCALE
 	var rect := _create_texture_rect(texture, face_size, TextureRect.STRETCH_SCALE)
 	rect.position = center - face_size * 0.5
 	return rect
+
+
+func _slot_center(slot_index: int) -> Vector2:
+	# Slots deliberately do not inherit the frame scale.  Their fixed grid makes
+	# the selected face sit exactly on every inactive face and keeps all nine
+	# touch targets comfortably wide.
+	var first_center_x := (FRAME_SIZE.x - SLOT_PITCH * float(SLOT_COUNT - 1)) * 0.5
+	return FRAME_POSITION + Vector2(first_center_x + SLOT_PITCH * slot_index, SLOT_CENTER_Y)
+
+
+func _create_slot_number(slot_number: int, center: Vector2, theme_id: String) -> Label:
+	var number := Label.new()
+	number.text = str(slot_number)
+	number.position = center + Vector2(-15.0, 31.0)
+	number.size = Vector2(30.0, 21.0)
+	number.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	number.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	number.add_theme_font_override("font", HOTBAR_FONT)
+	number.add_theme_font_size_override("font_size", 19)
+	number.add_theme_color_override("font_color", Color(0.96, 0.93, 0.83, 1.0) if theme_id == "cave" else Color(0.88, 1.0, 0.76, 1.0))
+	number.add_theme_color_override("font_outline_color", Color(0.025, 0.035, 0.05, 1.0))
+	number.add_theme_constant_override("outline_size", 3)
+	number.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	number.z_index = 4
+	return number
 
 
 ## The ChapterLevel drives this with exactly its parallax `lush_biome_strength`.
@@ -161,12 +197,14 @@ func _apply_biome_weights() -> void:
 		var theme_id := String(theme_id_variant)
 		var nodes: Dictionary = _theme_nodes[theme_id]
 		var weight := float(_biome_weights.get(theme_id, 0.0))
-		(nodes["bar"] as TextureRect).modulate.a = weight
+		(nodes["bar"] as CanvasItem).modulate.a = weight
 		var inactive_slots: Array = nodes["inactive"]
 		var active_slots: Array = nodes["active"]
+		var slot_numbers: Array = nodes["numbers"]
 		for slot_index in range(SLOT_COUNT):
 			(inactive_slots[slot_index] as TextureRect).modulate.a = weight if slot_index != selected_slot_index else 0.0
 			(active_slots[slot_index] as TextureRect).modulate.a = weight if slot_index == selected_slot_index else 0.0
+			(slot_numbers[slot_index] as Label).modulate.a = weight
 
 
 func update_hotbar() -> void:

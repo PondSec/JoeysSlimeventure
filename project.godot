@@ -18,7 +18,7 @@ config/name="JoeysSlimeventure"
 config/version="0.0.3.1"
 run/main_scene="uid://lud4ledapwml"
 config/features=PackedStringArray("4.7", "Mobile")
-config/icon="uid://rxhajrw8d7m7"
+config/icon="res://marketing/brand/icon.png"
 
 [autoload]
 
