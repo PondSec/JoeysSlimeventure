@@ -102,7 +102,8 @@ func _build_item_layers() -> void:
 		var item_center := _slot_center(slot_index)
 		var icon := Sprite2D.new()
 		icon.name = "Item%d" % (slot_index + 1)
-		icon.position = item_center + Vector2(0.0, -2.0)
+		# Keep the opaque item centered on the exact center of its slot face.
+		icon.position = item_center
 		icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		icon.z_index = 5
 		add_child(icon)

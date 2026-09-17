@@ -4,6 +4,9 @@ const PLAYER_TEXTURE := preload("res://Assets/slime-sprite2.png")
 const HERO_IDLE_TEXTURE := preload("res://Assets/player/hero/individual_sheets/male_hero-idle.png")
 const SLIME_FRAME_SIZE := Vector2i(512, 512)
 const HERO_FRAME_SIZE := Vector2i(128, 128)
+# The Deluxe idle sheet has a 16×32 opaque character inside each 128px cell.
+# Previewing the full transparent cell made the hero appear miniature.
+const HERO_IDLE_CONTENT_RECT := Rect2(50.0, 46.0, 16.0, 32.0)
 const ItemRegistry := preload("res://Scripts/item_registry.gd")
 
 @onready var body: TextureRect = $Body
@@ -40,7 +43,7 @@ func _process(delta: float) -> void:
 
 	# The preview is a character sheet, not a floating collectible: authored
 	# idle frames animate it while its world position and weapon stay still.
-	body.position = Vector2(26.0, 2.0) if is_hero_preview else Vector2(38.0, 20.0)
+	body.position = Vector2(55.0, 8.0) if is_hero_preview else Vector2(38.0, 20.0)
 	weapon.position = Vector2(98.0, 88.0)
 	weapon.rotation = deg_to_rad(16.0)
 	shadow.modulate.a = 0.42
@@ -52,8 +55,8 @@ func set_hero_form_active(active: bool) -> void:
 	is_hero_preview = active
 	animation_time = 0.0
 	current_frame = -1
-	body.size = Vector2(128.0, 128.0) if is_hero_preview else Vector2(92.0, 92.0)
-	body.position = Vector2(26.0, 2.0) if is_hero_preview else Vector2(38.0, 20.0)
+	body.size = Vector2(110.0, 140.0) if is_hero_preview else Vector2(92.0, 92.0)
+	body.position = Vector2(55.0, 8.0) if is_hero_preview else Vector2(38.0, 20.0)
 	weapon.visible = not is_hero_preview
 	_update_frame(0)
 
@@ -91,5 +94,10 @@ func _make_slime_frame(frame_index: int) -> AtlasTexture:
 func _make_hero_idle_frame(frame_index: int) -> AtlasTexture:
 	var atlas := AtlasTexture.new()
 	atlas.atlas = HERO_IDLE_TEXTURE
-	atlas.region = Rect2(float(frame_index * HERO_FRAME_SIZE.x), 0.0, float(HERO_FRAME_SIZE.x), float(HERO_FRAME_SIZE.y))
+	atlas.region = Rect2(
+		float(frame_index * HERO_FRAME_SIZE.x) + HERO_IDLE_CONTENT_RECT.position.x,
+		HERO_IDLE_CONTENT_RECT.position.y,
+		HERO_IDLE_CONTENT_RECT.size.x,
+		HERO_IDLE_CONTENT_RECT.size.y
+	)
 	return atlas
