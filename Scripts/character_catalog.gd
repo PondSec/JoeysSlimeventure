@@ -192,8 +192,8 @@ static func _build_male_hero_meta() -> Dictionary:
 				},
 				"combat": {
 					"attack_cooldown": 0.075,
-					"combo_damage": [1.04, 1.38, 1.86],
-					"combo_knockback": [185.0, 270.0, 390.0],
+					"combo_damage": [1.12, 1.48, 1.98],
+					"combo_knockback": [210.0, 305.0, 440.0],
 					"combo_lunge": [145.0, 205.0, 285.0],
 					"momentum_damage_multiplier": 1.24,
 					"momentum_lunge_bonus": 85.0,

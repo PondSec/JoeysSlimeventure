@@ -95,10 +95,10 @@ func _update_visual(frame_index: int) -> void:
 	sprite.offset = region.get_center() - FRAME_CENTERS[frame_index]
 	var intensity: float = float(DAMAGE_CURVE[frame_index])
 	var pulse_scale := lerpf(0.62, 1.0, intensity)
-	sprite.scale = Vector2(0.145 * pulse_scale, 0.145 * pulse_scale)
+	sprite.scale = Vector2(0.115 * pulse_scale, 0.115 * pulse_scale)
 	var shape := collision_shape.shape as RectangleShape2D
 	if shape != null:
-		shape.size = Vector2(18.0 + 20.0 * intensity, 28.0 + 34.0 * intensity)
+		shape.size = Vector2(14.0 + 16.0 * intensity, 22.0 + 27.0 * intensity)
 
 
 func _on_body_entered(body: Node2D) -> void:

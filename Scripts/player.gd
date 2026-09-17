@@ -362,6 +362,7 @@ const ATTACK_FORWARD_OFFSETS := [165.0, 185.0, 205.0]
 const ATTACK_VERTICAL_OFFSETS := [-52.0, -48.0, -44.0]
 const ATTACK_HIT_WINDOWS := [Vector2(0.035, 0.115), Vector2(0.075, 0.215), Vector2(0.15, 0.385)]
 const PLAYER_HURT_INVULNERABILITY := 0.42
+const HERO_COMBAT_AUTO_AIM_RANGE := 460.0
 const WEAPON_IDLE_POSITION := Vector2(38.0, 24.0)
 const WEAPON_IDLE_ROTATION := 18.0
 const WEAPON_BASE_SCALE := 10.8
@@ -1845,6 +1846,10 @@ func update_facing_direction():
 		is_facing_left = last_wall_normal.x < 0.0
 	elif is_hero_ledge_hanging or is_hero_ledge_climbing:
 		is_facing_left = hero_ledge_side < 0.0
+	elif _face_nearest_hero_combat_target():
+		# During a local fight, movement and attacks stay aimed at the closest
+		# living enemy.  Outside that range the mouse continues to control idle aim.
+		pass
 	elif abs(direction.x) > 0.0:
 		is_facing_left = direction.x < 0
 	elif Input.is_action_pressed("left"):
@@ -1872,6 +1877,33 @@ func update_facing_direction():
 	
 	# Blickrichtung an alle Clients synchronisieren
 	sync_facing_direction.rpc(is_facing_left)
+
+
+func _face_nearest_hero_combat_target() -> bool:
+	if not _is_hero_form_active():
+		return false
+	var nearest: Node2D
+	var nearest_distance_squared := HERO_COMBAT_AUTO_AIM_RANGE * HERO_COMBAT_AUTO_AIM_RANGE
+	for candidate in get_tree().get_nodes_in_group("enemies"):
+		if not (candidate is Node2D) or not is_instance_valid(candidate):
+			continue
+		var enemy := candidate as Node2D
+		if bool(enemy.get("is_dead")):
+			continue
+		var health: Variant = enemy.get("current_health")
+		if (health is int or health is float) and float(health) <= 0.0:
+			continue
+		var distance_squared := global_position.distance_squared_to(enemy.global_position)
+		if distance_squared < nearest_distance_squared:
+			nearest = enemy
+			nearest_distance_squared = distance_squared
+	if nearest == null:
+		return false
+	var horizontal_offset := nearest.global_position.x - global_position.x
+	if absf(horizontal_offset) < 3.0:
+		return false
+	is_facing_left = horizontal_offset < 0.0
+	return true
 
 @rpc("any_peer", "call_local", "unreliable")
 func sync_facing_direction(new_facing: bool):
@@ -3623,6 +3655,9 @@ func perform_attack() -> void:
 			return
 		queued_attack_timer = ATTACK_QUEUE_TIME
 		return
+	# Do not let an idle mouse position make a close-range hero swing start
+	# backwards.  This is also applied before the first animation frame.
+	_face_nearest_hero_combat_target()
 
 	var now = Time.get_ticks_msec() / 1000.0
 	if now - last_attack_time < attack_cooldown:
