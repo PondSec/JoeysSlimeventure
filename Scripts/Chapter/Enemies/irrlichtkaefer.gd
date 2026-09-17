@@ -116,14 +116,14 @@ func _physics_process(delta: float) -> void:
 
 
 func take_damage(amount: int, direction: Vector2, _is_crit: bool = false) -> void:
-	if is_dead:
+	if is_dead or current_health <= 0:
 		return
 	current_health -= amount
 	hit_flash_timer = 0.14
 	var push := direction.normalized() if direction.length_squared() > 0.01 else Vector2(-facing_sign, -0.2)
 	velocity += push * 145.0
 	if current_health <= 0:
-		_die()
+		call_deferred("_die")
 
 
 func _process_patrol(delta: float) -> void:
@@ -247,7 +247,7 @@ func _try_jump_small_obstacle() -> void:
 func _update_visuals() -> void:
 	sprite.flip_h = facing_sign < 0.0
 	if hit_flash_timer > 0.0:
-		sprite.modulate = Color(1.0, 0.82, 1.0, 1.0)
+		sprite.modulate = Color(3.4, 3.4, 3.4, 1.0)
 	else:
 		sprite.modulate = Color.WHITE
 

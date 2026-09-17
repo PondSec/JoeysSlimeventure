@@ -706,7 +706,7 @@ func set_animation() -> void:
 		animation_player.play("idle")
 
 func take_damage(amount: int, direction: Vector2, is_crit: bool = false) -> void:
-	if is_dead or is_dodging:
+	if is_dead or bat_health <= 0 or is_dodging:
 		return
 	
 	# Apply crit multiplier if it's a crit
@@ -732,7 +732,7 @@ func take_damage(amount: int, direction: Vector2, is_crit: bool = false) -> void
 	apply_knockback()
 	
 	if bat_health <= 0:
-		die()
+		call_deferred("die")
 	else:
 		health_bar.visible = true
 		get_tree().create_timer(2.0).timeout.connect(func(): health_bar.visible = false)
@@ -758,7 +758,7 @@ func perform_critical_hit_effects():
 
 func flash_red() -> void:
 	var flash_tween = create_tween()
-	flash_tween.tween_property(sprite, "modulate", Color(1, 0.3, 0.3), 0.1)
+	flash_tween.tween_property(sprite, "modulate", Color(3.4, 3.4, 3.4, 1.0), 0.06)
 	flash_tween.tween_property(sprite, "modulate", Color.WHITE, 0.2)
 
 func apply_knockback() -> void:

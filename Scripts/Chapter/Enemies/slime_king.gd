@@ -75,7 +75,7 @@ func _physics_process(delta: float) -> void:
 
 
 func take_damage(amount: int, direction: Vector2, _is_crit: bool = false) -> void:
-	if is_dead:
+	if is_dead or current_health <= 0:
 		return
 
 	current_health -= amount
@@ -86,7 +86,7 @@ func take_damage(amount: int, direction: Vector2, _is_crit: bool = false) -> voi
 	emit_signal("health_changed", max(current_health, 0), max_health)
 
 	if current_health <= 0:
-		_die()
+		call_deferred("_die")
 
 
 func _choose_next_action() -> void:
@@ -206,6 +206,8 @@ func _update_visuals() -> void:
 		sprite.frame = 10 + int(fposmod(floor(anim_timer * 6.0), 2.0))
 	else:
 		sprite.frame = 5 + int(fposmod(floor(anim_timer * 5.0), 2.0))
+	if flash_timer > 0.0:
+		sprite.modulate = Color(3.4, 3.4, 3.4, 1.0)
 
 
 func _squash(target_scale: Vector2, duration: float) -> void:

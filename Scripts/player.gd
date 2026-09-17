@@ -363,6 +363,7 @@ const ATTACK_VERTICAL_OFFSETS := [-52.0, -48.0, -44.0]
 const ATTACK_HIT_WINDOWS := [Vector2(0.035, 0.115), Vector2(0.075, 0.215), Vector2(0.15, 0.385)]
 const PLAYER_HURT_INVULNERABILITY := 0.42
 const HERO_COMBAT_AUTO_AIM_RANGE := 460.0
+const ENEMY_DAMAGE_SCALE := 0.82
 const WEAPON_IDLE_POSITION := Vector2(38.0, 24.0)
 const WEAPON_IDLE_ROTATION := 18.0
 const WEAPON_BASE_SCALE := 10.8
@@ -3093,11 +3094,10 @@ func _queue_attack_hit(body: Node) -> void:
 	if is_crit:
 		damage *= current_crit_multiplier
 	var knockback_direction := (target_body.global_position - global_position).normalized()
-	# Physics callbacks may not create/remove collision objects.  Enemies can
-	# die and spawn several drops from this hit, so resolve the gameplay result
-	# one idle tick later after recording the target now.  This prevents a second
-	# overlap from becoming a duplicate hit while keeping the strike responsive.
-	call_deferred("_resolve_attack_hit", target_body, damage, knockback_direction, is_crit)
+	# The health change and impact must occur in the same frame as the visible
+	# sword contact.  Enemy death/drop cleanup itself is deferred in each enemy,
+	# so this remains safe inside an Area2D callback without delayed damage.
+	_resolve_attack_hit(target_body, damage, knockback_direction, is_crit)
 
 
 func _resolve_attack_hit(target_body: Node2D, damage: float, knockback_direction: Vector2, is_crit: bool) -> void:
@@ -3107,11 +3107,16 @@ func _resolve_attack_hit(target_body: Node2D, damage: float, knockback_direction
 	_notify_star_damage(damage)
 
 	var landed_finisher := false
+	var hit_confirmed := true
 	if target_body.is_in_group("players"):
 		target_body.take_damage.rpc(int(damage), global_position)
 	else:
-		_apply_damage_to_enemy(target_body, int(damage), knockback_direction, is_crit)
+		hit_confirmed = _apply_damage_to_enemy(target_body, int(damage), knockback_direction, is_crit)
+		if not hit_confirmed:
+			_spawn_feedback_text("DODGE", Color(0.68, 0.88, 1.0), 0.92)
+			return
 		landed_finisher = target_body.is_in_group("enemies") and _is_target_defeated(target_body)
+		_apply_enemy_hit_feedback(target_body)
 
 	if _is_hero_form_active():
 		_apply_hero_hit_feedback(target_body, is_crit, landed_finisher)
@@ -3178,11 +3183,16 @@ func _run_hero_hitstop(duration: float) -> void:
 	hero_hitstop_active = false
 
 
-func _apply_damage_to_enemy(target: Node, damage_amount: int, knockback_direction: Vector2, is_crit: bool) -> void:
+func _apply_damage_to_enemy(target: Node, damage_amount: int, knockback_direction: Vector2, is_crit: bool) -> bool:
 	if not target or not target.has_method("take_damage"):
-		return
+		return false
+	# Dodging enemies are deliberately invulnerable.  Return a result so the
+	# player gets an explicit DODGE cue instead of a fake damage number.
+	if bool(target.get("is_dodging")):
+		return false
 
 	var take_damage_arg_count := 0
+	var health_before := _get_target_combat_health(target)
 	for method_data in target.get_method_list():
 		if method_data.get("name", "") == "take_damage":
 			take_damage_arg_count = method_data.get("args", []).size()
@@ -3190,13 +3200,43 @@ func _apply_damage_to_enemy(target: Node, damage_amount: int, knockback_directio
 
 	match take_damage_arg_count:
 		0:
-			return
+			return false
 		1:
 			target.take_damage(damage_amount)
 		2:
 			target.take_damage(damage_amount, knockback_direction)
 		_:
 			target.take_damage(damage_amount, knockback_direction, is_crit)
+	var health_after := _get_target_combat_health(target)
+	return health_before < 0.0 or health_after < health_before
+
+
+func _get_target_combat_health(target: Node) -> float:
+	for health_name in ["current_health", "health", "bat_health", "golem_health"]:
+		var health_value: Variant = target.get(health_name)
+		if health_value is int or health_value is float:
+			return float(health_value)
+	return -1.0
+
+
+func _apply_enemy_hit_feedback(target: Node2D) -> void:
+	if target.has_meta("combat_hitstop"):
+		return
+	target.set_meta("combat_hitstop", true)
+	target.set_physics_process(false)
+	var visual := target.get_node_or_null("Sprite2D") as CanvasItem
+	if visual == null:
+		visual = target.get_node_or_null("AnimatedSprite2D") as CanvasItem
+	if visual != null:
+		visual.self_modulate = Color(3.4, 3.4, 3.4, 1.0)
+	var hitstop_duration := 0.058 if _is_hero_form_active() else 0.042
+	await get_tree().create_timer(hitstop_duration, true, false, true).timeout
+	if not is_instance_valid(target):
+		return
+	if visual != null and is_instance_valid(visual):
+		visual.self_modulate = Color.WHITE
+	target.set_physics_process(true)
+	target.remove_meta("combat_hitstop")
 
 
 func _is_target_defeated(target: Node) -> bool:
@@ -3844,7 +3884,7 @@ func take_damage(amount: int, hit_source: Vector2):
 		attack_dash_cancel_ready = false
 		_set_attack_hitbox_active(false)
 	# Schadensreduktion anwenden
-	var reduced_damage = amount * (1.0 - damage_reduction)
+	var reduced_damage = amount * ENEMY_DAMAGE_SCALE * (1.0 - damage_reduction)
 	reduced_damage = max(1, int(reduced_damage))  # Mindestens 1 Schaden
 	amount = reduced_damage
 	

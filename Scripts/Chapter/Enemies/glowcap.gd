@@ -21,8 +21,7 @@ const BITE_FRAMES := [
 	preload("res://Assets/Enemies/Leuchtmaul/frames/bite_01.png"),
 	preload("res://Assets/Enemies/Leuchtmaul/frames/bite_02.png"),
 	preload("res://Assets/Enemies/Leuchtmaul/frames/bite_03.png"),
-	preload("res://Assets/Enemies/Leuchtmaul/frames/bite_04.png"),
-	preload("res://Assets/Enemies/Leuchtmaul/frames/bite_05.png")
+	preload("res://Assets/Enemies/Leuchtmaul/frames/bite_04.png")
 ]
 const RECOIL_FRAME := preload("res://Assets/Enemies/Leuchtmaul/frames/recoil_00.png")
 const DEATH_FRAMES := [
@@ -36,7 +35,7 @@ const DEATH_FRAMES := [
 
 const GRAVITY := 1180.0
 const FRAME_SECONDS := 0.105
-const BASE_SPRITE_SCALE := Vector2(0.30, 0.30)
+const BASE_SPRITE_SCALE := Vector2(0.24, 0.24)
 const NORMAL_LIGHT := Color(0.30, 1.0, 0.89, 1.0)
 const RECOIL_LIGHT := Color(0.16, 0.42, 0.45, 1.0)
 
@@ -127,14 +126,14 @@ func _physics_process(delta: float) -> void:
 
 
 func take_damage(amount: int, direction := Vector2.ZERO, _is_crit: bool = false) -> void:
-	if is_dead:
+	if is_dead or current_health <= 0:
 		return
 	current_health -= maxi(0, amount)
 	hit_flash_timer = 0.13
 	if direction.length_squared() > 0.01:
 		facing_sign = -signf(direction.x)
 	if current_health <= 0:
-		_die()
+		call_deferred("_die")
 
 
 func _process_idle() -> void:
@@ -197,7 +196,7 @@ func _update_lighting() -> void:
 
 func _update_sprite() -> void:
 	if hit_flash_timer > 0.0:
-		sprite.modulate = Color(1.0, 0.84, 0.88, 1.0)
+		sprite.modulate = Color(3.4, 3.4, 3.4, 1.0)
 	else:
 		# The glow lives on the mushroom itself; its point light is deliberately
 		# almost imperceptible so it cannot bleach surrounding cave geometry.

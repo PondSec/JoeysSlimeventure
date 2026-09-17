@@ -10,7 +10,7 @@ const BASE_SPRITE_SCALE := Vector2(0.125, 0.125)
 const SQUASH_SPRITE_SCALE := Vector2(0.158, 0.098)
 const BASE_COLOR := Color(0.92, 0.76, 0.80, 1.0)
 const GLOW_COLOR := Color(1.0, 0.46, 0.54, 1.0)
-const HIT_FLASH_COLOR := Color(1.0, 0.8, 0.84, 1.0)
+const HIT_FLASH_COLOR := Color(3.4, 3.4, 3.4, 1.0)
 
 enum State { PATROL, CHASE, TELEGRAPH, LEAP, EVADE, RECOVER, DEAD }
 
@@ -92,7 +92,7 @@ func _physics_process(delta: float) -> void:
 
 
 func take_damage(amount: int, direction: Vector2, _is_crit: bool = false) -> void:
-	if is_dead:
+	if is_dead or current_health <= 0:
 		return
 
 	current_health -= amount
@@ -101,7 +101,7 @@ func take_damage(amount: int, direction: Vector2, _is_crit: bool = false) -> voi
 	velocity += knockback_direction * 180.0
 	velocity.y = minf(velocity.y, -180.0)
 	if current_health <= 0:
-		_die()
+		call_deferred("_die")
 	elif state not in [State.TELEGRAPH, State.LEAP, State.EVADE] and evade_cooldown <= 0.0 and is_on_floor() and randf() < 0.24:
 		_enter_state(State.EVADE)
 

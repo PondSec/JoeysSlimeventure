@@ -87,7 +87,7 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	sprite.flip_h = velocity.x < 0.0
 	if flash_timer > 0.0:
-		sprite.modulate = Color(1.0, 0.72, 0.72, 1.0)
+		sprite.modulate = Color(3.4, 3.4, 3.4, 1.0)
 	elif state == State.SONIC_TELEGRAPH:
 		sprite.modulate = Color(0.66, 0.86, 1.0, 1.0)
 	else:
@@ -96,7 +96,7 @@ func _physics_process(delta: float) -> void:
 
 
 func take_damage(amount: int, direction: Vector2, _is_crit: bool = false) -> void:
-	if is_dead:
+	if is_dead or current_health <= 0:
 		return
 
 	current_health -= amount
@@ -104,7 +104,7 @@ func take_damage(amount: int, direction: Vector2, _is_crit: bool = false) -> voi
 	var knockback_direction: Vector2 = direction.normalized() if direction.length() > 0.0 else Vector2.RIGHT
 	velocity += knockback_direction * 130.0
 	if current_health <= 0:
-		_die()
+		call_deferred("_die")
 	elif state in [State.ORBIT, State.PATROL] and attack_cooldown <= 0.0 and randf() < 0.28:
 		_enter_state(State.EVADE)
 
