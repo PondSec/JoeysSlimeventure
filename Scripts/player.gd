@@ -1814,9 +1814,13 @@ func _resolve_runtime_animation_name() -> String:
 		if runtime_fall_transition_timer > 0.0:
 			return "fall"
 		return "fall_loop"
-	if abs(velocity.x) > maxf(RUN_SPEED * 0.72, 120.0):
+	# Animation follows the player's present movement intent rather than waiting
+	# for inertial velocity to cross zero.  This keeps a sprint visually running
+	# while the character brakes and reverses direction.
+	var intended_speed := absf(direction.x) * current_speed
+	if intended_speed > maxf(RUN_SPEED * 0.72, 120.0) or absf(velocity.x) > maxf(RUN_SPEED * 0.86, 160.0):
 		return "run"
-	if abs(velocity.x) > 14.0:
+	if intended_speed > 14.0 or absf(velocity.x) > 14.0:
 		return "walk"
 	return "idle"
 
@@ -2060,12 +2064,15 @@ func update_facing_direction():
 		is_facing_left = last_wall_normal.x < 0.0
 	elif is_hero_ledge_hanging or is_hero_ledge_climbing:
 		is_facing_left = hero_ledge_side < 0.0
-	elif _face_nearest_hero_combat_target():
-		# During a local fight, movement and attacks stay aimed at the closest
-		# living enemy.  Outside that range the mouse continues to control idle aim.
-		pass
 	elif abs(direction.x) > 0.0:
+		# Input owns the movement-facing direction.  In particular, do not write
+		# this in handle_input(): update_facing_direction needs the old value to
+		# reliably start the authored walk/run-turn animation on a reversal.
 		is_facing_left = direction.x < 0
+	elif _face_nearest_hero_combat_target():
+		# Without movement input Hero still watches the nearest threat. Attacks
+		# also aim explicitly just before their first active frame.
+		pass
 	elif Input.is_action_pressed("left"):
 		is_facing_left = true
 	elif Input.is_action_pressed("right"):
@@ -2075,7 +2082,10 @@ func update_facing_direction():
 		is_facing_left = mouse_pos.x < global_position.x
 
 	if uses_runtime_character_animation and previous_facing != is_facing_left and is_on_floor() and not is_attacking and not is_landing and not is_dashing and not is_hero_ground_sliding and not is_wall_sliding and not is_hero_ledge_hanging and not is_hero_ledge_climbing:
-		var speed: float = absf(velocity.x)
+		# The player can reverse before physical inertia has changed sign. Use the
+		# requested speed here so a held sprint always receives Run Turn, never a
+		# delayed Walk/Idle Turn.
+		var speed: float = maxf(absf(velocity.x), absf(direction.x) * current_speed)
 		if speed > maxf(RUN_SPEED * 0.72, 120.0):
 			runtime_turn_animation = "run_turn"
 		elif speed > 40.0:
@@ -2416,9 +2426,9 @@ func handle_input():
 	if is_attacking and !is_dashing:
 		direction.x *= 0.45
 	
-	# Blickrichtung aktualisieren
-	if direction.x != 0:
-		is_facing_left = direction.x < 0
+	# Facing is applied centrally in update_facing_direction after movement has
+	# been simulated.  That preserves the previous direction long enough to
+	# select the correct Deluxe turn transition on the same physics tick.
 
 func charge():
 	if not has_ult_skill:
