@@ -294,6 +294,7 @@ var runtime_landing_animation := "landing"
 var runtime_attack_elapsed := 0.0
 var runtime_turn_timer := 0.0
 var runtime_turn_animation := ""
+var runtime_turn_pending_flip := false
 var runtime_stop_timer := 0.0
 var runtime_fall_transition_timer := 0.0
 var runtime_wall_jump_timer := 0.0
@@ -1514,6 +1515,7 @@ func _apply_character_profile(character_id: String) -> void:
 	runtime_attack_elapsed = 0.0
 	runtime_turn_timer = 0.0
 	runtime_turn_animation = ""
+	runtime_turn_pending_flip = false
 	runtime_stop_timer = 0.0
 	runtime_fall_transition_timer = 0.0
 	runtime_wall_jump_timer = 0.0
@@ -2053,8 +2055,6 @@ func update_facing_direction():
 	if !is_multiplayer_authority():
 		return
 
-	var previous_facing := is_facing_left
-
 	# Deluxe wall/ledge frames are authored facing right. Derive one stable
 	# horizontal flip from the contacted surface and do not let mouse facing
 	# re-flip the sprite in the same physics frame.
@@ -2081,26 +2081,53 @@ func update_facing_direction():
 		var mouse_pos = get_global_mouse_position()
 		is_facing_left = mouse_pos.x < global_position.x
 
-	if uses_runtime_character_animation and previous_facing != is_facing_left and is_on_floor() and not is_attacking and not is_landing and not is_dashing and not is_hero_ground_sliding and not is_wall_sliding and not is_hero_ledge_hanging and not is_hero_ledge_climbing:
-		# The player can reverse before physical inertia has changed sign. Use the
-		# requested speed here so a held sprint always receives Run Turn, never a
-		# delayed Walk/Idle Turn.
-		var speed: float = maxf(absf(velocity.x), absf(direction.x) * current_speed)
-		if speed > maxf(RUN_SPEED * 0.72, 120.0):
-			runtime_turn_animation = "run_turn"
-		elif speed > 40.0:
-			runtime_turn_animation = "walk_turn"
-		else:
-			runtime_turn_animation = "idle_turn"
-		runtime_turn_timer = _get_runtime_animation_length(runtime_turn_animation)
-		runtime_animation_state = ""
+	var can_play_turn := uses_runtime_character_animation and is_on_floor() and not is_attacking and not is_landing and not is_dashing and not is_hero_ground_sliding and not is_wall_sliding and not is_hero_ledge_hanging and not is_hero_ledge_climbing
+	var visible_facing_left: bool = $PlayerSprite.flip_h
+	if can_play_turn:
+		if runtime_turn_pending_flip:
+			# A second reversal before the turn ends means the player returned to
+			# the direction that is still visible. Cancel cleanly instead of playing
+			# a mirrored turn sheet in the wrong direction.
+			if is_facing_left == visible_facing_left:
+				runtime_turn_pending_flip = false
+				runtime_turn_timer = 0.0
+				runtime_turn_animation = ""
+				runtime_animation_state = ""
+		elif is_facing_left != visible_facing_left:
+			# The turn sheets contain the actual body rotation. Keep the old flip
+			# for their full duration; only the final frame receives the new facing.
+			var speed: float = maxf(absf(velocity.x), absf(direction.x) * current_speed)
+			if speed > maxf(RUN_SPEED * 0.72, 120.0):
+				runtime_turn_animation = "run_turn"
+			elif speed > 40.0:
+				runtime_turn_animation = "walk_turn"
+			else:
+				runtime_turn_animation = "idle_turn"
+			runtime_turn_timer = _get_runtime_animation_length(runtime_turn_animation)
+			runtime_turn_pending_flip = true
+			runtime_animation_state = ""
+	else:
+		# Combat, air movement and traversal never wait for a turn sheet.
+		runtime_turn_pending_flip = false
+		runtime_turn_timer = 0.0
 
-	$PlayerSprite.flip_h = is_facing_left
-	$PlayerSprite/AttackSprite.flip_h = is_facing_left
+	_apply_visible_facing()
 	_update_equipped_weapon_visual()
 	
 	# Blickrichtung an alle Clients synchronisieren
 	sync_facing_direction.rpc(is_facing_left)
+
+
+func _apply_visible_facing() -> void:
+	if $PlayerSprite == null:
+		return
+	# Hero turn frames are already rotating the character. Flipping this node
+	# before they finish causes the exact pop-back/pop-forward seen on reversal.
+	if uses_runtime_character_animation and runtime_turn_pending_flip and runtime_turn_timer > 0.0:
+		return
+	$PlayerSprite.flip_h = is_facing_left
+	if $PlayerSprite/AttackSprite:
+		$PlayerSprite/AttackSprite.flip_h = is_facing_left
 
 
 func _face_nearest_hero_combat_target() -> bool:
@@ -2270,6 +2297,17 @@ func _process_combat_timers(delta: float) -> void:
 
 	if runtime_turn_timer > 0.0:
 		runtime_turn_timer = max(runtime_turn_timer - delta, 0.0)
+		if runtime_turn_timer <= 0.0 and runtime_turn_pending_flip:
+			# Commit the new visual direction only after the authored turn sheet's
+			# last frame has been displayed.
+			runtime_turn_pending_flip = false
+			_apply_visible_facing()
+	elif runtime_turn_pending_flip:
+		# A turn interrupted by jumping, dashing or attacking must not leave the
+		# renderer facing the old direction.
+		if is_attacking or is_dashing or not is_on_floor():
+			runtime_turn_pending_flip = false
+			_apply_visible_facing()
 
 	if runtime_stop_timer > 0.0:
 		runtime_stop_timer = max(runtime_stop_timer - delta, 0.0)
