@@ -68,6 +68,8 @@ var low_health_warning_cooldown := 0.0
 var banner_tween: Tween
 var cave_health_frame: TextureRect
 var lush_health_frame: TextureRect
+var glow_charge_bar: ProgressBar
+var glow_charge_label: Label
 
 
 func _ready() -> void:
@@ -82,6 +84,7 @@ func _ready() -> void:
 
 	_setup_biome_health_skin()
 	_setup_health_chip_bar()
+	_setup_glow_charge_meter()
 	_setup_fullscreen_feedback()
 	_setup_toasts()
 	_setup_action_banner()
@@ -147,6 +150,60 @@ func _create_health_frame(texture: Texture2D, node_name: String, frame_position:
 	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	frame.z_index = 0
 	return frame
+
+
+func _setup_glow_charge_meter() -> void:
+	# A small reserve below HP makes glow a deliberate exploration tool without
+	# competing with the combat HUD or inventory.
+	glow_charge_bar = ProgressBar.new()
+	glow_charge_bar.name = "GlowCharge"
+	glow_charge_bar.position = Vector2(65.0, 72.0)
+	glow_charge_bar.size = Vector2(250.0, 7.0)
+	glow_charge_bar.max_value = 100.0
+	glow_charge_bar.show_percentage = false
+	glow_charge_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	glow_charge_bar.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	glow_charge_bar.z_index = 3
+	var background := StyleBoxFlat.new()
+	background.bg_color = Color(0.015, 0.035, 0.07, 0.9)
+	background.border_color = Color(0.18, 0.42, 0.56, 0.95)
+	background.set_border_width_all(1)
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = Color(0.30, 0.88, 1.0, 0.96)
+	fill.border_color = Color(0.72, 0.98, 1.0, 1.0)
+	fill.set_border_width_all(1)
+	glow_charge_bar.add_theme_stylebox_override("background", background)
+	glow_charge_bar.add_theme_stylebox_override("fill", fill)
+	add_child(glow_charge_bar)
+
+	glow_charge_label = Label.new()
+	glow_charge_label.name = "GlowChargeLabel"
+	glow_charge_label.position = Vector2(20.0, 65.0)
+	glow_charge_label.size = Vector2(42.0, 16.0)
+	glow_charge_label.text = "LICHT"
+	glow_charge_label.add_theme_font_override("font", feedback_font)
+	glow_charge_label.add_theme_font_size_override("font_size", 11)
+	glow_charge_label.add_theme_color_override("font_color", Color(0.62, 0.94, 1.0, 1.0))
+	glow_charge_label.add_theme_color_override("font_outline_color", Color(0.01, 0.03, 0.06, 1.0))
+	glow_charge_label.add_theme_constant_override("outline_size", 2)
+	glow_charge_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	glow_charge_label.z_index = 4
+	add_child(glow_charge_label)
+	glow_charge_bar.visible = false
+	glow_charge_label.visible = false
+
+
+func set_glow_charge(current: float, maximum: float, available: bool) -> void:
+	if glow_charge_bar == null or glow_charge_label == null:
+		return
+	glow_charge_bar.visible = available
+	glow_charge_label.visible = available
+	if not available:
+		return
+	glow_charge_bar.max_value = maxf(maximum, 1.0)
+	glow_charge_bar.value = clampf(current, 0.0, glow_charge_bar.max_value)
+	var ratio := glow_charge_bar.value / glow_charge_bar.max_value
+	glow_charge_label.modulate = Color(1.0, 0.62, 0.38, 1.0) if ratio < 0.18 else Color.WHITE
 
 
 func _process(delta: float) -> void:

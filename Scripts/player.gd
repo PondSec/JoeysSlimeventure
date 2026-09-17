@@ -181,6 +181,13 @@ var is_charging: bool = false
 
 # Variablen für Bewegung und Status
 var is_glowing := true
+const GLOW_ENERGY_MAX := 100.0
+const GLOW_ENERGY_DRAIN_PER_SECOND := 12.0
+const GLOW_ENERGY_RECHARGE_PER_SECOND := 18.0
+const GLOW_MIN_ACTIVATION_ENERGY := 12.0
+var glow_energy := GLOW_ENERGY_MAX
+var glow_exhausted := false
+var glow_base_energy := 1.0
 var is_gliding := false
 var is_attacking := false  # Angriffszustand
 var was_in_air := false  # Variable, um zu überprüfen, ob der Spieler gerade in der Luft war
@@ -550,6 +557,7 @@ func _ready() -> void:
 		load_charge_cooldown()
 	glow_effect = $PlayerGlow
 	glow_effect.visible = false
+	glow_base_energy = glow_effect.energy
 	# Initialisiere Angriffsknoten
 	attack_sprite = $PlayerSprite/AttackSprite
 	attack_area = $AttackArea
@@ -2155,9 +2163,7 @@ func _process(delta: float) -> void:
 
 	# Leuchteffekt umschalten
 	if Input.is_action_just_pressed("Glow"):
-		is_glowing = !is_glowing
-		update_glow_state()
-		sync_glow_state.rpc(is_glowing)
+		toggle_glow()
 
 	if Input.is_action_just_pressed("drop_item"):  
 		drop_hotbar_item()
@@ -2182,6 +2188,7 @@ func _physics_process(delta: float) -> void:
 			update_position.rpc(position, velocity)
 			return
 		handle_input()
+		_update_glow_energy(delta)
 		_check_lumora_interaction()
 		_process_combat_timers(delta)
 		handle_sticky_form_timers(delta)
@@ -3712,6 +3719,14 @@ func _restore_health(amount: int) -> void:
 	update_health_bar()
 
 
+func restore_environmental_health(amount: int) -> void:
+	# Environmental sanctuaries such as the rare blue Moonbell are independent
+	# of the regeneration skill and therefore must always be able to heal Joey.
+	if current_health >= max_health:
+		return
+	_restore_health(amount)
+
+
 func _grant_guardian_barrier(amount: float) -> void:
 	mana_shield_active = true
 	mana_shield_health = clamp(mana_shield_health + amount, 0.0, max_mana_shield_health)
@@ -4132,13 +4147,47 @@ func update_glow_state() -> void:
 	if not has_glow_skill:
 		is_glowing = false
 		return
-		
+
+	var energy_ratio := clampf(glow_energy / GLOW_ENERGY_MAX, 0.0, 1.0)
 	glow_effect.visible = is_glowing
+	glow_effect.energy = glow_base_energy * lerpf(0.42, 1.0, energy_ratio)
 	_refresh_player_tuning_from_skills()
 	# EMITTIERE DAS SIGNAL HIER:
 	glow_changed.emit(is_glowing)
 	get_tree().call_group("spikes", "_on_player_glow_changed", is_glowing)
 	sync_glow_state.rpc(is_glowing)
+	if canvas_layer and canvas_layer.has_method("set_glow_charge"):
+		canvas_layer.call("set_glow_charge", glow_energy, GLOW_ENERGY_MAX, has_glow_skill)
+
+
+func toggle_glow() -> void:
+	if not has_glow_skill:
+		return
+	if not is_glowing and glow_energy < GLOW_MIN_ACTIVATION_ENERGY:
+		_show_feedback_toast("Lichtkern lädt noch", "warning", null)
+		return
+	is_glowing = not is_glowing
+	glow_exhausted = false
+	update_glow_state()
+
+
+func _update_glow_energy(delta: float) -> void:
+	if not has_glow_skill:
+		return
+	if is_glowing:
+		glow_energy = maxf(0.0, glow_energy - GLOW_ENERGY_DRAIN_PER_SECOND * delta)
+		if glow_energy <= 0.0:
+			is_glowing = false
+			if not glow_exhausted:
+				glow_exhausted = true
+				_show_feedback_toast("Lichtkern erschöpft", "warning", null)
+			update_glow_state()
+	else:
+		glow_energy = minf(GLOW_ENERGY_MAX, glow_energy + GLOW_ENERGY_RECHARGE_PER_SECOND * delta)
+		if glow_energy >= GLOW_MIN_ACTIVATION_ENERGY:
+			glow_exhausted = false
+	if canvas_layer and canvas_layer.has_method("set_glow_charge"):
+		canvas_layer.call("set_glow_charge", glow_energy, GLOW_ENERGY_MAX, true)
 
 func set_controls_inverted(inverted: bool):
 	controls_inverted = inverted
@@ -4636,9 +4685,7 @@ func _on_dash_button_pressed():
 	dash(dash_dir)
 
 func _on_glow_button_pressed():
-	is_glowing = !is_glowing
-	update_glow_state()
-	sync_glow_state.rpc(is_glowing)
+	toggle_glow()
 
 func _notification(what):
 	if what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:

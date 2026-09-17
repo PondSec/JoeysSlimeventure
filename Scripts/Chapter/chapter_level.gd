@@ -21,7 +21,7 @@ const KRISTALLRUECKEN_SCENE := preload("res://Scenes/Chapter/Enemies/kristallrue
 const MAGIC_ENERGY_TRAIL := preload("res://Scripts/Chapter/Boss/magic_energy_trail.gd")
 const ESSENCE_FRAGMENT_SCENE := preload("res://Scenes/Chapter/Pickups/essence_fragment.tscn")
 const TORCH_SCENE := preload("res://Scenes/torch.tscn")
-const SPIKE_SCENE := preload("res://Scenes/SpikeNormal.tscn")
+const SPIKE_SCENE := preload("res://Scenes/Spike.tscn")
 const WORM_SCENE := preload("res://Scenes/worm.tscn")
 const VINE_SCENE := preload("res://Scenes/vine.tscn")
 const FALLING_LEAF_SCENE := preload("res://Scenes/Deko/leaf.tscn")
@@ -67,6 +67,8 @@ const MAX_AMBIENT_LUSH_LEAVES := 12
 const AMBIENT_LUSH_LEAF_MIN_INTERVAL := 1.25
 const AMBIENT_LUSH_LEAF_MAX_INTERVAL := 3.4
 const AMBIENT_LUSH_LEAF_MAX_SOURCE_DISTANCE := 720.0
+const LUSH_MOONBELL_HEAL_RADIUS := 42.0
+const LUSH_MOONBELL_HEAL_INTERVAL := 1.0
 const ENEMY_RESPAWN_DELAY_MIN := 6.0
 const ENEMY_RESPAWN_DELAY_MAX := 10.0
 const ENEMY_RESPAWN_MIN_PLAYER_DISTANCE := 520.0
@@ -116,7 +118,7 @@ const CHAPTER_LUSH_LANDMARK_ORDER := [5, 2, 7, 0, 6, 3, 1, 4]
 const CHAPTER_CAVE_LANDMARK_ORDER := [1, 6, 3, 7, 0, 4, 2, 5]
 const NORMAL_CAVE_FOREGROUND_FRAME_PATH := "res://Assets/Parallax Cave/normal_cave_foreground_frame.png"
 const NORMAL_CAVE_FOREGROUND_SHADER_PATH := "res://Shaders/normal_cave_foreground_transition.gdshader"
-const LUSH_BIOME_TRANSITION_DISTANCE := 280.0
+const LUSH_BIOME_TRANSITION_DISTANCE := 460.0
 const LUSH_BIOME_SPAWN_EXCLUSION_DISTANCE := 640.0
 const MIN_LUSH_BIOME_DENSITY := 4.6
 
@@ -203,6 +205,8 @@ var ceiling_leaf_sources: Array[Dictionary] = []
 var ambient_lush_leaf_count: int = 0
 var ambient_lush_leaf_timer: float = 0.0
 var ambient_lush_leaf_rng := RandomNumberGenerator.new()
+var lush_moonbell_sources: Array[WeakRef] = []
+var lush_moonbell_heal_timer: float = 0.0
 var enemy_population_target: int = 0
 var enemy_respawn_types: Array[String] = []
 var enemy_respawn_timer: float = -1.0
@@ -257,6 +261,7 @@ func _process(delta: float) -> void:
 	_update_enemy_population(delta)
 	_update_vegetation_motion(delta)
 	_update_ambient_lush_leaves(delta)
+	_update_lush_moonbell_healing(delta)
 	# The ordinary foreground is always present, independent of whether this
 	# seed contains a lush biome.  Keeping it moving here also gives the normal
 	# cave the same depth response as the lush frame.
@@ -746,8 +751,10 @@ func _build_lush_biome_parallax(bounds: Rect2) -> void:
 	if best_grid_x < 0 or best_score < MIN_LUSH_BIOME_DENSITY:
 		return
 
-	# Keep this deliberately local: a dense lush pocket, not an all-map skin.
-	var core_width: float = clampf(bounds.size.x * 0.15, 420.0, 620.0)
+	# A lush biome is a real explorable territory rather than a narrow backdrop
+	# strip. It still leaves normal stone cave on both sides, but has enough
+	# width for continuous moss, large plants and a distinct route identity.
+	var core_width: float = clampf(bounds.size.x * 0.28, 720.0, 1180.0)
 	var center_x: float = float(best_grid_x) * TILE_SIZE + TILE_SIZE * 0.5
 	var region := Rect2(
 		Vector2(center_x - core_width * 0.5, bounds.position.y - 1024.0),
@@ -982,6 +989,8 @@ func _build_level() -> void:
 	ambient_lush_leaf_count = 0
 	ambient_lush_leaf_rng.seed = active_level_seed * 193 + 6221
 	ambient_lush_leaf_timer = ambient_lush_leaf_rng.randf_range(AMBIENT_LUSH_LEAF_MIN_INTERVAL, AMBIENT_LUSH_LEAF_MAX_INTERVAL)
+	lush_moonbell_sources.clear()
+	lush_moonbell_heal_timer = 0.0
 	lush_biome_density.clear()
 	lush_biome_density.resize(level_size_tiles.x)
 	for density_index: int in range(lush_biome_density.size()):
@@ -2032,7 +2041,7 @@ func _spawn_lush_ground_carpet_zones(grid: Array) -> void:
 			if _is_exposed_moss_face(grid, start + Vector2i.LEFT, Vector2i.UP):
 				continue
 			var available: int = _exposed_face_run_length(grid, start, Vector2i.UP, Vector2i.RIGHT, 20)
-			if available < 4 or carpet_rng.randf() > 0.90:
+			if available < 4 or carpet_rng.randf() > 0.82:
 				continue
 			var span: int = mini(available, carpet_rng.randi_range(10, 20))
 			for offset: int in range(span):
@@ -2056,10 +2065,10 @@ func _spawn_lush_canopy_zones(grid: Array) -> void:
 	var placed: int = 0
 	var reserved: Dictionary = {}
 	for grid_y: int in range(2, level_size_tiles.y - 5):
-		if placed >= 10:
+		if placed >= 18:
 			break
 		for grid_x: int in range(2, level_size_tiles.x - 9):
-			if placed >= 10:
+			if placed >= 18:
 				break
 			var start := Vector2i(grid_x, grid_y)
 			if _is_lush_canopy_reserved(reserved, start) or _is_torch_column(grid_x) or not _is_exposed_moss_face(grid, start, Vector2i.DOWN):
@@ -2072,7 +2081,7 @@ func _spawn_lush_canopy_zones(grid: Array) -> void:
 			# Organic cave ceilings are intentionally uneven, so four attached tiles
 			# are enough to seed a large overgrown curtain.  Requiring long perfect
 			# horizontal ceilings made whole seeds miss the landmark vegetation.
-			if available < 4 or canopy_rng.randf() > 0.90:
+			if available < 4 or canopy_rng.randf() > 0.84:
 				continue
 			var span: int = mini(available, canopy_rng.randi_range(4, 14))
 			_reserve_lush_canopy_zone(reserved, start, span)
@@ -2164,7 +2173,7 @@ func _spawn_generated_flora(grid: Array) -> void:
 			if placed >= 320:
 				break
 			var cell := Vector2i(grid_x, grid_y)
-			if not _is_exposed_moss_face(grid, cell, Vector2i.UP) or not _has_ground_moss_shoulders(grid, cell) or _is_torch_column(grid_x) or flora_rng.randf() > 0.78:
+			if not _is_exposed_moss_face(grid, cell, Vector2i.UP) or not _has_ground_moss_shoulders(grid, cell) or _is_torch_column(grid_x) or flora_rng.randf() > 0.68:
 				continue
 			var patch_length: int = flora_rng.randi_range(6, 12)
 			for patch_step: int in range(patch_length):
@@ -2185,7 +2194,7 @@ func _spawn_generated_flora(grid: Array) -> void:
 				return
 			var cell := Vector2i(grid_x, grid_y)
 			for outward: Vector2i in [Vector2i.DOWN]:
-				if not _is_exposed_moss_face(grid, cell, outward) or _is_torch_column(grid_x) or flora_rng.randf() > 0.19:
+				if not _is_exposed_moss_face(grid, cell, outward) or _is_torch_column(grid_x) or flora_rng.randf() > 0.25:
 					continue
 				_spawn_flora_tile(cell, outward, flora_rng, outward == Vector2i.DOWN)
 				placed += 1
@@ -2414,13 +2423,13 @@ func _spawn_lush_special_blooms(grid: Array) -> void:
 			var key := "%d:%d" % [cell.x, cell.y]
 			if claimed.has(key) or _is_torch_column(grid_x) or not _is_exposed_moss_face(grid, cell, Vector2i.UP) or not _has_ground_moss_shoulders(grid, cell):
 				continue
-			if bloom_rng.randf() > 0.060:
+			if bloom_rng.randf() > 0.078:
 				continue
 			# Wide shoulders preserve readable silhouettes and stop special plants
 			# from merging into accidental walls of leaves.
 			for offset_x: int in range(-2, 3):
 				claimed["%d:%d" % [cell.x + offset_x, cell.y]] = true
-			var is_moonbell: bool = bloom_rng.randf() < 0.42
+			var is_moonbell: bool = bloom_rng.randf() < 0.48
 			var bloom := Sprite2D.new()
 			bloom.name = "GeneratedLushMoonbell" if is_moonbell else "GeneratedLushSunbud"
 			bloom.texture = moonbell if is_moonbell else sunbud
@@ -2434,6 +2443,8 @@ func _spawn_lush_special_blooms(grid: Array) -> void:
 			bloom.self_modulate = Color(0.84, 0.94, 1.08, 1.0) if is_moonbell else Color(1.07, 0.98, 0.76, 1.0)
 			_register_vegetation_motion(bloom, bloom.texture, bloom_rng, true)
 			decor_root.add_child(bloom)
+			if is_moonbell:
+				_register_lush_moonbell(bloom)
 			placed += 1
 
 
@@ -2569,6 +2580,7 @@ func _spawn_lush_light_oasis(floor_cell: Vector2i, ceiling_cell: Vector2i, slant
 	bloom.self_modulate = Color(0.92, 1.22, 1.32, 1.0)
 	_register_vegetation_motion(bloom, bloom.texture, oasis_rng, true)
 	decor_root.add_child(bloom)
+	_register_lush_moonbell(bloom)
 
 	# One modest real light per oasis is enough to illuminate Joey as he walks
 	# through it.  It is intentionally much smaller and weaker than his skill
@@ -2793,6 +2805,32 @@ func _on_ambient_lush_leaf_removed() -> void:
 	ambient_lush_leaf_count = maxi(0, ambient_lush_leaf_count - 1)
 
 
+func _register_lush_moonbell(bloom: Sprite2D) -> void:
+	if bloom != null:
+		lush_moonbell_sources.append(weakref(bloom))
+
+
+func _update_lush_moonbell_healing(delta: float) -> void:
+	# Moonbells are a quiet sanctuary, not a regeneration-skill proc: standing
+	# in the rare blue bloom restores exactly one HP per full second.
+	if player == null or not player.has_method("restore_environmental_health"):
+		return
+	var is_touching_moonbell := false
+	for moonbell_ref: WeakRef in lush_moonbell_sources:
+		var moonbell := moonbell_ref.get_ref() as Sprite2D
+		if moonbell != null and is_instance_valid(moonbell) and moonbell.global_position.distance_to(player.global_position) <= LUSH_MOONBELL_HEAL_RADIUS:
+			is_touching_moonbell = true
+			break
+	if not is_touching_moonbell:
+		lush_moonbell_heal_timer = 0.0
+		return
+
+	lush_moonbell_heal_timer += delta
+	while lush_moonbell_heal_timer >= LUSH_MOONBELL_HEAL_INTERVAL:
+		lush_moonbell_heal_timer -= LUSH_MOONBELL_HEAL_INTERVAL
+		player.call("restore_environmental_health", 1)
+
+
 func _is_torch_column(grid_x: int) -> bool:
 	for torch_variant: Variant in active_level.get("torches", []) as Array:
 		if abs(grid_x - int((torch_variant as Dictionary).get("x", -999))) <= 3:
@@ -2896,10 +2934,12 @@ func _spawn_hazard(hazard: Dictionary) -> void:
 		if spike == null:
 			continue
 		hazard_root.add_child(spike)
-		# The trimmed spike artwork's last opaque row sits a few pixels above its
-		# Sprite2D frame.  Sink the visual anchor into the floor lip so the teeth
-		# are planted on the rock rather than visibly hovering above it.
-		spike.global_position = _grid_to_world(Vector2i(base_x + offset_index, base_y)) + Vector2(16.0, -12.0)
+		# The complete authored spike scene is bottom-anchored at local Y=0.
+		# Spawning it directly on the floor lip preserves its full scale, hitbox
+		# and player-glow visibility behaviour instead of producing tiny floaters.
+		spike.global_position = _grid_to_world(Vector2i(base_x + offset_index, base_y)) + Vector2(16.0, 0.0)
+		if player != null:
+			spike.call("_on_player_glow_changed", bool(player.get("is_glowing")))
 
 
 func _spawn_torch(torch_data: Dictionary) -> void:
