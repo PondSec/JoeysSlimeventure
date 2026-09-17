@@ -3,8 +3,8 @@ extends Area2D
 signal finished
 
 const ORB_FRAMES := [
-	preload("res://Assets/Enemy/Kristallruecken/frames/orb_01.png"),
-	preload("res://Assets/Enemy/Kristallruecken/frames/orb_02.png")
+	preload("res://Assets/Enemies/Kristallruecken/frames/orb_01.png"),
+	preload("res://Assets/Enemies/Kristallruecken/frames/orb_02.png")
 ]
 
 @export var lifetime := 4.2

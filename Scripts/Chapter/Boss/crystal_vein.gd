@@ -2,10 +2,10 @@ extends Area2D
 
 signal finished
 
-const TELEGRAPH_TEXTURE := preload("res://Assets/Enemy/Kristallruecken/frames/ground_attack_02.png")
+const TELEGRAPH_TEXTURE := preload("res://Assets/Enemies/Kristallruecken/frames/ground_attack_02.png")
 const BURST_TEXTURES := [
-	preload("res://Assets/Enemy/Kristallruecken/frames/ground_attack_01.png"),
-	preload("res://Assets/Enemy/Kristallruecken/frames/ground_attack_00.png")
+	preload("res://Assets/Enemies/Kristallruecken/frames/ground_attack_01.png"),
+	preload("res://Assets/Enemies/Kristallruecken/frames/ground_attack_00.png")
 ]
 
 @export var travel_speed := 430.0

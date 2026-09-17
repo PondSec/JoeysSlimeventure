@@ -29,21 +29,21 @@ const CRYSTAL_VEIN_SCENE := preload("res://Scenes/Chapter/Boss/crystal_vein.tscn
 const CRYSTAL_ORB_SCENE := preload("res://Scenes/Chapter/Boss/crystal_orb.tscn")
 const IRRLICHTKAEFER_SCENE := preload("res://Scenes/Chapter/Enemies/irrlichtkaefer.tscn")
 const IDLE_FRAMES := [
-	preload("res://Assets/Enemy/Kristallruecken/frames/idle_00.png"), preload("res://Assets/Enemy/Kristallruecken/frames/idle_01.png"), preload("res://Assets/Enemy/Kristallruecken/frames/idle_02.png"), preload("res://Assets/Enemy/Kristallruecken/frames/idle_03.png"), preload("res://Assets/Enemy/Kristallruecken/frames/idle_04.png")
+	preload("res://Assets/Enemies/Kristallruecken/frames/idle_00.png"), preload("res://Assets/Enemies/Kristallruecken/frames/idle_01.png"), preload("res://Assets/Enemies/Kristallruecken/frames/idle_02.png"), preload("res://Assets/Enemies/Kristallruecken/frames/idle_03.png"), preload("res://Assets/Enemies/Kristallruecken/frames/idle_04.png")
 ]
 const WALK_FRAMES := [
-	preload("res://Assets/Enemy/Kristallruecken/frames/walk_00.png"), preload("res://Assets/Enemy/Kristallruecken/frames/walk_01.png"), preload("res://Assets/Enemy/Kristallruecken/frames/walk_02.png"), preload("res://Assets/Enemy/Kristallruecken/frames/walk_03.png"), preload("res://Assets/Enemy/Kristallruecken/frames/walk_04.png"), preload("res://Assets/Enemy/Kristallruecken/frames/walk_05.png"), preload("res://Assets/Enemy/Kristallruecken/frames/walk_06.png")
+	preload("res://Assets/Enemies/Kristallruecken/frames/walk_00.png"), preload("res://Assets/Enemies/Kristallruecken/frames/walk_01.png"), preload("res://Assets/Enemies/Kristallruecken/frames/walk_02.png"), preload("res://Assets/Enemies/Kristallruecken/frames/walk_03.png"), preload("res://Assets/Enemies/Kristallruecken/frames/walk_04.png"), preload("res://Assets/Enemies/Kristallruecken/frames/walk_05.png"), preload("res://Assets/Enemies/Kristallruecken/frames/walk_06.png")
 ]
 const LUNGE_FRAMES := [
-	preload("res://Assets/Enemy/Kristallruecken/frames/lunge_00.png"), preload("res://Assets/Enemy/Kristallruecken/frames/lunge_01.png"), preload("res://Assets/Enemy/Kristallruecken/frames/lunge_02.png")
+	preload("res://Assets/Enemies/Kristallruecken/frames/lunge_00.png"), preload("res://Assets/Enemies/Kristallruecken/frames/lunge_01.png"), preload("res://Assets/Enemies/Kristallruecken/frames/lunge_02.png")
 ]
-const GROUND_PREPARE_FRAMES := [preload("res://Assets/Enemy/Kristallruecken/frames/ground_prepare_00.png")]
+const GROUND_PREPARE_FRAMES := [preload("res://Assets/Enemies/Kristallruecken/frames/ground_prepare_00.png")]
 const MAGIC_PREPARE_FRAMES := [
-	preload("res://Assets/Enemy/Kristallruecken/frames/magic_prepare_00.png"), preload("res://Assets/Enemy/Kristallruecken/frames/magic_prepare_01.png"), preload("res://Assets/Enemy/Kristallruecken/frames/magic_prepare_02.png")
+	preload("res://Assets/Enemies/Kristallruecken/frames/magic_prepare_00.png"), preload("res://Assets/Enemies/Kristallruecken/frames/magic_prepare_01.png"), preload("res://Assets/Enemies/Kristallruecken/frames/magic_prepare_02.png")
 ]
-const MAGIC_FIRE_FRAMES := [preload("res://Assets/Enemy/Kristallruecken/frames/magic_fire_00.png")]
+const MAGIC_FIRE_FRAMES := [preload("res://Assets/Enemies/Kristallruecken/frames/magic_fire_00.png")]
 const DEATH_FRAMES := [
-	preload("res://Assets/Enemy/Kristallruecken/frames/death_00.png"), preload("res://Assets/Enemy/Kristallruecken/frames/death_01.png"), preload("res://Assets/Enemy/Kristallruecken/frames/death_02.png"), preload("res://Assets/Enemy/Kristallruecken/frames/death_03.png"), preload("res://Assets/Enemy/Kristallruecken/frames/death_04.png"), preload("res://Assets/Enemy/Kristallruecken/frames/death_05.png"), preload("res://Assets/Enemy/Kristallruecken/frames/death_06.png")
+	preload("res://Assets/Enemies/Kristallruecken/frames/death_00.png"), preload("res://Assets/Enemies/Kristallruecken/frames/death_01.png"), preload("res://Assets/Enemies/Kristallruecken/frames/death_02.png"), preload("res://Assets/Enemies/Kristallruecken/frames/death_03.png"), preload("res://Assets/Enemies/Kristallruecken/frames/death_04.png"), preload("res://Assets/Enemies/Kristallruecken/frames/death_05.png"), preload("res://Assets/Enemies/Kristallruecken/frames/death_06.png")
 ]
 
 @export var boss_health: int = 330

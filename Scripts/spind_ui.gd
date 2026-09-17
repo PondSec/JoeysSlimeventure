@@ -6,7 +6,7 @@ extends CanvasLayer
 # Eine Liste der Skins (Pfad zu den Texturen oder Animationen)
 var skins = {
 	"Slime": preload("res://Assets/slime-sprite.png"),
-	"Skeleton": preload("res://Assets/Enemy/skeleton.png"),
+	"Skeleton": preload("res://Assets/Enemies/skeleton.png"),
 }
 
 func change_skin(skin_name: String):

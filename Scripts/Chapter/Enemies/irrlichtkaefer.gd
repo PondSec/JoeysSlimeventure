@@ -13,20 +13,21 @@ enum State {
 
 const LIGHT_TEXTURE := preload("res://Assets/Light/torch_light.png")
 const IDLE_FRAMES := [
-	preload("res://Assets/Enemy/Irrlichtkaefer/individual/idle_00.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/idle_01.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/idle_02.png"),
-	preload("res://Assets/Enemy/Irrlichtkaefer/individual/idle_03.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/idle_04.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/idle_05.png")
+	preload("res://Assets/Enemies/Irrlichtkaefer/individual/idle_00.png"), preload("res://Assets/Enemies/Irrlichtkaefer/individual/idle_01.png"), preload("res://Assets/Enemies/Irrlichtkaefer/individual/idle_02.png"),
+	preload("res://Assets/Enemies/Irrlichtkaefer/individual/idle_03.png"), preload("res://Assets/Enemies/Irrlichtkaefer/individual/idle_04.png"), preload("res://Assets/Enemies/Irrlichtkaefer/individual/idle_05.png")
 ]
 const WALK_FRAMES := [
-	preload("res://Assets/Enemy/Irrlichtkaefer/individual/walk_00.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/walk_01.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/walk_02.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/walk_03.png"),
-	preload("res://Assets/Enemy/Irrlichtkaefer/individual/walk_04.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/walk_05.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/walk_06.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/walk_07.png")
+	preload("res://Assets/Enemies/Irrlichtkaefer/individual/walk_00.png"), preload("res://Assets/Enemies/Irrlichtkaefer/individual/walk_01.png"), preload("res://Assets/Enemies/Irrlichtkaefer/individual/walk_02.png"),
+	preload("res://Assets/Enemies/Irrlichtkaefer/individual/walk_03.png"), preload("res://Assets/Enemies/Irrlichtkaefer/individual/walk_04.png"), preload("res://Assets/Enemies/Irrlichtkaefer/individual/walk_05.png"),
+	preload("res://Assets/Enemies/Irrlichtkaefer/individual/walk_06.png"), preload("res://Assets/Enemies/Irrlichtkaefer/individual/walk_07.png"), preload("res://Assets/Enemies/Irrlichtkaefer/individual/walk_08.png")
 ]
 const ATTACK_FRAMES := [
-	preload("res://Assets/Enemy/Irrlichtkaefer/individual/attack_00.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/attack_01.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/attack_02.png"),
-	preload("res://Assets/Enemy/Irrlichtkaefer/individual/attack_03.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/attack_04.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/attack_05.png")
+	preload("res://Assets/Enemies/Irrlichtkaefer/individual/attack_00.png"), preload("res://Assets/Enemies/Irrlichtkaefer/individual/attack_01.png"), preload("res://Assets/Enemies/Irrlichtkaefer/individual/attack_02.png"),
+	preload("res://Assets/Enemies/Irrlichtkaefer/individual/attack_03.png"), preload("res://Assets/Enemies/Irrlichtkaefer/individual/attack_04.png"), preload("res://Assets/Enemies/Irrlichtkaefer/individual/attack_05.png")
 ]
 const DEATH_FRAMES := [
-	preload("res://Assets/Enemy/Irrlichtkaefer/individual/death_00.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/death_01.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/death_02.png"),
-	preload("res://Assets/Enemy/Irrlichtkaefer/individual/death_03.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/death_04.png"), preload("res://Assets/Enemy/Irrlichtkaefer/individual/death_05.png")
+	preload("res://Assets/Enemies/Irrlichtkaefer/individual/death_00.png"), preload("res://Assets/Enemies/Irrlichtkaefer/individual/death_01.png"), preload("res://Assets/Enemies/Irrlichtkaefer/individual/death_02.png"),
+	preload("res://Assets/Enemies/Irrlichtkaefer/individual/death_03.png"), preload("res://Assets/Enemies/Irrlichtkaefer/individual/death_04.png"), preload("res://Assets/Enemies/Irrlichtkaefer/individual/death_05.png")
 ]
 const CONTACT_COOLDOWN := 0.85
 const BASE_SCALE := Vector2(0.18, 0.18)

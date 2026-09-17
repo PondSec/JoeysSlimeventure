@@ -1,7 +1,7 @@
 [gd_scene load_steps=16 format=3 uid="uid://dqykudmd26o2q"]
 
 [ext_resource type="Script" uid="uid://btm7kd5s0flqi" path="res://Scripts/bat.gd" id="1_fveqw"]
-[ext_resource type="Texture2D" uid="uid://dmh4k0yq2bjpa" path="res://Assets/Bat/Standard/BatStandard_Sheet.png" id="2_kikkf"]
+[ext_resource type="Texture2D" uid="uid://dmh4k0yq2bjpa" path="res://Assets/Enemies/Bat/Standard/BatStandard_Sheet.png" id="2_kikkf"]
 [ext_resource type="Texture2D" uid="uid://bhpr6uxcspd17" path="res://Assets/GUI/Healthbar/off.png" id="3_50dnf"]
 [ext_resource type="Texture2D" uid="uid://dg4h8q8vjxyh" path="res://Assets/GUI/Healthbar/over.png" id="4_mqh3e"]
 [ext_resource type="AudioStream" uid="uid://cmooj0bsqoqv4" path="res://Assets/Sounds/test.mp3" id="5_mqh3e"]

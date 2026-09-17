@@ -1,7 +1,7 @@
 [gd_scene load_steps=10 format=3 uid="uid://dqcxhb7h3mjuk"]
 
 [ext_resource type="Script" uid="uid://x2scs7l5ggh" path="res://Scripts/worm.gd" id="1_l5dqu"]
-[ext_resource type="Texture2D" uid="uid://cmvsw4ae6rrxc" path="res://Assets/Enemy/Worm/worm.png" id="2_n80vc"]
+[ext_resource type="Texture2D" uid="uid://cmvsw4ae6rrxc" path="res://Assets/Enemies/Worm/worm.png" id="2_n80vc"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_x1856"]
 size = Vector2(16, 4.25)

@@ -1,6 +1,6 @@
 [gd_scene load_steps=5 format=3 uid="uid://bt2k2lcuv4v7y"]
 
-[ext_resource type="Texture2D" uid="uid://bncftw00sbl6m" path="res://Assets/Bat/Standard/BatStandard_Flying.png" id="1_bat"]
+[ext_resource type="Texture2D" uid="uid://bncftw00sbl6m" path="res://Assets/Enemies/Bat/Standard/BatStandard_Flying.png" id="1_bat"]
 [ext_resource type="Script" uid="uid://6nri52xog45p" path="res://Scripts/Chapter/Enemies/cave_bat.gd" id="2_script"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_body"]

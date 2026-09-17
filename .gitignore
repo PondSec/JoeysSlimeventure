@@ -1,10 +1,28 @@
-# Godot 4+ specific ignores
+# Godot-generated editor state. Runtime asset `.import` files remain tracked.
 .godot/
+.import/
+
+# Export/build output and platform-specific artefacts.
 /android/
+.builds/
+.exports/
+.release_builds/
+/release_builds/
+/web_demo/
+
+# Editor, operating-system and temporary files.
 .DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
 *.tmp
+__pycache__/
+*.py[cod]
+
+# Local recovery and agent scratch directories.
 .backups/
 _backups/
 .codex_tmp/
-release_builds/
-/web_demo/

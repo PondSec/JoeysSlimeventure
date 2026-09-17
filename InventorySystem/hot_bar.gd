@@ -6,28 +6,29 @@ extends Control
 
 const SLOT_COUNT := 9
 const HOTBAR_SIZE := Vector2(1055.0, 192.0)
+const SLOT_FACE_SCALE := 1.12
 const BIOME_THEMES := {
 	"cave": {
-		"bar": preload("res://Assets/UI/Hotbar/cave_bar.png"),
+		"bar": preload("res://Assets/UI/Hotbar/cave_frame.png"),
 		"inactive": preload("res://Assets/UI/Hotbar/cave_slot_inactive.png"),
 		"active": preload("res://Assets/UI/Hotbar/cave_slot_active.png"),
 		# These are measured from the assembled cave source, not distributed
 		# mathematically. The latter made the selected face drift farther right
 		# with every slot.
 		"slot_centers": [
-			Vector2(220.5, 100.0), Vector2(297.5, 100.0), Vector2(374.0, 100.0),
-			Vector2(450.0, 100.0), Vector2(526.5, 100.0), Vector2(604.0, 100.0),
-			Vector2(681.0, 100.0), Vector2(758.0, 100.0), Vector2(835.5, 100.0),
+			Vector2(200.0, 100.0), Vector2(285.0, 100.0), Vector2(370.0, 100.0),
+			Vector2(455.0, 100.0), Vector2(540.0, 100.0), Vector2(625.0, 100.0),
+			Vector2(710.0, 100.0), Vector2(795.0, 100.0), Vector2(880.0, 100.0),
 		],
 	},
 	"lush": {
-		"bar": preload("res://Assets/UI/Hotbar/lush_bar.png"),
+		"bar": preload("res://Assets/UI/Hotbar/lush_frame.png"),
 		"inactive": preload("res://Assets/UI/Hotbar/lush_slot_inactive.png"),
 		"active": preload("res://Assets/UI/Hotbar/lush_slot_active.png"),
 		"slot_centers": [
-			Vector2(216.0, 100.0), Vector2(295.0, 100.0), Vector2(372.0, 100.0),
-			Vector2(448.5, 100.0), Vector2(525.0, 100.0), Vector2(602.5, 100.0),
-			Vector2(680.0, 100.0), Vector2(757.5, 100.0), Vector2(835.0, 100.0),
+			Vector2(200.0, 100.0), Vector2(285.0, 100.0), Vector2(370.0, 100.0),
+			Vector2(455.0, 100.0), Vector2(540.0, 100.0), Vector2(625.0, 100.0),
+			Vector2(710.0, 100.0), Vector2(795.0, 100.0), Vector2(880.0, 100.0),
 		],
 	},
 }
@@ -69,7 +70,7 @@ func _build_theme_layers() -> void:
 		theme_root.z_index = 1
 		add_child(theme_root)
 
-		var bar := _create_texture_rect(definition["bar"] as Texture2D, HOTBAR_SIZE)
+		var bar := _create_texture_rect(definition["bar"] as Texture2D, HOTBAR_SIZE, TextureRect.STRETCH_SCALE)
 		bar.name = "Frame"
 		theme_root.add_child(bar)
 
@@ -123,20 +124,25 @@ func _build_item_layers() -> void:
 		_amount_labels.append(amount)
 
 
-func _create_texture_rect(texture: Texture2D, texture_size: Vector2) -> TextureRect:
+func _create_texture_rect(
+	texture: Texture2D,
+	texture_size: Vector2,
+	stretch_mode: TextureRect.StretchMode = TextureRect.STRETCH_KEEP,
+) -> TextureRect:
 	var rect := TextureRect.new()
 	rect.texture = texture
 	rect.size = texture_size
 	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	rect.stretch_mode = TextureRect.STRETCH_KEEP
+	rect.stretch_mode = stretch_mode
 	rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return rect
 
 
 func _create_slot_face(texture: Texture2D, center: Vector2) -> TextureRect:
-	var rect := _create_texture_rect(texture, texture.get_size())
-	rect.position = center - texture.get_size() * 0.5
+	var face_size := texture.get_size() * SLOT_FACE_SCALE
+	var rect := _create_texture_rect(texture, face_size, TextureRect.STRETCH_SCALE)
+	rect.position = center - face_size * 0.5
 	return rect
 
 

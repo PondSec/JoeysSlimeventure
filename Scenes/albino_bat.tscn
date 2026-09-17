@@ -1,7 +1,7 @@
 [gd_scene load_steps=15 format=3 uid="uid://c04dxie1kwqsr"]
 
 [ext_resource type="Script" uid="uid://btm7kd5s0flqi" path="res://Scripts/bat.gd" id="1_fveqw"]
-[ext_resource type="Texture2D" uid="uid://ca40c7hucf3gw" path="res://Assets/Bat/Albino/BatAlbino_Sheet.png" id="2_8rrd8"]
+[ext_resource type="Texture2D" uid="uid://ca40c7hucf3gw" path="res://Assets/Enemies/Bat/Albino/BatAlbino_Sheet.png" id="2_8rrd8"]
 [ext_resource type="Texture2D" uid="uid://bhpr6uxcspd17" path="res://Assets/GUI/Healthbar/off.png" id="3_50dnf"]
 [ext_resource type="Texture2D" uid="uid://dg4h8q8vjxyh" path="res://Assets/GUI/Healthbar/over.png" id="4_mqh3e"]
 

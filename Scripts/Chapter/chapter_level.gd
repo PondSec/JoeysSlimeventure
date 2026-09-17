@@ -15,6 +15,7 @@ const CAVE_SLIME_SCENE := preload("res://Scenes/Chapter/Enemies/cave_slime.tscn"
 const CAVE_BAT_SCENE := preload("res://Scenes/Chapter/Enemies/cave_bat.tscn")
 const GLOWCAP_SCENE := preload("res://Scenes/Chapter/Enemies/glowcap.tscn")
 const IRRLICHTKAEFER_SCENE := preload("res://Scenes/Chapter/Enemies/irrlichtkaefer.tscn")
+const GLUEHWUERMCHEN_SCENE := preload("res://Scenes/Chapter/Creatures/gluehwuermchen.tscn")
 const ENEMY_AWARENESS_INDICATOR := preload("res://Scripts/Chapter/Enemies/enemy_awareness_indicator.gd")
 const KRISTALLRUECKEN_SCENE := preload("res://Scenes/Chapter/Enemies/kristallruecken.tscn")
 const MAGIC_ENERGY_TRAIL := preload("res://Scripts/Chapter/Boss/magic_energy_trail.gd")
@@ -206,6 +207,7 @@ func _ready() -> void:
 	_build_normal_cave_foreground()
 	_build_lush_biome_parallax(runtime_play_bounds)
 	_spawn_lush_irrlichtkaefer()
+	_spawn_lush_gluehwuermchen()
 	_configure_runtime_view()
 	await get_tree().process_frame
 	_position_player_at_spawn()
@@ -2824,6 +2826,8 @@ func _is_enemy_biome_match(enemy_type: String, world_position: Vector2) -> bool:
 			return lush_strength >= 0.70
 		"mushroom":
 			return lush_strength >= 0.18
+		"gluehwuermchen":
+			return lush_strength >= 0.55
 		"slime":
 			return lush_strength <= 0.82
 		_:
@@ -2838,6 +2842,23 @@ func _spawn_lush_irrlichtkaefer() -> void:
 		var beetle_data := _find_random_enemy_respawn("irrlichtkaefer")
 		if not beetle_data.is_empty():
 			_spawn_enemy(beetle_data)
+
+
+func _spawn_lush_gluehwuermchen() -> void:
+	if lush_biome_regions.is_empty() or decor_root == null:
+		return
+	# Ambient creatures intentionally live under decor_root: they are never
+	# counted, targeted or respawned by the enemy-population manager.
+	var count := clampi(lush_biome_regions.size() * 2, 2, 6)
+	for _index in range(count):
+		var perch_data := _find_random_enemy_respawn("gluehwuermchen")
+		if perch_data.is_empty():
+			continue
+		var creature := GLUEHWUERMCHEN_SCENE.instantiate() as Node2D
+		if creature == null:
+			continue
+		decor_root.add_child(creature)
+		creature.global_position = _grid_to_world(Vector2i(int(perch_data.get("x", 0)), int(perch_data.get("y", 0)))) + Vector2(16.0, -58.0)
 
 
 func _spawn_story_trigger(trigger_data: Dictionary) -> void:

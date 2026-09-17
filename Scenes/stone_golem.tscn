@@ -1,7 +1,7 @@
 [gd_scene load_steps=13 format=3 uid="uid://i7wdghs3brrd"]
 
 [ext_resource type="Script" uid="uid://dkev2yyxb8832" path="res://Scenes/stone_golem.gd" id="1_innic"]
-[ext_resource type="Texture2D" uid="uid://bmiirj5a8xro0" path="res://Assets/Stone_Golem/stone_golem_sheet_packed.png" id="2_w2hxi"]
+[ext_resource type="Texture2D" uid="uid://bmiirj5a8xro0" path="res://Assets/Enemies/StoneGolem/stone_golem_sheet_packed.png" id="2_w2hxi"]
 
 [sub_resource type="Animation" id="Animation_ihhpm"]
 length = 0.001
