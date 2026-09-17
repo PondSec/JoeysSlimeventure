@@ -1,5 +1,6 @@
 extends CharacterBody2D
 
+var glow_tween: Tween
 signal glow_changed(is_glowing: bool)
 const ItemRegistry := preload("res://Scripts/item_registry.gd")
 const SwordCatalog := preload("res://Scripts/sword_catalog.gd")
@@ -4322,21 +4323,62 @@ func _is_blade_hit_pixel(color: Color, hero_frame: bool) -> bool:
 
 # Leuchteffekt aktualisieren
 func update_glow_state() -> void:
+
 	if not has_glow_skill:
 		is_glowing = false
-		return
-
 	var energy_ratio := clampf(glow_energy / GLOW_ENERGY_MAX, 0.0, 1.0)
-	glow_effect.visible = is_glowing
-	glow_effect.energy = glow_base_energy * lerpf(0.42, 1.0, energy_ratio)
+	var target_energy := glow_base_energy * lerpf(0.42, 1.0, energy_ratio)
+	if glow_tween and glow_tween.is_valid():
+		glow_tween.kill()
+	if is_glowing:
+		# Immer erst bei 0 starten, wenn das Licht vorher aus war.
+		if not glow_effect.visible:
+			glow_effect.energy = 0.0
+		glow_effect.visible = true
+		glow_tween = create_tween()
+		glow_tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+		glow_tween.set_trans(Tween.TRANS_SINE)
+		glow_tween.set_ease(Tween.EASE_IN_OUT)
+		glow_tween.tween_property(
+			glow_effect,
+			"energy",
+			target_energy,
+			0.5
+		)
+	else:
+		# WICHTIG:
+		# Während des gesamten Fade-Outs sichtbar lassen!
+		glow_effect.visible = true
+		glow_tween = create_tween()
+		glow_tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+		glow_tween.set_trans(Tween.TRANS_SINE)
+		glow_tween.set_ease(Tween.EASE_IN_OUT)
+		glow_tween.tween_property(
+			glow_effect,
+			"energy",
+			0.0,
+			0.72
+		)
+		glow_tween.tween_callback(_finish_glow_fade_out)
 	_refresh_player_tuning_from_skills()
-	# EMITTIERE DAS SIGNAL HIER:
 	glow_changed.emit(is_glowing)
 	get_tree().call_group("spikes", "_on_player_glow_changed", is_glowing)
 	sync_glow_state.rpc(is_glowing)
 	if canvas_layer and canvas_layer.has_method("set_glow_charge"):
-		canvas_layer.call("set_glow_charge", glow_energy, GLOW_ENERGY_MAX, has_glow_skill)
+		canvas_layer.call(
+			"set_glow_charge",
+			glow_energy,
+			GLOW_ENERGY_MAX,
+			has_glow_skill
+		)
 
+func _finish_glow_fade_out() -> void:
+
+	# Falls während des Fade-Outs wieder eingeschaltet wurde,
+	# NICHT unsichtbar machen.
+	if not is_glowing:
+		glow_effect.energy = 0.0
+		glow_effect.visible = false
 
 func toggle_glow() -> void:
 	if not has_glow_skill:
@@ -4738,7 +4780,26 @@ func sync_glow_state(new_state: bool):
 		return  # Ignoriere Nachrichten von nicht-autoritativen Clients
 		
 	is_glowing = new_state
-	glow_effect.visible = is_glowing
+	if glow_effect == null:
+		return
+	# Remote state changes share the same visual easing as local input.  Never
+	# assign `visible = false` here: that would cut an active fade-out short.
+	if glow_tween and glow_tween.is_valid():
+		glow_tween.kill()
+	var energy_ratio := clampf(glow_energy / GLOW_ENERGY_MAX, 0.0, 1.0)
+	var target_energy := glow_base_energy * lerpf(0.42, 1.0, energy_ratio)
+	glow_effect.visible = true
+	glow_tween = create_tween()
+	glow_tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	glow_tween.set_trans(Tween.TRANS_SINE)
+	glow_tween.set_ease(Tween.EASE_IN_OUT)
+	if is_glowing:
+		if glow_effect.energy <= 0.01:
+			glow_effect.energy = 0.0
+		glow_tween.tween_property(glow_effect, "energy", target_energy, 0.52)
+	else:
+		glow_tween.tween_property(glow_effect, "energy", 0.0, 0.72)
+		glow_tween.tween_callback(_finish_glow_fade_out)
 
 @rpc("reliable", "call_remote")
 func sync_max_health():
