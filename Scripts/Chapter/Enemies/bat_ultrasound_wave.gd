@@ -61,12 +61,11 @@ func _physics_process(delta: float) -> void:
 
 func _move_with_wall_bounce(delta: float) -> void:
 	var travel := direction * speed * delta
-	var query := PhysicsRayQueryParameters2D.create(global_position, global_position + travel + direction * 8.0, 1)
+	# Cave terrain is layer 2. The ray must never consider players, enemies, or
+	# their hitboxes a wall: the pulse can only reflect against actual geometry.
+	var query := PhysicsRayQueryParameters2D.create(global_position, global_position + travel + direction * 8.0, 2)
 	query.collide_with_areas = false
 	query.collide_with_bodies = true
-	for player in get_tree().get_nodes_in_group("players"):
-		if player is CollisionObject2D:
-			query.exclude.append((player as CollisionObject2D).get_rid())
 	var hit := get_world_2d().direct_space_state.intersect_ray(query)
 	if hit.is_empty() or bounce_lock_timer > 0.0:
 		global_position += travel
@@ -95,10 +94,10 @@ func _update_visual(frame_index: int) -> void:
 	sprite.offset = region.get_center() - FRAME_CENTERS[frame_index]
 	var intensity: float = float(DAMAGE_CURVE[frame_index])
 	var pulse_scale := lerpf(0.62, 1.0, intensity)
-	sprite.scale = Vector2(0.115 * pulse_scale, 0.115 * pulse_scale)
+	sprite.scale = Vector2(0.092 * pulse_scale, 0.092 * pulse_scale)
 	var shape := collision_shape.shape as RectangleShape2D
 	if shape != null:
-		shape.size = Vector2(14.0 + 16.0 * intensity, 22.0 + 27.0 * intensity)
+		shape.size = Vector2(11.0 + 12.0 * intensity, 18.0 + 21.0 * intensity)
 
 
 func _on_body_entered(body: Node2D) -> void:

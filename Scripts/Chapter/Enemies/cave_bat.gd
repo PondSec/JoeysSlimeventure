@@ -6,6 +6,12 @@ const SONIC_WAVE_SCENE := preload("res://Scenes/Projectiles/bat_ultrasound_wave.
 signal defeated
 
 const CONTACT_COOLDOWN := 0.85
+const EVADE_CHANCE_PER_COMMITTED_ATTACK := 0.22
+const EVADE_COOLDOWN_MIN := 1.65
+const EVADE_COOLDOWN_MAX := 2.35
+const EVADE_WINDUP_DURATION := 0.055
+const EVADE_DASH_DURATION := 0.165
+const EVADE_DASH_SPEED := 410.0
 
 enum State { PATROL, ORBIT, TELEGRAPH, SWOOP, SONIC_TELEGRAPH, SONIC_FIRE, EVADE, RECOVER, DEAD }
 
@@ -27,7 +33,6 @@ var attack_cooldown: float = 0.7
 var contact_cooldown: float = 0.0
 var swoop_timer: float = 0.0
 var swoop_direction: Vector2 = Vector2.ZERO
-var flash_timer: float = 0.0
 var local_time: float = 0.0
 var is_dead: bool = false
 var state: State = State.PATROL
@@ -35,6 +40,11 @@ var state_time := 0.0
 var orbit_side := 1.0
 var sonic_direction := Vector2.ZERO
 var last_attack_was_sonic := false
+var evade_cooldown := 0.0
+var evade_direction := Vector2.ZERO
+# Exposed for the player hit resolver.  Only the actual dash is invulnerable;
+# the short read before it is deliberately hittable.
+var is_dodging := false
 
 @onready var sprite: Sprite2D = $Sprite2D
 @onready var hitbox: Area2D = $Hitbox
@@ -63,7 +73,7 @@ func _physics_process(delta: float) -> void:
 	anim_timer += delta
 	attack_cooldown = maxf(attack_cooldown - delta, 0.0)
 	contact_cooldown = maxf(contact_cooldown - delta, 0.0)
-	flash_timer = maxf(flash_timer - delta, 0.0)
+	evade_cooldown = maxf(evade_cooldown - delta, 0.0)
 	state_time += delta
 
 	match state:
@@ -86,9 +96,7 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 	sprite.flip_h = velocity.x < 0.0
-	if flash_timer > 0.0:
-		sprite.modulate = Color(3.4, 3.4, 3.4, 1.0)
-	elif state == State.SONIC_TELEGRAPH:
+	if state == State.SONIC_TELEGRAPH:
 		sprite.modulate = Color(0.66, 0.86, 1.0, 1.0)
 	else:
 		sprite.modulate = Color.WHITE
@@ -100,13 +108,10 @@ func take_damage(amount: int, direction: Vector2, _is_crit: bool = false) -> voi
 		return
 
 	current_health -= amount
-	flash_timer = 0.14
-	var knockback_direction: Vector2 = direction.normalized() if direction.length() > 0.0 else Vector2.RIGHT
-	velocity += knockback_direction * 130.0
+	# Player combat owns the exact feedback order: white silhouette + hitstop,
+	# then knockback.  Do not add a second flash or movement before that pause.
 	if current_health <= 0:
 		call_deferred("_die")
-	elif state in [State.ORBIT, State.PATROL] and attack_cooldown <= 0.0 and randf() < 0.28:
-		_enter_state(State.EVADE)
 
 
 func _process_patrol(delta: float) -> void:
@@ -124,6 +129,8 @@ func _process_orbit(delta: float) -> void:
 	var predicted := player.global_position + _player_velocity() * 0.22
 	var target := predicted + Vector2(orbit_side * 68.0, -48.0 + sin(local_time * 5.0) * 16.0)
 	_seek_towards(target, chase_speed, delta)
+	if _try_evade_committed_player_attack():
+		return
 	if attack_cooldown <= 0.0:
 		var player_distance := global_position.distance_to(player.global_position)
 		if player_distance <= swoop_trigger_range and not last_attack_was_sonic:
@@ -177,12 +184,17 @@ func _spawn_sonic_wave() -> void:
 
 
 func _process_evade(delta: float) -> void:
-	var away := global_position - (player.global_position if player and is_instance_valid(player) else home_position)
-	if away.length_squared() < 0.01:
-		away = Vector2.UP
-	_seek_towards(global_position + away.normalized() * 90.0 + Vector2(0.0, -52.0), swoop_speed * 0.72, delta)
-	if state_time >= 0.28:
-		attack_cooldown = 0.72
+	if state_time < EVADE_WINDUP_DURATION:
+		# A tiny readable gather. Hits during this part still land, so this is not
+		# a perfect reaction to a sword swing.
+		is_dodging = false
+		velocity = velocity.move_toward(Vector2.ZERO, chase_speed * 5.0 * delta)
+		return
+	is_dodging = true
+	velocity = evade_direction * EVADE_DASH_SPEED
+	if state_time >= EVADE_WINDUP_DURATION + EVADE_DASH_DURATION:
+		is_dodging = false
+		attack_cooldown = 0.78
 		_enter_state(State.RECOVER)
 
 
@@ -198,6 +210,15 @@ func _enter_state(next_state: State) -> void:
 		return
 	state = next_state
 	state_time = 0.0
+	if next_state != State.EVADE:
+		is_dodging = false
+	if next_state == State.EVADE:
+		var away := global_position - (player.global_position if player and is_instance_valid(player) else home_position)
+		if away.length_squared() < 0.01:
+			away = Vector2.UP
+		# Mostly backwards, with a small per-bat lateral variance so packs do not
+		# all retreat along the exact same line.
+		evade_direction = (away.normalized() + Vector2(-away.y, away.x).normalized() * randf_range(-0.22, 0.22)).normalized()
 	if next_state == State.SONIC_TELEGRAPH:
 		# Aim once as the blue telegraph starts.  The player can now read the
 		# lane and dodge; the launched wave never re-aims or homes.
@@ -205,6 +226,23 @@ func _enter_state(next_state: State) -> void:
 			sonic_direction = (player.global_position + _player_velocity() * 0.16 - global_position).normalized()
 		else:
 			sonic_direction = Vector2.LEFT if sprite.flip_h else Vector2.RIGHT
+
+
+func _try_evade_committed_player_attack() -> bool:
+	if evade_cooldown > 0.0 or player == null or not is_instance_valid(player):
+		return false
+	var player_attacking: Variant = player.get("is_attacking")
+	if not (player_attacking is bool and player_attacking):
+		return false
+	if global_position.distance_to(player.global_position) > 112.0:
+		return false
+	# Consume the attempt whether it succeeds or not. This converts a long
+	# swing into one readable chance rather than rerolling every physics frame.
+	evade_cooldown = randf_range(EVADE_COOLDOWN_MIN, EVADE_COOLDOWN_MAX)
+	if randf() > EVADE_CHANCE_PER_COMMITTED_ATTACK:
+		return false
+	_enter_state(State.EVADE)
+	return true
 
 
 func _has_clear_sonic_window() -> bool:

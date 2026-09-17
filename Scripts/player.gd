@@ -269,7 +269,6 @@ const DELUXE_SWORD_COMBO_RECOVERY_TIMES := [0.222, 0.222, 0.3]
 # Slightly larger than the Hero canvas scale so the Sword+FX read cleanly next
 # to Joey's broader silhouette, without changing their authored pivot/timing.
 const SLIME_SWORD_COMBO_SCALE := Vector2(17.5, 17.5)
-const SLIME_SWORD_COMBO_POSITION := Vector2(0.0, -114.0)
 var glow_effect: PointLight2D
 @onready var damage_label: Label = $PlayerSprite/CanvasLayer2/DamageLabel# Referenz zum Schadens-Label
 @onready var equipped_weapon_sprite: Sprite2D = $PlayerSprite/EquippedWeaponSprite
@@ -488,8 +487,13 @@ var is_hero_form_active := false
 var is_transforming_hero_form := false
 var hero_transform_target_id := CharacterCatalog.SLIME_ID
 var hero_transform_timer := 0.0
-const HERO_TRANSFORM_DURATION := 0.72
-const HERO_TRANSFORM_SWAP_TIME := 0.32
+const HERO_TRANSFORM_DURATION := 1.08
+const HERO_TRANSFORM_SWAP_TIME := 0.54
+const HERO_TRANSFORM_DEATH_FRAMES := 23
+const HERO_TRANSFORM_HERO_SCALE := Vector2(15.625, 15.625)
+const HERO_TRANSFORM_HERO_POSITION := Vector2(0.000183105, -114.0)
+var transform_death_sprite: Sprite2D
+var transform_holy_light: PointLight2D
 
 var stun_timer: Timer = Timer.new()
 var save_load = preload("res://Scripts/SaveLoad.gd").new()
@@ -1132,7 +1136,9 @@ func _set_slime_sword_combo_sheet(show_recovery: bool) -> void:
 	slime_sword_combo_sprite.vframes = 1
 	slime_sword_combo_sprite.frame = 0
 	slime_sword_combo_sprite.flip_h = is_facing_left
-	slime_sword_combo_sprite.position = SLIME_SWORD_COMBO_POSITION
+	# Joey's Sword+FX strip shares the exact center of his body sprite. The
+	# authored frame-local arcs stay intact; this does not affect Hero form.
+	slime_sword_combo_sprite.position = default_player_sprite_position
 	slime_sword_combo_sprite.scale = SLIME_SWORD_COMBO_SCALE
 	slime_sword_combo_sprite.visible = slime_sword_combo_sprite.texture != null
 
@@ -1620,7 +1626,81 @@ func _spawn_transform_effect(to_hero: bool) -> void:
 	var effect := HeroTransformEffectScene.new()
 	effect.z_index = 12
 	effect.configure(to_hero, 118.0)
+	effect.duration = HERO_TRANSFORM_DURATION
 	add_child(effect)
+
+
+func _ensure_transform_holy_light() -> void:
+	if transform_holy_light != null and is_instance_valid(transform_holy_light):
+		return
+	transform_holy_light = PointLight2D.new()
+	transform_holy_light.name = "HeroTransformHolyLight"
+	transform_holy_light.texture = glow_effect.texture if glow_effect != null else null
+	transform_holy_light.color = Color(1.0, 0.98, 0.90, 1.0)
+	transform_holy_light.texture_scale = 1.35
+	transform_holy_light.energy = 0.0
+	transform_holy_light.position = HERO_TRANSFORM_HERO_POSITION + Vector2(0.0, -4.0)
+	transform_holy_light.z_index = 7
+	add_child(transform_holy_light)
+
+
+func _play_holy_transform_light() -> void:
+	_ensure_transform_holy_light()
+	if transform_holy_light == null:
+		return
+	transform_holy_light.visible = true
+	transform_holy_light.energy = 0.0
+	transform_holy_light.texture_scale = 1.08
+	var light_tween := create_tween()
+	light_tween.tween_property(transform_holy_light, "energy", 1.65, 0.16).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	light_tween.parallel().tween_property(transform_holy_light, "texture_scale", 1.42, 0.24).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	light_tween.tween_property(transform_holy_light, "energy", 0.22, 0.48).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	light_tween.parallel().tween_property(transform_holy_light, "texture_scale", 1.22, 0.48).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	light_tween.tween_property(transform_holy_light, "energy", 0.0, 0.20).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	light_tween.tween_callback(func() -> void:
+		if is_instance_valid(transform_holy_light):
+			transform_holy_light.visible = false
+	)
+
+
+func _play_transform_death_sequence(to_hero: bool) -> void:
+	if transform_death_sprite != null and is_instance_valid(transform_death_sprite):
+		transform_death_sprite.queue_free()
+	transform_death_sprite = Sprite2D.new()
+	transform_death_sprite.name = "HeroDeathMorphSprite"
+	transform_death_sprite.texture = CharacterCatalog.load_texture(CharacterCatalog.HERO_DELUXE_SHEETS + "male_hero-death.png")
+	if transform_death_sprite.texture == null:
+		transform_death_sprite.queue_free()
+		transform_death_sprite = null
+		return
+	transform_death_sprite.hframes = HERO_TRANSFORM_DEATH_FRAMES
+	transform_death_sprite.vframes = 1
+	transform_death_sprite.position = HERO_TRANSFORM_HERO_POSITION
+	transform_death_sprite.scale = HERO_TRANSFORM_HERO_SCALE
+	transform_death_sprite.flip_h = is_facing_left
+	transform_death_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	transform_death_sprite.z_index = $PlayerSprite.z_index + 6
+	add_child(transform_death_sprite)
+
+	var frame_time := HERO_TRANSFORM_DURATION / float(HERO_TRANSFORM_DEATH_FRAMES)
+	for step in range(HERO_TRANSFORM_DEATH_FRAMES):
+		if transform_death_sprite == null or not is_instance_valid(transform_death_sprite):
+			return
+		transform_death_sprite.frame = HERO_TRANSFORM_DEATH_FRAMES - 1 - step if to_hero else step
+		if step == HERO_TRANSFORM_DEATH_FRAMES - 5:
+			var fade_tween := create_tween()
+			fade_tween.tween_property(transform_death_sprite, "modulate:a", 0.0, frame_time * 4.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+		await get_tree().create_timer(frame_time).timeout
+	if transform_death_sprite != null and is_instance_valid(transform_death_sprite):
+		transform_death_sprite.queue_free()
+		transform_death_sprite = null
+
+
+func _set_transform_body_alpha(alpha: float) -> void:
+	var body_alpha := clampf(alpha, 0.0, 1.0)
+	$PlayerSprite.modulate = Color(1.0, 1.0, 1.0, body_alpha)
+	if runtime_body_sprite != null and is_instance_valid(runtime_body_sprite):
+		runtime_body_sprite.modulate = Color(1.0, 1.0, 1.0, body_alpha)
 
 
 func toggle_hero_form() -> void:
@@ -1650,7 +1730,10 @@ func _start_hero_form_transform(transform_to_hero: bool) -> void:
 
 	var outgoing := _get_active_body_sprite()
 	_spawn_transform_effect(transform_to_hero)
-	_spawn_transform_echo(outgoing, Color(0.48, 1.0, 0.64, 0.62), Vector2(-10.0 if is_facing_left else 10.0, -10.0), 0.34)
+	_spawn_transform_echo(outgoing, Color(0.96, 0.98, 0.88, 0.52), Vector2(-7.0 if is_facing_left else 7.0, -6.0), 0.26)
+	_play_transform_death_sequence(transform_to_hero)
+	_play_holy_transform_light()
+	_set_transform_body_alpha(0.0)
 	$Camera2D.shake(1.2, 0.22)
 	_squash_player_sprite(Vector2(1.08, 0.9), 0.18)
 	_play_dash_sfx()
@@ -1667,13 +1750,16 @@ func _start_hero_form_transform(transform_to_hero: bool) -> void:
 	_update_runtime_character_animation(0.0)
 	_update_equipped_weapon_visual(true)
 	var incoming := _get_active_body_sprite()
-	_spawn_transform_echo(incoming, Color(1.0, 0.78, 0.98, 0.5) if transform_to_hero else Color(0.62, 1.0, 0.68, 0.5), Vector2.ZERO, 0.26)
+	_spawn_transform_echo(incoming, Color(1.0, 0.94, 0.78, 0.35), Vector2.ZERO, 0.24)
+	var reveal_tween := create_tween()
+	reveal_tween.tween_property($PlayerSprite, "modulate:a", 1.0, maxf(HERO_TRANSFORM_DURATION - HERO_TRANSFORM_SWAP_TIME - 0.08, 0.08)).set_delay(0.08).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 
 	await get_tree().create_timer(maxf(HERO_TRANSFORM_DURATION - HERO_TRANSFORM_SWAP_TIME, 0.05)).timeout
 	if not is_instance_valid(self):
 		return
 	is_transforming_hero_form = false
 	hero_transform_timer = 0.0
+	_set_transform_body_alpha(1.0)
 	_squash_player_sprite(Vector2(0.96, 1.06), 0.16)
 
 
@@ -3243,8 +3329,8 @@ func _resolve_attack_hit(target_body: Node2D, damage: float, knockback_direction
 	weapon_hit_counter += 1
 	_apply_weapon_hit_effects(target_body, int(damage), knockback_direction, is_crit, landed_finisher)
 
-	var shake_intensity := 1.4 + current_attack_knockback_strength * 0.002
-	$Camera2D.shake(shake_intensity, 0.08)
+	# _apply_enemy_hit_feedback owns the one impact shake. Stacking the legacy
+	# random shake here made fast combos read as noise instead of impact.
 	_play_hit_particles(Color(1.0, 0.82, 0.45, 1.0) if is_crit else Color(1.0, 0.34, 0.34, 1.0))
 	_play_melee_impact(is_crit)
 	if landed_finisher:
@@ -3281,7 +3367,13 @@ func _apply_hero_hit_feedback(target_body: Node2D, is_crit: bool, landed_finishe
 	var target_position := target_body.global_position if is_instance_valid(target_body) else global_position + Vector2((-1.0 if is_facing_left else 1.0) * 56.0, -28.0)
 	var effect_color := Color(1.0, 0.9, 0.5, 1.0) if is_crit or landed_finisher else Color(0.7, 0.96, 1.0, 1.0)
 	_spawn_hero_combat_effect("hit", target_position, effect_color, 1.1 if is_crit or landed_finisher else 0.92)
-	$Camera2D.shake(2.0 if is_crit or landed_finisher else 1.25, 0.07)
+	# The shared hit response supplies every normal hit's small directional
+	# impulse. Only a finisher gets a stronger accent.
+	if landed_finisher:
+		if $Camera2D.has_method("impact_shake"):
+			$Camera2D.impact_shake((global_position - target_position).normalized(), 2.0, 0.085)
+		else:
+			$Camera2D.shake(1.2, 0.07)
 
 	if not is_on_floor() and Input.is_action_pressed("down"):
 		velocity.y = minf(velocity.y, -360.0)
@@ -3365,6 +3457,11 @@ func _apply_enemy_hit_feedback(target: Node2D, knockback_direction: Vector2, kno
 		# alpha.  Keep modulation at white: this is a crisp hit flash, not bloom.
 		visual.material = _get_enemy_hit_flash_material()
 		visual.self_modulate = Color.WHITE
+	# The target turns into a white silhouette before its AI freezes.  Keep the
+	# camera response tiny and directional so it punctuates the contact without
+	# becoming a constant screen wobble during combos.
+	if $Camera2D.has_method("impact_shake"):
+		$Camera2D.impact_shake(-knockback_direction, 1.15, 0.055)
 	# Every confirmed melee hit gets the same readable impact pause.  The enemy
 	# is held first, then physically displaced; its chase state cannot erase the
 	# knockback on the very next frame.

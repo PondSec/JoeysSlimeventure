@@ -14,7 +14,11 @@ const RESPAWN_COOLDOWN = 10
 const BASE_DETECTION_RADIUS = 150.0
 const NAVIGATION_UPDATE_INTERVAL = 0.5
 const CRITICAL_HIT_CHANCE = 0.3
-const DODGE_CHANCE = 0.25
+const DODGE_CHANCE = 0.22
+const DODGE_COOLDOWN_MIN = 1.65
+const DODGE_COOLDOWN_MAX = 2.35
+const DODGE_DASH_SPEED = 430.0
+const DODGE_DASH_DURATION = 0.16
 const MAX_HEALTH = 50
 const ACCELERATION = 8.0
 const DECELERATION = 10.0
@@ -39,6 +43,8 @@ var is_knocked_back := false
 var is_stunned := false
 var is_dodging := false
 var last_dodge_time := 0.0
+var dodge_cooldown := 0.0
+var dodge_direction := Vector2.ZERO
 var bat_position: Vector2 = Vector2.ZERO
 var player_last_seen_position: Vector2 = Vector2.ZERO
 var time_since_last_seen := 0.0
@@ -203,6 +209,7 @@ func _physics_process(delta: float) -> void:
 		if player == null:  # Immer noch kein Ziel gefunden
 			return  # Nichts tun, bis ein Ziel existiert
 	sonic_cooldown = maxf(sonic_cooldown - delta, 0.0)
+	dodge_cooldown = maxf(dodge_cooldown - delta, 0.0)
 	if _process_sonic_attack(delta):
 		move_and_slide()
 		set_animation()
@@ -262,7 +269,11 @@ func _physics_process(delta: float) -> void:
 		set_animation()
 		return
 	
-	if is_knocked_back:
+	if is_dodging:
+		# A clean, high-speed retreat is much more readable than the old random
+		# sideways drift and gives the player a clear visual DODGE cue.
+		velocity = dodge_direction * DODGE_DASH_SPEED
+	elif is_knocked_back:
 		handle_knockback(delta)
 	else:
 		handle_state_machine(delta)  # Ersetzt handle_movement
@@ -470,6 +481,8 @@ func handle_chase(delta: float, distance: float) -> void:
 		velocity = Vector2.ZERO
 		decide_next_state()
 		return
+	if _try_dodge_committed_player_attack(distance):
+		return
 	
 	navigation_update_timer -= delta
 	if navigation_update_timer <= 0:
@@ -549,22 +562,36 @@ func attack() -> void:
 		print("Attack Timer: ", attack_timer, " | Dodging: ", is_dodging)
 
 func dodge() -> void:
+	if is_dead or is_dodging or dodge_cooldown > 0.0:
+		return
 	is_dodging = true
 	last_dodge_time = Time.get_ticks_msec()
+	dodge_cooldown = randf_range(DODGE_COOLDOWN_MIN, DODGE_COOLDOWN_MAX)
 	sound_player.stream = dodge_sound
 	sound_player.play()
 	
-	var dodge_direction = Vector2.RIGHT if randi() % 2 == 0 else Vector2.LEFT
-	dodge_direction = dodge_direction.rotated(randf_range(-PI/4, PI/4))
-	knockback_velocity = dodge_direction * 200
-	is_knocked_back = true
-	
-	var dodge_tween = create_tween()
-	dodge_tween.tween_property(sprite, "modulate:a", 0.5, 0.1)
-	dodge_tween.tween_property(sprite, "modulate:a", 1.0, 0.1)
-	
-	await get_tree().create_timer(0.4).timeout
+	var away := global_position - (player.global_position if is_instance_valid(player) else global_position - Vector2.UP)
+	if away.length_squared() < 0.001:
+		away = Vector2.UP
+	var lateral := Vector2(-away.y, away.x).normalized() * randf_range(-0.20, 0.20)
+	dodge_direction = (away.normalized() + lateral).normalized()
+	await get_tree().create_timer(DODGE_DASH_DURATION).timeout
 	is_dodging = false
+
+
+func _try_dodge_committed_player_attack(distance: float) -> bool:
+	if dodge_cooldown > 0.0 or distance > 112.0 or player == null or not is_instance_valid(player):
+		return false
+	var player_attacking: Variant = player.get("is_attacking")
+	if not (player_attacking is bool and player_attacking):
+		return false
+	# One chance per committed swing window, never a per-frame reroll.
+	dodge_cooldown = randf_range(DODGE_COOLDOWN_MIN, DODGE_COOLDOWN_MAX)
+	if randf() > DODGE_CHANCE:
+		return false
+	dodge_cooldown = 0.0
+	dodge()
+	return true
 
 func perform_critical_hit() -> void:
 	#sound_player.stream = attack_sound
@@ -713,8 +740,6 @@ func take_damage(amount: int, direction: Vector2, is_crit: bool = false) -> void
 	var final_damage = amount
 	if is_crit:
 		final_damage = ceil(amount * 1.5)  # 50% more damage on crit
-		# Play special crit effects
-		perform_critical_hit_effects()
 	
 	# Schadensreduktion basierend auf der Entfernung.
 	# Falls gerade kein Ziel referenziert ist, soll der Treffer trotzdem gelten.
@@ -728,8 +753,8 @@ func take_damage(amount: int, direction: Vector2, is_crit: bool = false) -> void
 	sound_player.stream = hurt_sound
 	sound_player.pitch_scale = randf_range(0.9, 1.1)
 	sound_player.play()
-	flash_red()
-	apply_knockback()
+	# Player combat applies the shared white hitstop first, followed by one
+	# coherent knockback. Do not start competing per-enemy feedback here.
 	
 	if bat_health <= 0:
 		call_deferred("die")

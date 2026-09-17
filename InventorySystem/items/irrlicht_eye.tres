@@ -12,4 +12,4 @@ texture = ExtResource("2_texture")
 rarity = "rare"
 stack_size = 99
 world_texture_region = Rect2(460, 526, 336, 240)
-world_scale = 0.19
+world_scale = 0.12
