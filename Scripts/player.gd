@@ -1817,7 +1817,7 @@ func _resolve_runtime_animation_name() -> String:
 	# Animation follows the player's present movement intent rather than waiting
 	# for inertial velocity to cross zero.  This keeps a sprint visually running
 	# while the character brakes and reverses direction.
-	var intended_speed := absf(direction.x) * current_speed
+	var intended_speed: float = absf(direction.x) * float(current_speed)
 	if intended_speed > maxf(RUN_SPEED * 0.72, 120.0) or absf(velocity.x) > maxf(RUN_SPEED * 0.86, 160.0):
 		return "run"
 	if intended_speed > 14.0 or absf(velocity.x) > 14.0:
