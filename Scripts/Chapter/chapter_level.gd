@@ -2830,6 +2830,8 @@ func _find_local_recovery_targets(grid: Array) -> Array[Vector2i]:
 		var node: Dictionary = nodes[node_index] as Dictionary
 		if _is_recovery_risk_surface(grid, node, mobility):
 			targets.append(node.get("pos", Vector2i.ZERO) as Vector2i)
+	for critical_target: Vector2i in _find_critical_route_recovery_targets(grid, nodes, mobility):
+		targets.append(critical_target)
 	return targets
 
 
@@ -2915,6 +2917,39 @@ func _is_recovery_risk_surface(grid: Array, node: Dictionary, mobility: Dictiona
 	var deep_drop := maxi(left_drop, right_drop) >= int(mobility.get("readable_drop_tiles", 5))
 	var enclosed := maxi(left_wall, right_wall) > int(mobility.get("max_jump_up_tiles", 4))
 	return deep_drop or enclosed
+
+
+func _find_critical_route_recovery_targets(grid: Array, nodes: Array, mobility: Dictionary) -> Array[Vector2i]:
+	# A player can also be blocked *before* reaching a route segment. These are
+	# not return traps, so the reverse-exit graph above cannot see them. Check
+	# the generated critical route itself with the same conservative physics and
+	# place a recovery vine on the lower side of a genuinely impossible step.
+	var route: Array = active_level.get("critical_path_nodes", []) as Array
+	var targets: Array[Vector2i] = []
+	var seen: Dictionary = {}
+	var previous: Vector2i = Vector2i.ZERO
+	var has_previous := false
+	var sampled_index := 0
+	for route_point_variant: Variant in route:
+		var route_point: Vector2i = route_point_variant as Vector2i
+		sampled_index += 1
+		# Network paths are densely interpolated. Sampling every third point keeps
+		# this pass cheap without skipping any terrain-scale transition.
+		if sampled_index % 3 != 0 and sampled_index != route.size():
+			continue
+		var current_index := _nearest_recovery_node(nodes, route_point)
+		if current_index < 0:
+			continue
+		var current: Vector2i = (nodes[current_index] as Dictionary).get("pos", Vector2i.ZERO) as Vector2i
+		if has_previous and previous != current and not ChapterTraversalValidator._can_traverse_between(grid, level_size_tiles, previous, current, mobility):
+			var lower_side := previous if previous.y >= current.y else current
+			var key := "%d:%d" % [lower_side.x, lower_side.y]
+			if not seen.has(key):
+				seen[key] = true
+				targets.append(lower_side)
+		previous = current
+		has_previous = true
+	return targets
 
 
 func _surface_side_wall_height(grid: Array, grid_x: int, surface_y: int) -> int:
