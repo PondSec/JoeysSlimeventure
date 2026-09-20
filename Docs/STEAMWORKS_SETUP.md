@@ -54,11 +54,18 @@ Expected log examples:
 | --- | --- | --- | --- |
 | `ACH_INTO_THE_DEPTHS` | Into the Depths | Enter the caves for the first time. | `Scripts/Chapter/chapter_level.gd`, after the player has actually been placed in Chapter 1, Level 1 (the first real cave). |
 | `ACH_FIRST_KILL` | First Kill | Defeat your first enemy. | `CombatEvents.enemy_defeated`, emitted only by an existing enemy death routine after player-owned damage. |
+| `STAT_WISP_BEETLES_KILLED` | 10 Wisp Beetles Killed | Kill 10 Wisp Beetles. | `SteamManager`, after `CombatEvents.enemy_defeated` reports ten player-caused deaths whose `chapter_enemy_type` is `irrlichtkaefer`. Progress is stored locally as `statistics.wisp_beetles_defeated`; the Steam achievement is unlocked at 10. |
 
 The two achievement definitions are present in Steamworks as client-triggered
 achievements. Future achievements use the same `SteamManager.unlock(api_name)`
 interface; kill-count/type/boss achievements can subscribe to
 `CombatEvents.enemy_defeated` and its persistent statistic.
+
+`STAT_WISP_BEETLES_KILLED` is the exact achievement API name currently entered
+in Steamworks. Its `STAT_` prefix is unusual but valid as long as the saved
+Steamworks entry remains a **client-triggered achievement**, rather than a
+Steam statistic. Its Progress Statistic field should remain `None`, matching
+the current backend configuration.
 
 ## Save format and migration
 
@@ -69,7 +76,7 @@ All Steam Cloud game state is under `user://saves/`. The manifest is
 {
   "save_version": 2,
   "components": {},
-  "statistics": { "enemies_defeated": 0 },
+  "statistics": { "enemies_defeated": 0, "wisp_beetles_defeated": 0 },
   "pending_steam_achievements": []
 }
 ```
@@ -162,6 +169,10 @@ Suggested test sequence:
 3. Enter the first Chapter-1 cave and verify `ACH_INTO_THE_DEPTHS` in Steam.
 4. Kill a real hostile enemy with a player attack and verify
    `ACH_FIRST_KILL`; repeat to verify idempotence.
-5. Save/restart/load, inspect the `user://saves` directory, then repeat on a
+5. Kill ten hostile Wisp Beetles with player attacks. Confirm that
+   `statistics.wisp_beetles_defeated` reaches 10 in `save_manifest.json` and
+   that `STAT_WISP_BEETLES_KILLED` unlocks once; repeat kills to verify that
+   the unlock remains idempotent.
+6. Save/restart/load, inspect the `user://saves` directory, then repeat on a
    second machine with Steam Cloud enabled. Corrupt one JSON file to confirm
    that the affected system uses defaults rather than crashing.

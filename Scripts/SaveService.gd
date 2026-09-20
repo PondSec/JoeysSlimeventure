@@ -6,6 +6,10 @@ extends Node
 const SAVE_VERSION := 2
 const SAVE_DIRECTORY := "user://saves"
 const MANIFEST_PATH := SAVE_DIRECTORY + "/save_manifest.json"
+const DEFAULT_STATISTICS := {
+	"enemies_defeated": 0,
+	"wisp_beetles_defeated": 0,
+}
 
 const COMPONENT_PATHS := {
 	"progress": "chapter_progress.json",
@@ -191,7 +195,7 @@ func _default_manifest() -> Dictionary:
 	return {
 		"save_version": SAVE_VERSION,
 		"components": COMPONENT_PATHS.duplicate(true),
-		"statistics": {"enemies_defeated": 0},
+		"statistics": DEFAULT_STATISTICS.duplicate(true),
 		"pending_steam_achievements": [],
 		"created_unix": int(Time.get_unix_time_from_system()),
 		"updated_unix": int(Time.get_unix_time_from_system()),
@@ -203,13 +207,17 @@ func _migrate_manifest(source: Dictionary) -> Dictionary:
 	var version := int(migrated.get("save_version", 1))
 	if version < 2:
 		if not migrated.has("statistics"):
-			migrated["statistics"] = {"enemies_defeated": 0}
+			migrated["statistics"] = DEFAULT_STATISTICS.duplicate(true)
 		migrated["components"] = COMPONENT_PATHS.duplicate(true)
 		version = 2
 	if not migrated.has("pending_steam_achievements"):
 		migrated["pending_steam_achievements"] = []
+	var migrated_statistics: Dictionary = migrated.get("statistics", {}) as Dictionary
 	if not (migrated.get("statistics") is Dictionary):
-		migrated["statistics"] = {"enemies_defeated": 0}
+		migrated_statistics = {}
+	for stat_name: String in DEFAULT_STATISTICS:
+		migrated_statistics[stat_name] = maxi(0, int(migrated_statistics.get(stat_name, DEFAULT_STATISTICS[stat_name])))
+	migrated["statistics"] = migrated_statistics
 	if not (migrated.get("pending_steam_achievements") is Array):
 		migrated["pending_steam_achievements"] = []
 	if not (migrated.get("components") is Dictionary):

@@ -10,6 +10,12 @@ signal achievement_unlocked(api_name: String)
 signal achievement_failed(api_name: String, reason: String)
 
 const APP_ID := 4536840
+const ACH_FIRST_KILL := "ACH_FIRST_KILL"
+# This is the achievement API name configured in Steamworks. Despite the STAT
+# prefix, Steamworks currently defines it as a client-triggered achievement.
+const ACH_WISP_BEETLES_KILLED := "STAT_WISP_BEETLES_KILLED"
+const WISP_BEETLE_KILL_STAT := "wisp_beetles_defeated"
+const WISP_BEETLE_KILL_TARGET := 10
 
 var steam: Object
 var is_available := false
@@ -105,6 +111,7 @@ func debug_status() -> Dictionary:
 		"initialized": is_initialized,
 		"stats_ready": are_stats_ready,
 		"user": user_name,
+		"wisp_beetles_defeated": SaveService.get_stat(WISP_BEETLE_KILL_STAT),
 		"save_path": SaveService.get_save_directory_for_debug(),
 	}
 
@@ -130,8 +137,16 @@ func debug_load() -> Dictionary:
 	return SaveService.debug_reload_manifest() if OS.is_debug_build() else {}
 
 
-func _on_enemy_defeated(_enemy: Node, _enemy_type: String, _total_defeats: int) -> void:
-	unlock("ACH_FIRST_KILL")
+func _on_enemy_defeated(_enemy: Node, enemy_type: String, _total_defeats: int) -> void:
+	unlock(ACH_FIRST_KILL)
+	# CombatEvents only emits this after a hostile enemy actually died from
+	# player-owned damage, and it deduplicates every enemy instance. Friendly
+	# fireflies, NPCs and repeated death callbacks therefore cannot add progress.
+	if enemy_type != "irrlichtkaefer":
+		return
+	var wisp_beetles_defeated := SaveService.increment_stat(WISP_BEETLE_KILL_STAT)
+	if wisp_beetles_defeated >= WISP_BEETLE_KILL_TARGET:
+		unlock(ACH_WISP_BEETLES_KILLED)
 
 
 func _request_stats() -> void:
