@@ -214,8 +214,7 @@ func _die() -> void:
 	emit_signal("defeated")
 	if drops_glut_schluessel:
 		LootDropper.spawn_independent_drops(self, [
-			{"item": "glut_schluessel", "chance": 1.0, "persistent_reward": true},
-			{"item": "lumora", "chance": 1.0, "persistent_reward": true}
+			{"item": "glut_schluessel", "chance": 1.0, "persistent_reward": true}
 		])
 	else:
 		LootDropper.spawn_independent_drops(self, [{"item": "copper_nugget", "chance": 0.38}])

@@ -52,6 +52,7 @@ func load_progress() -> void:
 	active_level_index = int(data.get("active_level_index", 0))
 	chapter_progress = _variant_to_progress_map(data.get("chapter_progress", {}))
 	quest_progress = _variant_to_dictionary(data.get("quest_progress", {}))
+	var migrated_quest_progress := _migrate_weekday_quest_progress()
 	seen_flags = _variant_to_string_array(data.get("seen_flags", []))
 	chapter_rewards = _variant_to_dictionary(data.get("chapter_rewards", {}))
 	pending_hub_banner = str(data.get("pending_hub_banner", ""))
@@ -68,6 +69,9 @@ func load_progress() -> void:
 			active_level_index = 0
 		else:
 			active_level_index = clampi(active_level_index, 0, level_count - 1)
+
+	if migrated_quest_progress:
+		save_progress()
 
 
 func save_progress() -> void:
@@ -284,16 +288,16 @@ func has_reward(reward_key: String) -> bool:
 
 
 func get_level_quest_state(chapter_index: int, level_index: int) -> Dictionary:
-	return (quest_progress.get(_daily_level_key(chapter_index, level_index), {}) as Dictionary).duplicate(true)
+	return (quest_progress.get(_level_progress_key(chapter_index, level_index), {}) as Dictionary).duplicate(true)
 
 
 func set_level_quest_state(chapter_index: int, level_index: int, state: Dictionary) -> void:
-	quest_progress[_daily_level_key(chapter_index, level_index)] = state.duplicate(true)
+	quest_progress[_level_progress_key(chapter_index, level_index)] = state.duplicate(true)
 	save_progress()
 
 
 func clear_level_quest_state(chapter_index: int, level_index: int) -> void:
-	quest_progress.erase(_daily_level_key(chapter_index, level_index))
+	quest_progress.erase(_level_progress_key(chapter_index, level_index))
 
 
 func award_reward(reward_key: String) -> void:
@@ -372,8 +376,40 @@ func _set_defaults() -> void:
 	pending_hub_toast = ""
 
 
-func _daily_level_key(chapter_index: int, level_index: int) -> String:
-	return "%d:%d:weekday:%d" % [chapter_index, level_index, _weekday()]
+func _level_progress_key(chapter_index: int, level_index: int) -> String:
+	return "%d:%d" % [chapter_index, level_index]
+
+
+func _migrate_weekday_quest_progress() -> bool:
+	# Layouts may rotate by weekday, but gameplay progress is permanent. Older
+	# saves used weekday-specific keys, so merge them into one chapter/level key
+	# and retain the furthest known objective state.
+	var migrated := false
+	var normalized: Dictionary = {}
+	for key_variant: Variant in quest_progress.keys():
+		var key := str(key_variant)
+		var state: Dictionary = quest_progress.get(key_variant, {}) as Dictionary
+		var parts := key.split(":", false)
+		if parts.size() >= 2 and parts[0].is_valid_int() and parts[1].is_valid_int():
+			var stable_key := _level_progress_key(int(parts[0]), int(parts[1]))
+			if key != stable_key:
+				migrated = true
+			var existing: Dictionary = normalized.get(stable_key, {}) as Dictionary
+			if existing.is_empty() or _quest_state_score(state) > _quest_state_score(existing):
+				normalized[stable_key] = state.duplicate(true)
+		else:
+			normalized[key] = state.duplicate(true)
+	if migrated:
+		quest_progress = normalized
+	return migrated
+
+
+func _quest_state_score(state: Dictionary) -> int:
+	var score := 0
+	var objectives: Dictionary = state.get("objectives", {}) as Dictionary
+	for objective_variant: Variant in objectives.values():
+		score += int((objective_variant as Dictionary).get("current", 0)) * 100
+	return score
 
 
 func _weekday() -> int:

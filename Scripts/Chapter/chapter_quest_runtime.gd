@@ -53,9 +53,12 @@ func configure(new_level: Dictionary, new_player: Node2D, new_gate: Node2D, new_
 	_spawn_quest_objects()
 	_lock_exit()
 	_connect_boss()
+	if _has_combat_condensers():
+		_show_feedback("Kristallkondensatoren laden sich auf, wenn du Gegner in ihrem orangenen Bereich besiegst.", "info")
 	if _has_level_two_resonance():
-		_show_feedback("Resonanz: Triff die nummerierten Glocken mit deinem Angriff – immer 1 → 2 → 3.", "info")
-		call_deferred("_play_resonance_sequence_preview", false)
+		# This first preview is deliberately user-led: the level transition and
+		# title finish first, then Joey's first intentional movement starts it.
+		call_deferred("_play_resonance_sequence_preview", true)
 	if _all_objectives_complete():
 		_unlock_exit()
 
@@ -148,19 +151,22 @@ func _spawn_object(anchor: Dictionary, objective: Dictionary) -> void:
 	sprite.scale = Vector2(0.54, 0.54) if level_one_vein else (Vector2(0.46, 0.46) if level_two_resonance else Vector2(0.72, 0.72))
 	sprite.name = "DraftAsset_NotFinal"
 	node.add_child(sprite)
+	if kind == "combat_zone":
+		var combat_label := Label.new()
+		combat_label.name = "CombatCondenserInstruction"
+		combat_label.text = "BESIEGE GEGNER\nIN DIESEM BEREICH"
+		combat_label.position = Vector2(-88.0, -82.0)
+		combat_label.size = Vector2(176.0, 36.0)
+		combat_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		combat_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		combat_label.add_theme_font_size_override("font_size", 12)
+		combat_label.add_theme_color_override("font_color", Color(1.0, 0.84, 0.55, 1.0))
+		combat_label.add_theme_color_override("font_outline_color", Color(0.18, 0.05, 0.02, 1.0))
+		combat_label.add_theme_constant_override("outline_size", 4)
+		node.add_child(combat_label)
 	var sequence_order := 0
 	if level_two_resonance:
 		sequence_order = _sequence_display_order(objective, _anchor_index(anchor))
-		var order_label := Label.new()
-		order_label.name = "ResonanceOrder"
-		order_label.text = str(sequence_order)
-		order_label.position = Vector2(-9.0, -54.0)
-		order_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		order_label.add_theme_font_size_override("font_size", 24)
-		order_label.add_theme_color_override("font_color", Color(0.92, 0.98, 1.0, 1.0))
-		order_label.add_theme_color_override("font_outline_color", Color(0.05, 0.16, 0.28, 1.0))
-		order_label.add_theme_constant_override("outline_size", 5)
-		node.add_child(order_label)
 	var glow := PointLight2D.new()
 	glow.texture = load("res://Assets/Light/light.webp") as Texture2D
 	if level_one_vein:
@@ -784,32 +790,17 @@ func _refresh_tracker() -> void:
 		var state: Dictionary = objective_state.get(str(objective.get("id", "")), {}) as Dictionary
 		lines.append("%s  %d / %d" % [str(objective.get("title", "")), int(state.get("current", 0)), int(state.get("required", 1))])
 		if _is_level_two_resonance(str(objective.get("type", ""))):
-			var sequence: Array = objective.get("sequence", []) as Array
-			var current := int(state.get("current", 0))
-			var next_order := current + 1
-			if current < sequence.size():
-				next_order = _sequence_display_order(objective, int(sequence[current]))
-			lines.append("Mit ANGREIFEN treffen · nächste Glocke: %d" % next_order)
+			lines.append("Schlagfolge: Zahlen 1 → 2 → 3")
+		if str(objective.get("type", "")) == "combat_zone":
+			lines.append("Besiege Gegner im orangenen Kondensatorbereich")
 	tracker.text = "\n".join(lines)
-	_highlight_next_resonance_bell()
 
 
-func _highlight_next_resonance_bell() -> void:
-	var objective := _objective_by_id("echo_sequence")
-	if objective.is_empty():
-		return
-	var state: Dictionary = objective_state.get("echo_sequence", {}) as Dictionary
-	var sequence: Array = objective.get("sequence", []) as Array
-	var current := int(state.get("current", 0))
-	var next_index := int(sequence[current]) if current < sequence.size() else -1
-	for object_index: int in range(objects.size()):
-		var entry: Dictionary = objects[object_index] as Dictionary
-		if not bool(entry.get("level_two_resonance", false)):
-			continue
-		var glow := entry.get("glow") as PointLight2D
-		if glow != null:
-			glow.energy = 0.95 if int(entry.get("index", -1)) == next_index else 0.26
-			glow.color = Color(0.92, 0.98, 1.0, 1.0) if int(entry.get("index", -1)) == next_index else Color(0.72, 0.90, 1.0, 1.0)
+func _has_combat_condensers() -> bool:
+	for objective_variant: Variant in quest.get("objectives", []) as Array:
+		if str((objective_variant as Dictionary).get("type", "")) == "combat_zone":
+			return true
+	return false
 
 
 func _show_feedback(message: String, toast_type: String) -> void:

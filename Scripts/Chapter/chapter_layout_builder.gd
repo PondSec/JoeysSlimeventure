@@ -279,51 +279,30 @@ func _build_cave_network_result(seed: int) -> Dictionary:
 	var exit: Vector2i = exit_zones[rng.randi_range(0, exit_zones.size() - 1)] as Vector2i
 	exit = Vector2i(clampi(exit.x, margin, level_size.x - margin), clampi(exit.y, top + 4, bottom - 3))
 
-	# Do not repeat one compulsory, giant downward shaft at every spawn.  Each
-	# seeded profile starts with a short readable stretch, then takes a distinct
-	# clockwise, counter-clockwise or lower-loop route through the cave network.
-	var network_variant := rng.randi_range(0, 2)
-	var hubs: Array = []
-	match network_variant:
-		0:
-			hubs = [
-				spawn,
-				Vector2i(left + 15, clampi(spawn.y + rng.randi_range(-2, 3), top + 3, bottom - 3)),
-				Vector2i(int(level_size.x * 0.42), bottom - 3),
-				Vector2i(right - 15, bottom - 9),
-				Vector2i(right - 7, int(level_size.y * 0.50)),
-				Vector2i(int(level_size.x * 0.64), top + 3),
-				Vector2i(int(level_size.x * 0.34), top + 6),
-				Vector2i(left + 7, int(level_size.y * 0.47)),
-				Vector2i(int(level_size.x * 0.52), int(level_size.y * 0.48)),
-				exit
-			]
-		1:
-			hubs = [
-				spawn,
-				Vector2i(left + 19, clampi(spawn.y + rng.randi_range(-3, 1), top + 3, bottom - 3)),
-				Vector2i(int(level_size.x * 0.40), top + 8),
-				Vector2i(right - 16, top + 7),
-				Vector2i(right - 7, int(level_size.y * 0.52)),
-				Vector2i(int(level_size.x * 0.66), bottom - 4),
-				Vector2i(int(level_size.x * 0.34), bottom - 6),
-				Vector2i(left + 8, int(level_size.y * 0.58)),
-				Vector2i(int(level_size.x * 0.50), int(level_size.y * 0.47)),
-				exit
-			]
-		_:
-			hubs = [
-				spawn,
-				Vector2i(left + 12, clampi(spawn.y + rng.randi_range(1, 4), top + 3, bottom - 3)),
-				Vector2i(int(level_size.x * 0.32), int(level_size.y * 0.61)),
-				Vector2i(int(level_size.x * 0.58), bottom - 4),
-				Vector2i(right - 8, bottom - 8),
-				Vector2i(right - 12, top + 9),
-				Vector2i(int(level_size.x * 0.46), top + 4),
-				Vector2i(left + 8, int(level_size.y * 0.42)),
-				Vector2i(int(level_size.x * 0.57), int(level_size.y * 0.50)),
-				exit
-			]
+	# Each UUID/weekday seed continuously varies the network instead of choosing
+	# from a few fixed templates. The first segment stays near the spawn height,
+	# so every generated cave starts with readable ground rather than a shaft.
+	var span := right - left
+	var hub_x := func(normalized: float, jitter: int) -> int:
+		return clampi(left + int(round(float(span) * normalized)) + jitter, left + 4, right - 4)
+	var upper_band := func() -> int:
+		return clampi(top + rng.randi_range(4, 13), top + 3, bottom - 10)
+	var lower_band := func() -> int:
+		return clampi(bottom - rng.randi_range(3, 11), top + 10, bottom - 3)
+	var middle_band := func() -> int:
+		return clampi(int(round(lerpf(float(top), float(bottom), rng.randf_range(0.40, 0.63)))), top + 5, bottom - 5)
+	var hubs: Array = [
+		spawn,
+		Vector2i(hub_x.call(rng.randf_range(0.10, 0.20), 0), clampi(spawn.y + rng.randi_range(-3, 4), top + 3, bottom - 3)),
+		Vector2i(hub_x.call(rng.randf_range(0.26, 0.43), 0), lower_band.call()),
+		Vector2i(hub_x.call(rng.randf_range(0.52, 0.72), 0), lower_band.call()),
+		Vector2i(hub_x.call(rng.randf_range(0.78, 0.94), 0), middle_band.call()),
+		Vector2i(hub_x.call(rng.randf_range(0.56, 0.75), 0), upper_band.call()),
+		Vector2i(hub_x.call(rng.randf_range(0.25, 0.49), 0), upper_band.call()),
+		Vector2i(hub_x.call(rng.randf_range(0.06, 0.20), 0), middle_band.call()),
+		Vector2i(hub_x.call(rng.randf_range(0.40, 0.63), 0), middle_band.call()),
+		exit
+	]
 	# Mesoskalige Traversierungsroute: die vielen kurzen Anker halten jeden
 	# Auf- und Abstieg im konservativen Sprungbudget, die sichtbare Hoehle bleibt
 	# trotzdem ein zusammenhaengendes, schwer lesbares Netz.
@@ -380,7 +359,7 @@ func _build_cave_network_result(seed: int) -> Dictionary:
 			var pocket_tip: Vector2i = micro_line.back() as Vector2i
 			_carve_organic_blob(grid, pocket_tip, 2.1 + rng.randf_range(0.0, 0.7), 1.8 + rng.randf_range(0.0, 0.6))
 		side_lines.append(micro_line)
-	var dead_end: Vector2i = Vector2i(int(level_size.x * 0.78), top + 8)
+	var dead_end: Vector2i = Vector2i(hub_x.call(rng.randf_range(0.70, 0.88), 0), upper_band.call())
 	_carve_tunnel(grid, hubs[5] as Vector2i, dead_end, 2)
 	_carve_organic_blob(grid, dead_end, 3.4, 2.8)
 
@@ -406,9 +385,9 @@ func _build_cave_network_result(seed: int) -> Dictionary:
 		rooms.append({"id": "network_hub_%d" % hub_index, "role": ROOM_ROLE_LANDMARK if hub_index == 4 else ROOM_ROLE_VERTICAL, "entry_node": hubs[hub_index], "exit_node": hubs[hub_index]})
 	var quest_anchors := _build_quest_anchors(path, side_lines, {})
 	var validation := ChapterTraversalValidator.validate_layout({"grid": final_grid, "level_size": level_size, "mobility_profile": mobility_profile, "rooms": rooms, "critical_path_nodes": path, "side_path_lines": side_lines, "pickups": pickups, "mandatory_quest_targets": _mandatory_targets_from_anchors(quest_anchors), "spawn": spawn, "exit": exit})
-	validation["layout_signature"] = "organic_network_%d" % network_variant
-	validation["branch_signature"] = "reconnecting_loops"
-	validation["vertical_signature"] = "layered_ring"
+	validation["layout_signature"] = "organic_network_seeded"
+	validation["branch_signature"] = "seeded_reconnecting_loops"
+	validation["vertical_signature"] = "seeded_layers"
 	validation["room_variety_score"] = 7.0
 	return {"grid": final_grid, "spawn": spawn, "exit": exit, "platforms": platforms, "pickups": pickups, "enemies": enemies, "hazards": hazards, "torches": torches, "triggers": _place_triggers(), "boss": {}, "worm_count": 0, "layout_validation": validation, "quest_anchors": quest_anchors, "debug_rooms": rooms, "critical_path_nodes": path, "side_path_lines": side_lines, "mobility_profile": mobility_profile}
 

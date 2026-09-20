@@ -3,6 +3,7 @@ extends Node2D
 const PLAYER_SCENE := preload("res://Scenes/player.tscn")
 const GLUTKAEFER_SCENE := preload("res://Scenes/Chapter/Enemies/glutkaefer.tscn")
 const GLUT_QUEST_GATE_SCENE := preload("res://Scenes/Chapter/glut_quest_gate.tscn")
+const ItemRegistry := preload("res://Scripts/item_registry.gd")
 const QUEST_ENEMY_COUNT := 12
 
 var player: CharacterBody2D
@@ -17,6 +18,7 @@ func _ready() -> void:
 	_spawn_player()
 	_spawn_quest_enemies()
 	_build_quest_ui()
+	call_deferred("_restore_lumora_reward_if_needed")
 	queue_redraw()
 
 
@@ -124,11 +126,45 @@ func _on_glutkaefer_defeated() -> void:
 	_update_quest_label()
 	if defeated_count < QUEST_ENEMY_COUNT:
 		return
+	_ensure_lumora_reward()
 	quest_gate.call("set_unlocked", true)
 	if player != null and player.has_method("_show_feedback_toast"):
-		player.call("_show_feedback_toast", "Die Glutkaefer sind besiegt. Das Tor zum naechsten Level ist offen.", "reward", null)
+		player.call("_show_feedback_toast", "Die Glutkaefer sind besiegt. Lumora ist erschienen – dann oeffnet sich das Tor.", "reward", null)
 	if player != null and player.has_method("_show_feedback_banner"):
-		player.call("_show_feedback_banner", "TOR ENTRIEGELT", Color(1.0, 0.52, 0.16, 1.0), 0.65)
+		player.call("_show_feedback_banner", "LUMORA ERSCHIENEN", Color(0.76, 0.90, 1.0, 1.0), 0.65)
+
+
+func _ensure_lumora_reward() -> void:
+	if _player_or_world_has_lumora():
+		return
+	var progress := get_node_or_null("/root/ChapterProgress")
+	if progress != null and progress.has_method("award_reward"):
+		progress.call("award_reward", "glut_dimension_lumora_rewarded")
+	var pickup := ItemRegistry.create_pickup_for_item("lumora")
+	if pickup == null:
+		push_error("Glutdimension could not create Lumora reward.")
+		return
+	pickup.set("is_persistent_reward", true)
+	add_child(pickup)
+	pickup.global_position = Vector2(2600.0, 510.0)
+
+
+func _restore_lumora_reward_if_needed() -> void:
+	var progress := get_node_or_null("/root/ChapterProgress")
+	if progress != null and progress.has_method("has_reward") and bool(progress.call("has_reward", "glut_dimension_lumora_rewarded")):
+		_ensure_lumora_reward()
+
+
+func _player_or_world_has_lumora() -> bool:
+	if player != null:
+		var inventory: Variant = player.get("inv")
+		if inventory != null and inventory.has_method("contains_item") and bool(inventory.call("contains_item", "lumora")):
+			return true
+	for pickup: Node in get_tree().get_nodes_in_group("world_pickups"):
+		var item: Variant = pickup.get("item")
+		if item != null and str(item.get("name")) == "lumora":
+			return true
+	return false
 
 
 func _update_quest_label() -> void:

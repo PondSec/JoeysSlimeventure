@@ -3340,8 +3340,7 @@ func _spawn_missing_glut_guardian_rewards_if_needed() -> void:
 	if not _is_valid_spawn_floor(floor_cell.x, floor_cell.y):
 		return
 	var reward_origin := _grid_to_world(floor_cell) + Vector2(16.0, -34.0)
-	_ensure_glut_guardian_reward("glut_schluessel", reward_origin + Vector2(-18.0, 0.0))
-	_ensure_glut_guardian_reward("lumora", reward_origin + Vector2(18.0, 0.0))
+	_ensure_glut_guardian_reward("glut_schluessel", reward_origin)
 
 
 func _ensure_glut_guardian_reward(item_name: String, world_position: Vector2) -> void:
