@@ -15,6 +15,7 @@ static func validate_layout(input: Dictionary) -> Dictionary:
 	var critical_path_nodes: Array = input.get("critical_path_nodes", []) as Array
 	var side_path_lines: Array = input.get("side_path_lines", []) as Array
 	var pickups: Array = input.get("pickups", []) as Array
+	var mandatory_quest_targets: Array = input.get("mandatory_quest_targets", []) as Array
 	var spawn: Vector2i = input.get("spawn", Vector2i.ZERO) as Vector2i
 	var exit: Vector2i = input.get("exit", Vector2i.ZERO) as Vector2i
 
@@ -25,7 +26,7 @@ static func validate_layout(input: Dictionary) -> Dictionary:
 		var role: String = str(room.get("role", "unknown"))
 		room_role_counts[role] = int(room_role_counts.get(role, 0)) + 1
 
-	var validation_nodes: Array = _build_validation_nodes(critical_path_nodes, side_path_lines, pickups)
+	var validation_nodes: Array = _build_validation_nodes(critical_path_nodes, side_path_lines, pickups, mandatory_quest_targets)
 	_extend_with_surface_nodes(validation_nodes, grid, level_size, mobility)
 	var nodes: Array = _anchor_validation_nodes(
 		grid,
@@ -74,6 +75,8 @@ static func validate_layout(input: Dictionary) -> Dictionary:
 	var exit_id: String = _nearest_node_id(nodes, exit_anchor)
 	var reachable_ids: Dictionary = _flood_fill_graph(graph, start_id)
 	var exit_reachable_ids: Dictionary = _flood_fill_graph(reverse_graph, exit_id)
+	_expand_coincident_reachability(nodes, reachable_ids)
+	_expand_coincident_reachability(nodes, exit_reachable_ids)
 	var traversal_edges: Array = _edge_array_from_graph(graph, nodes, reachable_ids, exit_reachable_ids)
 
 	var invalid_jump_edges: Array = []
@@ -122,6 +125,16 @@ static func validate_layout(input: Dictionary) -> Dictionary:
 		if not reachable_ids.has(node_id):
 			unreachable_rewards.append(node.get("pos", Vector2i.ZERO))
 			notes.append("Reward unerreichbar bei %s" % str(node.get("pos", Vector2i.ZERO)))
+
+	var unreachable_quest_targets: Array = []
+	for node_variant: Variant in nodes:
+		var node: Dictionary = node_variant as Dictionary
+		if str(node.get("kind", "")) != "quest":
+			continue
+		var node_id: String = str(node.get("id", ""))
+		if not reachable_ids.has(node_id):
+			unreachable_quest_targets.append(node.get("pos", Vector2i.ZERO))
+			notes.append("Pflichtquestziel unerreichbar bei %s" % str(node.get("pos", Vector2i.ZERO)))
 
 	var softlock_nodes: Array = []
 	for node_variant: Variant in nodes:
@@ -184,8 +197,13 @@ static func validate_layout(input: Dictionary) -> Dictionary:
 
 	var critical_path_length_tiles: float = _polyline_length(critical_path_nodes)
 	var reachable_reward_count: int = max(0, pickups.size() - unreachable_rewards.size())
+	var quest_sequence_valid: bool = _quest_sequence_is_reachable(mandatory_quest_targets, nodes, graph, start_id)
+	if not quest_sequence_valid:
+		notes.append("Pflichtquest-Reihenfolge ist nicht traversierbar.")
 	var path_valid: bool = invalid_jump_count == 0 \
 	and unreachable_room_ids.is_empty() \
+	and unreachable_quest_targets.is_empty() \
+	and quest_sequence_valid \
 	and trap_pit_nodes.is_empty() \
 	and not exit_id.is_empty() \
 	and reachable_ids.has(exit_id)
@@ -201,6 +219,9 @@ static func validate_layout(input: Dictionary) -> Dictionary:
 		"critical_path_length_tiles": critical_path_length_tiles,
 		"reachable_reward_count": reachable_reward_count,
 		"unreachable_reward_count": unreachable_rewards.size(),
+		"unreachable_quest_target_count": unreachable_quest_targets.size(),
+		"unreachable_quest_targets": unreachable_quest_targets,
+		"quest_sequence_valid": quest_sequence_valid,
 		"invalid_jump_count": invalid_jump_count,
 		"optional_invalid_jump_count": optional_invalid_jump_count,
 		"surface_node_count": _node_count_for_kind(nodes, "surface"),
@@ -229,7 +250,7 @@ static func validate_layout(input: Dictionary) -> Dictionary:
 	}
 
 
-static func _build_validation_nodes(critical_path_nodes: Array, side_path_lines: Array, pickups: Array) -> Array:
+static func _build_validation_nodes(critical_path_nodes: Array, side_path_lines: Array, pickups: Array, mandatory_quest_targets: Array = []) -> Array:
 	var nodes: Array = []
 	var seen: Dictionary = {}
 	var index: int = 0
@@ -271,8 +292,58 @@ static func _build_validation_nodes(critical_path_nodes: Array, side_path_lines:
 			"id": "reward_%d" % reward_index,
 			"pos": reward_pos,
 			"kind": "reward"
-			})
+		})
+
+	for target_index: int in range(mandatory_quest_targets.size()):
+		var target: Dictionary = mandatory_quest_targets[target_index] as Dictionary
+		var target_pos: Vector2i = target.get("position", Vector2i.ZERO) as Vector2i
+		var key: String = "%d:%d" % [target_pos.x, target_pos.y]
+		# Keep a separate node even when a route node shares its surface: mandatory
+		# state needs an independently addressable reachability result.
+		nodes.append({
+			"id": "quest_%d" % target_index,
+			"pos": target_pos,
+			"kind": "quest",
+			"quest_id": str(target.get("id", "")),
+			"sequence": int(target.get("sequence", target_index))
+		})
 	return nodes
+
+
+static func _quest_sequence_is_reachable(targets: Array, nodes: Array, graph: Dictionary, start_id: String) -> bool:
+	if targets.is_empty() or start_id.is_empty():
+		return true
+	var ordered: Array[Dictionary] = []
+	for index: int in range(targets.size()):
+		var target: Dictionary = targets[index] as Dictionary
+		ordered.append({"index": index, "sequence": int(target.get("sequence", index))})
+	ordered.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a.sequence) < int(b.sequence))
+	var current_id := start_id
+	for entry: Dictionary in ordered:
+		var target_id := "quest_%d" % int(entry.get("index", 0))
+		var reached := _flood_fill_graph(graph, current_id)
+		_expand_coincident_reachability(nodes, reached)
+		if not reached.has(target_id):
+			return false
+		current_id = target_id
+	return true
+
+
+static func _expand_coincident_reachability(nodes: Array, reachable_ids: Dictionary) -> void:
+	# Semantic targets and route waypoints may legitimately share a landing
+	# surface.  They are the same physical location even though each keeps its
+	# own graph node for reporting.
+	var reachable_positions: Dictionary = {}
+	for node_variant: Variant in nodes:
+		var node: Dictionary = node_variant as Dictionary
+		if reachable_ids.has(str(node.get("id", ""))):
+			var pos: Vector2i = node.get("pos", Vector2i.ZERO) as Vector2i
+			reachable_positions["%d:%d" % [pos.x, pos.y]] = true
+	for node_variant: Variant in nodes:
+		var node: Dictionary = node_variant as Dictionary
+		var pos: Vector2i = node.get("pos", Vector2i.ZERO) as Vector2i
+		if reachable_positions.has("%d:%d" % [pos.x, pos.y]):
+			reachable_ids[str(node.get("id", ""))] = true
 
 
 static func _extend_with_surface_nodes(nodes: Array, grid: Array, size: Vector2i, mobility: Dictionary) -> void:

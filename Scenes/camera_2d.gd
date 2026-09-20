@@ -7,13 +7,12 @@ var roll_intensity: float = 0.0
 var zoom_punch: float = 0.0
 
 # A short, directional impact impulse is kept separate from the broad camera
-# shake used by explosions.  Melee impacts should feel physical without making
-# pixel-art combat noisy or moving the HUD.
+# shake used by explosions. Melee impacts get one tiny camera kick, not a
+# repeated wobble, so the contact stays crisp in pixel art.
 var impact_duration: float = 0.0
 var impact_timer: float = 0.0
 var impact_amplitude: float = 0.0
 var impact_direction := Vector2.ZERO
-var impact_phase: float = 0.0
 
 var base_zoom := Vector2.ONE
 
@@ -42,14 +41,11 @@ func _process(delta: float) -> void:
 
 	var impact_offset := Vector2.ZERO
 	if impact_timer > 0.0:
-		impact_timer = maxf(impact_timer - delta, 0.0)
-		impact_phase += delta * 92.0
 		var normalized_time := impact_timer / maxf(impact_duration, 0.001)
-		var envelope := normalized_time * normalized_time
-		var side := Vector2(-impact_direction.y, impact_direction.x)
-		# Two damped, authored-feeling oscillations read as an impact instead
-		# of random jitter.  They decay entirely before the next combat frame.
-		impact_offset = (impact_direction * sin(impact_phase) + side * cos(impact_phase * 0.63) * 0.28) * impact_amplitude * envelope
+		# One immediate displacement that eases straight back home: no secondary
+		# shake, random jitter, or sideways oscillation.
+		impact_offset = impact_direction * impact_amplitude * normalized_time * normalized_time
+		impact_timer = maxf(impact_timer - delta, 0.0)
 		if impact_timer <= 0.0:
 			impact_amplitude = 0.0
 

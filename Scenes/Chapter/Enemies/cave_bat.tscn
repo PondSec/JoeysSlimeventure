@@ -4,11 +4,14 @@
 [ext_resource type="Script" uid="uid://6nri52xog45p" path="res://Scripts/Chapter/Enemies/cave_bat.gd" id="2_script"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_body"]
+radius = 12.0
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_hitbox"]
 size = Vector2(26, 18)
 
 [node name="CaveBat" type="CharacterBody2D"]
+collision_layer = 4
+collision_mask = 3
 script = ExtResource("2_script")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]

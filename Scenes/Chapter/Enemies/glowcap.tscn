@@ -12,6 +12,8 @@ height = 24.0
 size = Vector2(46, 35)
 
 [node name="Glowcap" type="CharacterBody2D"]
+collision_layer = 4
+collision_mask = 3
 script = ExtResource("3_script")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]

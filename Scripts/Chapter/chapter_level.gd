@@ -6,6 +6,7 @@ const ChapterContent := preload("res://Scripts/Chapter/chapter_content.gd")
 const ChapterLayoutBuilder := preload("res://Scripts/Chapter/chapter_layout_builder.gd")
 const TerrainResolver := preload("res://Scripts/Chapter/terrain_resolver.gd")
 const TileClassifier := preload("res://Scripts/Chapter/tile_classifier.gd")
+const ChapterQuestRuntime := preload("res://Scripts/Chapter/chapter_quest_runtime.gd")
 
 const HUB_SCENE := preload("res://Scenes/Game.tscn")
 const PLAYER_SCENE := preload("res://Scenes/player.tscn")
@@ -15,7 +16,9 @@ const CAVE_SLIME_SCENE := preload("res://Scenes/Chapter/Enemies/cave_slime.tscn"
 const CAVE_BAT_SCENE := preload("res://Scenes/Chapter/Enemies/cave_bat.tscn")
 const GLOWCAP_SCENE := preload("res://Scenes/Chapter/Enemies/glowcap.tscn")
 const IRRLICHTKAEFER_SCENE := preload("res://Scenes/Chapter/Enemies/irrlichtkaefer.tscn")
+const GLUTKAEFER_SCENE := preload("res://Scenes/Chapter/Enemies/glutkaefer.tscn")
 const GLUEHWUERMCHEN_SCENE := preload("res://Scenes/Chapter/Creatures/gluehwuermchen.tscn")
+const GLUT_DIMENSION_DOOR_SCENE := preload("res://Scenes/Chapter/glut_dimension_door.tscn")
 const ENEMY_AWARENESS_INDICATOR := preload("res://Scripts/Chapter/Enemies/enemy_awareness_indicator.gd")
 const KRISTALLRUECKEN_SCENE := preload("res://Scenes/Chapter/Enemies/kristallruecken.tscn")
 const MAGIC_ENERGY_TRAIL := preload("res://Scripts/Chapter/Boss/magic_energy_trail.gd")
@@ -166,6 +169,7 @@ var tutorial_tween: Tween
 var boss_bar: ProgressBar
 var boss_name: Label
 var exit_gate: Node2D
+var quest_runtime: ChapterQuestRuntime
 var parallax_background: ParallaxBackground
 var parallax_base_fill: Polygon2D
 var parallax_layer_entries: Array = []
@@ -183,6 +187,7 @@ var cave_tiles_texture: Texture2D
 var cave_tileset: TileSet
 var cave_tile_source_id: int = DEFAULT_CAVE_TILE_SOURCE_ID
 var solid_grid_cache: Array = []
+var flying_path_grid: AStarGrid2D
 var debug_overlay_enabled: bool = false
 var logical_terrain_map: Dictionary = {}
 var tile_debug_overlay_enabled: bool = false
@@ -301,6 +306,9 @@ func _process(delta: float) -> void:
 func _resolve_level_seed() -> int:
 	if generator_seed_override >= 0:
 		return generator_seed_override
+	var progress := _progress()
+	if progress != null and progress.has_method("get_active_level_generation_seed"):
+		return int(progress.call("get_active_level_generation_seed"))
 	if active_level.has("seed_override"):
 		return int(active_level.get("seed_override", 0))
 	return int(hash("%s_%s_%d_%d" % [
@@ -315,6 +323,7 @@ func _build_runtime_level_data() -> Dictionary:
 	var level_copy: Dictionary = active_level.duplicate(true)
 	if level_copy.is_empty():
 		return {}
+	_apply_daily_quest_variants(level_copy)
 
 	var generated_layout: Dictionary = ChapterLayoutBuilder.build_level_layout(level_copy, level_size_tiles, active_level_seed)
 	if generated_layout.is_empty():
@@ -332,6 +341,22 @@ func _build_runtime_level_data() -> Dictionary:
 		level_copy[key] = generated_layout[key_variant]
 
 	return level_copy
+
+
+func _apply_daily_quest_variants(level_copy: Dictionary) -> void:
+	if int(level_copy.get("level_index", -1)) != 1:
+		return
+	var progress := _progress()
+	if progress == null or not progress.has_method("get_active_resonance_sequence"):
+		return
+	var quest: Dictionary = level_copy.get("quest", {}) as Dictionary
+	var objectives: Array = quest.get("objectives", []) as Array
+	for objective_variant: Variant in objectives:
+		var objective: Dictionary = objective_variant as Dictionary
+		if str(objective.get("type", "")) == "sequence":
+			objective["sequence"] = progress.call("get_active_resonance_sequence") as Array
+	quest["objectives"] = objectives
+	level_copy["quest"] = quest
 
 
 func _prewarm_next_level() -> void:
@@ -1004,6 +1029,7 @@ func _build_level() -> void:
 		solid_grid_cache = _build_cave_solid_grid(platforms)
 	logical_terrain_map = TerrainResolver.build_logical_map(solid_grid_cache, level_size_tiles)
 	solid_grid_cache = TerrainResolver.duplicate_cells(logical_terrain_map)
+	_build_flying_path_grid()
 	_draw_cave_wall_tiles(logical_terrain_map)
 	_spawn_cave_collision_mesh(solid_grid_cache)
 	_spawn_world_bounds()
@@ -1040,6 +1066,8 @@ func _build_level() -> void:
 	for enemy_variant: Variant in enemies:
 		_spawn_enemy(enemy_variant as Dictionary)
 
+	_spawn_glut_dimension_door_if_needed()
+
 	var worm_count: int = int(active_level.get("worm_count", 0))
 	for _index: int in range(worm_count):
 		var worm: Node2D = WORM_SCENE.instantiate() as Node2D
@@ -1052,6 +1080,7 @@ func _build_level() -> void:
 
 	_spawn_exit_gate()
 	_spawn_boss_if_needed()
+	_spawn_quest_runtime()
 	_refresh_debug_overlays()
 
 
@@ -1077,7 +1106,7 @@ func _build_cave_solid_grid(platforms: Array) -> Array:
 		var enemy_type: String = str(enemy_data.get("type", "slime"))
 		var enemy_x: int = int(enemy_data.get("x", 0))
 		var enemy_y: int = int(enemy_data.get("y", 0))
-		if enemy_type == "bat" or enemy_type == "irrlichtkaefer":
+		if enemy_type == "bat" or enemy_type == "irrlichtkaefer" or enemy_type == "glutkaefer":
 			_carve_rect(grid, enemy_x - 3, enemy_y - 3, 7, 5)
 		else:
 			_carve_rect(grid, enemy_x - 2, enemy_y - 3, 5, 4)
@@ -1469,6 +1498,12 @@ func _draw_debug_overlay() -> void:
 		_spawn_debug_dot(overlay_root, softlock_variant as Vector2i, Color(1.0, 0.34, 0.12, 0.78), 7.0)
 	for pit_variant: Variant in validation.get("trap_pit_nodes", []) as Array:
 		_spawn_debug_dot(overlay_root, pit_variant as Vector2i, Color(1.0, 0.56, 0.18, 0.9), 11.0)
+	# Quest anchors are only visible in the existing F2 debug overlay. They make
+	# seed placement reviewable without turning the shipping game into a marker
+	# hunt.
+	for anchor_variant: Variant in active_level.get("quest_anchors", []) as Array:
+		var anchor: Dictionary = anchor_variant as Dictionary
+		_spawn_debug_dot(overlay_root, anchor.get("position", Vector2i.ZERO) as Vector2i, Color(1.0, 0.34, 0.92, 0.96), 9.0)
 
 	_draw_layout_debug_panel(validation)
 
@@ -1536,6 +1571,7 @@ func _draw_layout_debug_panel(validation: Dictionary) -> void:
 			int((active_level.get("mobility_profile", {}) as Dictionary).get("wall_jump_gap_tiles", 0))
 		],
 		"Rewards: %d/%d" % [int(validation.get("reachable_reward_count", 0)), int(validation.get("pickup_budget", 0))],
+		"Questziele: %d, unerreichbar: %d, Reihenfolge: %s" % [(active_level.get("quest_anchors", []) as Array).size(), int(validation.get("unreachable_quest_target_count", 0)), "OK" if bool(validation.get("quest_sequence_valid", true)) else "CHECK"],
 		"Invalid Jumps: %d" % int(validation.get("invalid_jump_count", 0)),
 		"Softlocks: %d" % int(validation.get("softlock_surface_count", 0)),
 		"Trap Pits: %d" % int(validation.get("trap_pit_count", 0)),
@@ -1756,17 +1792,14 @@ func _spawn_generated_overgrowth(grid: Array) -> void:
 func _spawn_generated_moss(grid: Array) -> void:
 	# Moss grows in coherent wet patches, not as evenly spaced stickers.  Each
 	# patch follows a real exposed rock face and uses the three hand-supplied
-	# 32px variants; the same tiles are flipped/turned for floors, ceilings and
-	# both wall directions.
+	# 32px variants. The source art is a floor strip, so it is deliberately
+	# never rotated onto ceilings, walls, or their corner transitions.
 	var moss_rng := RandomNumberGenerator.new()
 	moss_rng.seed = active_level_seed * 173 + 401
 	var claimed: Dictionary = {}
 	var spawned: int = 0
 	var patch_types: Array = [
-		{"outward": Vector2i.UP, "tangent": Vector2i.RIGHT, "rotation": 0.0, "flip_v": false, "chance": 0.58, "budget": 420},
-		{"outward": Vector2i.DOWN, "tangent": Vector2i.RIGHT, "rotation": 0.0, "flip_v": false, "chance": 0.54, "budget": 390},
-		{"outward": Vector2i.RIGHT, "tangent": Vector2i.DOWN, "rotation": PI * 0.5, "flip_v": false, "chance": 0.39, "budget": 260},
-		{"outward": Vector2i.LEFT, "tangent": Vector2i.DOWN, "rotation": -PI * 0.5, "flip_v": false, "chance": 0.39, "budget": 260}
+		{"outward": Vector2i.UP, "tangent": Vector2i.RIGHT, "rotation": 0.0, "flip_v": false, "chance": 0.58, "budget": 420}
 	]
 	for patch_variant: Variant in patch_types:
 		var patch: Dictionary = patch_variant as Dictionary
@@ -1818,37 +1851,22 @@ func _spawn_moss_tile(cell: Vector2i, patch: Dictionary, moss_rng: RandomNumberG
 	var textures: Array = _get_cave_moss_textures()
 	if decor_root == null or textures.is_empty():
 		return
+	var outward: Vector2i = patch.get("outward", Vector2i.UP) as Vector2i
+	# Guard this at the low-level spawn point as well as in the callers: these
+	# assets are authored only for an upward-facing floor lip. Decken, walls and
+	# corners must use their dedicated hanging-canopy/vine decoration instead.
+	if outward != Vector2i.UP:
+		return
 	var moss := Sprite2D.new()
 	moss.name = "GeneratedMoss"
-	var moss_texture := textures[moss_rng.randi_range(0, textures.size() - 1)] as Texture2D
+	var texture_index := moss_rng.randi_range(0, textures.size() - 1)
+	var moss_texture := textures[clampi(texture_index, 0, textures.size() - 1)] as Texture2D
 	moss.texture = moss_texture
-	var outward: Vector2i = patch.get("outward", Vector2i.UP) as Vector2i
 	var moss_scale: float = float(patch.get("scale", 1.0))
 	moss.scale = Vector2.ONE * moss_scale
-	# Every moss piece is pinned to the exposed *outside* of its supporting
-	# rock tile.  Placing all four cases in the tile centre made ceiling and wall
-	# growth appear buried, detached, or visually one cell too high.
-	if outward == Vector2i.UP:
-		# Align the first non-transparent row to the actual top of this rock cell,
-		# not to the centre of the PNG.  This lets adjacent moss tiles meet with no
-		# black seam and covers the upper edge of the floor cleanly.
-		# The artwork's visible moss reaches almost to the bottom of its PNG.
-		# Lift a floor carpet slightly over the lip so it visibly blankets the
-		# stone's top layer instead of reading as a decal buried in the wall.
-		moss.position = _surface_moss_position(moss_texture, cell, moss.scale, float(cell.y) * TILE_SIZE - 6.0)
-	elif outward == Vector2i.DOWN:
-		moss.position = _surface_moss_position(moss_texture, cell, moss.scale, float(cell.y + 1) * TILE_SIZE)
-	elif outward == Vector2i.RIGHT:
-		moss.position = _right_wall_moss_position(moss_texture, cell, moss.scale)
-	else:
-		moss.position = _left_wall_moss_position(moss_texture, cell, moss.scale)
-	moss.rotation = float(patch.get("rotation", 0.0))
-	moss.flip_v = bool(patch.get("flip_v", false))
-	# These source sprites have an asymmetric alpha frame.  Rotating then
-	# flipping a wall piece changes its vertical anchor, which was the cause of
-	# isolated chunks apparently hovering next to a wall.  Keep all anchored
-	# moss unflipped; variety comes from the source variant and tint instead.
-	moss.flip_h = false
+	# Align the first opaque row to the top of its supporting floor cell.  The
+	# asset remains unrotated because it is an authored horizontal moss strip.
+	moss.position = _surface_moss_position(moss_texture, cell, moss.scale, float(cell.y) * TILE_SIZE - 6.0)
 	# Most growth lives behind Joey; a controlled minority overlaps him so dense
 	# fern and moss pockets feel traversed rather than painted on the backdrop.
 	# A foreground patch must cover Joey and the equipped weapon together.
@@ -1879,32 +1897,6 @@ func _ground_flora_position(texture: Texture2D, cell: Vector2i, sprite_scale: Ve
 	var root_y: float = float(cell.y) * TILE_SIZE + 4.0
 	var y: float = root_y - (float(alpha_bounds.end.y) - half_height) * sprite_scale.y
 	return Vector2(float(cell.x) * TILE_SIZE + TILE_SIZE * 0.5, y)
-
-
-func _right_wall_moss_position(texture: Texture2D, cell: Vector2i, sprite_scale: Vector2) -> Vector2:
-	var alpha_bounds := _get_decoration_alpha_bounds(texture)
-	var half_width: float = float(texture.get_width()) * 0.5
-	var half_height: float = float(texture.get_height()) * 0.5
-	var visible_right_source: float = float(alpha_bounds.end.y - 1) - half_height
-	var visible_top_source: float = float(alpha_bounds.position.x) - half_width
-	var wall_x: float = float(cell.x + 1) * TILE_SIZE
-	# Rotate the floor strip clockwise and overlap the stone lip by one pixel.
-	# The alpha edge then remains flush with the wall rather than leaving a
-	# dark sliver at each 32px seam.
-	return Vector2(wall_x + visible_right_source * sprite_scale.y - 1.0, float(cell.y) * TILE_SIZE - visible_top_source * sprite_scale.x - 0.5)
-
-
-func _left_wall_moss_position(texture: Texture2D, cell: Vector2i, sprite_scale: Vector2) -> Vector2:
-	var alpha_bounds := _get_decoration_alpha_bounds(texture)
-	var half_width: float = float(texture.get_width()) * 0.5
-	var half_height: float = float(texture.get_height()) * 0.5
-	var visible_right_source: float = float(alpha_bounds.end.y - 1) - half_height
-	var visible_top_source: float = -float(alpha_bounds.end.x - 1) + half_width
-	var wall_x: float = float(cell.x) * TILE_SIZE
-	# Counter-clockwise counterpart of the right wall placement.  The small
-	# inward overlap is intentional: vegetation should cover the rock edge,
-	# never float beside it.
-	return Vector2(wall_x - visible_right_source * sprite_scale.y + 1.0, float(cell.y) * TILE_SIZE - visible_top_source * sprite_scale.x - 0.5)
 
 
 func _get_decoration_alpha_bounds(texture: Texture2D) -> Rect2i:
@@ -2089,14 +2081,12 @@ func _spawn_lush_canopy_zones(grid: Array) -> void:
 				continue
 			var span: int = mini(available, canopy_rng.randi_range(4, 14))
 			_reserve_lush_canopy_zone(reserved, start, span)
-			for offset: int in range(span):
-				var moss_cell := start + Vector2i.RIGHT * offset
-				if not _is_exposed_moss_face(grid, moss_cell, Vector2i.DOWN) or _is_torch_column(moss_cell.x):
-					break
-				_spawn_moss_tile(moss_cell, {"outward": Vector2i.DOWN, "rotation": 0.0, "flip_v": false}, canopy_rng)
-			# Each wide source image covers roughly five tiles at this scale.  The
-			# four-tile stride intentionally overlaps the transparent edges, so the
-			# whole shelf becomes one continuous living canopy.
+			# Ceiling shelves use only the dedicated hanging-canopy artwork. The
+			# 32px ground-moss tiles have no ceiling/corner variants and previously
+			# produced the misplaced wedge-shaped pieces from the screenshots.
+			# Each wide source image covers roughly five tiles at this scale. The
+			# four-tile stride intentionally overlaps its transparent edges, so the
+			# shelf remains one continuous living canopy.
 			for canopy_offset: int in range(0, span, 3):
 				_spawn_lush_canopy(start + Vector2i.RIGHT * canopy_offset, 5, canopy_rng)
 			_register_lush_biome_span(start.x, span, 2.6)
@@ -2231,7 +2221,9 @@ func _spawn_flora_tile(cell: Vector2i, outward: Vector2i, flora_rng: RandomNumbe
 	if outward == Vector2i.UP:
 		sprite.position = _ground_flora_position(sprite.texture, cell, sprite.scale)
 	elif outward == Vector2i.DOWN:
-		sprite.position = _grid_to_world(cell) + Vector2(16.0, 48.0)
+		# Hang the foliage from the ceiling lip, rather than one tile's visual
+		# centre below it. This keeps the attachment readable without clipping.
+		sprite.position = _grid_to_world(cell) + Vector2(16.0, 40.0)
 	elif outward == Vector2i.RIGHT:
 		sprite.position = _grid_to_world(cell) + Vector2(48.0, 16.0)
 		sprite.rotation = PI * 0.5
@@ -2874,7 +2866,8 @@ func _build_cave_tileset() -> TileSet:
 		Vector2i(2, 1),
 		Vector2i(0, 2),
 		Vector2i(1, 2),
-		Vector2i(2, 2)
+		Vector2i(2, 2),
+		Vector2i(7, 0)
 	]
 	for atlas_coords: Vector2i in required_tiles:
 		if not source.has_tile(atlas_coords):
@@ -3006,16 +2999,22 @@ func _foreground_plant_blocks_spike(floor_cell: Vector2i) -> bool:
 
 
 func _spawn_torch(torch_data: Dictionary) -> void:
-	var anchor := _resolve_torch_anchor(Vector2i(int(torch_data.get("x", 0)), int(torch_data.get("y", 0))))
-	if anchor == Vector2i.ZERO:
+	var placement := _resolve_torch_placement(Vector2i(int(torch_data.get("x", 0)), int(torch_data.get("y", 0))))
+	if placement.is_empty():
 		return
 	var torch: Node2D = TORCH_SCENE.instantiate() as Node2D
 	if torch == null:
 		return
 
 	torch.visible = true
-	var torch_position: Vector2 = _grid_to_world(anchor + Vector2i(0, 1)) + Vector2(16.0, 8.0)
-	torch.global_position = torch_position
+	var anchor: Vector2i = placement.get("anchor", Vector2i.ZERO) as Vector2i
+	var style: String = str(placement.get("style", "floor"))
+	if style == "floor":
+		torch.global_position = _grid_to_world(anchor) + Vector2(16.0, -14.0)
+	else:
+		var side: int = int(placement.get("side", 1))
+		torch.global_position = _grid_to_world(anchor) + Vector2(32.0 if side > 0 else 0.0, 14.0)
+		torch.rotation = deg_to_rad(-34.0 * side)
 	decor_root.add_child(torch)
 
 	var brightness: float = float(torch_data.get("brightness", 1.0))
@@ -3027,15 +3026,26 @@ func _spawn_torch(torch_data: Dictionary) -> void:
 		light_node.shadow_enabled = false
 
 
-func _resolve_torch_anchor(requested: Vector2i) -> Vector2i:
+func _resolve_torch_placement(requested: Vector2i) -> Dictionary:
 	var x_offsets := [0, -1, 1, -2, 2]
 	var y_offsets := [0, -1, 1, -2, 2, -3, 3, -4, 4]
+	var floor_candidates: Array[Vector2i] = []
+	var wall_candidates: Array[Dictionary] = []
 	for y_offset: int in y_offsets:
 		for x_offset: int in x_offsets:
 			var candidate := requested + Vector2i(x_offset, y_offset)
-			if _is_solid(solid_grid_cache, candidate.x, candidate.y) and not _is_solid(solid_grid_cache, candidate.x, candidate.y + 1):
-				return candidate
-	return Vector2i.ZERO
+			if not _is_solid(solid_grid_cache, candidate.x, candidate.y):
+				continue
+			if not _is_solid(solid_grid_cache, candidate.x, candidate.y - 1) and not _is_solid(solid_grid_cache, candidate.x, candidate.y - 2):
+				floor_candidates.append(candidate)
+			for side: int in [-1, 1]:
+				if not _is_solid(solid_grid_cache, candidate.x + side, candidate.y) and not _is_solid(solid_grid_cache, candidate.x + side, candidate.y - 1):
+					wall_candidates.append({"anchor": candidate, "style": "wall", "side": side})
+	if not wall_candidates.is_empty() and (floor_candidates.is_empty() or randf() < 0.66):
+		return wall_candidates[randi() % wall_candidates.size()] as Dictionary
+	if not floor_candidates.is_empty():
+		return {"anchor": floor_candidates.front(), "style": "floor", "side": 0}
+	return {}
 
 
 func _spawn_crystal(_crystal_data: Dictionary) -> void:
@@ -3047,15 +3057,22 @@ func _spawn_pickup(pickup_data: Dictionary) -> void:
 	if pickup == null:
 		return
 
+	var requested_cell := Vector2i(int(pickup_data.get("x", 0)), int(pickup_data.get("y", 0)))
+	var floor_cell := _resolve_safe_ground_cell(requested_cell)
 	pickup_root.add_child(pickup)
-	pickup.global_position = _grid_to_world(Vector2i(int(pickup_data.get("x", 0)), int(pickup_data.get("y", 0)))) + Vector2(16.0, -6.0)
+	pickup.global_position = _grid_to_world(floor_cell) + Vector2(16.0, -18.0)
 	pickup.set("toast_text", str(pickup_data.get("message", "Essenzsplitter geborgen.")))
 	pickup.call("configure_loot_tier", str(pickup_data.get("loot_tier", "copper")))
 
 
 func _spawn_enemy(enemy_data: Dictionary, track_population: bool = true) -> void:
 	var enemy_type: String = str(enemy_data.get("type", "slime"))
-	var spawn_position: Vector2 = _grid_to_world(Vector2i(int(enemy_data.get("x", 0)), int(enemy_data.get("y", 0)))) + Vector2(16.0, -12.0)
+	var requested_cell := Vector2i(int(enemy_data.get("x", 0)), int(enemy_data.get("y", 0)))
+	# Only bats are airborne. The Irrlichtkäfer and Glutkäfer use grounded
+	# CharacterBody physics and must be placed on a verified floor tile.
+	var flying_enemy := enemy_type == "bat"
+	var spawn_cell := _resolve_safe_air_cell(requested_cell) if flying_enemy else _resolve_safe_ground_cell(requested_cell)
+	var spawn_position: Vector2 = _grid_to_world(spawn_cell) + (Vector2(16.0, 16.0) if flying_enemy else Vector2(16.0, -12.0))
 	var enemy_scene: PackedScene = null
 
 	match enemy_type:
@@ -3069,25 +3086,187 @@ func _spawn_enemy(enemy_data: Dictionary, track_population: bool = true) -> void
 			spawn_position.y += 4.0
 		"irrlichtkaefer":
 			enemy_scene = IRRLICHTKAEFER_SCENE
+			# Its body circle is centred 16 px above the root. Put its feet on
+			# the floor instead of spawning the root in the ground cell.
+			spawn_position.y += 18.0
+		"glutkaefer":
+			enemy_scene = GLUTKAEFER_SCENE
 		_:
 			return
 
 	var enemy: Node2D = enemy_scene.instantiate() as Node2D
 	if enemy == null:
 		return
+	if enemy_type == "glutkaefer":
+		enemy.set("drops_glut_schluessel", bool(enemy_data.get("drop_glut_schluessel", false)))
+	if enemy_type == "bat":
+		_configure_chapter_bat(enemy, spawn_cell)
 	enemy.set_meta("chapter_enemy_type", enemy_type)
 	# Both authored and replenished enemies count toward the same density cap;
 	# only authored spawns increase that cap.
-	enemy.set_meta("respawn_managed", true)
+	var respawn_managed := not bool(enemy_data.get("no_respawn", false))
+	enemy.set_meta("respawn_managed", respawn_managed)
 	enemy_root.add_child(enemy)
 	enemy.global_position = spawn_position
+	# Character scenes enter the tree before their generated world coordinate is
+	# assigned. Grounded patrol enemies must capture their home only afterwards;
+	# otherwise an Irrlichtkäfer tries to return to (0, 0) and can walk into the
+	# cave mesh far away from its actual spawn.
+	if enemy.has_method("set_spawn_home"):
+		enemy.call("set_spawn_home", spawn_position)
 	if enemy.has_signal("defeated"):
+		enemy.connect("defeated", Callable(self, "_on_chapter_enemy_defeated").bind(enemy), CONNECT_ONE_SHOT)
+	if enemy.has_signal("defeated") and respawn_managed:
 		enemy.connect("defeated", Callable(self, "_on_managed_enemy_defeated").bind(enemy_type), CONNECT_ONE_SHOT)
 	_attach_enemy_awareness_indicator(enemy)
-	if track_population:
+	if track_population and respawn_managed:
 		enemy_population_target += 1
 		if not enemy_respawn_types.has(enemy_type):
 			enemy_respawn_types.append(enemy_type)
+
+
+func spawn_quest_enemy(enemy_type: String, world_position: Vector2, anchor_id: String) -> void:
+	var cell := Vector2i(int(floor(world_position.x / TILE_SIZE)), int(floor(world_position.y / TILE_SIZE)))
+	_spawn_enemy({"type": enemy_type, "x": cell.x, "y": cell.y, "no_respawn": true}, false)
+	if enemy_root.get_child_count() > 0:
+		var enemy := enemy_root.get_child(enemy_root.get_child_count() - 1) as Node2D
+		if enemy != null:
+			enemy.set_meta("chapter_quest_enemy", true)
+			enemy.set_meta("chapter_quest_anchor", anchor_id)
+
+
+func _on_chapter_enemy_defeated(enemy: Node2D) -> void:
+	if quest_runtime != null and is_instance_valid(quest_runtime):
+		quest_runtime.report_enemy_defeated(enemy.global_position, enemy)
+
+
+func _resolve_safe_ground_cell(requested: Vector2i) -> Vector2i:
+	if solid_grid_cache.is_empty():
+		return requested
+	var offsets: Array[int] = [0, -1, 1, -2, 2, -3, 3, -4, 4, -5, 5, -6, 6, -7, 7, -8, 8]
+	for radius in range(0, 9):
+		for y_offset in offsets:
+			if abs(y_offset) > radius:
+				continue
+			for x_offset in offsets:
+				if abs(x_offset) > radius:
+					continue
+				var cell := requested + Vector2i(x_offset, y_offset)
+				if _is_valid_spawn_floor(cell.x, cell.y):
+					return cell
+	return requested
+
+
+func resolve_quest_ground_cell(requested: Vector2i) -> Vector2i:
+	# A quest anchor may be a semantic traversal point rather than the exact
+	# floor cell that survived the final cave/carving pass.  Resolve it against
+	# the collision grid, requiring a broad landing and headroom so collectible
+	# objectives cannot appear suspended in a ceiling pocket or inside terrain.
+	if solid_grid_cache.is_empty():
+		return Vector2i(-1, -1)
+	var offsets: Array[int] = []
+	for distance: int in range(0, 19):
+		if distance == 0:
+			offsets.append(0)
+		else:
+			offsets.append(-distance)
+			offsets.append(distance)
+	for radius: int in range(0, 19):
+		for y_offset: int in offsets:
+			if abs(y_offset) > radius:
+				continue
+			for x_offset: int in offsets:
+				if abs(x_offset) > radius:
+					continue
+				var cell := requested + Vector2i(x_offset, y_offset)
+				if _is_valid_quest_floor(cell.x, cell.y):
+					return cell
+	return Vector2i(-1, -1)
+
+
+func _is_valid_quest_floor(grid_x: int, floor_y: int) -> bool:
+	if grid_x < 2 or floor_y < 4 or grid_x >= level_size_tiles.x - 2 or floor_y >= level_size_tiles.y - 1:
+		return false
+	if not _is_solid(solid_grid_cache, grid_x, floor_y):
+		return false
+	# The target is centred over this cell.  Three solid cells keep it from
+	# balancing on a single spike-like tile, while three empty rows prevent
+	# ceiling/terrain overlap for the draft sprite and its interaction area.
+	var support_count := 0
+	for offset_x: int in range(-1, 2):
+		if _is_solid(solid_grid_cache, grid_x + offset_x, floor_y):
+			support_count += 1
+		for offset_y: int in range(1, 4):
+			if _is_solid(solid_grid_cache, grid_x + offset_x, floor_y - offset_y):
+				return false
+	return support_count >= 3
+
+
+func _resolve_safe_air_cell(requested: Vector2i) -> Vector2i:
+	if solid_grid_cache.is_empty():
+		return requested
+	var offsets: Array[int] = [0, -1, 1, -2, 2, -3, 3, -4, 4, -5, 5, -6, 6, -7, 7, -8, 8]
+	for radius in range(0, 9):
+		for y_offset in offsets:
+			if abs(y_offset) > radius:
+				continue
+			for x_offset in offsets:
+				if abs(x_offset) > radius:
+					continue
+				var cell := requested + Vector2i(x_offset, y_offset)
+				if _is_clear_flying_cell(cell):
+					return cell
+	return requested
+
+
+func _is_clear_flying_cell(cell: Vector2i) -> bool:
+	for offset_y in range(-1, 2):
+		for offset_x in range(-1, 2):
+			if _is_solid(solid_grid_cache, cell.x + offset_x, cell.y + offset_y):
+				return false
+	return true
+
+
+func _configure_chapter_bat(enemy: Node2D, spawn_cell: Vector2i) -> void:
+	var level_number := int(active_level.get("level_index", 0)) + 1
+	# Health, speed and contact damage rise steadily per level. The opening bat
+	# no longer evaporates in one hit, while later levels become stricter without
+	# abruptly changing the species' readable attack rhythm.
+	enemy.set("max_health", 38 + level_number * 6)
+	enemy.set("hover_speed", 100.0 + level_number * 5.0)
+	enemy.set("chase_speed", 145.0 + level_number * 7.0)
+	enemy.set("contact_damage", 8 + int(floor(float(level_number - 1) * 0.85)))
+	# Albinos remain a recognizable variant, but are uncommon enough to keep
+	# their higher-pressure melee pattern special: roughly one in four early on.
+	enemy.set("is_albino", randf() < minf(0.27 + float(level_number - 1) * 0.010, 0.34))
+	enemy.set("patrol_route", _build_bat_patrol_route(spawn_cell))
+
+
+func _build_bat_patrol_route(start_cell: Vector2i) -> PackedVector2Array:
+	var route := PackedVector2Array()
+	var start_world := _grid_to_world(start_cell) + Vector2(16.0, 16.0)
+	var preferred_offsets := [Vector2i(7, -2), Vector2i(-6, -3), Vector2i(5, 3), Vector2i(-4, 2)]
+	for offset: Vector2i in preferred_offsets:
+		var destination := _resolve_safe_air_cell(start_cell + offset)
+		var segment := request_flying_path(start_world if route.is_empty() else route[route.size() - 1], _grid_to_world(destination) + Vector2(16.0, 16.0))
+		if segment.is_empty():
+			continue
+		for point_index in range(0, segment.size(), 3):
+			route.append(segment[point_index])
+	return route
+
+
+func _spawn_glut_dimension_door_if_needed() -> void:
+	if not active_level.has("glut_door") or gate_root == null:
+		return
+	var door_cell: Vector2i = active_level.get("glut_door", Vector2i.ZERO) as Vector2i
+	if door_cell == Vector2i.ZERO:
+		return
+	var door := GLUT_DIMENSION_DOOR_SCENE.instantiate() as Node2D
+	if door == null:
+		return
+	gate_root.add_child(door)
+	door.global_position = _grid_to_world(door_cell) + Vector2(16.0, 0.0)
 
 
 func _attach_enemy_awareness_indicator(enemy: Node2D) -> void:
@@ -3235,10 +3414,24 @@ func _spawn_exit_gate() -> void:
 	var exit_subtitle := str(active_level.get("level_label", ""))
 	var callback := Callable(self, "_complete_level")
 	exit_gate.call("configure_exit_gate", exit_title, exit_subtitle, chapter_meta.get("accent", Color(0.72, 0.92, 1.0, 1.0)) as Color, callback)
+	# The Glutdimension is a real chapter objective rather than optional loot:
+	# this ordinary exit stays visibly sealed until its quest gate advances Joey.
+	if bool(active_level.get("requires_glut_quest", false)) and not _progress().has_reward("glut_dimension_cleared"):
+		exit_gate.set("is_locked", true)
+		exit_gate.call("_apply_theme")
 
 	if active_level.has("boss"):
 		exit_gate.visible = false
 		boss_gate_revealed = false
+
+
+func _spawn_quest_runtime() -> void:
+	if not active_level.has("quest"):
+		return
+	quest_runtime = ChapterQuestRuntime.new()
+	quest_runtime.name = "ChapterQuestRuntime"
+	add_child(quest_runtime)
+	quest_runtime.configure(active_level, player, exit_gate, self, ui_layer)
 
 
 func _spawn_boss_if_needed() -> void:
@@ -3561,6 +3754,8 @@ func _on_boss_health_changed(current_health_value: int, max_health_value: int) -
 
 
 func _on_boss_death_animation_finished(boss: Node2D) -> void:
+	if quest_runtime != null and is_instance_valid(quest_runtime) and not quest_runtime.can_reveal_boss_gate():
+		return
 	if boss_gate_revealed:
 		return
 	boss_gate_revealed = true
@@ -3615,6 +3810,9 @@ func _complete_level() -> void:
 
 func _on_pause_menu_go_to_main_menu() -> void:
 	get_tree().paused = false
+	var progress := _progress()
+	if progress != null and progress.has_method("preserve_chapter_resume"):
+		progress.call("preserve_chapter_resume")
 	var main_menu_scene: PackedScene = load("res://Scenes/main_menu.tscn") as PackedScene
 	if main_menu_scene == null:
 		return
@@ -3754,6 +3952,59 @@ func _clamp_rect_to_envelope(rect: Rect2, envelope: Rect2) -> Rect2:
 
 func _grid_to_world(tile_position: Vector2i) -> Vector2:
 	return Vector2(tile_position.x * TILE_SIZE, tile_position.y * TILE_SIZE)
+
+
+func _build_flying_path_grid() -> void:
+	# One navigation raster is shared by every flying enemy in this generated
+	# level. Solid cave cells are forbidden, so a path can only travel through
+	# genuinely open space and never cuts through a wall.
+	if solid_grid_cache.is_empty():
+		flying_path_grid = null
+		return
+	flying_path_grid = AStarGrid2D.new()
+	flying_path_grid.region = Rect2i(Vector2i.ZERO, level_size_tiles)
+	flying_path_grid.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_ONLY_IF_NO_OBSTACLES
+	flying_path_grid.update()
+	for grid_y in range(level_size_tiles.y):
+		for grid_x in range(level_size_tiles.x):
+			flying_path_grid.set_point_solid(Vector2i(grid_x, grid_y), _is_solid(solid_grid_cache, grid_x, grid_y))
+
+
+func request_flying_path(from_world: Vector2, to_world: Vector2) -> PackedVector2Array:
+	if flying_path_grid == null:
+		return PackedVector2Array()
+	var start := _nearest_open_flying_cell(Vector2i(floori(from_world.x / TILE_SIZE), floori(from_world.y / TILE_SIZE)))
+	var destination := _nearest_open_flying_cell(Vector2i(floori(to_world.x / TILE_SIZE), floori(to_world.y / TILE_SIZE)))
+	if start == Vector2i(-1, -1) or destination == Vector2i(-1, -1):
+		return PackedVector2Array()
+	var cells: Array[Vector2i] = flying_path_grid.get_id_path(start, destination)
+	if cells.size() < 2:
+		return PackedVector2Array()
+	var points := PackedVector2Array()
+	# The first point is the bat's own cell; omitting it avoids a pause before
+	# it starts moving. The remaining points are centres of free cells.
+	for cell_index in range(1, cells.size()):
+		var cell: Vector2i = cells[cell_index]
+		points.append(_grid_to_world(cell) + Vector2(TILE_SIZE * 0.5, TILE_SIZE * 0.5))
+	return points
+
+
+func _nearest_open_flying_cell(requested: Vector2i) -> Vector2i:
+	var x_offsets: Array[int] = [0, -1, 1, -2, 2, -3, 3, -4, 4, -5, 5, -6, 6, -7, 7, -8, 8]
+	var y_offsets: Array[int] = [0, -1, 1, -2, 2, -3, 3, -4, 4, -5, 5, -6, 6, -7, 7, -8, 8]
+	for radius in range(0, 9):
+		for y_offset in y_offsets:
+			if abs(y_offset) > radius:
+				continue
+			for x_offset in x_offsets:
+				if abs(x_offset) > radius:
+					continue
+				var cell := requested + Vector2i(x_offset, y_offset)
+				if cell.x < 1 or cell.y < 1 or cell.x >= level_size_tiles.x - 1 or cell.y >= level_size_tiles.y - 1:
+					continue
+				if not _is_solid(solid_grid_cache, cell.x, cell.y):
+					return cell
+	return Vector2i(-1, -1)
 
 
 func _resolve_exit_gate_tile() -> Vector2i:

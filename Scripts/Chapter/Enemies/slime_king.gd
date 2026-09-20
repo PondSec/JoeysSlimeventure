@@ -41,6 +41,7 @@ func _ready() -> void:
 	action_cooldown = randf_range(0.7, 1.5)
 	player = get_tree().get_first_node_in_group("players") as Node2D
 	add_to_group("enemies")
+	add_to_group("bosses")
 	hitbox.body_entered.connect(_on_hitbox_body_entered)
 	emit_signal("health_changed", current_health, max_health)
 
@@ -80,9 +81,8 @@ func take_damage(amount: int, direction: Vector2, _is_crit: bool = false) -> voi
 
 	current_health -= amount
 	flash_timer = 0.16
-	var knockback_direction: Vector2 = direction.normalized() if direction.length() > 0.0 else Vector2.RIGHT
+	var knockback_direction: Vector2 = Vector2(signf(direction.x), 0.0) if absf(direction.x) > 0.01 else Vector2.RIGHT
 	velocity += knockback_direction * 120.0
-	velocity.y = minf(velocity.y, -120.0)
 	emit_signal("health_changed", max(current_health, 0), max_health)
 
 	if current_health <= 0:
@@ -233,6 +233,8 @@ func _die() -> void:
 		return
 	is_dead = true
 	state = State.DEAD
+	set_collision_layer_value(3, false)
+	set_collision_mask_value(1, false)
 	emit_signal("health_changed", 0, max_health)
 	emit_signal("defeated")
 	LootDropper.spawn_independent_drops(self, [

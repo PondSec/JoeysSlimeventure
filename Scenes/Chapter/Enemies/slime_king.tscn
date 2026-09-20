@@ -12,6 +12,8 @@ height = 72.0
 size = Vector2(84, 58)
 
 [node name="SlimeKing" type="CharacterBody2D"]
+collision_layer = 4
+collision_mask = 3
 script = ExtResource("3_script")
 minion_scene = ExtResource("2_minion")
 

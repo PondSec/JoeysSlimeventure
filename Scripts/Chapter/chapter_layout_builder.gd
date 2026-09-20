@@ -16,11 +16,12 @@ const ROOM_ROLE_BRANCH := "branch"
 const ROOM_ROLE_EXIT := "exit"
 const ROOM_ROLE_BOSS := "boss"
 
-const MAX_GENERATION_ATTEMPTS := 14
+const MAX_GENERATION_ATTEMPTS := 3
 const ROOM_OVERLAP_TILES := 4
 const ROOM_PADDING_TILES := 2
 const CONNECTION_PLATFORM_WIDTH := 4
 const BRANCH_CONNECTION_WIDTH := 5
+const QUEST_LAYOUT_VERSION := 1
 
 static var accepted_layout_cache: Dictionary = {}
 
@@ -42,7 +43,7 @@ var side_path_lines: Array = []
 
 
 static func build_level_layout(source_level_data: Dictionary, source_level_size: Vector2i, seed: int) -> Dictionary:
-	var cache_key := "%s|%s|%d|%d|%d" % [str(source_level_data.get("title", "")), str(source_level_data.get("level_label", "")), seed, source_level_size.x, source_level_size.y]
+	var cache_key := "%d|%s|%s|%d|%d|%d" % [QUEST_LAYOUT_VERSION, str(source_level_data.get("title", "")), str(source_level_data.get("level_label", "")), seed, source_level_size.x, source_level_size.y]
 	if accepted_layout_cache.has(cache_key):
 		return (accepted_layout_cache[cache_key] as Dictionary).duplicate(true)
 	var builder := new()
@@ -60,6 +61,10 @@ func _build(source_level_data: Dictionary, source_level_size: Vector2i, seed: in
 	level_size = source_level_size
 	layout_style = _resolve_layout_style()
 	mobility_profile = ChapterMobilityProfile.build_for_level(level_data)
+	# The hand-sculpted cave network is the intended Chapter I presentation:
+	# broad chambers, loops and vertical returns instead of a room-chain.  It
+	# still emits its full validation report; quest objects are grounded later
+	# against its final collision grid by ChapterQuestRuntime.
 	if layout_style == "graph_hybrid":
 		return _build_graph_hybrid_result()
 	if layout_style == "cave_network":
@@ -84,6 +89,8 @@ func _build(source_level_data: Dictionary, source_level_size: Vector2i, seed: in
 		var torches: Array = _place_torches()
 		var triggers: Array = _place_triggers()
 		var boss: Dictionary = _place_boss()
+		var quest_anchors := _build_quest_anchors(critical_path_nodes, side_path_lines, boss)
+		var mandatory_quest_targets := _mandatory_targets_from_anchors(quest_anchors)
 
 		var validation: Dictionary = ChapterTraversalValidator.validate_layout({
 			"grid": grid,
@@ -93,6 +100,7 @@ func _build(source_level_data: Dictionary, source_level_size: Vector2i, seed: in
 			"critical_path_nodes": critical_path_nodes.duplicate(true),
 			"side_path_lines": side_path_lines.duplicate(true),
 			"pickups": pickups,
+			"mandatory_quest_targets": mandatory_quest_targets,
 			"spawn": _first_path_node(),
 			"exit": _last_path_node()
 		})
@@ -117,6 +125,7 @@ func _build(source_level_data: Dictionary, source_level_size: Vector2i, seed: in
 				"critical_path_nodes": critical_path_nodes.duplicate(true),
 				"side_path_lines": side_path_lines.duplicate(true),
 				"pickups": pickups,
+				"mandatory_quest_targets": mandatory_quest_targets,
 				"spawn": _first_path_node(),
 				"exit": _last_path_node()
 			})
@@ -133,6 +142,7 @@ func _build(source_level_data: Dictionary, source_level_size: Vector2i, seed: in
 				"critical_path_nodes": critical_path_nodes.duplicate(true),
 				"side_path_lines": side_path_lines.duplicate(true),
 				"pickups": pickups,
+				"mandatory_quest_targets": mandatory_quest_targets,
 				"spawn": _first_path_node(),
 				"exit": _last_path_node()
 			})
@@ -150,7 +160,7 @@ func _build(source_level_data: Dictionary, source_level_size: Vector2i, seed: in
 
 		var score: float = _score_validation(validation)
 		validation["quality_score"] = score
-		var candidate: Dictionary = _assemble_result(grid, pickups, enemies, hazards, torches, triggers, boss, validation)
+		var candidate: Dictionary = _assemble_result(grid, pickups, enemies, hazards, torches, triggers, boss, validation, quest_anchors)
 		if OS.get_cmdline_user_args().has("--diagnose-generation"):
 			print("GEN_ATTEMPT=%d path=%s critical_invalid=%d rewards_unreachable=%d rooms_unreachable=%d optional_invalid=%d repairs=%d" % [attempt_index + 1, str(validation.get("path_valid", false)), int(validation.get("invalid_jump_count", 0)), int(validation.get("unreachable_reward_count", 0)), int(validation.get("unreachable_room_count", 0)), int(validation.get("optional_invalid_jump_count", 0)), repair_passes])
 		if best_candidate.is_empty() or score > best_score:
@@ -160,14 +170,18 @@ func _build(source_level_data: Dictionary, source_level_size: Vector2i, seed: in
 		if bool(validation.get("path_valid", false)) \
 		and int(validation.get("invalid_jump_count", 0)) == 0 \
 		and int(validation.get("unreachable_reward_count", 0)) == 0 \
-		and int(validation.get("unreachable_room_count", 0)) == 0:
+		and int(validation.get("unreachable_room_count", 0)) == 0 \
+		and int(validation.get("unreachable_quest_target_count", 0)) == 0 \
+		and bool(validation.get("quest_sequence_valid", true)):
 			return candidate
 
 	var best_validation: Dictionary = best_candidate.get("layout_validation", {}) as Dictionary if not best_candidate.is_empty() else {}
 	if bool(best_validation.get("path_valid", false)) \
 	and int(best_validation.get("invalid_jump_count", 0)) == 0 \
 	and int(best_validation.get("unreachable_reward_count", 0)) == 0 \
-	and int(best_validation.get("unreachable_room_count", 0)) == 0:
+	and int(best_validation.get("unreachable_room_count", 0)) == 0 \
+	and int(best_validation.get("unreachable_quest_target_count", 0)) == 0 \
+	and bool(best_validation.get("quest_sequence_valid", true)):
 		return best_candidate
 	var fallback_result: Dictionary = _build_curated_fallback_result()
 	fallback_result["generator_best_validation"] = best_validation.duplicate(true)
@@ -233,10 +247,11 @@ func _build_graph_hybrid_result() -> Dictionary:
 	for band: int in range(1, bands):
 		pickups.append({"id": "graph_essence_%d" % band, "x": int(level_size.x * 0.5), "y": start_y + band * step_y - 1, "message": "Essenz in einer Seitennische."})
 	var final_grid: Array = TerrainResolver.duplicate_cells(TerrainResolver.build_logical_map(grid, level_size))
-	var validation := ChapterTraversalValidator.validate_layout({"grid": final_grid, "level_size": level_size, "mobility_profile": mobility_profile, "rooms": rooms, "critical_path_nodes": path, "side_path_lines": [], "pickups": pickups, "spawn": path.front(), "exit": path.back()})
+	var quest_anchors := _build_quest_anchors(path, [], {})
+	var validation := ChapterTraversalValidator.validate_layout({"grid": final_grid, "level_size": level_size, "mobility_profile": mobility_profile, "rooms": rooms, "critical_path_nodes": path, "side_path_lines": [], "pickups": pickups, "mandatory_quest_targets": _mandatory_targets_from_anchors(quest_anchors), "spawn": path.front(), "exit": path.back()})
 	validation["layout_signature"] = "graph_spine"
 	validation["room_variety_score"] = 4.0
-	return {"grid": final_grid, "spawn": path.front(), "exit": path.back(), "platforms": platforms, "pickups": pickups, "enemies": level_data.get("enemies", []), "hazards": [], "torches": _place_torches(), "triggers": level_data.get("triggers", []), "boss": {}, "worm_count": 0, "layout_validation": validation, "debug_rooms": rooms, "critical_path_nodes": path, "side_path_lines": [], "mobility_profile": mobility_profile}
+	return {"grid": final_grid, "spawn": path.front(), "exit": path.back(), "platforms": platforms, "pickups": pickups, "enemies": level_data.get("enemies", []), "hazards": [], "torches": _place_torches(), "triggers": level_data.get("triggers", []), "boss": {}, "worm_count": 0, "layout_validation": validation, "quest_anchors": quest_anchors, "debug_rooms": rooms, "critical_path_nodes": path, "side_path_lines": [], "mobility_profile": mobility_profile}
 
 
 func _build_cave_network_result(seed: int) -> Dictionary:
@@ -356,12 +371,13 @@ func _build_cave_network_result(seed: int) -> Dictionary:
 	var rooms: Array = []
 	for hub_index: int in range(hubs.size()):
 		rooms.append({"id": "network_hub_%d" % hub_index, "role": ROOM_ROLE_LANDMARK if hub_index == 4 else ROOM_ROLE_VERTICAL, "entry_node": hubs[hub_index], "exit_node": hubs[hub_index]})
-	var validation := ChapterTraversalValidator.validate_layout({"grid": final_grid, "level_size": level_size, "mobility_profile": mobility_profile, "rooms": rooms, "critical_path_nodes": path, "side_path_lines": side_lines, "pickups": pickups, "spawn": spawn, "exit": exit})
+	var quest_anchors := _build_quest_anchors(path, side_lines, {})
+	var validation := ChapterTraversalValidator.validate_layout({"grid": final_grid, "level_size": level_size, "mobility_profile": mobility_profile, "rooms": rooms, "critical_path_nodes": path, "side_path_lines": side_lines, "pickups": pickups, "mandatory_quest_targets": _mandatory_targets_from_anchors(quest_anchors), "spawn": spawn, "exit": exit})
 	validation["layout_signature"] = "organic_network"
 	validation["branch_signature"] = "reconnecting_loops"
 	validation["vertical_signature"] = "layered_ring"
 	validation["room_variety_score"] = 7.0
-	return {"grid": final_grid, "spawn": spawn, "exit": exit, "platforms": platforms, "pickups": pickups, "enemies": enemies, "hazards": hazards, "torches": torches, "triggers": _place_triggers(), "boss": {}, "worm_count": 0, "layout_validation": validation, "debug_rooms": rooms, "critical_path_nodes": path, "side_path_lines": side_lines, "mobility_profile": mobility_profile}
+	return {"grid": final_grid, "spawn": spawn, "exit": exit, "platforms": platforms, "pickups": pickups, "enemies": enemies, "hazards": hazards, "torches": torches, "triggers": _place_triggers(), "boss": {}, "worm_count": 0, "layout_validation": validation, "quest_anchors": quest_anchors, "debug_rooms": rooms, "critical_path_nodes": path, "side_path_lines": side_lines, "mobility_profile": mobility_profile}
 
 
 func _reinforce_network_traversal_geometry(grid: Array, path: Array, side_lines: Array) -> void:
@@ -636,7 +652,10 @@ func _network_place_hazards(path: Array) -> Array:
 func _network_place_torches(path: Array, hubs: Array) -> Array:
 	var source: Array = level_data.get("torches", []) as Array
 	var placed: Array = []
-	var total: int = maxi(8 + int(_level_progress() >= 0.45), source.size() + 4)
+	# Light is a navigational resource, not a rare decoration. Dense network
+	# routes get a readable pool of wall/floor torches, with a small increase in
+	# later levels where the encounter density is higher.
+	var total: int = maxi(12 + int(_level_progress() >= 0.45) * 2, source.size() + 6)
 	for index: int in range(total):
 		var anchor: Vector2i = hubs[clampi(1 + (index * 3) % (hubs.size() - 2), 1, hubs.size() - 2)] as Vector2i
 		var brightness: float = float((source[index % source.size()] as Dictionary).get("brightness", 1.0)) if not source.is_empty() else 1.0
@@ -2844,7 +2863,70 @@ func _slot_near_path(room: Dictionary, slot: Vector2i, distance_limit: int) -> b
 	return false
 
 
-func _assemble_result(grid: Array, pickups: Array, enemies: Array, hazards: Array, torches: Array, triggers: Array, boss: Dictionary, validation: Dictionary) -> Dictionary:
+func _build_quest_anchors(path: Array, branches: Array, boss: Dictionary) -> Array:
+	var quest: Dictionary = level_data.get("quest", {}) as Dictionary
+	var objectives: Array = quest.get("objectives", []) as Array
+	if objectives.is_empty() or path.is_empty():
+		return []
+	var anchors: Array = []
+	var used: Dictionary = {}
+	for objective_variant: Variant in objectives:
+		var objective: Dictionary = objective_variant as Dictionary
+		var roles: Array = objective.get("anchor_roles", []) as Array
+		var amount: int = maxi(1, int(objective.get("required", 1)))
+		for instance_index: int in range(amount):
+			var role: String = str(roles[mini(instance_index, roles.size() - 1)]) if not roles.is_empty() else "pre_exit"
+			var position := _quest_position_for_role(role, instance_index, amount, path, branches, boss)
+			var key := "%d:%d" % [position.x, position.y]
+			if used.has(key):
+				position = _path_position(path, clampi(int(round(float(path.size() - 1) * (0.16 + 0.70 * float(instance_index + 1) / float(amount + 1)))), 0, path.size() - 1))
+				key = "%d:%d" % [position.x, position.y]
+			used[key] = true
+			anchors.append({
+				"id": "%s_%d" % [str(objective.get("id", "objective")), instance_index],
+				"objective_id": str(objective.get("id", "")),
+				"role": role,
+				"position": position,
+				"sequence": anchors.size(),
+				"mandatory": true
+			})
+	return anchors
+
+
+func _quest_position_for_role(role: String, instance_index: int, amount: int, path: Array, branches: Array, boss: Dictionary) -> Vector2i:
+	if role.begins_with("boss_") and not boss.is_empty():
+		var boss_position := Vector2i(int(boss.get("x", level_size.x / 2)), int(boss.get("y", level_size.y / 2)))
+		var offset: int = int([-11, 0, 11][mini(instance_index, 2)])
+		return Vector2i(clampi(boss_position.x + offset, 4, level_size.x - 5), boss_position.y)
+	if (role == "side_branch_reachable" or role == "dark_branch" or role == "combat_branch") and not branches.is_empty():
+		var line: Array = branches[mini(instance_index, branches.size() - 1)] as Array
+		if not line.is_empty():
+			return _path_position(line, int(line.size() * 0.55))
+	var normalized := 0.50
+	match role:
+		"near_spawn_safe": normalized = 0.16
+		"upper_descent", "vertical_low": normalized = 0.22
+		"mid_descent", "vertical_mid", "mid_route_landmark", "combat_room": normalized = 0.50
+		"lower_descent", "vertical_high", "combat_room_far": normalized = 0.72
+		"pre_exit", "pre_exit_chamber": normalized = 0.86
+		_: normalized = 0.26 + 0.56 * float(instance_index + 1) / float(amount + 1)
+	return _path_position(path, clampi(int(round(float(path.size() - 1) * normalized)), 0, path.size() - 1))
+
+
+func _path_position(path: Array, index: int) -> Vector2i:
+	return path[clampi(index, 0, path.size() - 1)] as Vector2i
+
+
+func _mandatory_targets_from_anchors(anchors: Array) -> Array:
+	var targets: Array = []
+	for anchor_variant: Variant in anchors:
+		var anchor: Dictionary = anchor_variant as Dictionary
+		if bool(anchor.get("mandatory", false)):
+			targets.append({"id": str(anchor.get("id", "")), "position": anchor.get("position", Vector2i.ZERO), "sequence": int(anchor.get("sequence", 0))})
+	return targets
+
+
+func _assemble_result(grid: Array, pickups: Array, enemies: Array, hazards: Array, torches: Array, triggers: Array, boss: Dictionary, validation: Dictionary, quest_anchors: Array = []) -> Dictionary:
 	return {
 		"grid": grid,
 		"spawn": _first_path_node(),
@@ -2858,6 +2940,7 @@ func _assemble_result(grid: Array, pickups: Array, enemies: Array, hazards: Arra
 		"boss": boss,
 		"worm_count": int(level_data.get("worm_count", 0)),
 		"layout_validation": validation,
+		"quest_anchors": quest_anchors.duplicate(true),
 		"debug_rooms": _build_debug_rooms(),
 		"critical_path_nodes": critical_path_nodes.duplicate(true),
 		"side_path_lines": side_path_lines.duplicate(true),
@@ -2871,6 +2954,7 @@ func _build_curated_fallback_result() -> Dictionary:
 		fallback_platforms.append((platform_variant as Dictionary).duplicate(true))
 	var critical_nodes: Array = _fallback_route_nodes(fallback_platforms)
 	var fallback_pickups: Array = (level_data.get("pickups", []) as Array).duplicate(true)
+	var fallback_quest_anchors := _build_quest_anchors(critical_nodes, [], level_data.get("boss", {}) as Dictionary)
 	var validation: Dictionary = {
 		"path_valid": true,
 		"optional_path_valid": true,
@@ -2880,6 +2964,9 @@ func _build_curated_fallback_result() -> Dictionary:
 		"critical_path_length_tiles": float(max(0, critical_nodes.size() - 1)),
 		"reachable_reward_count": fallback_pickups.size(),
 		"unreachable_reward_count": 0,
+		"unreachable_quest_target_count": 0,
+		"unreachable_quest_targets": [],
+		"quest_sequence_valid": true,
 		"invalid_jump_count": 0,
 		"optional_invalid_jump_count": 0,
 		"surface_node_count": 0,
@@ -2915,6 +3002,7 @@ func _build_curated_fallback_result() -> Dictionary:
 		"boss": (level_data.get("boss", {}) as Dictionary).duplicate(true),
 		"worm_count": int(level_data.get("worm_count", 0)),
 		"layout_validation": validation,
+		"quest_anchors": fallback_quest_anchors,
 		"debug_rooms": [],
 		"critical_path_nodes": critical_nodes,
 		"side_path_lines": [],

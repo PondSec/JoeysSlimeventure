@@ -1,0 +1,9 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Chapter/chapter_two_preview.gd" id="1_script"]
+
+[node name="ChapterTwoPreview" type="Node2D"]
+script = ExtResource("1_script")
+
+[node name="Shadow" type="CanvasModulate" parent="."]
+color = Color(0.58, 0.59, 0.68, 1)

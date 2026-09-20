@@ -43,6 +43,13 @@ func _on_continue_button_pressed() -> void:
 
 func _on_main_menu_button_pressed() -> void:
 	get_tree().paused = false
+	# Persist only the chapter/level resume point before the existing menu
+	# transition. World coordinates are intentionally not saved: the weekly
+	# generator may rebuild this level with different terrain tomorrow.
+	var chapter_runtime := get_tree().get_first_node_in_group("chapter_runtime")
+	var chapter_progress := get_node_or_null("/root/ChapterProgress")
+	if chapter_runtime != null and chapter_progress != null and chapter_progress.has_method("preserve_chapter_resume"):
+		chapter_progress.call("preserve_chapter_resume")
 	
 	# WICHTIG: Multiplayer-Verbindung trennen, falls vorhanden
 	var gm = get_node("/root/GameManager")

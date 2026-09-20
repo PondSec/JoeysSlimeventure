@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=3 uid="uid://dqykudmd26o2q"]
+[gd_scene format=3 uid="uid://dqykudmd26o2q"]
 
 [ext_resource type="Script" uid="uid://btm7kd5s0flqi" path="res://Scripts/bat.gd" id="1_fveqw"]
 [ext_resource type="Texture2D" uid="uid://dmh4k0yq2bjpa" path="res://Assets/Enemies/Bat/Standard/BatStandard_Sheet.png" id="2_kikkf"]
@@ -121,56 +121,54 @@ size = Vector2(12, 8.22917)
 [sub_resource type="CircleShape2D" id="CircleShape2D_50dnf"]
 radius = 48.074
 
-[node name="Bat" type="CharacterBody2D"]
+[node name="Bat" type="CharacterBody2D" unique_id=43396237]
 scale = Vector2(1.5, 1.5)
 collision_layer = 2
 collision_mask = 15
 script = ExtResource("1_fveqw")
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1106146894]
 texture = ExtResource("2_kikkf")
 hframes = 7
 vframes = 5
 
-[node name="AnimationPlayer" type="AnimationPlayer" parent="Sprite2D"]
-libraries = {
-&"": SubResource("AnimationLibrary_ojm6m")
-}
+[node name="AnimationPlayer" type="AnimationPlayer" parent="Sprite2D" unique_id=987464403]
+libraries/ = SubResource("AnimationLibrary_ojm6m")
 speed_scale = 2.0
 
-[node name="AttackArea" type="Area2D" parent="."]
+[node name="AttackArea" type="Area2D" parent="." unique_id=79682541]
 visible = false
 
-[node name="Body" type="CollisionShape2D" parent="AttackArea"]
+[node name="Body" type="CollisionShape2D" parent="AttackArea" unique_id=1494154012]
 shape = SubResource("CircleShape2D_p57rr")
 
-[node name="Collision" type="CollisionShape2D" parent="."]
+[node name="Collision" type="CollisionShape2D" parent="." unique_id=1278145663]
 visible = false
 shape = SubResource("RectangleShape2D_chl00")
 
-[node name="NavigationAgent2D" type="NavigationAgent2D" parent="."]
+[node name="NavigationAgent2D" type="NavigationAgent2D" parent="." unique_id=1544464313]
 
-[node name="Timer" type="Timer" parent="NavigationAgent2D"]
+[node name="Timer" type="Timer" parent="NavigationAgent2D" unique_id=1878245894]
 wait_time = 0.1
 autostart = true
 
-[node name="AlertIcon" type="Label" parent="."]
+[node name="AlertIcon" type="Label" parent="." unique_id=956403171]
 offset_left = -1.0
 offset_top = -34.0
 offset_right = 4.0
 offset_bottom = -11.0
 
-[node name="DetectionArea" type="Area2D" parent="."]
+[node name="DetectionArea" type="Area2D" parent="." unique_id=1189858826]
 visible = false
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="DetectionArea"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="DetectionArea" unique_id=616718668]
 shape = SubResource("CircleShape2D_50dnf")
 
-[node name="AudioStreamPlayer2D" type="AudioStreamPlayer2D" parent="."]
+[node name="AudioStreamPlayer2D" type="AudioStreamPlayer2D" parent="." unique_id=1295165296]
 stream = ExtResource("5_mqh3e")
 pitch_scale = 15.0
 
-[node name="HealthBar" type="TextureProgressBar" parent="."]
+[node name="HealthBar" type="TextureProgressBar" parent="." unique_id=910126147]
 offset_left = -12.6667
 offset_top = -19.3333
 offset_right = 12.3333

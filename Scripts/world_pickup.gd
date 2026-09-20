@@ -12,6 +12,11 @@ var sprite_base_scale := Vector2.ONE
 
 
 func _ready() -> void:
+	# Generated chapter terrain uses collision layer 2 while old scenes use
+	# layer 1. Listening to both prevents dropped loot from falling through
+	# the procedural cave floor and becoming unreachable inside the terrain.
+	collision_mask |= 2
+	continuous_cd = RigidBody2D.CCD_MODE_CAST_RAY
 	if item:
 		damage_amount = item.throw_damage
 
