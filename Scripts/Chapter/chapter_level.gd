@@ -80,6 +80,7 @@ const ENEMY_RESPAWN_MIN_PLAYER_DISTANCE := 520.0
 const CLIMB_VINE_MIN_DROP_TILES := 9
 const CLIMB_VINE_MAX_PER_LEVEL := 3
 const CLIMB_VINE_MIN_HORIZONTAL_CLEARANCE := 3
+const CLIMB_VINE_FLOOR_CLEARANCE_TILES := 2
 
 const PARALLAX_TEXTURE_PATHS := [
 	"res://Assets/Parallax Cave/1.png",
@@ -2730,7 +2731,9 @@ func _spawn_recovery_climb_vines(grid: Array) -> void:
 		var floor_y := int(candidate["floor_y"])
 		vine.global_position = _grid_to_world(Vector2i(grid_x, ceiling_y + 1)) + Vector2(TILE_SIZE * 0.5, 1.0)
 		decor_root.add_child(vine)
-		var length_pixels := maxf(96.0, float(floor_y - ceiling_y - 1) * TILE_SIZE - 14.0)
+		# Leave a visible landing gap: this is a hanging vine, never a ladder
+		# that visually grows into the floor.
+		var length_pixels := maxf(96.0, float(floor_y - ceiling_y - 1 - CLIMB_VINE_FLOOR_CLEARANCE_TILES) * TILE_SIZE - 14.0)
 		vine.call("configure", length_pixels, vine_rng.randf_range(-0.07, 0.07))
 
 

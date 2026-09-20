@@ -9,9 +9,9 @@ const SEGMENT_HEIGHT := 32.0
 const MIN_CLIMB_DISTANCE := 26.0
 const END_MARGIN := 24.0
 const MAX_SWING_ANGLE := 0.30
-const SWING_ACCELERATION := 2.25
-const SWING_DAMPING := 0.88
-const MAX_ANGULAR_SPEED := 2.7
+const SWING_PUMP_ACCELERATION := 3.45
+const SWING_DAMPING := 0.34
+const MAX_ANGULAR_SPEED := 3.35
 
 var length_pixels := 256.0
 var swing_angle := 0.0
@@ -33,10 +33,23 @@ func _physics_process(delta: float) -> void:
 	_previous_angle = swing_angle
 	var pendulum_gravity := 980.0 / maxf(length_pixels, 96.0)
 	var angular_acceleration := -pendulum_gravity * sin(swing_angle)
-	angular_acceleration += rider_input * SWING_ACCELERATION
+	# A/D is a timing-based pump, not a horizontal motor. It adds energy only
+	# while the rope already travels in that direction, so holding a key cannot
+	# pin Joey against one side. Alternating input with the pendulum builds the
+	# satisfying long arc needed for a meaningful jump.
+	if absf(angular_velocity) > 0.10 and signf(rider_input) == signf(angular_velocity):
+		angular_acceleration += rider_input * SWING_PUMP_ACCELERATION
 	angular_acceleration -= angular_velocity * SWING_DAMPING
 	angular_velocity = clampf(angular_velocity + angular_acceleration * delta, -MAX_ANGULAR_SPEED, MAX_ANGULAR_SPEED)
-	swing_angle = clampf(swing_angle + angular_velocity * delta, -MAX_SWING_ANGLE, MAX_SWING_ANGLE)
+	var next_angle := swing_angle + angular_velocity * delta
+	if next_angle > MAX_SWING_ANGLE:
+		swing_angle = MAX_SWING_ANGLE
+		angular_velocity = minf(angular_velocity, 0.0)
+	elif next_angle < -MAX_SWING_ANGLE:
+		swing_angle = -MAX_SWING_ANGLE
+		angular_velocity = maxf(angular_velocity, 0.0)
+	else:
+		swing_angle = next_angle
 	rotation = swing_angle
 	# Input is supplied by the rider each physics frame. Letting it decay keeps
 	# a released vine lively for a moment instead of freezing unnaturally.
@@ -74,6 +87,13 @@ func closest_climb_distance(world_position: Vector2) -> float:
 func get_hold_position(climb_distance: float) -> Vector2:
 	var rope_direction := Vector2(sin(swing_angle), cos(swing_angle))
 	return global_position + rope_direction * clamp_climb_distance(climb_distance)
+
+
+func get_grip_position(climb_distance: float) -> Vector2:
+	# Keep Joey's hands visibly on the vine at every angle. The grip moves along
+	# the rope itself rather than using a fixed screen-up offset.
+	var rope_direction := Vector2(sin(swing_angle), cos(swing_angle))
+	return get_hold_position(climb_distance) - rope_direction * 10.0
 
 
 func get_hold_velocity(climb_distance: float) -> Vector2:

@@ -445,7 +445,6 @@ const WALL_JUMP_BUFFER_TIME = 0.1
 const WALL_JUMP_FORGIVENESS = 0.15
 const VINE_CLIMB_SPEED := 168.0
 const VINE_JUMP_UPWARD_SPEED := 336.0
-const VINE_JUMP_SIDE_BOOST := 96.0
 const VINE_REGRAB_COOLDOWN := 0.22
 
 var has_glow_skill := false
@@ -2279,7 +2278,9 @@ func detach_climb_vine(with_jump: bool) -> void:
 	climb_vine_release_cooldown = VINE_REGRAB_COOLDOWN
 	if with_jump:
 		airtime_started_with_jump = true
-		velocity = carry_velocity + Vector2(direction.x * VINE_JUMP_SIDE_BOOST, VINE_JUMP_UPWARD_SPEED)
+		# Preserve the rope's tangential velocity verbatim. The player therefore
+		# travels in the exact direction and pace of the current pendulum arc.
+		velocity = carry_velocity + Vector2(0.0, VINE_JUMP_UPWARD_SPEED)
 		_play_jump_sfx(false)
 		$Camera2D.shake(0.55, 0.055)
 		_squash_player_sprite(Vector2(0.88, 1.10), 0.12)
@@ -2305,11 +2306,11 @@ func _handle_climb_vine(delta: float) -> bool:
 	var swing_input := direction.x
 	if climb_vine.has_method("set_rider_input"):
 		climb_vine.call("set_rider_input", swing_input)
-	var hold_position := climb_vine.call("get_hold_position", climb_vine_distance) as Vector2 if climb_vine.has_method("get_hold_position") else global_position
+	var hold_position := climb_vine.call("get_grip_position", climb_vine_distance) as Vector2 if climb_vine.has_method("get_grip_position") else global_position
 	var hold_velocity := climb_vine.call("get_hold_velocity", climb_vine_distance) as Vector2 if climb_vine.has_method("get_hold_velocity") else Vector2.ZERO
-	# The hand/rope line sits slightly above Joey's center so the visual reads as
-	# a grip, while collision remains at the character body.
-	global_position = hold_position + Vector2(0.0, -10.0)
+	# The vine supplies an angle-relative grip point, keeping Joey on the rope
+	# throughout the entire arc instead of offsetting him to one screen side.
+	global_position = hold_position
 	velocity = hold_velocity
 	if absf(swing_input) > 0.1:
 		update_facing_direction()
