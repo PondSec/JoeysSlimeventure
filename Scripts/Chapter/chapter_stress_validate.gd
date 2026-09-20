@@ -20,7 +20,7 @@ func _run() -> void:
 	for sample_count: int in _requested_batch_sizes():
 		var batch := _validate_batch(level_data, level_size, sample_count)
 		report["batches"].append(batch)
-		print("STRESS seeds=%d accepted=%d rejected=%d hard_failures=%d avg_ms=%.2f p95_ms=%.2f p99_ms=%.2f max_ms=%.2f attempts_avg=%.2f attempts_max=%d quality_avg=%.2f quality_min=%.2f" % [sample_count, int(batch.accepted), int(batch.rejected), int(batch.hard_failures), float(batch.average_ms), float(batch.p95_ms), float(batch.p99_ms), float(batch.max_ms), float(batch.average_attempts), int(batch.max_attempts), float(batch.average_quality), float(batch.minimum_quality)])
+		print("STRESS seeds=%d accepted=%d rejected=%d hard_failures=%d quest_targets=%d quest_unreachable=%d quest_sequence_failures=%d avg_ms=%.2f p95_ms=%.2f p99_ms=%.2f max_ms=%.2f attempts_avg=%.2f attempts_max=%d quality_avg=%.2f quality_min=%.2f" % [sample_count, int(batch.accepted), int(batch.rejected), int(batch.hard_failures), int(batch.quest_targets), int(batch.unreachable_quest_targets), int(batch.quest_sequence_failures), float(batch.average_ms), float(batch.p95_ms), float(batch.p99_ms), float(batch.max_ms), float(batch.average_attempts), int(batch.max_attempts), float(batch.average_quality), float(batch.minimum_quality)])
 	var file := FileAccess.open("user://chapter_generation_stress_report.json", FileAccess.WRITE)
 	file.store_string(JSON.stringify(report, "  "))
 	file.close()
@@ -60,6 +60,9 @@ func _validate_batch(level_data: Dictionary, level_size: Vector2i, sample_count:
 	var rejected := 0
 	var hard_failures := 0
 	var failures: Dictionary = {}
+	var quest_targets := 0
+	var unreachable_quest_targets := 0
+	var quest_sequence_failures := 0
 	for index: int in sample_count:
 		var seed := _requested_base_seed() + index * SEED_STEP
 		var started_usec := Time.get_ticks_usec()
@@ -69,11 +72,14 @@ func _validate_batch(level_data: Dictionary, level_size: Vector2i, sample_count:
 		var validation: Dictionary = result.get("layout_validation", {}) as Dictionary
 		attempts.append(int(validation.get("attempt_index", 0)) + 1)
 		qualities.append(float(validation.get("quality_score", 0.0)))
+		quest_targets += (result.get("quest_anchors", []) as Array).size()
+		unreachable_quest_targets += int(validation.get("unreachable_quest_target_count", 0))
+		quest_sequence_failures += int(not bool(validation.get("quest_sequence_valid", true)))
 		if _is_accepted(validation):
 			accepted += 1
 		else:
 			if OS.get_cmdline_user_args().has("--diagnose-generation"):
-				print("GEN_RESULT path=%s invalid=%d rewards=%d rooms=%d notes=%s" % [str(validation.get("path_valid", false)), int(validation.get("invalid_jump_count", 0)), int(validation.get("unreachable_reward_count", 0)), int(validation.get("unreachable_room_count", 0)), str(validation.get("notes", PackedStringArray()))])
+				print("GEN_RESULT path=%s invalid=%d rewards=%d rooms=%d quest_unreachable=%d quest_sequence=%s notes=%s" % [str(validation.get("path_valid", false)), int(validation.get("invalid_jump_count", 0)), int(validation.get("unreachable_reward_count", 0)), int(validation.get("unreachable_room_count", 0)), int(validation.get("unreachable_quest_target_count", 0)), str(validation.get("quest_sequence_valid", true)), str(validation.get("notes", PackedStringArray()))])
 			rejected += 1
 			var category := _failure_category(validation)
 			failures[category] = int(failures.get(category, 0)) + 1
@@ -84,6 +90,9 @@ func _validate_batch(level_data: Dictionary, level_size: Vector2i, sample_count:
 		"accepted": accepted,
 		"rejected": rejected,
 		"hard_failures": hard_failures,
+		"quest_targets": quest_targets,
+		"unreachable_quest_targets": unreachable_quest_targets,
+		"quest_sequence_failures": quest_sequence_failures,
 		"failure_categories": failures,
 		"average_ms": _average(timings),
 		"p50_ms": _percentile(timings, 0.50),
@@ -101,7 +110,9 @@ func _is_accepted(validation: Dictionary) -> bool:
 	return bool(validation.get("path_valid", false)) \
 		and int(validation.get("invalid_jump_count", 0)) == 0 \
 		and int(validation.get("unreachable_reward_count", 0)) == 0 \
-		and int(validation.get("unreachable_room_count", 0)) == 0
+		and int(validation.get("unreachable_room_count", 0)) == 0 \
+		and int(validation.get("unreachable_quest_target_count", 0)) == 0 \
+		and bool(validation.get("quest_sequence_valid", true))
 
 
 func _failure_category(validation: Dictionary) -> String:
@@ -111,6 +122,10 @@ func _failure_category(validation: Dictionary) -> String:
 		return "jump"
 	if int(validation.get("unreachable_reward_count", 0)) > 0:
 		return "reward"
+	if int(validation.get("unreachable_quest_target_count", 0)) > 0:
+		return "quest_target"
+	if not bool(validation.get("quest_sequence_valid", true)):
+		return "quest_sequence"
 	return "room"
 
 

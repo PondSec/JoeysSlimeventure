@@ -164,7 +164,9 @@ func _setup_glow_charge_meter() -> void:
 	# competing with the combat HUD or inventory.
 	glow_charge_bar = ProgressBar.new()
 	glow_charge_bar.name = "GlowCharge"
-	glow_charge_bar.position = Vector2(65.0, 72.0)
+	# Keep the reserve visibly separate from HP.  The health frame has a deeper
+	# ornamental lower edge, so 90px avoids the apparent overlap at all scales.
+	glow_charge_bar.position = Vector2(65.0, 90.0)
 	glow_charge_bar.size = Vector2(250.0, 7.0)
 	glow_charge_bar.max_value = 100.0
 	glow_charge_bar.show_percentage = false
@@ -185,7 +187,7 @@ func _setup_glow_charge_meter() -> void:
 
 	glow_charge_label = Label.new()
 	glow_charge_label.name = "GlowChargeLabel"
-	glow_charge_label.position = Vector2(20.0, 65.0)
+	glow_charge_label.position = Vector2(20.0, 83.0)
 	glow_charge_label.size = Vector2(42.0, 16.0)
 	glow_charge_label.text = "LICHT"
 	glow_charge_label.add_theme_font_override("font", feedback_font)

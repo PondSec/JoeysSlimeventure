@@ -1,4 +1,4 @@
-[gd_scene load_steps=57 format=3 uid="uid://b6ublycstdj8n"]
+[gd_scene format=3 uid="uid://b6ublycstdj8n"]
 
 [ext_resource type="Resource" uid="uid://0rntjh2xt5s5" path="res://InventorySystem/playerinv.tres" id="1_e7ml4"]
 [ext_resource type="PackedScene" uid="uid://boa0bok16i3n" path="res://Scenes/slime_ball.tscn" id="2_y6uwr"]
@@ -70,7 +70,7 @@ animations = [{
 "duration": 1.0,
 "texture": ExtResource("10_2w1s5")
 }],
-"loop": false,
+"loop": 0,
 "name": &"swing",
 "speed": 60.0
 }]
@@ -365,7 +365,7 @@ func _input(event):
 		hide_notification()
 "
 
-[node name="PlayerModel" type="CharacterBody2D"]
+[node name="PlayerModel" type="CharacterBody2D" unique_id=1131372815]
 position = Vector2(291, 687)
 scale = Vector2(0.07, 0.07)
 collision_mask = 6
@@ -373,42 +373,42 @@ script = ExtResource("27_player")
 inv = ExtResource("1_e7ml4")
 slimeball_scene = ExtResource("2_y6uwr")
 
-[node name="ColisionArea" type="CollisionShape2D" parent="."]
+[node name="ColisionArea" type="CollisionShape2D" parent="." unique_id=2030563986]
 position = Vector2(0, 7.14551)
 rotation = 1.5708
 scale = Vector2(0.999999, 0.999999)
 shape = SubResource("RectangleShape2D_uwm2o")
 
-[node name="PlayerGlow" type="PointLight2D" parent="."]
+[node name="PlayerGlow" type="PointLight2D" parent="." unique_id=712522686]
 position = Vector2(0.000183105, 0)
-color = Color(0.586285, 1, 0.540279, 1)
+color = Color(0.7345175, 1, 0.70156693, 1)
 shadow_filter = 2
 shadow_filter_smooth = 3.0
 texture = SubResource("GradientTexture2D_0gysh")
 texture_scale = 4.0
 
-[node name="ShieldSprite" type="Sprite2D" parent="."]
+[node name="ShieldSprite" type="Sprite2D" parent="." unique_id=1333128647]
 visible = false
 texture = ExtResource("26_vfarp")
 
-[node name="ShieldLight" type="PointLight2D" parent="ShieldSprite"]
+[node name="ShieldLight" type="PointLight2D" parent="ShieldSprite" unique_id=33034546]
 color = Color(0.564706, 1, 1, 1)
 energy = 0.8
 texture = ExtResource("3_vfarp")
 
-[node name="PlayerSprite" type="Sprite2D" parent="."]
+[node name="PlayerSprite" type="Sprite2D" parent="." unique_id=386078926]
 position = Vector2(0.000183105, -71.4286)
 texture = ExtResource("5_y6uwr")
 hframes = 4
 vframes = 4
 
-[node name="EquippedWeaponSprite" type="Sprite2D" parent="PlayerSprite"]
+[node name="EquippedWeaponSprite" type="Sprite2D" parent="PlayerSprite" unique_id=1274782576]
 visible = false
 z_index = 1
 position = Vector2(10, 8)
 scale = Vector2(7.8, 7.8)
 
-[node name="HitParticles" type="CPUParticles2D" parent="PlayerSprite"]
+[node name="HitParticles" type="CPUParticles2D" parent="PlayerSprite" unique_id=1605482275]
 emitting = false
 amount = 200
 lifetime = 1.5
@@ -424,9 +424,9 @@ initial_velocity_min = 200.0
 initial_velocity_max = 300.0
 color = Color(1, 0.11, 0.11, 1)
 
-[node name="CanvasLayer2" type="CanvasLayer" parent="PlayerSprite"]
+[node name="CanvasLayer2" type="CanvasLayer" parent="PlayerSprite" unique_id=1568959095]
 
-[node name="DamageLabel" type="Label" parent="PlayerSprite/CanvasLayer2"]
+[node name="DamageLabel" type="Label" parent="PlayerSprite/CanvasLayer2" unique_id=1560505036]
 clip_contents = true
 anchors_preset = -1
 anchor_left = 4.07813
@@ -440,7 +440,7 @@ offset_bottom = -2288.22
 text = "1"
 metadata/_edit_use_anchors_ = true
 
-[node name="AttackSprite" type="AnimatedSprite2D" parent="PlayerSprite"]
+[node name="AttackSprite" type="AnimatedSprite2D" parent="PlayerSprite" unique_id=1758628859]
 self_modulate = Color(1, 1, 1, 0)
 position = Vector2(85.7144, -14.2861)
 scale = Vector2(2.1, 1.994)
@@ -450,20 +450,18 @@ frame = 7
 frame_progress = 1.0
 speed_scale = 2.0
 
-[node name="AttackArea" type="Area2D" parent="."]
+[node name="AttackArea" type="Area2D" parent="." unique_id=1552460676]
 position = Vector2(142, -52)
 collision_layer = 0
-collision_mask = 3
+collision_mask = 5
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="AttackArea"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="AttackArea" unique_id=869410233]
 shape = SubResource("RectangleShape2D_jxxud")
 
-[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
-libraries = {
-&"": SubResource("AnimationLibrary_1fd5i")
-}
+[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=1478731409]
+libraries/ = SubResource("AnimationLibrary_1fd5i")
 
-[node name="Camera2D" type="Camera2D" parent="."]
+[node name="Camera2D" type="Camera2D" parent="." unique_id=1598140485]
 position = Vector2(7.62939e-06, 5.34058e-05)
 scale = Vector2(5, 5)
 ignore_rotation = false
@@ -479,18 +477,18 @@ editor_draw_limits = true
 editor_draw_drag_margin = true
 script = ExtResource("12_4e8m4")
 
-[node name="CanvasLayer" type="CanvasLayer" parent="."]
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1040294499]
 layer = 60
 script = ExtResource("11_4apbi")
 
-[node name="ProgressBar" type="ProgressBar" parent="CanvasLayer"]
+[node name="ProgressBar" type="ProgressBar" parent="CanvasLayer" unique_id=744381090]
 visible = false
 offset_left = 47.0
 offset_top = 53.0
 offset_right = 229.0
 offset_bottom = 80.0
 
-[node name="TextureProgressBar" type="TextureProgressBar" parent="CanvasLayer"]
+[node name="TextureProgressBar" type="TextureProgressBar" parent="CanvasLayer" unique_id=1427371815]
 offset_left = 33.0
 offset_top = 47.0
 offset_right = 330.0
@@ -499,17 +497,17 @@ nine_patch_stretch = true
 texture_under = ExtResource("12_tc5iy")
 texture_progress = ExtResource("13_d3fsm")
 
-[node name="GameOver" parent="CanvasLayer" instance=ExtResource("16_g18uv")]
+[node name="GameOver" parent="CanvasLayer" unique_id=922247056 instance=ExtResource("16_g18uv")]
 offset_left = 2.0
 offset_top = -11.0
 offset_right = 2.0
 offset_bottom = -11.0
 
-[node name="InvUI" parent="CanvasLayer" instance=ExtResource("15_qbc48")]
+[node name="InvUI" parent="CanvasLayer" unique_id=987562552 instance=ExtResource("15_qbc48")]
 
-[node name="HotBar" type="Control" parent="CanvasLayer"]
+[node name="HotBar" type="Control" parent="CanvasLayer" unique_id=757496787]
 layout_mode = 3
-anchors_preset = 12
+anchors_preset = 7
 anchor_left = 0.5
 anchor_top = 1.0
 anchor_right = 0.5
@@ -520,32 +518,31 @@ offset_right = 340.0
 offset_bottom = -10.0
 grow_horizontal = 2
 grow_vertical = 0
-scale = Vector2(1, 1)
 pivot_offset = Vector2(340, 132)
 script = ExtResource("17_1u0f7")
 
-[node name="HealthLabel" type="Label" parent="CanvasLayer"]
+[node name="HealthLabel" type="Label" parent="CanvasLayer" unique_id=1854996563]
 offset_left = 39.0
 offset_top = 20.0
 offset_right = 169.0
 offset_bottom = 43.0
 text = "HP: 0000"
 
-[node name="HTTPRequest" type="HTTPRequest" parent="."]
+[node name="HTTPRequest" type="HTTPRequest" parent="." unique_id=1059944959]
 
-[node name="HitSound" type="AudioStreamPlayer2D" parent="."]
+[node name="HitSound" type="AudioStreamPlayer2D" parent="." unique_id=24149815]
 stream = ExtResource("21_bi64h")
 
-[node name="JumpSound" type="AudioStreamPlayer2D" parent="."]
+[node name="JumpSound" type="AudioStreamPlayer2D" parent="." unique_id=740876019]
 stream = ExtResource("22_2ijsl")
 
-[node name="LandSound" type="AudioStreamPlayer2D" parent="."]
+[node name="LandSound" type="AudioStreamPlayer2D" parent="." unique_id=1100136568]
 stream = ExtResource("23_p1odr")
 
-[node name="WalkSound" type="AudioStreamPlayer2D" parent="."]
+[node name="WalkSound" type="AudioStreamPlayer2D" parent="." unique_id=1361371963]
 stream = ExtResource("24_2ijsl")
 
-[node name="GPUParticles2D" type="GPUParticles2D" parent="."]
+[node name="GPUParticles2D" type="GPUParticles2D" parent="." unique_id=847599090]
 modulate = Color(0.626766, 0.920037, 0.820692, 1)
 self_modulate = Color(0.34902, 1, 0.768627, 0.996078)
 position = Vector2(-0.000976563, 0.0166016)
@@ -561,17 +558,17 @@ fixed_fps = 144
 collision_base_size = 0.0
 process_material = SubResource("ParticleProcessMaterial_ypfnu")
 
-[node name="WaterDetector" type="Area2D" parent="."]
+[node name="WaterDetector" type="Area2D" parent="." unique_id=1307183478]
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="WaterDetector"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="WaterDetector" unique_id=1852782273]
 position = Vector2(0, 14.2891)
 shape = SubResource("RectangleShape2D_p1odr")
 
-[node name="SkillTreeUI" type="CanvasLayer" parent="."]
+[node name="SkillTreeUI" type="CanvasLayer" parent="." unique_id=579138756]
 layer = 20
 script = SubResource("GDScript_p1odr")
 
-[node name="SkillTree" parent="SkillTreeUI" node_paths=PackedStringArray("player") instance=ExtResource("26_0gysh")]
+[node name="SkillTree" parent="SkillTreeUI" unique_id=46497162 node_paths=PackedStringArray("player") instance=ExtResource("26_0gysh")]
 offset_left = 2.0
 offset_top = -11.0
 offset_right = 2.0

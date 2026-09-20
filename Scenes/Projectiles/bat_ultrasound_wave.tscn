@@ -1,22 +1,21 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene format=3 uid="uid://cxsc7v4vq81ue"]
 
-[ext_resource type="Script" path="res://Scripts/Chapter/Enemies/bat_ultrasound_wave.gd" id="1_script"]
-[ext_resource type="Texture2D" path="res://Assets/Effects/bat_ultrasound_wave.png" id="2_texture"]
+[ext_resource type="Script" uid="uid://lich0nsfda0k" path="res://Scripts/Chapter/Enemies/bat_ultrasound_wave.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://4etkxsgrgv7x" path="res://Assets/Effects/bat_ultrasound_wave.png" id="2_texture"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_wave"]
 size = Vector2(24, 44)
 
-[node name="BatUltrasoundWave" type="Area2D"]
+[node name="BatUltrasoundWave" type="Area2D" unique_id=293910939]
 collision_layer = 0
-collision_mask = 1
 monitorable = false
 script = ExtResource("1_script")
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1175322735]
 texture_filter = 1
 texture = ExtResource("2_texture")
 region_enabled = true
 region_rect = Rect2(0, 92, 154, 534)
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1057262684]
 shape = SubResource("RectangleShape2D_wave")

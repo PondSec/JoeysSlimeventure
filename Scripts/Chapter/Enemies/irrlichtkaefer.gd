@@ -32,10 +32,15 @@ const DEATH_FRAMES := [
 	preload("res://Assets/Enemies/Irrlichtkaefer/individual/death_03.png"), preload("res://Assets/Enemies/Irrlichtkaefer/individual/death_04.png"), preload("res://Assets/Enemies/Irrlichtkaefer/individual/death_05.png")
 ]
 const CONTACT_COOLDOWN := 0.85
+const WORLD_COLLISION_MASK := 2
 const BASE_SCALE := Vector2(0.18, 0.18)
 const GRAVITY := 980.0
-const SMALL_OBSTACLE_JUMP_VELOCITY := -278.0
+const SMALL_OBSTACLE_JUMP_VELOCITY := -360.0
 const OBSTACLE_JUMP_COOLDOWN := 0.42
+const DART_GROUND_LOOKAHEAD := 42.0
+const DART_GROUND_PROBE_TOP := -38.0
+const DART_GROUND_PROBE_BOTTOM := 58.0
+const MAX_FALL_FROM_HOME := 156.0
 
 @export var enemy_name := "Irrlichtkaefer"
 @export var max_health := 52
@@ -81,6 +86,13 @@ func _ready() -> void:
 	sprite.play(&"walk")
 
 
+func set_spawn_home(spawn_position: Vector2) -> void:
+	# ChapterLevel assigns generated positions after add_child(), while _ready()
+	# runs during that call. Capture the real, collision-checked spawn here so
+	# patrol never steers the beetle back to the scene origin.
+	home_position = spawn_position
+
+
 func _physics_process(delta: float) -> void:
 	if is_dead:
 		return
@@ -112,6 +124,13 @@ func _physics_process(delta: float) -> void:
 
 	_try_jump_small_obstacle()
 	move_and_slide()
+	# Body collisions keep the beetle from passing through Joey. If it was
+	# already touching him when the dart started, Area2D will not emit a fresh
+	# body_entered signal, so also resolve an active dart from the slide contact.
+	if state == State.DART:
+		_try_dart_slide_contact()
+	if global_position.y > home_position.y + MAX_FALL_FROM_HOME:
+		_return_to_safe_home()
 	_update_visuals()
 
 
@@ -139,7 +158,7 @@ func _process_stalk(delta: float) -> void:
 		return
 
 	var distance := global_position.distance_to(player.global_position)
-	if distance > _active_detection_range() + 72.0:
+	if distance > _active_detection_range() + 72.0 or not _has_clear_sight_of_player():
 		_enter_state(State.PATROL)
 		return
 
@@ -166,8 +185,15 @@ func _process_telegraph(delta: float) -> void:
 		_enter_state(State.DART)
 
 
-func _process_dart(_delta: float) -> void:
+func _process_dart(delta: float) -> void:
 	velocity.x = dart_direction.x * dart_speed
+	# A dart must stay on the platform it started from.  Without this probe a
+	# high-speed dash can cross a ledge between physics frames and spend the
+	# next frames falling through the level instead of recovering at the edge.
+	if _dart_path_is_unsafe(delta):
+		velocity.x = 0.0
+		_enter_state(State.RECOVER)
+		return
 	if state_time >= (0.34 if _player_is_glowing() else 0.27) or is_on_wall():
 		_enter_state(State.RECOVER)
 
@@ -200,7 +226,16 @@ func _enter_state(next_state: State) -> void:
 func _should_notice_player() -> bool:
 	if player == null or not is_instance_valid(player):
 		return false
-	return global_position.distance_to(player.global_position) <= _active_detection_range()
+	return global_position.distance_to(player.global_position) <= _active_detection_range() and _has_clear_sight_of_player()
+
+
+func _has_clear_sight_of_player() -> bool:
+	if player == null or not is_instance_valid(player):
+		return false
+	var query := PhysicsRayQueryParameters2D.create(global_position + Vector2(0.0, -18.0), player.global_position)
+	query.collision_mask = 2
+	query.exclude = [get_rid(), player.get_rid()]
+	return get_world_2d().direct_space_state.intersect_ray(query).is_empty()
 
 
 func _active_detection_range() -> float:
@@ -235,13 +270,67 @@ func _seek_horizontal(target_x: float, speed: float, delta: float, responsivenes
 
 func _try_jump_small_obstacle() -> void:
 	# The beetle never hovers: this is only a short, grounded hop to clear
-	# one-tile ledges while it is actively walking into them.
-	if not is_on_floor() or obstacle_jump_cooldown > 0.0:
+	# one-tile ledges while it is actively walking into them.  Test ahead of
+	# the body as well as the previous slide collision, otherwise it can keep
+	# pushing into a wall without ever receiving an is_on_wall() frame.
+	# The small traversal hop is for walking only.  Letting a full-speed dart
+	# jump converts a wall hit into an uncontrolled fall or terrain overlap.
+	if state == State.DART or not is_on_floor() or obstacle_jump_cooldown > 0.0:
 		return
-	if not is_on_wall() or absf(velocity.x) < 18.0:
+	if absf(velocity.x) < 18.0:
+		return
+	if not is_on_wall() and not _has_obstacle_ahead():
 		return
 	velocity.y = SMALL_OBSTACLE_JUMP_VELOCITY
-	obstacle_jump_cooldown = OBSTACLE_JUMP_COOLDOWN
+	obstacle_jump_cooldown = 0.52
+
+
+func _has_obstacle_ahead() -> bool:
+	if get_world_2d() == null:
+		return false
+	var direction := signf(velocity.x)
+	if is_zero_approx(direction):
+		direction = facing_sign
+	var probe_from := global_position + Vector2(direction * 8.0, -16.0)
+	var probe_to := global_position + Vector2(direction * 30.0, -16.0)
+	var query := PhysicsRayQueryParameters2D.create(probe_from, probe_to, WORLD_COLLISION_MASK)
+	query.exclude = [get_rid()]
+	return not get_world_2d().direct_space_state.intersect_ray(query).is_empty()
+
+
+func _dart_path_is_unsafe(delta: float) -> bool:
+	if get_world_2d() == null:
+		return false
+	var travel := maxf(dart_speed * delta, 18.0)
+	# The player is deliberately a solid body now. Only terrain should cancel a
+	# dart in advance; treating Joey as an obstacle made the beetle abort before
+	# reaching its contact hitbox.
+	var probe_from := global_position + Vector2(0.0, -16.0)
+	var probe_to := probe_from + Vector2(dart_direction.x * travel, 0.0)
+	var query := PhysicsRayQueryParameters2D.create(probe_from, probe_to, WORLD_COLLISION_MASK)
+	query.exclude = [get_rid()]
+	if not get_world_2d().direct_space_state.intersect_ray(query).is_empty():
+		return true
+	return not _has_ground_ahead(dart_direction.x)
+
+
+func _has_ground_ahead(direction: float) -> bool:
+	var probe_x := global_position.x + direction * DART_GROUND_LOOKAHEAD
+	var probe_from := Vector2(probe_x, global_position.y + DART_GROUND_PROBE_TOP)
+	var probe_to := Vector2(probe_x, global_position.y + DART_GROUND_PROBE_BOTTOM)
+	var query := PhysicsRayQueryParameters2D.create(probe_from, probe_to, WORLD_COLLISION_MASK)
+	query.exclude = [get_rid()]
+	return not get_world_2d().direct_space_state.intersect_ray(query).is_empty()
+
+
+func _return_to_safe_home() -> void:
+	# The generated spawn was collision-checked by ChapterLevel.  This is a
+	# last-resort recovery for an unexpected map edge or physics overlap, rather
+	# than leaving a live enemy below the traversable world.
+	global_position = home_position
+	velocity = Vector2.ZERO
+	_enter_state(State.RECOVER)
+	state_time = 0.0
 
 
 func _update_visuals() -> void:
@@ -268,6 +357,18 @@ func _update_visuals() -> void:
 
 
 func _on_hitbox_body_entered(body: Node2D) -> void:
+	_try_dart_contact(body)
+
+
+func _try_dart_slide_contact() -> void:
+	for collision_index in range(get_slide_collision_count()):
+		var collision := get_slide_collision(collision_index)
+		var collider := collision.get_collider()
+		if collider is Node2D:
+			_try_dart_contact(collider as Node2D)
+
+
+func _try_dart_contact(body: Node2D) -> void:
 	# The beetle is dangerous during its visible dart, never while it merely
 	# stalks beside the player.
 	if is_dead or contact_cooldown > 0.0 or state != State.DART or state_time < 0.055 or not body.is_in_group("players"):
@@ -291,7 +392,7 @@ func _die() -> void:
 		{"item": "irrlicht_eye", "chance": 0.025},
 		{"item": "gold_nugget", "chance": 0.012}
 	])
-	set_collision_layer_value(1, false)
+	set_collision_layer_value(3, false)
 	set_collision_mask_value(1, false)
 	hitbox.set_deferred("monitoring", false)
 	velocity = Vector2.ZERO

@@ -1,7 +1,17 @@
 extends CharacterBody2D
 
 const LootDropper := preload("res://Scripts/loot_dropper.gd")
+const ALBINO_SPEED_TUNING := 0.96
+const BAT_MELEE_DAMAGE_MIN := 2
+const BAT_MELEE_DAMAGE_MAX := 4
+const BAT_MELEE_CRIT_CHANCE := 0.15
+const BAT_MELEE_CRIT_DAMAGE_MAX := 7
+const SONIC_DAMAGE_MIN := 5
+const SONIC_DAMAGE_MAX := 9
 const SONIC_WAVE_SCENE := preload("res://Scenes/Projectiles/bat_ultrasound_wave.tscn")
+const STANDARD_FLYING_TEXTURE := preload("res://Assets/Enemies/Bat/Standard/BatStandard_Flying.png")
+const ALBINO_FLYING_TEXTURE := preload("res://Assets/Enemies/Bat/Albino/BatAlbino_Flying.png")
+const ALBINO_ATTACK_TEXTURE := preload("res://Assets/Enemies/Bat/Albino/BatAlbino_Attack.png")
 
 signal defeated
 
@@ -28,6 +38,9 @@ enum State { PATROL, ORBIT, TELEGRAPH, SWOOP, SONIC_TELEGRAPH, SONIC_FIRE, EVADE
 @export var sonic_min_range: float = 136.0
 @export var sonic_max_range: float = 290.0
 @export var contact_damage: int = 10
+@export var is_albino: bool = false
+@export var dark_sighted: bool = false
+@export var patrol_route: PackedVector2Array = PackedVector2Array()
 
 var current_health: int = 26
 var player: Node2D
@@ -51,6 +64,11 @@ var evade_direction := Vector2.ZERO
 var is_dodging := false
 var detour_target := Vector2.ZERO
 var detour_time_left := 0.0
+var patrol_index := 0
+var navigation_path := PackedVector2Array()
+var navigation_path_index := 0
+var navigation_repath_time := 0.0
+var last_navigation_target := Vector2.INF
 
 @onready var sprite: Sprite2D = $Sprite2D
 @onready var hitbox: Area2D = $Hitbox
@@ -65,6 +83,23 @@ func _ready() -> void:
 	player = get_tree().get_first_node_in_group("players") as Node2D
 	add_to_group("enemies")
 	add_to_group("cave_bats")
+	# Every bat's dive is a light, readable melee hit.  Normal bats can also
+	# use it; only albinos are the faster, melee-only specialist.
+	contact_damage = BAT_MELEE_DAMAGE_MAX
+	if is_albino:
+		add_to_group("albino_bats")
+		sprite.texture = ALBINO_FLYING_TEXTURE
+		# Albinos are the fast melee hunters. Their dedicated attack sheet is used
+		# for the dive/bite; they deliberately never fire ultrasound.
+		max_health = int(round(float(max_health) * 1.35))
+		current_health = max_health
+		# Keep the albino's hunter identity, but give its movement a small
+		# readability buffer. The dive gets a further restraint because it is
+		# the committed, player-facing part of the attack.
+		hover_speed *= 1.13 * ALBINO_SPEED_TUNING
+		chase_speed *= 1.24 * ALBINO_SPEED_TUNING
+		swoop_speed *= 1.48 * ALBINO_SPEED_TUNING
+		swoop_trigger_range *= 1.75
 	hitbox.body_entered.connect(_on_hitbox_body_entered)
 
 
@@ -102,12 +137,14 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 	_note_flight_collision()
+	if state == State.SWOOP:
+		_check_swoop_hits()
 	sprite.flip_h = velocity.x < 0.0
 	if state == State.SONIC_TELEGRAPH:
 		sprite.modulate = Color(0.66, 0.86, 1.0, 1.0)
 	else:
 		sprite.modulate = Color.WHITE
-	sprite.frame = int(fposmod(floor(anim_timer * 12.0), 4.0))
+	_update_sprite_animation()
 
 
 func take_damage(amount: int, direction: Vector2, _is_crit: bool = false) -> void:
@@ -125,8 +162,10 @@ func _process_patrol(delta: float) -> void:
 	if _can_notice_player():
 		_enter_state(State.ORBIT)
 		return
-	var idle_target := home_position + Vector2(sin(local_time * 1.8) * 54.0, cos(local_time * 2.6) * 18.0)
+	var idle_target := _get_patrol_target()
 	_seek_towards(idle_target, hover_speed, delta)
+	if global_position.distance_to(idle_target) <= 18.0 and patrol_route.size() > 0:
+		patrol_index = (patrol_index + 1) % patrol_route.size()
 
 
 func _process_orbit(delta: float) -> void:
@@ -140,9 +179,11 @@ func _process_orbit(delta: float) -> void:
 		return
 	if attack_cooldown <= 0.0:
 		var player_distance := global_position.distance_to(player.global_position)
-		if player_distance <= swoop_trigger_range and not last_attack_was_sonic:
+		# Both variants have a readable dive at close range. Albinos retain the
+		# faster specialist version; ordinary bats choose ultrasound at distance.
+		if player_distance <= swoop_trigger_range:
 			_enter_state(State.TELEGRAPH)
-		elif player_distance >= sonic_min_range and player_distance <= sonic_max_range and _has_clear_sonic_window():
+		elif not is_albino and player_distance >= sonic_min_range and player_distance <= sonic_max_range and _has_clear_sonic_window():
 			_enter_state(State.SONIC_TELEGRAPH)
 
 
@@ -160,7 +201,7 @@ func _process_telegraph(delta: float) -> void:
 func _process_swoop() -> void:
 	velocity = swoop_direction * swoop_speed
 	if state_time >= 0.34 or is_on_wall():
-		attack_cooldown = 1.18
+		attack_cooldown = 0.68 if is_albino else 1.18
 		last_attack_was_sonic = false
 		_enter_state(State.RECOVER)
 
@@ -187,7 +228,18 @@ func _spawn_sonic_wave() -> void:
 	if host == null:
 		host = get_tree().current_scene
 	host.add_child(wave)
-	wave.call("configure", global_position + launch_direction * 22.0, launch_direction, 250.0, 13)
+	# Normal bats exclusively pressure from range.  The wave retains its
+	# expanding intensity curve, while actual contact damage remains in the
+	# readable 5-9 range at every animation frame.
+	wave.call(
+		"configure",
+		global_position + launch_direction * 22.0,
+		launch_direction,
+		250.0,
+		SONIC_DAMAGE_MAX,
+		SONIC_DAMAGE_MIN,
+		SONIC_DAMAGE_MAX
+	)
 
 
 func _process_evade(delta: float) -> void:
@@ -264,8 +316,38 @@ func _has_clear_sonic_window() -> bool:
 	return true
 
 
+func _get_patrol_target() -> Vector2:
+	if patrol_route.size() > 0:
+		return patrol_route[patrol_index % patrol_route.size()]
+	return home_position + Vector2(sin(local_time * 1.8) * 54.0, cos(local_time * 2.6) * 18.0)
+
+
+func _update_sprite_animation() -> void:
+	var attack_frames := is_albino and state in [State.TELEGRAPH, State.SWOOP]
+	var wanted_texture: Texture2D = ALBINO_ATTACK_TEXTURE if attack_frames else (ALBINO_FLYING_TEXTURE if is_albino else STANDARD_FLYING_TEXTURE)
+	var frame_count := 6 if attack_frames else 4
+	if sprite.texture != wanted_texture:
+		sprite.texture = wanted_texture
+		sprite.hframes = frame_count
+		sprite.frame = 0
+	sprite.frame = int(fposmod(floor(anim_timer * (17.0 if attack_frames else 12.0)), frame_count))
+
+
 func _can_notice_player(extra_range: float = 0.0) -> bool:
-	return player != null and is_instance_valid(player) and global_position.distance_to(player.global_position) <= detection_range + extra_range
+	if player == null or not is_instance_valid(player):
+		return false
+	var player_is_glowing := bool(player.get("is_glowing"))
+	var vision_range := detection_range if player_is_glowing else detection_range * 0.42
+	if dark_sighted:
+		vision_range = detection_range * (0.92 if player_is_glowing else 1.16)
+	if global_position.distance_to(player.global_position) > vision_range + extra_range:
+		return false
+	# Sight cannot pass through cave tiles.  Navigation may choose a route around
+	# an obstacle, but combat only begins once the bat genuinely sees its target.
+	var query := PhysicsRayQueryParameters2D.create(global_position, player.global_position)
+	query.collision_mask = WORLD_COLLISION_MASK
+	query.exclude = [get_rid(), player.get_rid()]
+	return get_world_2d().direct_space_state.intersect_ray(query).is_empty()
 
 
 func _player_velocity() -> Vector2:
@@ -278,7 +360,8 @@ func _player_velocity() -> Vector2:
 
 func _seek_towards(target: Vector2, speed: float, delta: float) -> void:
 	detour_time_left = maxf(detour_time_left - delta, 0.0)
-	var steering_target := target
+	navigation_repath_time = maxf(navigation_repath_time - delta, 0.0)
+	var steering_target := _get_navigation_steering_target(target)
 	if detour_time_left > 0.0 and detour_target.distance_to(global_position) > 18.0:
 		steering_target = detour_target
 	var to_target: Vector2 = steering_target - global_position
@@ -287,6 +370,38 @@ func _seek_towards(target: Vector2, speed: float, delta: float) -> void:
 		var desired_speed: float = minf(speed, to_target.length() * 4.0)
 		desired = _steer_around_world(to_target.normalized(), target) * desired_speed
 	velocity = velocity.lerp(desired, delta * 4.6)
+
+
+func _get_navigation_steering_target(final_target: Vector2) -> Vector2:
+	if _has_direct_flight_line(final_target):
+		navigation_path = PackedVector2Array()
+		navigation_path_index = 0
+		return final_target
+	var target_changed := last_navigation_target == Vector2.INF or last_navigation_target.distance_to(final_target) > 48.0
+	if navigation_repath_time <= 0.0 or target_changed or navigation_path_index >= navigation_path.size():
+		navigation_path = _request_free_space_path(final_target)
+		navigation_path_index = 0
+		navigation_repath_time = 0.34
+		last_navigation_target = final_target
+	while navigation_path_index < navigation_path.size() and global_position.distance_to(navigation_path[navigation_path_index]) < 16.0:
+		navigation_path_index += 1
+	if navigation_path_index < navigation_path.size():
+		return navigation_path[navigation_path_index]
+	return final_target
+
+
+func _has_direct_flight_line(target: Vector2) -> bool:
+	var query := PhysicsRayQueryParameters2D.create(global_position, target)
+	query.collision_mask = WORLD_COLLISION_MASK
+	query.exclude = [get_rid()]
+	return get_world_2d().direct_space_state.intersect_ray(query).is_empty()
+
+
+func _request_free_space_path(target: Vector2) -> PackedVector2Array:
+	for runtime in get_tree().get_nodes_in_group("chapter_runtime"):
+		if runtime.has_method("request_flying_path"):
+			return runtime.call("request_flying_path", global_position, target) as PackedVector2Array
+	return PackedVector2Array()
 
 
 func _steer_around_world(desired_direction: Vector2, final_target: Vector2) -> Vector2:
@@ -333,6 +448,18 @@ func _note_flight_collision() -> void:
 
 
 func _on_hitbox_body_entered(body: Node2D) -> void:
+	_try_swoop_hit(body)
+
+
+func _check_swoop_hits() -> void:
+	# An Area2D only emits body_entered once. A stationary Joey can already be
+	# inside it before an albino changes from telegraph to swoop, so poll during
+	# the active bite as well. This keeps a still player hittable and fair.
+	for body: Node2D in hitbox.get_overlapping_bodies():
+		_try_swoop_hit(body)
+
+
+func _try_swoop_hit(body: Node2D) -> void:
 	# Hovering is positioning; only the clearly telegraphed swoop can connect.
 	if is_dead or contact_cooldown > 0.0 or state != State.SWOOP or state_time < 0.055:
 		return
@@ -340,7 +467,14 @@ func _on_hitbox_body_entered(body: Node2D) -> void:
 		return
 	contact_cooldown = CONTACT_COOLDOWN
 	if body.has_method("take_damage"):
-		body.call_deferred("take_damage", contact_damage, global_position)
+		body.call_deferred("take_damage", _roll_contact_damage(), global_position)
+
+
+func _roll_contact_damage() -> int:
+	var damage := randi_range(BAT_MELEE_DAMAGE_MIN, BAT_MELEE_DAMAGE_MAX)
+	if randf() < BAT_MELEE_CRIT_CHANCE:
+		return mini(BAT_MELEE_CRIT_DAMAGE_MAX, damage * 2)
+	return damage
 
 
 func _die() -> void:
@@ -348,6 +482,8 @@ func _die() -> void:
 		return
 	is_dead = true
 	state = State.DEAD
+	set_collision_layer_value(3, false)
+	set_collision_mask_value(1, false)
 	emit_signal("defeated")
 	LootDropper.spawn_independent_drops(self, [
 		{"item": "health_heart", "chance": 0.52},

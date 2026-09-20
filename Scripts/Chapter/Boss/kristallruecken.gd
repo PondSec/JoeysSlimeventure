@@ -8,6 +8,7 @@ signal boss_died
 signal death_animation_finished
 signal portal_spawn_started
 signal portal_activated
+signal ground_slam(position: Vector2)
 
 enum State {
 	IDLE,
@@ -86,6 +87,7 @@ var next_ground_segment_time := 0.0
 var active_minions: Array[Node2D] = []
 var active_effects: Array[Node] = []
 var charge_orb: Sprite2D
+var quest_anchor_phase_unlocked := true
 
 @onready var sprite: AnimatedSprite2D = $AnimatedSprite2D
 @onready var body_hitbox: Area2D = $BodyHitbox
@@ -96,6 +98,7 @@ var charge_orb: Sprite2D
 func _ready() -> void:
 	current_health = boss_health
 	add_to_group("enemies")
+	add_to_group("bosses")
 	_build_frames()
 	sprite.animation_finished.connect(_on_sprite_animation_finished)
 	body_hitbox.body_entered.connect(_on_body_hitbox_body_entered)
@@ -155,7 +158,10 @@ func _physics_process(delta: float) -> void:
 func take_damage(amount: int, direction: Vector2, _is_crit: bool = false) -> void:
 	if state == State.DEATH:
 		return
-	current_health = max(0, current_health - amount)
+	# Chapter 1's arena remains a real fight, but cannot be brute-forced before
+	# the environmental anchors have been broken by the ground slam.
+	var applied_damage := amount if quest_anchor_phase_unlocked else maxi(1, roundi(float(amount) * 0.22))
+	current_health = max(1 if not quest_anchor_phase_unlocked else 0, current_health - applied_damage)
 	var health_bar := get_node_or_null("HealthBar") as ProgressBar
 	if not has_taken_first_damage:
 		has_taken_first_damage = true
@@ -174,7 +180,7 @@ func take_damage(amount: int, direction: Vector2, _is_crit: bool = false) -> voi
 
 func _process_idle(delta: float) -> void:
 	_stop_horizontal(delta)
-	if _player_distance() <= activation_distance:
+	if _can_see_player():
 		_set_state(State.CHASE)
 
 
@@ -183,7 +189,7 @@ func _process_chase(delta: float) -> void:
 		_set_state(State.IDLE)
 		return
 	var distance := _player_distance()
-	if distance > activation_distance * 1.22:
+	if distance > activation_distance * 1.22 or not _can_see_player():
 		_set_state(State.IDLE)
 		return
 	var desired_range := 150.0
@@ -352,6 +358,7 @@ func _spawn_ground_segment() -> void:
 	if target_y == -INF:
 		target_y = global_position.y
 	var target := Vector2(target_x, target_y)
+	ground_slam.emit(target)
 	var vein := CRYSTAL_VEIN_SCENE.instantiate() as Area2D
 	if vein == null:
 		return
@@ -359,6 +366,14 @@ func _spawn_ground_segment() -> void:
 	vein.call("configure", start, target, crystal_damage, crystal_knockback)
 	vein.finished.connect(_on_effect_finished.bind(vein))
 	active_effects.append(vein)
+
+
+func set_quest_anchor_phase(unlocked: bool) -> void:
+	quest_anchor_phase_unlocked = unlocked
+	if unlocked:
+		# A short recovery window makes the phase change readable without altering
+		# the boss' normal move set.
+		_set_state(State.RECOVERY)
 
 
 func _create_charge_orb() -> void:
@@ -492,6 +507,15 @@ func _stop_horizontal(delta: float) -> void:
 
 func _player_distance() -> float:
 	return global_position.distance_to(player.global_position) if is_instance_valid(player) else INF
+
+
+func _can_see_player() -> bool:
+	if player == null or not is_instance_valid(player) or _player_distance() > activation_distance:
+		return false
+	var query := PhysicsRayQueryParameters2D.create(global_position + Vector2(0.0, -34.0), player.global_position)
+	query.collision_mask = 2
+	query.exclude = [get_rid(), player.get_rid()]
+	return get_world_2d().direct_space_state.intersect_ray(query).is_empty()
 
 
 func _player_velocity() -> Vector2:

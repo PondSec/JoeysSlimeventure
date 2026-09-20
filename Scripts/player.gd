@@ -327,6 +327,7 @@ var hero_momentum_attack_timer := 0.0
 var hero_current_attack_had_momentum := false
 var hero_hitstop_active := false
 var damage_invulnerability_timer := 0.0
+var quest_cinematic_invulnerable := false
 var attack_sequence_id := 0
 
 # Deluxe hero traversal state. These states deliberately live beside the
@@ -348,13 +349,9 @@ const HERO_FALL_TRANSITION_TIME := 0.32
 # visibly above the physics body's origin. Keep the hands on the ledge, not the
 # collision rectangle's midpoint.
 const HERO_LEDGE_HANG_ROOT_BELOW_TOP := 25.0
-# A ledge must have a real vertical face beneath it; tiny steps are traversed
-# by normal movement and must never become a hang point.
-# The hero's physics box is intentionally much smaller than the Deluxe sprite.
-# This is 105% of the rendered feet-to-head height at the current world scale,
-# not 120% of the compact collision box.
-const HERO_LEDGE_MIN_FACE_HEIGHT := 70.0
-const HERO_LEDGE_FACE_SAMPLE_COUNT := 6
+# Hanging is for actual drops, not stepping down onto a low platform.  The
+# space is measured below the hero's feet, so the full body can release/fall.
+const HERO_LEDGE_MIN_DROP_CLEARANCE := 104.0
 
 # A buffered input chains immediately at the end of the authored strike sheet.
 # Without that input, the matching *_end sheet is allowed to finish in full.
@@ -401,6 +398,12 @@ const HERO_FINISHER_HIT_WINDOWS: Array[Vector2] = [Vector2(0.14, 0.18), Vector2(
 const PLAYER_HURT_INVULNERABILITY := 0.42
 const HERO_COMBAT_AUTO_AIM_RANGE := 460.0
 const ENEMY_DAMAGE_SCALE := 0.82
+# Hitstop is an impact accent, never a visible stun. These values are roughly
+# 3–6 frames at 60 FPS; chained weapon effects may not hold a target longer.
+const MELEE_HITSTOP_MIN := 0.050
+const MELEE_HITSTOP_MAX := 0.095
+const MELEE_HITSTOP_CHAIN_CAP := 0.135
+const MELEE_HIT_FLASH_TAIL := 0.025
 const WEAPON_IDLE_POSITION := Vector2(38.0, 24.0)
 const WEAPON_IDLE_ROTATION := 18.0
 const WEAPON_BASE_SCALE := 10.8
@@ -1284,6 +1287,12 @@ func _is_hero_form_active() -> bool:
 	return current_character_id == CharacterCatalog.MALE_HERO_ID
 
 
+func _has_unlimited_slime_glow() -> bool:
+	# Joey's native slime body creates light on its own. The reserve belongs to
+	# the Hero transformation only, where the external glow has a real cost.
+	return current_character_id == CharacterCatalog.SLIME_ID
+
+
 func _uses_deluxe_sword_combat() -> bool:
 	# Joey's new sword layer uses the same authored three-part combat cadence as
 	# the Hero form; only the character body underneath remains different.
@@ -1534,6 +1543,13 @@ func _apply_character_profile(character_id: String) -> void:
 	if uses_runtime_character_animation:
 		_set_runtime_animation("idle", true)
 		_sync_runtime_body_visual()
+	if glow_effect != null:
+		if _has_unlimited_slime_glow():
+			glow_energy = GLOW_ENERGY_MAX
+			glow_exhausted = false
+		elif not has_glow_skill:
+			is_glowing = false
+		update_glow_state()
 
 
 func _get_runtime_character_animation_descriptor(animation_name: String) -> Dictionary:
@@ -2525,7 +2541,6 @@ func charge():
 
 			var explosion_radius = 300.0
 			var explosion_damage = 130
-			var knockback_force = 1000.0
 			
 			_notify_star_damage(explosion_damage)
 			
@@ -2535,11 +2550,14 @@ func charge():
 			for enemy in enemies:
 				var distance = global_position.distance_to(enemy.global_position)
 				if distance <= explosion_radius:
-					var knockback_dir = (enemy.global_position - global_position).normalized()
+					var knockback_dir = _get_safe_knockback_direction(enemy)
 					var is_crit = randf() < base_crit_chance
 					var final_damage = explosion_damage * (crit_damage_multiplier if is_crit else 1.0)
 					if enemy.has_method("take_damage"):
-						enemy.take_damage(final_damage, knockback_dir * knockback_force, is_crit)
+						# Damage APIs treat this as a direction. Passing an arbitrary
+						# force here made legacy enemies multiply it again and tunnel
+						# through nearby walls.
+						enemy.take_damage(final_damage, knockback_dir, is_crit)
 
 			# Andere Spieler
 			var players = get_tree().get_nodes_in_group("players")
@@ -2548,10 +2566,9 @@ func charge():
 					continue
 				var distance = global_position.distance_to(player.global_position)
 				if distance <= explosion_radius:
-					var knockback_dir = (player.global_position - global_position).normalized()
 					var is_crit = randf() < base_crit_chance
 					var final_damage = explosion_damage * (crit_damage_multiplier if is_crit else 1.0)
-					player.take_damage.rpc(final_damage, knockback_dir * knockback_force)
+					player.take_damage.rpc(final_damage, global_position)
 
 			# Blätter wegblasen
 			var leaves = get_tree().get_nodes_in_group("leaves")
@@ -2961,23 +2978,22 @@ func _find_hero_ledge(side: float) -> Dictionary:
 	if top.y < global_position.y - half_height - 54.0 or top.y > global_position.y + 8.0:
 		return {}
 
-	# Do not latch onto a single-tile step. A usable ledge needs a continuous
-	# wall face at least as tall as the hero, otherwise the climb destination
-	# would either be inside a ceiling or on a surface too short to stand on.
-	# Test the whole face, rather than only its lowest point. A single low point
-	# can hit unrelated geometry beneath a short ledge and falsely validate it.
-	for sample_index in range(1, HERO_LEDGE_FACE_SAMPLE_COUNT + 1):
-		var sample_ratio: float = float(sample_index) / float(HERO_LEDGE_FACE_SAMPLE_COUNT)
-		var face_y: float = top.y + HERO_LEDGE_MIN_FACE_HEIGHT * sample_ratio
-		var face_from := Vector2(top.x - side * HERO_LEDGE_PROBE_REACH, face_y)
-		var face_to := face_from + Vector2(side * HERO_LEDGE_PROBE_REACH * 2.0, 0.0)
-		var face_query := PhysicsRayQueryParameters2D.create(face_from, face_to, 0xFFFFFFFF, [get_rid()])
-		if space_state.intersect_ray(face_query).is_empty():
-			return {}
+	var hang_position := Vector2(top.x - side * (half_width + 2.0), top.y + HERO_LEDGE_HANG_ROOT_BELOW_TOP)
+	if not _has_hero_ledge_drop_clearance(hang_position, side, half_width, half_height):
+		return {}
 	return {
 		"top": top,
-		"hang_position": Vector2(top.x - side * (half_width + 2.0), top.y + HERO_LEDGE_HANG_ROOT_BELOW_TOP),
+		"hang_position": hang_position,
 	}
+
+
+func _has_hero_ledge_drop_clearance(hang_position: Vector2, side: float, half_width: float, half_height: float) -> bool:
+	var outside_x := hang_position.x - side * (half_width + 6.0)
+	var feet_y := hang_position.y + half_height - 2.0
+	var probe_from := Vector2(outside_x, feet_y)
+	var probe_to := probe_from + Vector2(0.0, HERO_LEDGE_MIN_DROP_CLEARANCE)
+	var ground_query := PhysicsRayQueryParameters2D.create(probe_from, probe_to, 0xFFFFFFFF, [get_rid()])
+	return get_world_2d().direct_space_state.intersect_ray(ground_query).is_empty()
 
 
 func _get_hero_ledge_climb_target() -> Vector2:
@@ -3362,7 +3378,7 @@ func _queue_attack_hit(body: Node) -> void:
 	var damage := attack_damage * current_attack_damage_multiplier * dash_bonus
 	if is_crit:
 		damage *= current_crit_multiplier
-	var knockback_direction := (target_body.global_position - global_position).normalized()
+	var knockback_direction := _get_safe_knockback_direction(target_body)
 	# The health change and impact must occur in the same frame as the visible
 	# sword contact.  Enemy death/drop cleanup itself is deferred in each enemy,
 	# so this remains safe inside an Area2D callback without delayed damage.
@@ -3380,12 +3396,17 @@ func _resolve_attack_hit(target_body: Node2D, damage: float, knockback_direction
 	if target_body.is_in_group("players"):
 		target_body.take_damage.rpc(int(damage), global_position)
 	else:
+		# Some enemies own their physical knockback in take_damage(), while
+		# flying enemies deliberately leave it to the shared impact pipeline.
+		# Remembering the pre-hit velocity lets the pipeline add an impulse only
+		# when the target has not already supplied one.
+		var velocity_before_hit := _get_target_velocity(target_body)
 		hit_confirmed = _apply_damage_to_enemy(target_body, int(damage), knockback_direction, is_crit)
 		if not hit_confirmed:
 			_spawn_feedback_text("DODGE", Color(0.68, 0.88, 1.0), 0.92)
 			return
 		landed_finisher = target_body.is_in_group("enemies") and _is_target_defeated(target_body)
-		_apply_enemy_hit_feedback(target_body, knockback_direction, current_attack_knockback_strength)
+		_apply_enemy_hit_feedback(target_body, knockback_direction, current_attack_knockback_strength, velocity_before_hit, is_crit, landed_finisher)
 
 	if _is_hero_form_active():
 		_apply_hero_hit_feedback(target_body, is_crit, landed_finisher)
@@ -3496,39 +3517,89 @@ func _get_target_combat_health(target: Node) -> float:
 	return -1.0
 
 
-func _apply_enemy_hit_feedback(target: Node2D, knockback_direction: Vector2, knockback_strength: float) -> void:
-	# A follow-up contact (for example a later sword-spin pulse) is still a real
-	# hit.  It refreshes the local freeze instead of being silently discarded,
-	# while keeping one coherent knockback at the end of the impact string.
-	var hitstop_until := Time.get_ticks_msec() * 0.001 + 0.5
+func _get_target_velocity(target: Node) -> Vector2:
+	if not (target is CharacterBody2D):
+		return Vector2.ZERO
+	var velocity_value: Variant = target.get("velocity")
+	return velocity_value as Vector2 if velocity_value is Vector2 else Vector2.ZERO
+
+
+func _get_safe_knockback_direction(target: Node) -> Vector2:
+	# This is a side-scroller: a full target-to-player vector can point downward
+	# into terrain or launch a grounded enemy upward.  Combat knockback is kept
+	# horizontal, so world collision only has to resolve the intended push.
+	if target is Node2D:
+		var horizontal_delta := (target as Node2D).global_position.x - global_position.x
+		if absf(horizontal_delta) > 1.0:
+			return Vector2(signf(horizontal_delta), 0.0)
+	return Vector2.LEFT if is_facing_left else Vector2.RIGHT
+
+
+func _clamp_knockback_against_world(body: CharacterBody2D, velocity_before_hit: Vector2, candidate_velocity: Vector2, push_direction: Vector2) -> Vector2:
+	# CharacterBody2D will resolve normal movement on the next physics tick.  A
+	# one-tick sweep here additionally prevents a freshly released impulse from
+	# being injected into a wall directly beside the enemy.
+	var added_push_speed := (candidate_velocity - velocity_before_hit).dot(push_direction)
+	if added_push_speed <= 0.0:
+		return candidate_velocity
+	var physics_step := maxf(get_physics_process_delta_time(), 1.0 / 120.0)
+	var probe_motion := push_direction * added_push_speed * physics_step
+	if body.test_move(body.global_transform, probe_motion):
+		return candidate_velocity - push_direction * added_push_speed
+	return candidate_velocity
+
+
+func _apply_enemy_hit_feedback(target: Node2D, knockback_direction: Vector2, knockback_strength: float, velocity_before_hit: Vector2 = Vector2.ZERO, is_crit: bool = false, landed_finisher: bool = false) -> void:
+	# The damage state changes immediately at contact.  Then the enemy holds the
+	# exact contact pose for only a few frames, and the physical push starts on
+	# the first resumed frame.  Applying positional knockback before/during the
+	# pause makes impacts look slippery; applying velocity afterwards keeps
+	# collision, gravity and each enemy's movement code authoritative.
+	var impact_scale := clampf(knockback_strength / 420.0, 0.55, 1.35)
+	var hitstop_duration := clampf(0.035 + impact_scale * 0.028, MELEE_HITSTOP_MIN, MELEE_HITSTOP_MAX)
+	if is_crit:
+		hitstop_duration = minf(hitstop_duration + 0.012, MELEE_HITSTOP_MAX)
+	if landed_finisher:
+		hitstop_duration = minf(hitstop_duration + 0.018, MELEE_HITSTOP_MAX)
+	var now := Time.get_ticks_msec() * 0.001
+	var hitstop_until := now + hitstop_duration
 	if target.has_meta("combat_hitstop"):
+		# A multi-hit effect can refresh the impact, but it must not turn a combo
+		# into a long stun.  Keep the strongest stored push for the release.
+		var hitstop_started := float(target.get_meta("combat_hitstop_started", now))
+		hitstop_until = minf(maxf(float(target.get_meta("combat_hitstop_until", now)), hitstop_until), hitstop_started + MELEE_HITSTOP_CHAIN_CAP)
 		target.set_meta("combat_hitstop_until", hitstop_until)
 		target.set_meta("combat_hitstop_direction", knockback_direction)
-		target.set_meta("combat_hitstop_strength", knockback_strength)
+		target.set_meta("combat_hitstop_strength", maxf(float(target.get_meta("combat_hitstop_strength", 0.0)), knockback_strength))
 		return
 	target.set_meta("combat_hitstop", true)
+	target.set_meta("combat_hitstop_started", now)
 	target.set_meta("combat_hitstop_until", hitstop_until)
 	target.set_meta("combat_hitstop_direction", knockback_direction)
 	target.set_meta("combat_hitstop_strength", knockback_strength)
+	target.set_meta("combat_hitstop_velocity_before", velocity_before_hit)
+	var was_physics_processing := target.is_physics_processing()
+	target.set_meta("combat_hitstop_was_physics_processing", was_physics_processing)
 	target.set_physics_process(false)
 	var visual := target.get_node_or_null("Sprite2D") as CanvasItem
 	if visual == null:
 		visual = target.get_node_or_null("AnimatedSprite2D") as CanvasItem
 	var original_material: Material
+	var original_self_modulate := Color.WHITE
 	if visual != null:
 		original_material = visual.material
+		original_self_modulate = visual.self_modulate
 		# Force the texture itself to a plain white silhouette, preserving only its
-		# alpha.  Keep modulation at white: this is a crisp hit flash, not bloom.
+		# alpha.  This intentionally overrides an enemy's usual colored modulate.
 		visual.material = _get_enemy_hit_flash_material()
 		visual.self_modulate = Color.WHITE
-	# The target turns into a white silhouette before its AI freezes.  Keep the
-	# camera response tiny and directional so it punctuates the contact without
-	# becoming a constant screen wobble during combos.
+	# The target turns into a white silhouette before its AI freezes. Give each
+	# confirmed player hit one clearly visible, directional camera kick; it still
+	# decays immediately rather than becoming combo-long screen wobble.
 	if $Camera2D.has_method("impact_shake"):
-		$Camera2D.impact_shake(-knockback_direction, 1.15, 0.055)
-	# Every confirmed melee hit gets the same readable impact pause.  The enemy
-	# is held first, then physically displaced; its chase state cannot erase the
-	# knockback on the very next frame.
+		$Camera2D.impact_shake(-knockback_direction, 2.5, 0.070)
+	# Use a real-time timer because this is deliberately local hitstop: neither
+	# the HUD nor the player's camera/control loop is frozen.
 	while is_instance_valid(target):
 		var until_value: Variant = target.get_meta("combat_hitstop_until", hitstop_until)
 		var remaining := float(until_value) - Time.get_ticks_msec() * 0.001
@@ -3542,28 +3613,43 @@ func _apply_enemy_hit_feedback(target: Node2D, knockback_direction: Vector2, kno
 	var push_direction := (stored_direction as Vector2).normalized()
 	if push_direction.length_squared() <= 0.001:
 		push_direction = Vector2.LEFT if is_facing_left else Vector2.RIGHT
-	var push_distance := clampf(float(stored_strength) * 0.14, 32.0, 72.0)
-	var knockback_tween := target.create_tween()
-	knockback_tween.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	knockback_tween.tween_property(target, "global_position", target.global_position + push_direction * push_distance, 0.16)
-	await knockback_tween.finished
+	var release_impulse := clampf(float(stored_strength) * 0.86, 155.0, 470.0)
+	var velocity_before := target.get_meta("combat_hitstop_velocity_before", Vector2.ZERO) as Vector2
+	var velocity_after_damage := _get_target_velocity(target)
+	# Grounded enemies already add their own impulse in take_damage().  Do not
+	# double it.  Enemies that intentionally have no damage reaction (notably
+	# bats) receive the shared impulse exactly as the freeze releases.
+	if target is CharacterBody2D:
+		var body := target as CharacterBody2D
+		var release_velocity := velocity_after_damage
+		if velocity_after_damage.is_equal_approx(velocity_before):
+			release_velocity += push_direction * release_impulse
+		body.velocity = _clamp_knockback_against_world(body, velocity_before, release_velocity, push_direction)
+	if bool(target.get_meta("combat_hitstop_was_physics_processing", true)):
+		target.set_physics_process(true)
+	# Let the target begin moving again, but retain the white silhouette for a
+	# final couple of frames. This makes the release read as impact, not lag.
+	if visual != null and is_instance_valid(visual):
+		await get_tree().create_timer(MELEE_HIT_FLASH_TAIL, true, false, true).timeout
 	if not is_instance_valid(target):
 		return
 	if visual != null and is_instance_valid(visual):
-		visual.self_modulate = Color.WHITE
+		visual.self_modulate = original_self_modulate
 		visual.material = original_material
-	target.set_physics_process(true)
 	target.remove_meta("combat_hitstop")
+	target.remove_meta("combat_hitstop_started")
 	target.remove_meta("combat_hitstop_until")
 	target.remove_meta("combat_hitstop_direction")
 	target.remove_meta("combat_hitstop_strength")
+	target.remove_meta("combat_hitstop_velocity_before")
+	target.remove_meta("combat_hitstop_was_physics_processing")
 
 
 func _get_enemy_hit_flash_material() -> ShaderMaterial:
 	if enemy_hit_flash_material != null:
 		return enemy_hit_flash_material
 	var shader := Shader.new()
-	shader.code = "shader_type canvas_item;\nvoid fragment() { vec4 tex = texture(TEXTURE, UV); COLOR = vec4(1.0, 1.0, 1.0, tex.a) * COLOR; }"
+	shader.code = "shader_type canvas_item;\nvoid fragment() { vec4 tex = texture(TEXTURE, UV); COLOR = vec4(1.0, 1.0, 1.0, tex.a); }"
 	enemy_hit_flash_material = ShaderMaterial.new()
 	enemy_hit_flash_material.shader = shader
 	return enemy_hit_flash_material
@@ -4323,9 +4409,12 @@ func _is_blade_hit_pixel(color: Color, hero_frame: bool) -> bool:
 
 # Leuchteffekt aktualisieren
 func update_glow_state() -> void:
-
-	if not has_glow_skill:
+	var unlimited_slime_glow := _has_unlimited_slime_glow()
+	if not unlimited_slime_glow and not has_glow_skill:
 		is_glowing = false
+	if unlimited_slime_glow:
+		glow_energy = GLOW_ENERGY_MAX
+		glow_exhausted = false
 	var energy_ratio := clampf(glow_energy / GLOW_ENERGY_MAX, 0.0, 1.0)
 	var target_energy := glow_base_energy * lerpf(0.42, 1.0, energy_ratio)
 	if glow_tween and glow_tween.is_valid():
@@ -4369,7 +4458,7 @@ func update_glow_state() -> void:
 			"set_glow_charge",
 			glow_energy,
 			GLOW_ENERGY_MAX,
-			has_glow_skill
+			not unlimited_slime_glow and has_glow_skill
 		)
 
 func _finish_glow_fade_out() -> void:
@@ -4381,9 +4470,10 @@ func _finish_glow_fade_out() -> void:
 		glow_effect.visible = false
 
 func toggle_glow() -> void:
-	if not has_glow_skill:
+	var unlimited_slime_glow := _has_unlimited_slime_glow()
+	if not unlimited_slime_glow and not has_glow_skill:
 		return
-	if not is_glowing and glow_energy < GLOW_MIN_ACTIVATION_ENERGY:
+	if not unlimited_slime_glow and not is_glowing and glow_energy < GLOW_MIN_ACTIVATION_ENERGY:
 		_show_feedback_toast("Lichtkern lädt noch", "warning", null)
 		return
 	is_glowing = not is_glowing
@@ -4392,7 +4482,16 @@ func toggle_glow() -> void:
 
 
 func _update_glow_energy(delta: float) -> void:
+	if _has_unlimited_slime_glow():
+		glow_energy = GLOW_ENERGY_MAX
+		glow_exhausted = false
+		if canvas_layer and canvas_layer.has_method("set_glow_charge"):
+			canvas_layer.call("set_glow_charge", glow_energy, GLOW_ENERGY_MAX, false)
+		return
 	if not has_glow_skill:
+		is_glowing = false
+		if canvas_layer and canvas_layer.has_method("set_glow_charge"):
+			canvas_layer.call("set_glow_charge", glow_energy, GLOW_ENERGY_MAX, false)
 		return
 	if is_glowing:
 		glow_energy = maxf(0.0, glow_energy - GLOW_ENERGY_DRAIN_PER_SECOND * delta)
@@ -4413,11 +4512,15 @@ func set_controls_inverted(inverted: bool):
 	controls_inverted = inverted
 	print("Steuerung invertiert: ", inverted)
 
+
+func set_quest_cinematic_invulnerable(enabled: bool) -> void:
+	quest_cinematic_invulnerable = enabled
+
 @rpc("any_peer", "call_local", "reliable")
 func take_damage(amount: int, hit_source: Vector2):
 	if !is_multiplayer_authority():
 		return
-	if dash_invulnerability_timer > 0.0 or damage_invulnerability_timer > 0.0:
+	if quest_cinematic_invulnerable or dash_invulnerability_timer > 0.0 or damage_invulnerability_timer > 0.0:
 		return
 	# One hit gets a clear reaction.  Overlapping bodies/projectiles cannot turn
 	# a single mistake into an unreadable burst of contact damage.

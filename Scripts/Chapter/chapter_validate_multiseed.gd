@@ -64,6 +64,8 @@ func _run() -> void:
 			var invalid_jump_count: int = int(validation.get("invalid_jump_count", 0))
 			var unreachable_reward_count: int = int(validation.get("unreachable_reward_count", 0))
 			var unreachable_room_count: int = int(validation.get("unreachable_room_count", 0))
+			var unreachable_quest_target_count: int = int(validation.get("unreachable_quest_target_count", 0))
+			var quest_sequence_valid: bool = bool(validation.get("quest_sequence_valid", true))
 			var dead_end_count: int = int(validation.get("dead_end_count", 0))
 			var path_length: float = float(validation.get("critical_path_length_tiles", 0.0))
 			var attempt_index: int = int(validation.get("attempt_index", 0))
@@ -92,12 +94,14 @@ func _run() -> void:
 				status = "FAIL"
 			elif unreachable_room_count > 0:
 				status = "FAIL"
+			elif unreachable_quest_target_count > 0 or not quest_sequence_valid:
+				status = "FAIL"
 			elif invalid_tile_count > 0:
 				status = "FAIL"
 
 			print(
-				"MULTI_VALIDATE level=%d seed=%d title=%s rooms=%d branches=%d terrain=%d decor=%d enemies=%d gates=%d invalid_tiles=%d floor=%s path=%s invalid_jumps=%d unreachable_rewards=%d unreachable_rooms=%d dead_ends=%d path_len=%.1f notes=%d attempt=%d status=%s"
-				% [level_index + 1, seed, title, room_count, branch_count, terrain_count, decor_count, enemy_count, gate_count, invalid_tile_count, str(touched_floor), str(path_valid), invalid_jump_count, unreachable_reward_count, unreachable_room_count, dead_end_count, path_length, note_count, attempt_index + 1, status]
+				"MULTI_VALIDATE level=%d seed=%d title=%s rooms=%d branches=%d terrain=%d decor=%d enemies=%d gates=%d invalid_tiles=%d floor=%s path=%s invalid_jumps=%d unreachable_rewards=%d unreachable_rooms=%d quest_unreachable=%d quest_sequence=%s dead_ends=%d path_len=%.1f notes=%d attempt=%d status=%s"
+				% [level_index + 1, seed, title, room_count, branch_count, terrain_count, decor_count, enemy_count, gate_count, invalid_tile_count, str(touched_floor), str(path_valid), invalid_jump_count, unreachable_reward_count, unreachable_room_count, unreachable_quest_target_count, str(quest_sequence_valid), dead_end_count, path_length, note_count, attempt_index + 1, status]
 			)
 			if status != "PASS":
 				var notes: PackedStringArray = validation.get("notes", PackedStringArray()) as PackedStringArray

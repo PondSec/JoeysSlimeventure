@@ -6,10 +6,10 @@ signal defeated
 
 const GRAVITY := 1300.0
 const CONTACT_COOLDOWN := 0.8
-const BASE_SPRITE_SCALE := Vector2(0.125, 0.125)
-const SQUASH_SPRITE_SCALE := Vector2(0.158, 0.098)
-const BASE_COLOR := Color(0.92, 0.76, 0.80, 1.0)
-const GLOW_COLOR := Color(1.0, 0.46, 0.54, 1.0)
+const WORLD_COLLISION_MASK := 2
+const BASE_SPRITE_SCALE := Vector2(0.095, 0.095)
+const SQUASH_SPRITE_SCALE := Vector2(0.118, 0.074)
+const BASE_COLOR := Color(0.42, 0.84, 1.0, 1.0)
 const HIT_FLASH_COLOR := Color(3.4, 3.4, 3.4, 1.0)
 
 enum State { PATROL, CHASE, TELEGRAPH, LEAP, EVADE, RECOVER, DEAD }
@@ -49,8 +49,7 @@ func _ready() -> void:
 	hitbox.body_entered.connect(_on_hitbox_body_entered)
 	sprite.scale = BASE_SPRITE_SCALE
 	if glow_light != null:
-		glow_light.color = GLOW_COLOR
-		glow_light.energy = 0.56
+		glow_light.visible = false
 	_update_animation(0.0)
 
 
@@ -97,13 +96,12 @@ func take_damage(amount: int, direction: Vector2, _is_crit: bool = false) -> voi
 
 	current_health -= amount
 	hit_flash_timer = 0.16
-	var knockback_direction: Vector2 = direction.normalized() if direction.length() > 0.0 else Vector2(signf(global_position.x - player.global_position.x), -0.4)
+	var knockback_direction: Vector2 = Vector2(signf(direction.x), 0.0) if absf(direction.x) > 0.01 else Vector2(signf(global_position.x - player.global_position.x), 0.0)
 	velocity += knockback_direction * 180.0
-	velocity.y = minf(velocity.y, -180.0)
 	if current_health <= 0:
 		call_deferred("_die")
-	elif state not in [State.TELEGRAPH, State.LEAP, State.EVADE] and evade_cooldown <= 0.0 and is_on_floor() and randf() < 0.24:
-		_enter_state(State.EVADE)
+	# A damage reaction must not randomly turn into a second jump.  Besides
+	# feeling slippery, that launch could combine with knockback at a wall.
 
 
 func _process_patrol() -> void:
@@ -168,7 +166,7 @@ func _has_safe_ground_ahead(direction_sign: float) -> bool:
 	var probe := PhysicsRayQueryParameters2D.create(
 		global_position + Vector2(direction_sign * 28.0, 4.0),
 		global_position + Vector2(direction_sign * 28.0, 46.0),
-		collision_mask
+		WORLD_COLLISION_MASK
 	)
 	probe.exclude = [get_rid()]
 	return not get_world_2d().direct_space_state.intersect_ray(probe).is_empty()
@@ -186,7 +184,15 @@ func _enter_state(next_state: State) -> void:
 
 
 func _can_notice_player(extra_range: float = 0.0) -> bool:
-	return player != null and is_instance_valid(player) and global_position.distance_to(player.global_position) <= aggro_range + extra_range
+	if player == null or not is_instance_valid(player):
+		return false
+	var vision_range := aggro_range if bool(player.get("is_glowing")) else aggro_range * 0.46
+	if global_position.distance_to(player.global_position) > vision_range + extra_range:
+		return false
+	var query := PhysicsRayQueryParameters2D.create(global_position + Vector2(0.0, -14.0), player.global_position)
+	query.collision_mask = 2
+	query.exclude = [get_rid(), player.get_rid()]
+	return get_world_2d().direct_space_state.intersect_ray(query).is_empty()
 
 
 func _player_velocity() -> Vector2:
@@ -201,16 +207,12 @@ func _update_visuals() -> void:
 	sprite.flip_h = velocity.x < 0.0
 	if hit_flash_timer > 0.0:
 		sprite.modulate = HIT_FLASH_COLOR
-		if glow_light != null:
-			glow_light.color = Color(0.92, 0.72, 0.82, 1.0)
-			glow_light.energy = 0.44
 		return
 
 	var pulse: float = 0.5 + 0.5 * sin(anim_timer * 4.2)
-	sprite.modulate = BASE_COLOR.lerp(Color(0.86, 0.95, 1.0, 1.0), 0.14 + pulse * 0.1)
-	if glow_light != null:
-		glow_light.color = GLOW_COLOR.lerp(Color(0.72, 0.9, 1.0, 1.0), pulse * 0.22)
-		glow_light.energy = 0.5 + pulse * 0.12
+	# The cave slime shares Joey's slime-sheet rhythm, but remains a small,
+	# consistently light-blue creature rather than a moving light source.
+	sprite.modulate = BASE_COLOR.lerp(Color(0.62, 0.94, 1.0, 1.0), 0.08 + pulse * 0.08)
 
 
 func _update_animation(_delta: float) -> void:
@@ -249,7 +251,7 @@ func _die() -> void:
 		return
 	is_dead = true
 	state = State.DEAD
-	set_collision_layer_value(1, false)
+	set_collision_layer_value(3, false)
 	set_collision_mask_value(1, false)
 	emit_signal("defeated")
 	LootDropper.spawn_independent_drops(self, [

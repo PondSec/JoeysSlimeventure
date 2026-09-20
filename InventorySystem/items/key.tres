@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="InvItem" format=3 uid="uid://b28u2wujjxq6j"]
+
+[ext_resource type="Script" uid="uid://g8qoas1goouj" path="res://InventorySystem/inventory_item.gd" id="1_1dkny"]
+[ext_resource type="Texture2D" uid="uid://dnqmh7ll1nlft" path="res://Assets/Items/key_pixel_128x128.png" id="2_b57ug"]
+
+[resource]
+script = ExtResource("1_1dkny")
+name = "key"
+display_name = "Gluhtkey"
+texture = ExtResource("2_b57ug")
+metadata/_custom_type_script = "uid://g8qoas1goouj"

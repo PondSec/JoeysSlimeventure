@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="InvItem" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://InventorySystem/inventory_item.gd" id="1_item"]
+[ext_resource type="Texture2D" path="res://Assets/Items/glut_schluessel.png" id="2_texture"]
+
+[resource]
+script = ExtResource("1_item")
+name = "glut_schluessel"
+display_name = "Glut-Schluessel"
+description = "Ein warmer, pulsierender Schluessel. Er entriegelt das Tor zur Glutdimension."
+texture = ExtResource("2_texture")
+rarity = "rare"
+stack_size = 1
+world_texture_region = Rect2(0, 0, 128, 128)
+world_scale = 0.42

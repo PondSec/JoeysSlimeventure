@@ -607,6 +607,10 @@ func _on_volume_slider_value_changed(value: float) -> void:
 	config.save(CONFIG_PATH)
 
 func _on_play_button_pressed() -> void:
+	var chapter_progress = get_node_or_null(\"/root/ChapterProgress\")
+	if chapter_progress != null and chapter_progress.has_method(\"resume_from_main_menu\"):
+		chapter_progress.call(\"resume_from_main_menu\")
+		return
 	var hub_scene_path := \"res://Scenes/Game.tscn\"
 	var chapter_runtime_scene_path := \"res://Scenes/Chapter/chapter_level.tscn\"
 	var level_scene_path := hub_scene_path

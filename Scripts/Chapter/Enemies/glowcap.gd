@@ -139,7 +139,7 @@ func take_damage(amount: int, direction := Vector2.ZERO, _is_crit: bool = false)
 func _process_idle() -> void:
 	if player == null or not is_instance_valid(player):
 		return
-	if global_position.distance_to(player.global_position) <= bite_range and attack_cooldown_left <= 0.0:
+	if global_position.distance_to(player.global_position) <= bite_range and _has_clear_sight_of_player() and attack_cooldown_left <= 0.0:
 		_enter_state(State.TELEGRAPH)
 
 
@@ -250,6 +250,15 @@ func _player_is_glowing() -> bool:
 	return player != null and is_instance_valid(player) and bool(player.get("is_glowing"))
 
 
+func _has_clear_sight_of_player() -> bool:
+	if player == null or not is_instance_valid(player):
+		return false
+	var query := PhysicsRayQueryParameters2D.create(global_position + Vector2(0.0, -26.0), player.global_position)
+	query.collision_mask = 2
+	query.exclude = [get_rid(), player.get_rid()]
+	return get_world_2d().direct_space_state.intersect_ray(query).is_empty()
+
+
 func _sync_player_reference() -> void:
 	if player == null or not is_instance_valid(player):
 		player = get_tree().get_first_node_in_group("players") as Node2D
@@ -268,6 +277,6 @@ func _die() -> void:
 		{"item": "iron_nugget", "chance": 0.14},
 		{"item": "bat_artefact", "chance": 0.015}
 	])
-	set_collision_layer_value(1, false)
+	set_collision_layer_value(3, false)
 	set_collision_mask_value(1, false)
 	_set_bite_active(false)

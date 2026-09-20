@@ -1,7 +1,7 @@
 class_name ChapterContent
 extends RefCounted
 
-const IMPLEMENTED_CHAPTERS := [1]
+const IMPLEMENTED_CHAPTERS := [1, 2]
 
 
 static func get_chapter_count() -> int:
@@ -83,10 +83,21 @@ static func get_chapter_meta(chapter_index: int) -> Dictionary:
 static func get_level_count(chapter_index: int) -> int:
 	if chapter_index == 1:
 		return _chapter_one_levels().size()
+	if chapter_index == 2:
+		return 1
 	return 0
 
 
 static func get_level_data(chapter_index: int, level_index: int) -> Dictionary:
+	if chapter_index == 2 and level_index == 0:
+		return {
+			"title": "Der erste Ossariumschritt",
+			"subtitle": "Vorschau der Knochenkatakomben.",
+			"objective": "Erkunde den ersten Katakombenraum.",
+			"chapter_index": 2,
+			"level_index": 0,
+			"level_label": "Vorschau"
+		}
 	if chapter_index != 1:
 		return {}
 
@@ -105,6 +116,10 @@ static func get_level_data(chapter_index: int, level_index: int) -> Dictionary:
 	level_copy["level_label"] = "Level %d / %d" % [level_index + 1, levels.size()]
 	level_copy["mobility_skills"] = _chapter_one_mobility_skills(level_index)
 	level_copy["lesson_focus"] = _chapter_one_lesson_focus(level_index)
+	# Quest content deliberately lives alongside the existing authored level data.
+	# The runtime and generator consume this schema; they do not branch on level
+	# numbers once the level has been loaded.
+	level_copy["quest"] = _chapter_one_quest(level_index)
 	_normalize_chapter_one_level(level_copy)
 	return level_copy
 
@@ -277,6 +292,20 @@ static func _chapter_one_lesson_focus(level_index: int) -> Array[String]:
 			return ["chapter_one_mastery", "double_jump", "boss"]
 
 
+static func _chapter_one_quest(level_index: int) -> Dictionary:
+	var quests: Array[Dictionary] = [
+		{"id":"c1_l1_veins","title":"Die Ader erwacht","objectives":[{"id":"awaken_veins","title":"Tropfenadern","type":"glow_charge","required":2,"anchor_roles":["near_spawn_safe","side_branch_reachable"],"hold_seconds":1.25}]},
+		{"id":"c1_l2_echo","title":"Tropfenklang","objectives":[{"id":"echo_sequence","title":"Resonanzringe","type":"sequence","required":3,"anchor_roles":["upper_descent","mid_descent","lower_descent"],"sequence":[1,2,0]}]},
+		{"id":"c1_l3_resonance","title":"Resonanzbruch","objectives":[{"id":"break_resonance_locks","title":"Resonanzsiegel","type":"redirect","required":2,"anchor_roles":["combat_branch","pre_exit_chamber"]}]},
+		{"id":"c1_l4_firefly","title":"Das verlorene Irrlicht","objectives":[{"id":"find_firefly","title":"Finde das Irrlicht","type":"search","required":1,"anchor_roles":["dark_branch"]},{"id":"pollinate_moonblooms","title":"Mondblüten","type":"escort","required":3,"anchor_roles":["dark_branch","mid_route_landmark","pre_exit"]}]},
+		{"id":"c1_l5_condensers","title":"Kampf im Kristallkreis","objectives":[{"id":"charge_condensers","title":"Kristallkondensatoren","type":"combat_zone","required":2,"anchor_roles":["combat_room","combat_room_far"]}]},
+		{"id":"c1_l6_breath","title":"Der Atemschacht","objectives":[{"id":"open_wind_vents","title":"Atemventile","type":"traversal_chain","required":3,"anchor_roles":["vertical_low","vertical_mid","vertical_high"],"hold_seconds":0.75},{"id":"bind_breath_core","title":"Binde den Atemkern","type":"interact","required":1,"anchor_roles":["pre_exit"],"hold_seconds":1.0,"reward":"double_jump"}]},
+		{"id":"c1_l7_trials","title":"Die drei Prüfungen","objectives":[{"id":"trial_motion","title":"Prüfung des Flusses","type":"traversal","required":1,"anchor_roles":["combat_branch"],"chain_count":4},{"id":"trial_light","title":"Prüfung des Lichts","type":"timing","required":1,"anchor_roles":["dark_branch"],"rune_count":3},{"id":"trial_combat","title":"Prüfung des Kerns","type":"combat_zone","required":1,"anchor_roles":["combat_room"]}]},
+		{"id":"c1_l8_kristallruecken","title":"Kristallrückens Fall","objectives":[{"id":"shatter_arena_anchors","title":"Kristallanker","type":"boss_mechanic","required":3,"anchor_roles":["boss_left","boss_center","boss_right"]},{"id":"defeat_kristallruecken","title":"Besiege Kristallrücken","type":"kill_boss","required":1,"anchor_roles":[]}]}
+	]
+	return quests[level_index].duplicate(true) if level_index >= 0 and level_index < quests.size() else {}
+
+
 static func _chapter_one_levels() -> Array:
 	return [
 		{
@@ -285,9 +314,6 @@ static func _chapter_one_levels() -> Array:
 			"objective": "Finde den ersten Hohlgang durch kleine Spruenge und sichere Landungen.",
 			"size": Vector2i(116, 62),
 			"layout_style": "vertical",
-			# Vorab gegen den echten Bewegungs-Validator geprueft. Dadurch startet
-			# der erste Einstieg ohne zufallsbedingte Wiederholungsversuche.
-			"seed_override": 31777,
 			"spawn": Vector2i(4, 18),
 			"exit": Vector2i(108, 44),
 			"platforms": [
@@ -334,7 +360,6 @@ static func _chapter_one_levels() -> Array:
 			"objective": "Lese die Hoehle und falle kontrolliert durch den Riss.",
 			"size": Vector2i(122, 52),
 			"layout_style": "vertical",
-			"seed_override": 31777,
 			"spawn": Vector2i(6, 12),
 			"exit": Vector2i(114, 37),
 			"platforms": [
@@ -428,7 +453,7 @@ static func _chapter_one_levels() -> Array:
 		{
 			"title": "Schattenrinne",
 			"subtitle": "Joeys Licht ist Schutz und Risiko zugleich.",
-			"objective": "Fuehre dein Glow bewusst durch die dunkle Rinne.",
+			"objective": "Besiege den Glutkaefer, finde die Glutdimension und oeffne das Tor zum naechsten Level.",
 			"size": Vector2i(130, 46),
 			"spawn": Vector2i(4, 28),
 			"exit": Vector2i(120, 26),
@@ -448,8 +473,11 @@ static func _chapter_one_levels() -> Array:
 			],
 			"enemies": [
 				_enemy("slime", 32, 25),
-				_enemy("bat", 62, 17)
+				_enemy("bat", 62, 17),
+				_enemy("glutkaefer", 86, 27, {"drop_glut_schluessel": true, "no_respawn": true})
 			],
+			"glut_door": Vector2i(98, 31),
+			"requires_glut_quest": true,
 			"torches": [
 				_torch(6, 27, 0.8),
 				_torch(47, 23, 0.6),
@@ -464,7 +492,8 @@ static func _chapter_one_levels() -> Array:
 			],
 			"triggers": [
 				_tutorial_trigger("c1_l4_intro", 3, 26, 10, 4, "Glow einsetzen", "Joeys Glow oeffnet den Blick in dunklen Rinnen und haelt versteckte Gefahren lesbar. Schalte ihn bewusst ein, wenn die Hoehle zu still wird.", "F fuer Glow   Licht an in dunklen Rinnen, aus wenn du schon sicher liest.", "TUTORIAL", "Glow", Color(0.56, 0.9, 1.0, 1.0)),
-				_trigger("c1_l4_dark", 55, 20, 10, 8, "Bleib nicht zu lange blind. In der Rinne lieben die Wuermer stilles Dunkel.", "info")
+				_trigger("c1_l4_dark", 55, 20, 10, 8, "Bleib nicht zu lange blind. In der Rinne lieben die Wuermer stilles Dunkel.", "info"),
+				_trigger("c1_l4_glut", 82, 24, 13, 6, "Ein Glutkaefer bewacht ein versiegeltes Tor. Besiege ihn und sichere den Glut-Schluessel.", "reward", "Gluttor")
 			],
 			"worm_count": 1
 		},
@@ -622,7 +651,7 @@ static func _chapter_one_levels() -> Array:
 			"worm_count": 1
 		},
 		{
-			"title": "Der Koenig der Hoehlenschleime",
+			"title": "Kristallruecken",
 			"subtitle": "Eine traege Masse, die Joeys neue Form spiegeln will.",
 			"objective": "Besiege den Mini-Boss und sichere Joeys ersten grossen Sieg.",
 			"size": Vector2i(146, 54),

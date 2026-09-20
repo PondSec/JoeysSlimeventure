@@ -12,7 +12,15 @@ const TILE_RIGHT := Vector2i(2, 1)
 const TILE_BOTTOM_LEFT := Vector2i(0, 2)
 const TILE_BOTTOM := Vector2i(1, 2)
 const TILE_BOTTOM_RIGHT := Vector2i(2, 2)
+const TILE_GENERATED_CORNER := Vector2i(7, 0)
 
+# TileMap transformations are encoded in the alternative tile value.
+const TRANSFORM_FLIP_H := 1 << 12
+const TRANSFORM_FLIP_V := 1 << 13
+const TRANSFORM_TRANSPOSE := 1 << 14
+const TRANSFORM_ROTATE_CW := TRANSFORM_TRANSPOSE | TRANSFORM_FLIP_H
+const TRANSFORM_ROTATE_CCW := TRANSFORM_TRANSPOSE | TRANSFORM_FLIP_V
+const TRANSFORM_ROTATE_180 := TRANSFORM_FLIP_H | TRANSFORM_FLIP_V
 const MASK_N := 1
 const MASK_NE := 2
 const MASK_E := 4
@@ -29,14 +37,17 @@ const TILE_LOOKUP := {
 	"ceiling_bottom": TILE_BOTTOM,
 	"left_wall": TILE_LEFT,
 	"right_wall": TILE_RIGHT,
+	# Outer corners retain the original authored edge tiles.
 	"outer_corner_top_left": TILE_TOP_LEFT,
 	"outer_corner_top_right": TILE_TOP_RIGHT,
 	"outer_corner_bottom_left": TILE_BOTTOM_LEFT,
 	"outer_corner_bottom_right": TILE_BOTTOM_RIGHT,
-	"inner_corner_top_left": TILE_CENTER,
-	"inner_corner_top_right": TILE_CENTER,
-	"inner_corner_bottom_left": TILE_CENTER,
-	"inner_corner_bottom_right": TILE_CENTER,
+	# Only concave corners originate from the single authored (7, 0) tile.
+	# The appropriate orientation is supplied in TILE_ALTERNATIVE_LOOKUP.
+	"inner_corner_top_left": TILE_GENERATED_CORNER,
+	"inner_corner_top_right": TILE_GENERATED_CORNER,
+	"inner_corner_bottom_left": TILE_GENERATED_CORNER,
+	"inner_corner_bottom_right": TILE_GENERATED_CORNER,
 	"ledge_end_left": TILE_TOP_LEFT,
 	"ledge_end_right": TILE_TOP_RIGHT,
 	"ceiling_end_left": TILE_BOTTOM_LEFT,
@@ -45,6 +56,14 @@ const TILE_LOOKUP := {
 	"pillar_body": TILE_CENTER,
 	"pillar_base": TILE_BOTTOM,
 	"thin_support": TILE_CENTER
+}
+
+const TILE_ALTERNATIVE_LOOKUP := {
+	# (7, 0) is the canonical upper-left inner corner. Rotate it into the
+	# three other concave directions, keeping every transition pixel-aligned.
+	"inner_corner_top_right": TRANSFORM_ROTATE_CW,
+	"inner_corner_bottom_left": TRANSFORM_ROTATE_CCW,
+	"inner_corner_bottom_right": TRANSFORM_ROTATE_180,
 }
 
 const DEBUG_COLORS := {
@@ -79,7 +98,7 @@ static func resolve_solid_cell(logical_map: Dictionary, cell: Vector2i) -> Dicti
 	var atlas_coords: Vector2i = TILE_LOOKUP.get(classification, TILE_CENTER) as Vector2i
 	return {
 		"atlas_coords": atlas_coords,
-		"alternative": 0,
+		"alternative": int(TILE_ALTERNATIVE_LOOKUP.get(classification, 0)),
 		"classification": classification,
 		"mask": int(neighbor_info.get("mask", 0))
 	}
