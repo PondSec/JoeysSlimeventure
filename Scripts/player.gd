@@ -2305,7 +2305,10 @@ func _handle_climb_vine(delta: float) -> bool:
 		climb_vine_distance = float(climb_vine.call("clamp_climb_distance", climb_vine_distance))
 	var swing_input := direction.x
 	if climb_vine.has_method("set_rider_input"):
-		climb_vine.call("set_rider_input", swing_input)
+		# Positive Godot rotation moves the visible down-vector left in screen
+		# space, so invert input once at the player boundary: D always pumps the
+		# actual rope to the right and A to the left.
+		climb_vine.call("set_rider_input", -swing_input)
 	var hold_position := climb_vine.call("get_grip_position", climb_vine_distance) as Vector2 if climb_vine.has_method("get_grip_position") else global_position
 	var hold_velocity := climb_vine.call("get_hold_velocity", climb_vine_distance) as Vector2 if climb_vine.has_method("get_hold_velocity") else Vector2.ZERO
 	# The vine supplies an angle-relative grip point, keeping Joey on the rope

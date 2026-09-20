@@ -85,25 +85,35 @@ func clamp_climb_distance(value: float) -> float:
 
 
 func closest_climb_distance(world_position: Vector2) -> float:
-	var rope_direction := Vector2(sin(swing_angle), cos(swing_angle))
+	var rope_direction := _rope_direction()
 	return clamp_climb_distance((world_position - global_position).dot(rope_direction))
 
 
 func get_hold_position(climb_distance: float) -> Vector2:
-	var rope_direction := Vector2(sin(swing_angle), cos(swing_angle))
+	var rope_direction := _rope_direction()
 	return global_position + rope_direction * clamp_climb_distance(climb_distance)
 
 
 func get_grip_position(climb_distance: float) -> Vector2:
 	# Keep Joey's hands visibly on the vine at every angle. The grip moves along
 	# the rope itself rather than using a fixed screen-up offset.
-	var rope_direction := Vector2(sin(swing_angle), cos(swing_angle))
+	var rope_direction := _rope_direction()
 	return get_hold_position(climb_distance) - rope_direction * 10.0
 
 
 func get_hold_velocity(climb_distance: float) -> Vector2:
-	var tangent := Vector2(cos(swing_angle), -sin(swing_angle))
+	# Derivative of the same down-vector Godot rotates for the visible parent.
+	# It is deliberately not mirrored: this is the exact world direction of the
+	# animated vine at the rider's current distance.
+	var tangent := Vector2(-cos(swing_angle), -sin(swing_angle))
 	return tangent * angular_velocity * clamp_climb_distance(climb_distance)
+
+
+func _rope_direction() -> Vector2:
+	# Godot rotates Vector2.DOWN clockwise in screen space. Keeping this helper
+	# as the one source of truth prevents the rider from ever using a mirrored
+	# pendulum axis relative to the segment chain.
+	return Vector2(-sin(swing_angle), cos(swing_angle))
 
 
 func _build_segment_chain() -> void:
