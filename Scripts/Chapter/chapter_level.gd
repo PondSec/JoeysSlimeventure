@@ -28,6 +28,7 @@ const TORCH_SCENE := preload("res://Scenes/torch.tscn")
 const SPIKE_SCENE := preload("res://Scenes/Spike.tscn")
 const WORM_SCENE := preload("res://Scenes/worm.tscn")
 const VINE_SCENE := preload("res://Scenes/vine.tscn")
+const CLIMB_VINE_SCRIPT := preload("res://Scripts/Chapter/climb_vine.gd")
 const FALLING_LEAF_SCENE := preload("res://Scenes/Deko/leaf.tscn")
 const MOSS_TILE_PATHS := [
 	"res://Assets/Deko/moss/moss_0.png",
@@ -76,6 +77,9 @@ const LUSH_MOONBELL_HEAL_INTERVAL := 1.0
 const ENEMY_RESPAWN_DELAY_MIN := 6.0
 const ENEMY_RESPAWN_DELAY_MAX := 10.0
 const ENEMY_RESPAWN_MIN_PLAYER_DISTANCE := 520.0
+const CLIMB_VINE_MIN_DROP_TILES := 9
+const CLIMB_VINE_MAX_PER_LEVEL := 3
+const CLIMB_VINE_MIN_HORIZONTAL_CLEARANCE := 3
 
 const PARALLAX_TEXTURE_PATHS := [
 	"res://Assets/Parallax Cave/1.png",
@@ -1039,6 +1043,7 @@ func _build_level() -> void:
 	_draw_cave_wall_tiles(logical_terrain_map)
 	_spawn_cave_collision_mesh(solid_grid_cache)
 	_spawn_world_bounds()
+	_spawn_recovery_climb_vines(solid_grid_cache)
 	_spawn_generated_overgrowth(solid_grid_cache)
 	_spawn_generated_moss(solid_grid_cache)
 	_spawn_lush_ground_carpet_zones(solid_grid_cache)
@@ -2667,6 +2672,83 @@ func _spawn_lush_glimmer(world_position: Vector2, glimmer_rng: RandomNumberGener
 
 func _is_vine_anchor(grid: Array, grid_x: int, grid_y: int) -> bool:
 	return _is_solid(grid, grid_x, grid_y) and not _is_solid(grid, grid_x, grid_y + 1) and not _is_torch_column(grid_x)
+
+
+func _spawn_recovery_climb_vines(grid: Array) -> void:
+	# These are traversal objects, not ambient foliage. They appear exclusively
+	# beneath real ceilings over long, clear drops, giving a reliable route back
+	# up when a procedural chamber would otherwise become a recovery problem.
+	if decor_root == null or grid.is_empty():
+		return
+	var candidates: Array[Dictionary] = []
+	for grid_x: int in range(CLIMB_VINE_MIN_HORIZONTAL_CLEARANCE + 1, level_size_tiles.x - CLIMB_VINE_MIN_HORIZONTAL_CLEARANCE - 1):
+		for ceiling_y: int in range(2, level_size_tiles.y - CLIMB_VINE_MIN_DROP_TILES - 2):
+			if not _is_vine_anchor(grid, grid_x, ceiling_y):
+				continue
+			var floor_y := _find_climb_vine_floor(grid, grid_x, ceiling_y)
+			var open_drop_tiles := floor_y - ceiling_y - 1
+			if open_drop_tiles < CLIMB_VINE_MIN_DROP_TILES:
+				continue
+			if not _has_climb_vine_clearance(grid, grid_x, ceiling_y, floor_y):
+				continue
+			candidates.append({"x": grid_x, "ceiling_y": ceiling_y, "floor_y": floor_y, "depth": open_drop_tiles})
+			# One candidate per ceiling column is enough; nearby tiles share the
+			# same shaft and would only create duplicate ropes.
+			break
+	if candidates.is_empty():
+		return
+	var vine_rng := RandomNumberGenerator.new()
+	vine_rng.seed = active_level_seed * 809 + 311
+	var selected: Array[Dictionary] = []
+	while not candidates.is_empty() and selected.size() < CLIMB_VINE_MAX_PER_LEVEL:
+		var best_index := -1
+		var best_score := -INF
+		for candidate_index: int in range(candidates.size()):
+			var candidate: Dictionary = candidates[candidate_index]
+			var too_close := false
+			for chosen: Dictionary in selected:
+				if abs(int(candidate["x"]) - int(chosen["x"])) < 10:
+					too_close = true
+					break
+			if too_close:
+				continue
+			var score := float(candidate["depth"]) * 4.0 + vine_rng.randf_range(0.0, 3.0)
+			if score > best_score:
+				best_score = score
+				best_index = candidate_index
+		if best_index < 0:
+			break
+		selected.append(candidates[best_index])
+		candidates.remove_at(best_index)
+	for candidate: Dictionary in selected:
+		var vine := CLIMB_VINE_SCRIPT.new() as Node2D
+		if vine == null:
+			continue
+		vine.name = "RecoveryClimbVine"
+		var grid_x := int(candidate["x"])
+		var ceiling_y := int(candidate["ceiling_y"])
+		var floor_y := int(candidate["floor_y"])
+		vine.global_position = _grid_to_world(Vector2i(grid_x, ceiling_y + 1)) + Vector2(TILE_SIZE * 0.5, 1.0)
+		decor_root.add_child(vine)
+		var length_pixels := maxf(96.0, float(floor_y - ceiling_y - 1) * TILE_SIZE - 14.0)
+		vine.call("configure", length_pixels, vine_rng.randf_range(-0.07, 0.07))
+
+
+func _find_climb_vine_floor(grid: Array, grid_x: int, ceiling_y: int) -> int:
+	for grid_y: int in range(ceiling_y + 1, level_size_tiles.y):
+		if _is_solid(grid, grid_x, grid_y):
+			return grid_y
+	return level_size_tiles.y
+
+
+func _has_climb_vine_clearance(grid: Array, grid_x: int, ceiling_y: int, floor_y: int) -> bool:
+	if floor_y >= level_size_tiles.y:
+		return false
+	for test_y: int in range(ceiling_y + 1, floor_y):
+		for offset_x: int in range(-CLIMB_VINE_MIN_HORIZONTAL_CLEARANCE, CLIMB_VINE_MIN_HORIZONTAL_CLEARANCE + 1):
+			if _is_solid(grid, grid_x + offset_x, test_y):
+				return false
+	return true
 
 
 func _has_vine_clearance(grid: Array, grid_x: int, anchor_y: int, length: int) -> bool:

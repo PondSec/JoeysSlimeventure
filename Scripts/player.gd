@@ -443,6 +443,10 @@ var wall_slide_speed_cap := WALL_SLIDE_SPEED
 var wall_jump_buffer = 0.0
 const WALL_JUMP_BUFFER_TIME = 0.1
 const WALL_JUMP_FORGIVENESS = 0.15
+const VINE_CLIMB_SPEED := 168.0
+const VINE_JUMP_UPWARD_SPEED := 336.0
+const VINE_JUMP_SIDE_BOOST := 96.0
+const VINE_REGRAB_COOLDOWN := 0.22
 
 var has_glow_skill := false
 var has_wall_slide_skill := false
@@ -458,6 +462,10 @@ var has_sticky_form_skill := false
 var has_hero_form_skill := DEBUG_UNLOCK_HERO_FORM
 var has_thorns_skill := false
 var has_slime_wings_skill := false
+var climb_vine: Node2D
+var climb_vine_distance := 0.0
+var climb_vine_release_cooldown := 0.0
+var climb_vine_hint_shown := false
 var player_level := 1
 @onready var skill_tree = $SkillTreeUI/SkillTree
 
@@ -2234,6 +2242,82 @@ func set_world_fall_death_y(death_y: float) -> void:
 	world_fall_death_y = death_y if is_finite(death_y) else INF
 
 
+func attach_climb_vine(vine: Node2D) -> bool:
+	if vine == null or not is_instance_valid(vine) or climb_vine_release_cooldown > 0.0:
+		return false
+	if climb_vine == vine:
+		return true
+	if is_dashing or is_stunned or runtime_death_active or not vine.has_method("can_accept_rider"):
+		return false
+	if not bool(vine.call("can_accept_rider", self)):
+		return false
+	if climb_vine != null and is_instance_valid(climb_vine):
+		detach_climb_vine(false)
+	climb_vine = vine
+	climb_vine_distance = float(vine.call("closest_climb_distance", global_position)) if vine.has_method("closest_climb_distance") else 64.0
+	climb_vine_distance = float(vine.call("clamp_climb_distance", climb_vine_distance)) if vine.has_method("clamp_climb_distance") else climb_vine_distance
+	velocity = Vector2.ZERO
+	direction.x = 0.0
+	coyote_time = 0.0
+	jump_buffer_time = 0.0
+	wall_jump_buffer = 0.0
+	vine.call("begin_riding", self)
+	if not climb_vine_hint_shown:
+		climb_vine_hint_shown = true
+		_show_feedback_toast("VINE  W/S climb  ·  A/D swing  ·  Space jump", "info")
+	return true
+
+
+func detach_climb_vine(with_jump: bool) -> void:
+	if climb_vine == null or not is_instance_valid(climb_vine):
+		climb_vine = null
+		return
+	var released_vine := climb_vine
+	var carry_velocity := released_vine.call("get_hold_velocity", climb_vine_distance) as Vector2 if released_vine.has_method("get_hold_velocity") else Vector2.ZERO
+	released_vine.call("end_riding", self)
+	climb_vine = null
+	climb_vine_release_cooldown = VINE_REGRAB_COOLDOWN
+	if with_jump:
+		airtime_started_with_jump = true
+		velocity = carry_velocity + Vector2(direction.x * VINE_JUMP_SIDE_BOOST, VINE_JUMP_UPWARD_SPEED)
+		_play_jump_sfx(false)
+		$Camera2D.shake(0.55, 0.055)
+		_squash_player_sprite(Vector2(0.88, 1.10), 0.12)
+		$AnimationPlayer.play("jump")
+	else:
+		velocity = carry_velocity
+
+
+func _handle_climb_vine(delta: float) -> bool:
+	if climb_vine == null:
+		return false
+	if not is_instance_valid(climb_vine):
+		climb_vine = null
+		return false
+	if Input.is_action_just_pressed("up"):
+		detach_climb_vine(true)
+		# Consume this frame's jump so it cannot also become a wall/air jump.
+		return true
+	var vertical_input := Input.get_axis("up_walk", "down")
+	climb_vine_distance -= vertical_input * VINE_CLIMB_SPEED * delta
+	if climb_vine.has_method("clamp_climb_distance"):
+		climb_vine_distance = float(climb_vine.call("clamp_climb_distance", climb_vine_distance))
+	var swing_input := direction.x
+	if climb_vine.has_method("set_rider_input"):
+		climb_vine.call("set_rider_input", swing_input)
+	var hold_position := climb_vine.call("get_hold_position", climb_vine_distance) as Vector2 if climb_vine.has_method("get_hold_position") else global_position
+	var hold_velocity := climb_vine.call("get_hold_velocity", climb_vine_distance) as Vector2 if climb_vine.has_method("get_hold_velocity") else Vector2.ZERO
+	# The hand/rope line sits slightly above Joey's center so the visual reads as
+	# a grip, while collision remains at the character body.
+	global_position = hold_position + Vector2(0.0, -10.0)
+	velocity = hold_velocity
+	if absf(swing_input) > 0.1:
+		update_facing_direction()
+	if vertical_input > 0.2 and climb_vine_distance >= float(climb_vine.call("clamp_climb_distance", 100000.0)) - 1.0:
+		detach_climb_vine(false)
+	return true
+
+
 func _physics_process(delta: float) -> void:
 	if is_multiplayer_authority():
 		if runtime_death_active:
@@ -2253,8 +2337,13 @@ func _physics_process(delta: float) -> void:
 		_check_lumora_interaction()
 		_process_combat_timers(delta)
 		handle_sticky_form_timers(delta)
-		
-		if is_in_water:
+
+		if _handle_climb_vine(delta):
+			_process_active_attack_overlaps()
+			update_animations()
+			_update_runtime_character_animation(delta)
+			update_position.rpc(position, velocity)
+		elif is_in_water:
 			apply_water_physics(delta)
 		else:
 			var ledge_locked := _handle_hero_ledge(delta)
@@ -2288,6 +2377,8 @@ func _physics_process(delta: float) -> void:
 			mana_shield_regen_timer = 0.0
 
 func _process_combat_timers(delta: float) -> void:
+	if climb_vine_release_cooldown > 0.0:
+		climb_vine_release_cooldown = maxf(climb_vine_release_cooldown - delta, 0.0)
 	if damage_invulnerability_timer > 0.0:
 		damage_invulnerability_timer = maxf(damage_invulnerability_timer - delta, 0.0)
 	if wall_detach_timer > 0.0:
