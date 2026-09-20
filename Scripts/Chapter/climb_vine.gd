@@ -37,8 +37,13 @@ func _physics_process(delta: float) -> void:
 	# while the rope already travels in that direction, so holding a key cannot
 	# pin Joey against one side. Alternating input with the pendulum builds the
 	# satisfying long arc needed for a meaningful jump.
-	if absf(angular_velocity) > 0.10 and signf(rider_input) == signf(angular_velocity):
-		angular_acceleration += rider_input * SWING_PUMP_ACCELERATION
+	if absf(rider_input) > 0.08:
+		if absf(angular_velocity) <= 0.10 and absf(swing_angle) <= 0.045:
+			# A vine begins at rest; give the first A/D press enough torque to
+			# establish its initial arc before timing-based pumping takes over.
+			angular_acceleration += rider_input * SWING_PUMP_ACCELERATION * 0.72
+		elif signf(rider_input) == signf(angular_velocity):
+			angular_acceleration += rider_input * SWING_PUMP_ACCELERATION
 	angular_acceleration -= angular_velocity * SWING_DAMPING
 	angular_velocity = clampf(angular_velocity + angular_acceleration * delta, -MAX_ANGULAR_SPEED, MAX_ANGULAR_SPEED)
 	var next_angle := swing_angle + angular_velocity * delta
