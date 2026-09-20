@@ -2676,26 +2676,17 @@ func _is_vine_anchor(grid: Array, grid_x: int, grid_y: int) -> bool:
 
 
 func _spawn_recovery_climb_vines(grid: Array) -> void:
-	# These are traversal objects, not ambient foliage. They appear exclusively
-	# beneath real ceilings over long, clear drops, giving a reliable route back
-	# up when a procedural chamber would otherwise become a recovery problem.
+	# These are recovery objects, never ambient foliage.  A tall shaft alone is
+	# not a reason for a vine: it has to be a surface from which the traversal
+	# validator cannot return to the exit.  The previous generic "deepest shaft"
+	# scan made attractive but useless vines in rooms that already had an exit.
 	if decor_root == null or grid.is_empty():
 		return
 	var candidates: Array[Dictionary] = []
-	for grid_x: int in range(CLIMB_VINE_MIN_HORIZONTAL_CLEARANCE + 1, level_size_tiles.x - CLIMB_VINE_MIN_HORIZONTAL_CLEARANCE - 1):
-		for ceiling_y: int in range(2, level_size_tiles.y - CLIMB_VINE_MIN_DROP_TILES - 2):
-			if not _is_vine_anchor(grid, grid_x, ceiling_y):
-				continue
-			var floor_y := _find_climb_vine_floor(grid, grid_x, ceiling_y)
-			var open_drop_tiles := floor_y - ceiling_y - 1
-			if open_drop_tiles < CLIMB_VINE_MIN_DROP_TILES:
-				continue
-			if not _has_climb_vine_clearance(grid, grid_x, ceiling_y, floor_y):
-				continue
-			candidates.append({"x": grid_x, "ceiling_y": ceiling_y, "floor_y": floor_y, "depth": open_drop_tiles})
-			# One candidate per ceiling column is enough; nearby tiles share the
-			# same shaft and would only create duplicate ropes.
-			break
+	for target: Vector2i in _get_recovery_vine_targets():
+		var candidate := _find_recovery_vine_candidate(grid, target)
+		if not candidate.is_empty():
+			candidates.append(candidate)
 	if candidates.is_empty():
 		return
 	var vine_rng := RandomNumberGenerator.new()
@@ -2713,7 +2704,9 @@ func _spawn_recovery_climb_vines(grid: Array) -> void:
 					break
 			if too_close:
 				continue
-			var score := float(candidate["depth"]) * 4.0 + vine_rng.randf_range(0.0, 3.0)
+			# Deep, validator-confirmed traps are dealt with first.  The tiny
+			# seeded variation only breaks ties between equivalent placements.
+			var score := float(candidate["depth"]) * 4.0 - float(candidate.get("target_distance", 0)) * 0.5 + vine_rng.randf_range(0.0, 0.35)
 			if score > best_score:
 				best_score = score
 				best_index = candidate_index
@@ -2735,6 +2728,76 @@ func _spawn_recovery_climb_vines(grid: Array) -> void:
 		# that visually grows into the floor.
 		var length_pixels := maxf(96.0, float(floor_y - ceiling_y - 1 - CLIMB_VINE_FLOOR_CLEARANCE_TILES) * TILE_SIZE - 14.0)
 		vine.call("configure", length_pixels, vine_rng.randf_range(-0.07, 0.07))
+
+
+func _get_recovery_vine_targets() -> Array[Vector2i]:
+	var validation: Dictionary = active_level.get("layout_validation", {}) as Dictionary
+	var source_targets: Array = validation.get("trap_pit_nodes", []) as Array
+	if source_targets.is_empty():
+		source_targets = validation.get("softlock_nodes", []) as Array
+
+	# Older cached layouts can lack the explicit softlock arrays.  Their
+	# traversal graph still contains the authoritative return-reachability set,
+	# so derive the same targets from it instead of falling back to a broad
+	# visual scan of every ravine in the map.
+	if source_targets.is_empty():
+		var return_ids: Dictionary = {}
+		for node_id_variant: Variant in validation.get("exit_return_node_ids", PackedStringArray()) as PackedStringArray:
+			return_ids[str(node_id_variant)] = true
+		var reachable_ids: Dictionary = {}
+		for node_id_variant: Variant in validation.get("reachable_node_ids", PackedStringArray()) as PackedStringArray:
+			reachable_ids[str(node_id_variant)] = true
+		for node_variant: Variant in validation.get("traversal_nodes", []) as Array:
+			var node: Dictionary = node_variant as Dictionary
+			if str(node.get("kind", "")) != "surface":
+				continue
+			var node_id := str(node.get("id", ""))
+			if reachable_ids.has(node_id) and not return_ids.has(node_id):
+				source_targets.append(node.get("pos", Vector2i.ZERO) as Vector2i)
+
+	var targets: Array[Vector2i] = []
+	var seen: Dictionary = {}
+	for target_variant: Variant in source_targets:
+		var target := target_variant as Vector2i
+		if target == Vector2i.ZERO or target.x < 2 or target.x >= level_size_tiles.x - 2:
+			continue
+		var target_key := "%d:%d" % [target.x, target.y]
+		if seen.has(target_key):
+			continue
+		seen[target_key] = true
+		targets.append(target)
+	return targets
+
+
+func _find_recovery_vine_candidate(grid: Array, target: Vector2i) -> Dictionary:
+	# The target is a *solid* floor tile sampled by ChapterTraversalValidator.
+	# Search only around that landing, so a rope is usable from the bad pocket
+	# itself rather than appearing somewhere else in the same cavern.
+	var best: Dictionary = {}
+	var best_score := INF
+	var horizontal_search := 8
+	var highest_ceiling := maxi(2, target.y - 30)
+	var lowest_ceiling := target.y - CLIMB_VINE_MIN_DROP_TILES - 1
+	for grid_x: int in range(maxi(2, target.x - horizontal_search), mini(level_size_tiles.x - 2, target.x + horizontal_search + 1)):
+		for ceiling_y: int in range(highest_ceiling, lowest_ceiling + 1):
+			if not _is_vine_anchor(grid, grid_x, ceiling_y):
+				continue
+			var floor_y := _find_climb_vine_floor(grid, grid_x, ceiling_y)
+			# The vine must land on the trapped floor (or its immediate ledge),
+			# otherwise it is decoration the player cannot reach after falling.
+			if abs(floor_y - target.y) > 2:
+				continue
+			var open_drop_tiles := floor_y - ceiling_y - 1
+			if open_drop_tiles < CLIMB_VINE_MIN_DROP_TILES:
+				continue
+			if not _has_climb_vine_clearance(grid, grid_x, ceiling_y, floor_y):
+				continue
+			var target_distance: int = abs(grid_x - target.x)
+			var score := float(target_distance) * 8.0 - float(open_drop_tiles) * 0.15
+			if score < best_score:
+				best_score = score
+				best = {"x": grid_x, "ceiling_y": ceiling_y, "floor_y": floor_y, "depth": open_drop_tiles, "target_distance": target_distance}
+	return best
 
 
 func _find_climb_vine_floor(grid: Array, grid_x: int, ceiling_y: int) -> int:
