@@ -78,9 +78,9 @@ const ENEMY_RESPAWN_DELAY_MIN := 6.0
 const ENEMY_RESPAWN_DELAY_MAX := 10.0
 const ENEMY_RESPAWN_MIN_PLAYER_DISTANCE := 520.0
 const CLIMB_VINE_MIN_DROP_TILES := 7
-const CLIMB_VINE_MAX_PER_LEVEL := 4
+const CLIMB_VINE_MAX_PER_LEVEL := 8
 const CLIMB_VINE_MIN_HORIZONTAL_CLEARANCE := 1
-const CLIMB_VINE_FLOOR_CLEARANCE_TILES := 2
+const CLIMB_VINE_FLOOR_CLEARANCE_TILES := 1
 
 const PARALLAX_TEXTURE_PATHS := [
 	"res://Assets/Parallax Cave/1.png",
@@ -2682,13 +2682,16 @@ func _spawn_recovery_climb_vines(grid: Array) -> void:
 	# scan made attractive but useless vines in rooms that already had an exit.
 	if decor_root == null or grid.is_empty():
 		return
+	var targets: Array[Vector2i] = _get_recovery_vine_targets(grid)
 	var candidates: Array[Dictionary] = []
-	for target: Vector2i in _get_recovery_vine_targets(grid):
+	for target: Vector2i in targets:
 		var candidate := _find_recovery_vine_candidate(grid, target)
 		if not candidate.is_empty():
 			candidates.append(candidate)
 	if candidates.is_empty():
+		print("[Traversal] Recovery-vine analysis: %d blocked landings, 0 usable anchors." % targets.size())
 		return
+	var usable_candidate_count := candidates.size()
 	var vine_rng := RandomNumberGenerator.new()
 	vine_rng.seed = active_level_seed * 809 + 311
 	var selected: Array[Dictionary] = []
@@ -2721,13 +2724,14 @@ func _spawn_recovery_climb_vines(grid: Array) -> void:
 		vine.name = "RecoveryClimbVine"
 		var grid_x := int(candidate["x"])
 		var ceiling_y := int(candidate["ceiling_y"])
-		var floor_y := int(candidate["floor_y"])
+		var end_y := int(candidate["end_y"])
 		vine.global_position = _grid_to_world(Vector2i(grid_x, ceiling_y + 1)) + Vector2(TILE_SIZE * 0.5, 1.0)
 		decor_root.add_child(vine)
 		# Leave a visible landing gap: this is a hanging vine, never a ladder
 		# that visually grows into the floor.
-		var length_pixels := maxf(96.0, float(floor_y - ceiling_y - 1 - CLIMB_VINE_FLOOR_CLEARANCE_TILES) * TILE_SIZE - 14.0)
+		var length_pixels := maxf(96.0, float(end_y - ceiling_y) * TILE_SIZE - 14.0)
 		vine.call("configure", length_pixels, vine_rng.randf_range(-0.07, 0.07))
+	print("[Traversal] Recovery-vine analysis: %d blocked landings, %d usable anchors, %d vines." % [targets.size(), usable_candidate_count, selected.size()])
 
 
 func _get_recovery_vine_targets(grid: Array) -> Array[Vector2i]:
@@ -2779,10 +2783,72 @@ func _get_recovery_vine_targets(grid: Array) -> Array[Vector2i]:
 
 
 func _find_local_recovery_targets(grid: Array) -> Array[Vector2i]:
-	var mobility: Dictionary = active_level.get("mobility_profile", {}) as Dictionary
-	var readable_drop: int = int(mobility.get("readable_drop_tiles", 5))
+	# Build a directed graph over every usable surface span, not the validator's
+	# small debug sample. Edges use the real arc simulator with a deliberately
+	# conservative movement budget (one tile below Joey's measured limits). A
+	# surface is a vine target only when it can be reached from spawn but cannot
+	# return to the exit under that safety margin.
+	var nodes: Array = _build_recovery_surface_nodes(grid)
+	if nodes.is_empty():
+		return []
+	var mobility := _recovery_mobility_profile()
+	var forward_graph: Array = []
+	var reverse_graph: Array = []
+	for _node_index: int in range(nodes.size()):
+		forward_graph.append([])
+		reverse_graph.append([])
+	for from_index: int in range(nodes.size()):
+		var from_node: Dictionary = nodes[from_index] as Dictionary
+		var from_position: Vector2i = from_node.get("pos", Vector2i.ZERO) as Vector2i
+		for to_index: int in range(nodes.size()):
+			if from_index == to_index:
+				continue
+			var to_node: Dictionary = nodes[to_index] as Dictionary
+			if int(from_node.get("span", -1)) == int(to_node.get("span", -2)):
+				(forward_graph[from_index] as Array).append(to_index)
+				(reverse_graph[to_index] as Array).append(from_index)
+				continue
+			var to_position: Vector2i = to_node.get("pos", Vector2i.ZERO) as Vector2i
+			if not _recovery_nodes_may_connect(from_position, to_position, mobility):
+				continue
+			if ChapterTraversalValidator._can_traverse_between(grid, level_size_tiles, from_position, to_position, mobility):
+				(forward_graph[from_index] as Array).append(to_index)
+				(reverse_graph[to_index] as Array).append(from_index)
+
+	var spawn: Vector2i = active_level.get("spawn", Vector2i(2, 2)) as Vector2i
+	var exit: Vector2i = active_level.get("exit", Vector2i(level_size_tiles.x - 3, 2)) as Vector2i
+	var spawn_index := _nearest_recovery_node(nodes, spawn)
+	var exit_index := _nearest_recovery_node(nodes, exit)
+	if spawn_index < 0 or exit_index < 0:
+		return []
+	var reachable_from_spawn := _flood_recovery_graph(forward_graph, spawn_index)
+	var returnable_to_exit := _flood_recovery_graph(reverse_graph, exit_index)
 	var targets: Array[Vector2i] = []
-	var checked_spans: Dictionary = {}
+	for node_index: int in range(nodes.size()):
+		if not reachable_from_spawn.has(node_index) or returnable_to_exit.has(node_index):
+			continue
+		var node: Dictionary = nodes[node_index] as Dictionary
+		if _is_recovery_risk_surface(grid, node, mobility):
+			targets.append(node.get("pos", Vector2i.ZERO) as Vector2i)
+	return targets
+
+
+func _recovery_mobility_profile() -> Dictionary:
+	var mobility: Dictionary = (active_level.get("mobility_profile", {}) as Dictionary).duplicate(true)
+	# Placement must be reliable for a human player, including imperfect timing.
+	# These values are intentionally stricter than the maximum simulated arc.
+	mobility["max_jump_up_tiles"] = maxi(1, int(mobility.get("max_jump_up_tiles", 4)) - 1)
+	mobility["wall_jump_up_tiles"] = maxi(1, int(mobility.get("wall_jump_up_tiles", 4)) - 1)
+	mobility["main_gap_tiles"] = maxi(2, int(mobility.get("main_gap_tiles", 5)) - 1)
+	mobility["wall_jump_gap_tiles"] = maxi(2, int(mobility.get("wall_jump_gap_tiles", 5)) - 1)
+	mobility["safe_drop_tiles"] = maxi(3, int(mobility.get("safe_drop_tiles", 7)) - 1)
+	return mobility
+
+
+func _build_recovery_surface_nodes(grid: Array) -> Array:
+	var nodes: Array = []
+	var seen: Dictionary = {}
+	var span_id := 0
 	for grid_y: int in range(2, level_size_tiles.y - 2):
 		var grid_x := 2
 		while grid_x < level_size_tiles.x - 2:
@@ -2793,24 +2859,73 @@ func _find_local_recovery_targets(grid: Array) -> Array[Vector2i]:
 			while grid_x + 1 < level_size_tiles.x - 2 and _is_recovery_surface(grid, grid_x + 1, grid_y):
 				grid_x += 1
 			var span_end := grid_x
-			var target := Vector2i(int(round((float(span_start) + float(span_end)) * 0.5)), grid_y)
-			var span_key := "%d:%d:%d" % [span_start, span_end, grid_y]
+			var samples: Array = [span_start, int(round((float(span_start) + float(span_end)) * 0.5)), span_end]
+			for sample_x_variant: Variant in samples:
+				var sample_x: int = int(sample_x_variant)
+				var key := "%d:%d" % [sample_x, grid_y]
+				if seen.has(key):
+					continue
+				seen[key] = true
+				nodes.append({"pos": Vector2i(sample_x, grid_y), "span": span_id, "left": span_start, "right": span_end})
+			span_id += 1
 			grid_x += 1
-			if checked_spans.has(span_key):
-				continue
-			checked_spans[span_key] = true
+	return nodes
 
-			var left_drop := _surface_side_drop(grid, span_start - 1, grid_y)
-			var right_drop := _surface_side_drop(grid, span_end + 1, grid_y)
-			# A single deep drop or a ledge with meaningful drops on both sides is
-			# a place where a missed return path is harmful. Flat floor runs and
-			# ordinary little steps never enter this recovery pass.
-			if maxi(left_drop, right_drop) < readable_drop and mini(left_drop, right_drop) < 3:
+
+func _recovery_nodes_may_connect(from_position: Vector2i, to_position: Vector2i, mobility: Dictionary) -> bool:
+	var horizontal_limit := maxi(int(mobility.get("main_gap_tiles", 5)), int(mobility.get("wall_jump_gap_tiles", 5))) + 2
+	var vertical_limit := maxi(int(mobility.get("safe_drop_tiles", 7)) + 2, int(mobility.get("wall_jump_up_tiles", 4)) + 2)
+	return abs(from_position.x - to_position.x) <= horizontal_limit and abs(from_position.y - to_position.y) <= vertical_limit
+
+
+func _nearest_recovery_node(nodes: Array, target: Vector2i) -> int:
+	var best_index := -1
+	var best_distance := INF
+	for node_index: int in range(nodes.size()):
+		var position: Vector2i = (nodes[node_index] as Dictionary).get("pos", Vector2i.ZERO) as Vector2i
+		var distance: int = abs(position.x - target.x) + abs(position.y - target.y) * 2
+		if distance < best_distance:
+			best_distance = distance
+			best_index = node_index
+	return best_index
+
+
+func _flood_recovery_graph(graph: Array, start_index: int) -> Dictionary:
+	var visited: Dictionary = {start_index: true}
+	var queue: Array[int] = [start_index]
+	while not queue.is_empty():
+		var current: int = queue.pop_front()
+		for next_variant: Variant in graph[current] as Array:
+			var next_index: int = int(next_variant)
+			if visited.has(next_index):
 				continue
-			if _has_local_upward_escape(grid, target, mobility):
-				continue
-			targets.append(target)
-	return targets
+			visited[next_index] = true
+			queue.append(next_index)
+	return visited
+
+
+func _is_recovery_risk_surface(grid: Array, node: Dictionary, mobility: Dictionary) -> bool:
+	var surface_y := (node.get("pos", Vector2i.ZERO) as Vector2i).y
+	var span_start := int(node.get("left", 0))
+	var span_end := int(node.get("right", 0))
+	var left_drop := _surface_side_drop(grid, span_start - 1, surface_y)
+	var right_drop := _surface_side_drop(grid, span_end + 1, surface_y)
+	var left_wall := _surface_side_wall_height(grid, span_start - 1, surface_y)
+	var right_wall := _surface_side_wall_height(grid, span_end + 1, surface_y)
+	var deep_drop := maxi(left_drop, right_drop) >= int(mobility.get("readable_drop_tiles", 5))
+	var enclosed := maxi(left_wall, right_wall) > int(mobility.get("max_jump_up_tiles", 4))
+	return deep_drop or enclosed
+
+
+func _surface_side_wall_height(grid: Array, grid_x: int, surface_y: int) -> int:
+	if grid_x < 1 or grid_x >= level_size_tiles.x - 1:
+		return 0
+	var height := 0
+	for grid_y: int in range(surface_y - 1, maxi(0, surface_y - 15) - 1, -1):
+		if not _is_solid(grid, grid_x, grid_y):
+			break
+		height += 1
+	return height
 
 
 func _is_recovery_surface(grid: Array, grid_x: int, grid_y: int) -> bool:
@@ -2828,51 +2943,122 @@ func _surface_side_drop(grid: Array, grid_x: int, surface_y: int) -> int:
 	return below_y - surface_y
 
 
-func _has_local_upward_escape(grid: Array, target: Vector2i, mobility: Dictionary) -> bool:
-	# Ask the authoritative trajectory simulation rather than guessing from
-	# tile distances.  A wall-slide, a ceiling collision, and the actual slime
-	# body dimensions are all accounted for by the existing validator.
-	const SEARCH_WIDTH := 15
-	const SEARCH_HEIGHT := 16
-	for candidate_y: int in range(maxi(2, target.y - SEARCH_HEIGHT), target.y):
-		for candidate_x: int in range(maxi(2, target.x - SEARCH_WIDTH), mini(level_size_tiles.x - 2, target.x + SEARCH_WIDTH + 1)):
-			var candidate := Vector2i(candidate_x, candidate_y)
-			if not _is_recovery_surface(grid, candidate.x, candidate.y):
-				continue
-			if ChapterTraversalValidator._can_traverse_between(grid, level_size_tiles, target, candidate, mobility):
-				return true
-	return false
-
-
 func _find_recovery_vine_candidate(grid: Array, target: Vector2i) -> Dictionary:
 	# The target is a *solid* floor tile sampled by ChapterTraversalValidator.
 	# Search only around that landing, so a rope is usable from the bad pocket
 	# itself rather than appearing somewhere else in the same cavern.
 	var best: Dictionary = {}
 	var best_score := INF
-	var horizontal_search := 8
-	var highest_ceiling := maxi(2, target.y - 30)
+	var horizontal_search := 14
+	# A recovery shaft can span almost the complete generated level height. Do
+	# not cap the anchor search to an arbitrary visual distance: a real ceiling
+	# at the top of that shaft is precisely the anchor this object is for.
+	var highest_ceiling := 2
 	var lowest_ceiling := target.y - CLIMB_VINE_MIN_DROP_TILES - 1
 	for grid_x: int in range(maxi(2, target.x - horizontal_search), mini(level_size_tiles.x - 2, target.x + horizontal_search + 1)):
 		for ceiling_y: int in range(highest_ceiling, lowest_ceiling + 1):
 			if not _is_vine_anchor(grid, grid_x, ceiling_y):
 				continue
 			var floor_y := _find_climb_vine_floor(grid, grid_x, ceiling_y)
-			# The vine must land on the trapped floor (or its immediate ledge),
-			# otherwise it is decoration the player cannot reach after falling.
-			if abs(floor_y - target.y) > 2:
+			# It may hang beside the target ledge, but nothing may block its path
+			# before that ledge. This lets a vine rescue narrow pits that have no
+			# ceiling exactly above their floor.
+			var grab_height_budget := int((active_level.get("mobility_profile", {}) as Dictionary).get("max_jump_up_tiles", 4))
+			# A small shelf above a pocket may end the rope early, as long as
+			# Joey can still jump to its lower section.  Reject only geometry
+			# farther above the actual, conservative grab height.
+			if floor_y < target.y - grab_height_budget:
 				continue
-			var open_drop_tiles := floor_y - ceiling_y - 1
-			if open_drop_tiles < CLIMB_VINE_MIN_DROP_TILES:
+			var end_y := mini(floor_y, target.y) - CLIMB_VINE_FLOOR_CLEARANCE_TILES
+			var open_drop_tiles := end_y - ceiling_y
+			if open_drop_tiles < CLIMB_VINE_MIN_DROP_TILES - CLIMB_VINE_FLOOR_CLEARANCE_TILES:
 				continue
-			if not _has_climb_vine_clearance(grid, grid_x, ceiling_y, floor_y):
+			# A recovery shaft can be one tile wider than the rope. Keep the
+			# preferred shoulder clearance where possible, but allow the narrow
+			# center column when a side wall is exactly what trapped the player.
+			if not _has_climb_vine_clearance(grid, grid_x, ceiling_y, end_y) and not _has_wall_vine_clearance(grid, grid_x, 0, ceiling_y, end_y):
 				continue
 			var target_distance: int = abs(grid_x - target.x)
 			var score := float(target_distance) * 8.0 - float(open_drop_tiles) * 0.15
 			if score < best_score:
 				best_score = score
-				best = {"x": grid_x, "ceiling_y": ceiling_y, "floor_y": floor_y, "depth": open_drop_tiles, "target_distance": target_distance}
+				best = {"x": grid_x, "ceiling_y": ceiling_y, "end_y": end_y, "depth": open_drop_tiles, "target_distance": target_distance}
+	if not best.is_empty():
+		return best
+	# Some organic network shafts have two tall side walls but no horizontal
+	# tile ceiling. In that case attach the rescue vine to the nearest exposed
+	# wall face instead of giving up and leaving an actual dead end unassisted.
+	best = _find_wall_recovery_vine_candidate(grid, target)
+	if not best.is_empty():
+		return best
+	# Last, intentional safety net: network caves can open all the way into the
+	# dark canopy, leaving no collision ceiling or wall face inside the playable
+	# window. A confirmed dead end still needs a route out. Calculate a fully
+	# clear vertical column and hang a canopy vine from the upper cave darkness;
+	# it is never used for an ordinary, already-returnable surface.
+	return _find_canopy_recovery_vine_candidate(grid, target)
+
+
+func _find_wall_recovery_vine_candidate(grid: Array, target: Vector2i) -> Dictionary:
+	var best: Dictionary = {}
+	var best_score := INF
+	var grab_height_budget := int((active_level.get("mobility_profile", {}) as Dictionary).get("max_jump_up_tiles", 4))
+	for wall_x: int in range(maxi(2, target.x - 14), mini(level_size_tiles.x - 2, target.x + 15)):
+		for anchor_y: int in range(2, target.y - CLIMB_VINE_MIN_DROP_TILES):
+			if not _is_solid(grid, wall_x, anchor_y):
+				continue
+			for side: int in [-1, 1]:
+				var rope_x := wall_x + side
+				if rope_x < 2 or rope_x >= level_size_tiles.x - 2:
+					continue
+				# The rope hangs from an exposed wall face. Keep one additional
+				# open shoulder on its free side so Joey has room to grab it.
+				if _is_solid(grid, rope_x, anchor_y) or _is_solid(grid, rope_x + side, anchor_y):
+					continue
+				var floor_y := _find_climb_vine_floor(grid, rope_x, anchor_y)
+				if floor_y < target.y - grab_height_budget:
+					continue
+				var end_y := mini(floor_y, target.y) - CLIMB_VINE_FLOOR_CLEARANCE_TILES
+				var depth := end_y - anchor_y
+				if depth < CLIMB_VINE_MIN_DROP_TILES - CLIMB_VINE_FLOOR_CLEARANCE_TILES:
+					continue
+				if not _has_wall_vine_clearance(grid, rope_x, side, anchor_y, end_y):
+					continue
+				var target_distance: int = abs(rope_x - target.x)
+				var score := float(target_distance) * 8.0 - float(depth) * 0.15
+				if score < best_score:
+					best_score = score
+					best = {"x": rope_x, "ceiling_y": anchor_y, "end_y": end_y, "depth": depth, "target_distance": target_distance}
 	return best
+
+
+func _has_wall_vine_clearance(grid: Array, rope_x: int, open_side: int, anchor_y: int, end_y: int) -> bool:
+	for grid_y: int in range(anchor_y + 1, end_y):
+		if _is_solid(grid, rope_x, grid_y) or _is_solid(grid, rope_x + open_side, grid_y):
+			return false
+	return true
+
+
+func _find_canopy_recovery_vine_candidate(grid: Array, target: Vector2i) -> Dictionary:
+	var best: Dictionary = {}
+	var best_score := INF
+	var end_y := target.y - CLIMB_VINE_FLOOR_CLEARANCE_TILES
+	for rope_x: int in range(maxi(2, target.x - 7), mini(level_size_tiles.x - 2, target.x + 8)):
+		# Prefer the highest clear origin. It reads as a vine descending from the
+		# unseen canopy rather than as a rope beginning halfway down a shaft.
+		for anchor_y: int in range(2, end_y - (CLIMB_VINE_MIN_DROP_TILES - CLIMB_VINE_FLOOR_CLEARANCE_TILES) + 1):
+			if not _has_wall_vine_clearance(grid, rope_x, 0, anchor_y, end_y):
+				continue
+			var depth := end_y - anchor_y
+			var target_distance: int = abs(rope_x - target.x)
+			var score := float(target_distance) * 8.0 + float(anchor_y) * 0.03
+			if score < best_score:
+				best_score = score
+				best = {"x": rope_x, "ceiling_y": anchor_y, "end_y": end_y, "depth": depth, "target_distance": target_distance}
+			break
+	return best
+
+
 
 
 func _find_climb_vine_floor(grid: Array, grid_x: int, ceiling_y: int) -> int:
