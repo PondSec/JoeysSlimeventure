@@ -356,6 +356,7 @@ func apply_knockback():
 
 func die():
 	is_dead = true
+	CombatEvents.report_enemy_defeated(self)
 	animation_player.play("death")
 	velocity = Vector2.ZERO
 	await animation_player.animation_finished

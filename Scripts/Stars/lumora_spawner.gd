@@ -34,7 +34,7 @@ func _has_permanent_lumora() -> bool:
 			return true
 	
 	# Prüfe ob Save-Datei existiert
-	var save_path = "user://lumora_save_data.save"
+	var save_path = SaveService.path_for("lumora_runtime")
 	if FileAccess.file_exists(save_path):
 		print("📁 Lumora Save-Datei existiert - sollte gespawnt werden")
 		# Hier könnten wir die Lumora manuell spawnen

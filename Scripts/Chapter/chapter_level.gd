@@ -256,6 +256,11 @@ func _ready() -> void:
 	_configure_runtime_view()
 	await get_tree().process_frame
 	_position_player_at_spawn()
+	# This scene is only entered after ChapterProgress has selected a playable
+	# chapter level. Chapter I / Level 1 is the first real cave entry, not a menu
+	# or biome preview, so it is the authoritative Into the Depths trigger.
+	if int(active_level.get("chapter_index", 0)) == 1 and int(active_level.get("level_index", -1)) == 0:
+		SteamManager.unlock("ACH_INTO_THE_DEPTHS")
 	_grant_level_one_mobility()
 	_show_level_intro()
 

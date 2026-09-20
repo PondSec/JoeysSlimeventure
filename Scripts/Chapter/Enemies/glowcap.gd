@@ -268,6 +268,7 @@ func _die() -> void:
 	if is_dead:
 		return
 	is_dead = true
+	CombatEvents.report_enemy_defeated(self)
 	state = State.DEAD
 	state_time = 0.0
 	emit_signal("defeated")

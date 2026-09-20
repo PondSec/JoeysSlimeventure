@@ -22,6 +22,9 @@ Desktop.ini
 __pycache__/
 *.py[cod]
 
+# Steam development bootstrap; never ship this through a release depot.
+steam_appid.txt
+
 # Local recovery and agent scratch directories.
 .backups/
 _backups/

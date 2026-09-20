@@ -232,6 +232,7 @@ func _die() -> void:
 	if is_dead:
 		return
 	is_dead = true
+	CombatEvents.report_enemy_defeated(self)
 	state = State.DEAD
 	set_collision_layer_value(3, false)
 	set_collision_mask_value(1, false)

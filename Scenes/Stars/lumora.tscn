@@ -61,12 +61,12 @@ var catch_progress_bar: ProgressBar
 @export var base_damage := 15.0
 @export var damage_interval := 1.0
 @export var attack_radius := 150.0
-@export var skill_save_path: String = \"user://lumora_skill_data.save\"
+@export var skill_save_path: String = \"user://saves/lumora_skill_data.save\"
 
 # --------------------
 # PERSISTENT SAVE SYSTEM
 # --------------------
-@export var save_path: String = \"user://lumora_save_data.save\"
+@export var save_path: String = \"user://saves/lumora_runtime_equipped.save\"
 var is_permanent: bool = false
 
 # --------------------
@@ -811,46 +811,27 @@ func _show_buff_label(text: String, color: Color = Color(1,1,1), scale: float = 
 	)
 
 func _load_permanent_state():
-	if FileAccess.file_exists(save_path):
-		var file = FileAccess.open(save_path, FileAccess.READ)
-		if file:
-			is_permanent = file.get_var()
-			file.close()
-			print(\"📁 Lumora Save-Datei gefunden - is_permanent: \", is_permanent)
+	is_permanent = bool(SaveService.read_variant(save_path, false))
+	if is_permanent:
+		print(\"📁 Lumora Save-Datei gefunden - is_permanent: \", is_permanent)
 
 func _save_permanent_state():
-	var file = FileAccess.open(save_path, FileAccess.WRITE)
-	if file:
-		file.store_var(is_permanent)
-		file.close()
+	if SaveService.write_variant(save_path, is_permanent):
 		print(\"💾 Lumora permanent gespeichert: \", is_permanent)
 
 func _autosave_skill_data() -> void:
 	if not is_caught:  # 🔥 NEU: Nur wenn gefangen
 		return
 		
-	var err = OK
-	var file = FileAccess.open(skill_save_path, FileAccess.ModeFlags.WRITE)
-	if file:
-		file.store_var(current_skill_points)
-		file.store_var(can_attack)
-		file.store_var(damage_multiplier)
-		file.close()
-	else:
+	if not SaveService.write_variant(skill_save_path, [current_skill_points, can_attack, damage_multiplier]):
 		push_warning(\"Lumora: konnte Skill-Daten nicht speichern: \" + str(skill_save_path))
 
 func _load_skill_data() -> void:
-	if FileAccess.file_exists(skill_save_path):
-		var file = FileAccess.open(skill_save_path, FileAccess.ModeFlags.READ)
-		if file:
-			current_skill_points = float(file.get_var())
-			can_attack = bool(file.get_var())
-			damage_multiplier = float(file.get_var())
-			file.close()
-		else:
-			current_skill_points = 0.0
-			can_attack = false
-			damage_multiplier = 1.0
+	var data = SaveService.read_variant(skill_save_path, [])
+	if data is Array and data.size() >= 3:
+		current_skill_points = float(data[0])
+		can_attack = bool(data[1])
+		damage_multiplier = float(data[2])
 	else:
 		current_skill_points = 0.0
 		can_attack = false

@@ -752,40 +752,20 @@ func save_skills():
 			\"unlocked\": skills[skill_name].unlocked
 		}
 	
-	var save_game = FileAccess.open(\"user://skills.save\", FileAccess.WRITE)
-	if save_game:
-		save_game.store_string(JSON.stringify(save_data))
-		save_game.close()
+	SaveService.write_json(SaveService.path_for(\"skill_tree\"), save_data)
 
 func load_skills():
-	if not FileAccess.file_exists(\"user://skills.save\"):
-		return
-	
-	var save_game = FileAccess.open(\"user://skills.save\", FileAccess.READ)
-	if save_game:
-		var json_data = save_game.get_as_text()
-		save_game.close()
-		
-		var save_data = JSON.parse_string(json_data)
-		if save_data:
-			for skill_name in save_data:
-				if skills.has(skill_name):
-					skills[skill_name].unlocked = save_data[skill_name].unlocked
+	var save_data = SaveService.read_json(SaveService.path_for(\"skill_tree\"), {})
+	if save_data is Dictionary:
+		for skill_name in save_data:
+			if skills.has(skill_name) and save_data[skill_name] is Dictionary:
+				skills[skill_name].unlocked = bool(save_data[skill_name].get(\"unlocked\", false))
 	
 	queue_redraw()
 
 func load_completed_levels() -> Array:
-	if not FileAccess.file_exists(\"user://completed_levels.save\"):
-		return []
-	
-	var file = FileAccess.open(\"user://completed_levels.save\", FileAccess.READ)
-	var data = JSON.parse_string(file.get_as_text())
-	file.close()
-	
-	if data is Array:
-		return data
-	
-	return []
+	var data = SaveService.read_json(SaveService.path_for(\"completed_levels\"), [])
+	return data if data is Array else []
 
 # Debug-Funktionen
 func debug_unlock_skill(skill_name: String):
@@ -799,8 +779,9 @@ func debug_reset_skills():
 	for skill_name in skills:
 		skills[skill_name].unlocked = false
 	
-	if FileAccess.file_exists(\"user://skills.save\"):
-		DirAccess.remove_absolute(\"user://skills.save\")
+	var save_path = SaveService.path_for(\"skill_tree\")
+	if FileAccess.file_exists(save_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(save_path))
 	
 	queue_redraw()
 "

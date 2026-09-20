@@ -2554,6 +2554,7 @@ func charge():
 					var is_crit = randf() < base_crit_chance
 					var final_damage = explosion_damage * (crit_damage_multiplier if is_crit else 1.0)
 					if enemy.has_method("take_damage"):
+						CombatEvents.mark_player_damage(enemy)
 						# Damage APIs treat this as a direction. Passing an arbitrary
 						# force here made legacy enemies multiply it again and tunnel
 						# through nearby walls.
@@ -2607,17 +2608,17 @@ func save_charge_cooldown():
 		"saved_at": Time.get_ticks_msec() / 1000.0  # Aktuelle Zeit in Sekunden
 	}
 	
-	var file = FileAccess.open("user://charge_cooldown.dat", FileAccess.WRITE)
-	file.store_var(save_data)
-	file.close()	
+	SaveService.write_variant("user://saves/charge_cooldown.dat", save_data)
 
 func load_charge_cooldown():
-	if not FileAccess.file_exists("user://charge_cooldown.dat"):
+	if not FileAccess.file_exists("user://saves/charge_cooldown.dat"):
 		last_charge_time = -300.0  # Cooldown abgelaufen
 		return
 	
-	var file = FileAccess.open("user://charge_cooldown.dat", FileAccess.READ)
-	var save_data = file.get_var()
+	var save_data: Variant = SaveService.read_variant("user://saves/charge_cooldown.dat", {})
+	if not (save_data is Dictionary) or not save_data.has("saved_at") or not save_data.has("last_charge_time"):
+		last_charge_time = -300.0
+		return
 	
 	# Berechne wie viel Zeit seit dem Speichern vergangen ist
 	var time_since_save = Time.get_ticks_msec() / 1000.0 - save_data["saved_at"]
@@ -2631,7 +2632,6 @@ func load_charge_cooldown():
 		# Cooldown korrekt berechnet wird
 		last_charge_time = save_data["last_charge_time"] + time_since_save
 	
-	file.close()
 
 func clear_cooldown():
 	last_charge_time = -300.0
@@ -3488,6 +3488,7 @@ func _apply_damage_to_enemy(target: Node, damage_amount: int, knockback_directio
 	var dodge_value: Variant = target.get("is_dodging")
 	if dodge_value is bool and dodge_value:
 		return false
+	CombatEvents.mark_player_damage(target)
 
 	var take_damage_arg_count := 0
 	var health_before := _get_target_combat_health(target)
@@ -3969,10 +3970,9 @@ func die() -> void:
 		drop_inventory_items()
 	save_game()
 	# Spieler unsichtbar machen
-	var save_file = FileAccess.open("user://inventory.save", FileAccess.WRITE)
-	if FileAccess.file_exists("user://inventory.save"):
-		DirAccess.remove_absolute("user://inventory.save")
-		DirAccess.remove_absolute("user://charge_cooldown.dat")
+	if FileAccess.file_exists("user://saves/inventory.save"):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path("user://saves/inventory.save"))
+		DirAccess.remove_absolute(ProjectSettings.globalize_path("user://saves/charge_cooldown.dat"))
 		print("❌ Inventory-Datei gelöscht – Items werden nicht erneut geladen!")
 	
 	self.visible = false  
@@ -4053,8 +4053,6 @@ func drop_inventory_items() -> void:
 
 
 func save_dropped_items():
-	var save_file = FileAccess.open("user://dropped_items.save", FileAccess.WRITE)
-	
 	var formatted_data = []
 	for item in dropped_items:
 		formatted_data.append({
@@ -4062,21 +4060,16 @@ func save_dropped_items():
 			"position": [item["position"].x, item["position"].y]  # Speichern als Array
 		})
 	
-	save_file.store_string(JSON.stringify(formatted_data))
-	save_file.close()
+	SaveService.write_json("user://saves/dropped_items.json", formatted_data)
 
 func load_dropped_items():
 	print("Lade gespeicherte Items...")  # Debugging
 
-	if not FileAccess.file_exists("user://dropped_items.save"):
+	if not FileAccess.file_exists("user://saves/dropped_items.json"):
 		print("Keine gespeicherte Datei gefunden!")
 		return
 
-	var save_file = FileAccess.open("user://dropped_items.save", FileAccess.READ)
-	var json_data = save_file.get_as_text()
-	save_file.close()
-
-	var parsed_data = JSON.parse_string(json_data)
+	var parsed_data: Variant = SaveService.read_json("user://saves/dropped_items.json", [])
 	if parsed_data is Array:
 		for item_data in parsed_data:
 			var dropped_item = _create_world_pickup(String(item_data["name"]))
@@ -4096,8 +4089,8 @@ func load_dropped_items():
 			await get_tree().create_timer(0.02).timeout
 
 	# ✅ Nach dem Laden die Speicherdatei löschen, damit Items nicht erneut gespawnt werden
-	if FileAccess.file_exists("user://dropped_items.save"):
-		DirAccess.remove_absolute("user://dropped_items.save")
+	if FileAccess.file_exists("user://saves/dropped_items.json"):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path("user://saves/dropped_items.json"))
 		print("❌ Drop-Datei gelöscht – Items werden nicht erneut geladen!")
 
 
@@ -5263,8 +5256,8 @@ func check_level_completion():
 	print("Abgeschlossene Level: ", completed_levels)
 
 func load_completed_levels() -> Array:
-	if FileAccess.file_exists("user://completed_levels.save"):
-		var file = FileAccess.open("user://completed_levels.save", FileAccess.READ)
+	if FileAccess.file_exists("user://saves/completed_levels.json"):
+		var file = FileAccess.open("user://saves/completed_levels.json", FileAccess.READ)
 		var data = JSON.parse_string(file.get_as_text())
 		file.close()
 		if data is Array:
@@ -5290,9 +5283,7 @@ func save_skills():
 		"player_level": player_level
 	}
 	
-	var file = FileAccess.open("user://player_skills.save", FileAccess.WRITE)
-	file.store_var(save_data)
-	file.close()
+	SaveService.write_variant("user://saves/player_skills.save", save_data)
 
 func _load_legacy_skill_unlocks() -> Dictionary:
 	var legacy_unlocks := {}
@@ -5320,7 +5311,7 @@ func load_skills():
 	var legacy_unlocks := _load_legacy_skill_unlocks()
 	var should_resave := false
 
-	if not FileAccess.file_exists("user://player_skills.save"):
+	if not FileAccess.file_exists("user://saves/player_skills.save"):
 		var legacy_glow := bool(legacy_unlocks.get("glow", has_glow_skill))
 		if legacy_glow != has_glow_skill:
 			has_glow_skill = legacy_glow
@@ -5338,9 +5329,10 @@ func load_skills():
 		_refresh_player_tuning_from_skills()
 		return
 	
-	var file = FileAccess.open("user://player_skills.save", FileAccess.READ)
-	var save_data = file.get_var()
-	file.close()
+	var save_data: Variant = SaveService.read_variant("user://saves/player_skills.save", {})
+	if not (save_data is Dictionary):
+		push_warning("[Save] Ungueltige Skill-Datei; Standardwerte werden verwendet.")
+		return
 	
 	has_glow_skill = save_data.get("has_glow_skill", false)
 	has_wall_slide_skill = save_data.get("has_wall_slide_skill", false)

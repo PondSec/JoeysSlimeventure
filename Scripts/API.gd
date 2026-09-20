@@ -8,7 +8,7 @@ var url = "https://api.joeyslime.com/items"
 @onready var player: CharacterBody2D  # Referenz auf den Spieler (ändere dies je nach Struktur)
 
 # Definiere PLAYER_ID_PATH hier
-const PLAYER_ID_PATH = "user://player_id.save"
+const PLAYER_ID_PATH = "user://saves/player_id.txt"
 
 func _ready() -> void:
 	# Hole den ersten Spieler aus der Gruppe "players"

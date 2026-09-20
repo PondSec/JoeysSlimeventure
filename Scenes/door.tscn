@@ -45,18 +45,11 @@ func mark_level_completed(level_name: String):
 			skill_tree.queue_redraw()
 
 func load_completed_levels() -> Array:
-	if FileAccess.file_exists(\"user://completed_levels.save\"):
-		var file = FileAccess.open(\"user://completed_levels.save\", FileAccess.READ)
-		var data = JSON.parse_string(file.get_as_text())
-		file.close()
-		if data is Array:
-			return data
-	return []
+	var data = SaveService.read_json(SaveService.path_for(\"completed_levels\"), [])
+	return data if data is Array else []
 
 func save_completed_levels(levels: Array):
-	var file = FileAccess.open(\"user://completed_levels.save\", FileAccess.WRITE)
-	file.store_string(JSON.stringify(levels))
-	file.close()
+	SaveService.write_json(SaveService.path_for(\"completed_levels\"), levels)
 "
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_hvas2"]

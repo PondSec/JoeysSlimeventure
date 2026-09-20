@@ -1,6 +1,6 @@
 extends Node
 
-const SAVE_PATH = "user://savegame.tres"
+const SAVE_PATH = "user://saves/player_state.tres"
 
 # ---------------------------------------------------
 # 💾 Spielstand speichern
@@ -23,7 +23,7 @@ func save_game(player = null, bats: Array = []):
 		save_data.fall_distance = player.fall_distance
 
 	# 🛠 Spielstand speichern
-	var error = ResourceSaver.save(save_data, SAVE_PATH)
+	var error = SaveService.save_resource(SAVE_PATH, save_data)
 	if error == OK:
 		print("✅ Spiel erfolgreich gespeichert!")
 	else:

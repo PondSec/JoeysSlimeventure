@@ -462,6 +462,7 @@ func _on_body_hitbox_body_entered(body: Node2D) -> void:
 
 func _begin_death() -> void:
 	state = State.DEATH
+	CombatEvents.report_enemy_defeated(self)
 	velocity = Vector2.ZERO
 	body_collision.set_deferred("disabled", true)
 	body_hitbox.monitoring = false

@@ -43,7 +43,7 @@ script/source = "extends CharacterBody2D
 @export var light_node_path: NodePath = \"Glow\"
 
 # VORTEX SKILL SYSTEM (NUR SLOW, KEIN DAMAGE)
-@export var skill_save_path: String = \"user://vortex_skill_data.save\"
+@export var skill_save_path: String = \"user://saves/vortex_skill_data.save\"
 
 # --------------------
 # INTERN
@@ -622,21 +622,14 @@ func add_skill_points_from_player_damage(player_damage: float) -> void:
 	slow_multiplier = max(0.3, 0.6 - (level_bonus * 0.02))  # Slow wird stärker (niedrigere Zahl = stärkerer Slow)
 
 func _autosave_skill_data() -> void:
-	var file = FileAccess.open(skill_save_path, FileAccess.ModeFlags.WRITE)
-	if file:
-		file.store_var(current_skill_points)
-		file.store_var(can_slow)
-		file.store_var(slow_multiplier)
-		file.close()
+	SaveService.write_variant(skill_save_path, [current_skill_points, can_slow, slow_multiplier])
 
 func _load_skill_data() -> void:
-	if FileAccess.file_exists(skill_save_path):
-		var file = FileAccess.open(skill_save_path, FileAccess.ModeFlags.READ)
-		if file:
-			current_skill_points = float(file.get_var())
-			can_slow = bool(file.get_var())
-			slow_multiplier = float(file.get_var()) if file.get_position() < file.get_length() else 1.0
-			file.close()
+	var data = SaveService.read_variant(skill_save_path, [])
+	if data is Array and data.size() >= 2:
+		current_skill_points = float(data[0])
+		can_slow = bool(data[1])
+		slow_multiplier = float(data[2]) if data.size() >= 3 else 1.0
 	else:
 		current_skill_points = 0.0
 		can_slow = false

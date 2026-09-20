@@ -405,7 +405,7 @@ func _on_canvas_layer_go_to_main_menu() -> void:
 
 
 func ensure_permanent_lumora() -> void:
-	var save_path := "user://lumora_save_data.save"
+	var save_path := SaveService.path_for("lumora_runtime")
 	if not FileAccess.file_exists(save_path):
 		return
 

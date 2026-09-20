@@ -5,8 +5,8 @@ const ChapterContent := preload("res://Scripts/Chapter/chapter_content.gd")
 signal chapter_unlocked(chapter_index: int)
 signal chapter_completed(chapter_index: int)
 
-const SAVE_PATH := "user://chapter_progress.json"
-const PLAYER_ID_PATH := "user://player_id.save"
+const SAVE_PATH := "user://saves/chapter_progress.json"
+const PLAYER_ID_PATH := "user://saves/player_id.txt"
 const HUB_SCENE := "res://Scenes/Game.tscn"
 const CHAPTER_LEVEL_SCENE := "res://Scenes/Chapter/chapter_level.tscn"
 const CHAPTER_TWO_PREVIEW_SCENE := "res://Scenes/Chapter/chapter_two_preview.tscn"
@@ -40,12 +40,7 @@ func load_progress() -> void:
 		save_progress()
 		return
 
-	var file: FileAccess = FileAccess.open(SAVE_PATH, FileAccess.READ)
-	if file == null:
-		save_progress()
-		return
-
-	var parsed: Variant = JSON.parse_string(file.get_as_text())
+	var parsed: Variant = SaveService.read_json(SAVE_PATH, null)
 	if parsed is not Dictionary:
 		save_progress()
 		return
@@ -89,11 +84,8 @@ func save_progress() -> void:
 		"pending_hub_toast": pending_hub_toast
 	}
 
-	var file: FileAccess = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
-	if file == null:
+	if not SaveService.write_json(SAVE_PATH, payload):
 		push_warning("Kapitelstand konnte nicht gespeichert werden.")
-		return
-	file.store_string(JSON.stringify(payload, "\t"))
 
 
 func reset_progress() -> void:
@@ -274,8 +266,9 @@ func register_completion_marker(marker: String) -> void:
 		return
 
 	var completed_levels: Array[String] = []
-	if FileAccess.file_exists("user://completed_levels.save"):
-		var file: FileAccess = FileAccess.open("user://completed_levels.save", FileAccess.READ)
+	var completed_levels_path := SaveService.path_for("completed_levels")
+	if FileAccess.file_exists(completed_levels_path):
+		var file: FileAccess = FileAccess.open(completed_levels_path, FileAccess.READ)
 		if file:
 			var parsed: Variant = JSON.parse_string(file.get_as_text())
 			completed_levels = _variant_to_string_array(parsed)
@@ -283,9 +276,7 @@ func register_completion_marker(marker: String) -> void:
 	if not completed_levels.has(marker):
 		completed_levels.append(marker)
 
-	var writer: FileAccess = FileAccess.open("user://completed_levels.save", FileAccess.WRITE)
-	if writer:
-		writer.store_string(JSON.stringify(completed_levels))
+	SaveService.write_json(completed_levels_path, completed_levels)
 
 
 func has_reward(reward_key: String) -> bool:
@@ -358,7 +349,7 @@ func _get_chapter_scene_path(chapter_index: int) -> String:
 func _sync_resume_scene(scene_path: String) -> void:
 	var level_resource := LevelResource.new()
 	level_resource.unlocked_level = scene_path
-	var save_error: int = ResourceSaver.save(level_resource, "user://current_level.res")
+	var save_error: int = SaveService.save_resource(SaveService.path_for("resume"), level_resource)
 	if save_error != OK:
 		push_warning("Konnte Resume-Szene nicht speichern: %s" % scene_path)
 
@@ -399,9 +390,7 @@ func _player_uuid() -> String:
 	var uuid_rng := RandomNumberGenerator.new()
 	uuid_rng.seed = Time.get_ticks_usec() ^ int(Time.get_unix_time_from_system())
 	var generated := "%08x-%08x-%08x-%08x" % [uuid_rng.randi(), uuid_rng.randi(), uuid_rng.randi(), uuid_rng.randi()]
-	var writer := FileAccess.open(PLAYER_ID_PATH, FileAccess.WRITE)
-	if writer != null:
-		writer.store_line(generated)
+	SaveService.write_text(PLAYER_ID_PATH, generated + "\n")
 	return generated
 
 

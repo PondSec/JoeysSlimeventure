@@ -197,6 +197,7 @@ func apply_stun(duration: float) -> void:
 
 func die():
 	is_dead = true
+	CombatEvents.report_enemy_defeated(self)
 	animation_player.play("death")
 	velocity = Vector2.ZERO
 	# Warte, bis die Death-Animation zu Ende ist

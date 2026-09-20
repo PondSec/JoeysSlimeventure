@@ -21,7 +21,7 @@ resource_name = "menu"
 script/source = "extends Control
 
 const CONFIG_PATH = \"user://settings.cfg\"
-const PLAYER_ID_PATH = \"user://player_id.save\"
+const PLAYER_ID_PATH = \"user://saves/player_id.txt\"
 const SECRET_SALT = \"X7!d9$#_MySaltHere_2025\"
 
 var config := ConfigFile.new()
@@ -614,7 +614,7 @@ func _on_play_button_pressed() -> void:
 	var hub_scene_path := \"res://Scenes/Game.tscn\"
 	var chapter_runtime_scene_path := \"res://Scenes/Chapter/chapter_level.tscn\"
 	var level_scene_path := hub_scene_path
-	var level_resource = load(\"user://current_level.res\")
+	var level_resource = load(\"user://saves/current_level.res\")
 	if level_resource and level_resource.has_method(\"get\"):
 		var saved_scene_path: String = str(level_resource.unlocked_level)
 		if saved_scene_path == chapter_runtime_scene_path:

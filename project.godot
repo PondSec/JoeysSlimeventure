@@ -22,6 +22,9 @@ config/icon="res://marketing/brand/icon.png"
 
 [autoload]
 
+SaveService="*res://Scripts/SaveService.gd"
+CombatEvents="*res://Scripts/CombatEvents.gd"
+SteamManager="*res://Scripts/SteamManager.gd"
 ChapterProgress="*res://Scripts/Chapter/chapter_progress.gd"
 GameManager="*res://Scripts/GameManager.gd"
 WindController="*res://Scripts/WindController.gd"

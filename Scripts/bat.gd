@@ -1445,6 +1445,7 @@ func die() -> void:
 		return
 
 	is_dead = true
+	CombatEvents.report_enemy_defeated(self)
 	_release_attack_token()
 	combat_action = "normal"
 	is_attacking = false

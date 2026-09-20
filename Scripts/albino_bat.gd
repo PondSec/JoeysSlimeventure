@@ -680,6 +680,7 @@ func apply_stun(duration: float) -> void:
 
 func die() -> void:
 	is_dead = true
+	CombatEvents.report_enemy_defeated(self)
 	animation_player.play("death")
 	sound_player.stream = death_sound
 	sound_player.volume_db = -20.0

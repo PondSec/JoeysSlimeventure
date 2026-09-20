@@ -43,17 +43,12 @@ func _init() -> void:
 
 func save_inventory(file_path: String) -> void:
 	_ensure_equipment_slots()
-	var file := FileAccess.open(file_path, FileAccess.WRITE)
-	if file == null:
-		print("Fehler beim Oeffnen der Datei zum Schreiben.")
-		return
-
 	var data := {
 		"inventory_slots": _serialize_slots(slots),
 		"equipment_slots": _serialize_equipment_slots(),
 	}
-	file.store_var(data)
-	file.close()
+	if not SaveService.write_variant(file_path, data):
+		print("Fehler beim Oeffnen der Datei zum Schreiben.")
 
 
 func load_inventory(file_path: String) -> void:
@@ -62,13 +57,10 @@ func load_inventory(file_path: String) -> void:
 		print("Datei existiert nicht, Inventar wird nicht geladen.")
 		return
 
-	var file := FileAccess.open(file_path, FileAccess.READ)
-	if file == null:
+	var data: Variant = SaveService.read_variant(file_path, null)
+	if data == null:
 		print("Fehler beim Oeffnen der Datei zum Lesen.")
 		return
-
-	var data = file.get_var()
-	file.close()
 
 	_clear_all_slots()
 
@@ -332,7 +324,7 @@ func notify_changed() -> void:
 
 func _notify_inventory_changed() -> void:
 	update.emit()
-	save_inventory("user://inventory.save")
+	save_inventory(SaveService.path_for("inventory"))
 
 
 func _ensure_equipment_slots() -> void:

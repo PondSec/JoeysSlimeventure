@@ -95,6 +95,7 @@ func take_damage(amount: int) -> void:
 # Funktion, die den Tod des Gegners behandelt
 func die():
 	is_dead = true
+	CombatEvents.report_enemy_defeated(self)
 	animated_sprite.play("death")  # Spiele die Todesanimation
 	velocity = Vector2.ZERO  # Halte die Bewegung an
 	$Area2D/AttackArea.disabled = true  # Deaktiviere die Kollision, um weitere Interaktionen zu verhindern

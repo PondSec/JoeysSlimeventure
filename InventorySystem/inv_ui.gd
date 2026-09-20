@@ -31,7 +31,7 @@ var inv: Inv = preload("res://InventorySystem/playerinv.tres")
 @onready var tooltip = preload("res://InventorySystem/Tooltip.tscn").instantiate()
 
 var is_open := false
-var save_path := "user://inventory.save"
+var save_path := "user://saves/inventory.save"
 var cached_font: FontFile
 var inventory_slot_nodes: Array[Control] = []
 var hotbar_slot_nodes: Array[Control] = []

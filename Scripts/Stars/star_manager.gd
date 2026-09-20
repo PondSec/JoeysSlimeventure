@@ -6,7 +6,7 @@ const StarCatalog := preload("res://Scripts/star_catalog.gd")
 const StarEncounter := preload("res://Scripts/Stars/star_encounter.gd")
 
 const LEGACY_LUMORA_SAVE_PATH := "user://lumora_save_data.save"
-const LUMORA_RUNTIME_SAVE_PATH := "user://lumora_runtime_equipped.save"
+const LUMORA_RUNTIME_SAVE_PATH := "user://saves/lumora_runtime_equipped.save"
 const STAR_ENCOUNTER_MIN_DISTANCE := 260.0
 const STAR_ENCOUNTER_MAX_DISTANCE := 520.0
 const STAR_ENCOUNTER_HEIGHT := 82.0

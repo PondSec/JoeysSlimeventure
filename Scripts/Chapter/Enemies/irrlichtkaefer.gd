@@ -382,6 +382,7 @@ func _die() -> void:
 	if is_dead:
 		return
 	is_dead = true
+	CombatEvents.report_enemy_defeated(self)
 	state = State.DEAD
 	emit_signal("defeated")
 	LootDropper.spawn_independent_drops(self, [
