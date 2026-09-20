@@ -295,7 +295,7 @@ static func _chapter_one_lesson_focus(level_index: int) -> Array[String]:
 static func _chapter_one_quest(level_index: int) -> Dictionary:
 	var quests: Array[Dictionary] = [
 		{"id":"c1_l1_veins","title":"Die Ader erwacht","objectives":[{"id":"awaken_veins","title":"Tropfenadern","type":"glow_charge","required":2,"anchor_roles":["near_spawn_safe","side_branch_reachable"],"hold_seconds":1.25}]},
-		{"id":"c1_l2_echo","title":"Tropfenklang","objectives":[{"id":"echo_sequence","title":"Resonanzringe","type":"sequence","required":3,"anchor_roles":["upper_descent","mid_descent","lower_descent"],"sequence":[1,2,0]}]},
+		{"id":"c1_l2_echo","title":"Tropfenklang","objectives":[{"id":"echo_sequence","title":"Resonanzglocken – mit Angriff in Reihenfolge treffen","type":"sequence","required":3,"anchor_roles":["upper_descent","mid_descent","lower_descent"],"sequence":[1,2,0]}]},
 		{"id":"c1_l3_resonance","title":"Resonanzbruch","objectives":[{"id":"break_resonance_locks","title":"Resonanzsiegel","type":"redirect","required":2,"anchor_roles":["combat_branch","pre_exit_chamber"]}]},
 		{"id":"c1_l4_firefly","title":"Das verlorene Irrlicht","objectives":[{"id":"find_firefly","title":"Finde das Irrlicht","type":"search","required":1,"anchor_roles":["dark_branch"]},{"id":"pollinate_moonblooms","title":"Mondblüten","type":"escort","required":3,"anchor_roles":["dark_branch","mid_route_landmark","pre_exit"]}]},
 		{"id":"c1_l5_condensers","title":"Kampf im Kristallkreis","objectives":[{"id":"charge_condensers","title":"Kristallkondensatoren","type":"combat_zone","required":2,"anchor_roles":["combat_room","combat_room_far"]}]},

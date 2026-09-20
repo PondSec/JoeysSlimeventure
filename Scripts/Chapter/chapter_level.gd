@@ -7,6 +7,7 @@ const ChapterLayoutBuilder := preload("res://Scripts/Chapter/chapter_layout_buil
 const TerrainResolver := preload("res://Scripts/Chapter/terrain_resolver.gd")
 const TileClassifier := preload("res://Scripts/Chapter/tile_classifier.gd")
 const ChapterQuestRuntime := preload("res://Scripts/Chapter/chapter_quest_runtime.gd")
+const ItemRegistry := preload("res://Scripts/item_registry.gd")
 
 const HUB_SCENE := preload("res://Scenes/Game.tscn")
 const PLAYER_SCENE := preload("res://Scenes/player.tscn")
@@ -1072,6 +1073,7 @@ func _build_level() -> void:
 		_spawn_enemy(enemy_variant as Dictionary)
 
 	_spawn_glut_dimension_door_if_needed()
+	_spawn_missing_glut_guardian_rewards_if_needed()
 
 	var worm_count: int = int(active_level.get("worm_count", 0))
 	for _index: int in range(worm_count):
@@ -3072,6 +3074,9 @@ func _spawn_pickup(pickup_data: Dictionary) -> void:
 
 func _spawn_enemy(enemy_data: Dictionary, track_population: bool = true) -> void:
 	var enemy_type: String = str(enemy_data.get("type", "slime"))
+	var is_glut_guardian := enemy_type == "glutkaefer" and bool(enemy_data.get("drop_glut_schluessel", false))
+	if is_glut_guardian and _has_resolved_glut_guardian():
+		return
 	var requested_cell := Vector2i(int(enemy_data.get("x", 0)), int(enemy_data.get("y", 0)))
 	# Only bats are airborne. The Irrlichtkäfer and Glutkäfer use grounded
 	# CharacterBody physics and must be placed on a verified floor tile.
@@ -3107,6 +3112,7 @@ func _spawn_enemy(enemy_data: Dictionary, track_population: bool = true) -> void
 	if enemy_type == "bat":
 		_configure_chapter_bat(enemy, spawn_cell)
 	enemy.set_meta("chapter_enemy_type", enemy_type)
+	enemy.set_meta("glut_story_guardian", is_glut_guardian)
 	# Both authored and replenished enemies count toward the same density cap;
 	# only authored spawns increase that cap.
 	var respawn_managed := not bool(enemy_data.get("no_respawn", false))
@@ -3141,8 +3147,34 @@ func spawn_quest_enemy(enemy_type: String, world_position: Vector2, anchor_id: S
 
 
 func _on_chapter_enemy_defeated(enemy: Node2D) -> void:
+	if bool(enemy.get_meta("glut_story_guardian", false)):
+		var progress := _progress()
+		if progress != null and progress.has_method("award_reward"):
+			progress.call("award_reward", "glutkaefer_defeated")
 	if quest_runtime != null and is_instance_valid(quest_runtime):
 		quest_runtime.report_enemy_defeated(enemy.global_position, enemy)
+
+
+func _has_resolved_glut_guardian() -> bool:
+	if _has_glut_guardian_victory():
+		return true
+	# Compatibility with older saves which already hold the reward but predate
+	# the persistent guardian marker.
+	if player != null:
+		var inventory: Variant = player.get("inv")
+		if inventory != null and inventory.has_method("contains_item") and bool(inventory.call("contains_item", "glut_schluessel")):
+			return true
+	# Also avoid duplicating a reward that is currently waiting in the world.
+	for pickup: Node in get_tree().get_nodes_in_group("world_pickups"):
+		var item: Variant = pickup.get("item")
+		if item != null and str(item.get("name")) == "glut_schluessel":
+			return true
+	return false
+
+
+func _has_glut_guardian_victory() -> bool:
+	var progress := _progress()
+	return progress != null and progress.has_method("has_reward") and bool(progress.call("has_reward", "glutkaefer_defeated"))
 
 
 func _resolve_safe_ground_cell(requested: Vector2i) -> Vector2i:
@@ -3169,14 +3201,34 @@ func resolve_quest_ground_cell(requested: Vector2i) -> Vector2i:
 	# objectives cannot appear suspended in a ceiling pocket or inside terrain.
 	if solid_grid_cache.is_empty():
 		return Vector2i(-1, -1)
+	# Quest anchors are generated from the validated critical route. Prefer the
+	# closest route node before widening the search, otherwise a nearby but
+	# disconnected cave pocket can win the geometric floor search.
+	var critical_path: Array = active_level.get("critical_path_nodes", []) as Array
+	if not critical_path.is_empty():
+		var closest_node: Vector2i = critical_path.front() as Vector2i
+		var closest_distance := closest_node.distance_squared_to(requested)
+		for path_variant: Variant in critical_path:
+			var candidate: Vector2i = path_variant as Vector2i
+			var distance := candidate.distance_squared_to(requested)
+			if distance < closest_distance:
+				closest_node = candidate
+				closest_distance = distance
+		var route_floor := _find_quest_floor_near(closest_node, 5)
+		if route_floor != Vector2i(-1, -1):
+			return route_floor
+	return _find_quest_floor_near(requested, 18)
+
+
+func _find_quest_floor_near(requested: Vector2i, max_radius: int) -> Vector2i:
 	var offsets: Array[int] = []
-	for distance: int in range(0, 19):
+	for distance: int in range(0, max_radius + 1):
 		if distance == 0:
 			offsets.append(0)
 		else:
 			offsets.append(-distance)
 			offsets.append(distance)
-	for radius: int in range(0, 19):
+	for radius: int in range(0, max_radius + 1):
 		for y_offset: int in offsets:
 			if abs(y_offset) > radius:
 				continue
@@ -3267,11 +3319,53 @@ func _spawn_glut_dimension_door_if_needed() -> void:
 	var door_cell: Vector2i = active_level.get("glut_door", Vector2i.ZERO) as Vector2i
 	if door_cell == Vector2i.ZERO:
 		return
+	var floor_cell := _resolve_safe_ground_cell(door_cell)
+	if not _is_valid_spawn_floor(floor_cell.x, floor_cell.y):
+		push_error("Glutdimension door has no valid floor near %s." % door_cell)
+		return
 	var door := GLUT_DIMENSION_DOOR_SCENE.instantiate() as Node2D
 	if door == null:
 		return
 	gate_root.add_child(door)
-	door.global_position = _grid_to_world(door_cell) + Vector2(16.0, 0.0)
+	# The door root belongs exactly on the top edge of a real floor tile. Using
+	# the authored semantic coordinate placed it inside regenerated cave rock.
+	door.global_position = _grid_to_world(floor_cell) + Vector2(16.0, 0.0)
+
+
+func _spawn_missing_glut_guardian_rewards_if_needed() -> void:
+	if not active_level.has("glut_door") or not _has_glut_guardian_victory():
+		return
+	var door_cell: Vector2i = active_level.get("glut_door", Vector2i.ZERO) as Vector2i
+	var floor_cell := _resolve_safe_ground_cell(door_cell)
+	if not _is_valid_spawn_floor(floor_cell.x, floor_cell.y):
+		return
+	var reward_origin := _grid_to_world(floor_cell) + Vector2(16.0, -34.0)
+	_ensure_glut_guardian_reward("glut_schluessel", reward_origin + Vector2(-18.0, 0.0))
+	_ensure_glut_guardian_reward("lumora", reward_origin + Vector2(18.0, 0.0))
+
+
+func _ensure_glut_guardian_reward(item_name: String, world_position: Vector2) -> void:
+	if _player_or_world_has_item(item_name):
+		return
+	var pickup := ItemRegistry.create_pickup_for_item(item_name)
+	if pickup == null:
+		push_error("Could not restore Glutkaefer reward: %s" % item_name)
+		return
+	pickup.set("is_persistent_reward", true)
+	gate_root.add_child(pickup)
+	pickup.global_position = world_position
+
+
+func _player_or_world_has_item(item_name: String) -> bool:
+	if player != null:
+		var inventory: Variant = player.get("inv")
+		if inventory != null and inventory.has_method("contains_item") and bool(inventory.call("contains_item", item_name)):
+			return true
+	for pickup: Node in get_tree().get_nodes_in_group("world_pickups"):
+		var item: Variant = pickup.get("item")
+		if item != null and str(item.get("name")) == item_name:
+			return true
+	return false
 
 
 func _attach_enemy_awareness_indicator(enemy: Node2D) -> void:

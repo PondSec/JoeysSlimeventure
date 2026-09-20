@@ -26,6 +26,7 @@ const BASE_SCALE := Vector2(0.48, 0.48)
 @export var chase_speed := 122.0
 @export var contact_damage := 18
 @export var drops_glut_schluessel := false
+@export var mini_boss_health := 320
 
 var current_health := 92
 var player: Node2D
@@ -37,17 +38,33 @@ var attack_hit_delivered := false
 var is_dead := false
 var facing_sign := 1.0
 var hit_flash_timer := 0.0
+var is_mini_boss := false
+var is_enraged := false
+var attack_second_hit_delivered := false
 
 @onready var sprite: AnimatedSprite2D = $AnimatedSprite2D
 @onready var glow_light: PointLight2D = $PointLight2D
 
 
 func _ready() -> void:
+	is_mini_boss = drops_glut_schluessel
+	if is_mini_boss:
+		max_health = maxi(max_health, mini_boss_health)
+		patrol_speed = maxf(patrol_speed, 56.0)
+		chase_speed = maxf(chase_speed, 142.0)
+		contact_damage = maxi(contact_damage, 24)
 	current_health = max_health
 	home_position = global_position
 	attack_cooldown = randf_range(0.25, 0.9)
 	_build_sprite_frames()
-	sprite.scale = BASE_SCALE
+	sprite.scale = BASE_SCALE * (1.20 if is_mini_boss else 1.0)
+	if is_mini_boss:
+		var body_shape := get_node_or_null("CollisionShape2D") as CollisionShape2D
+		var hurtbox_shape := get_node_or_null("Hurtbox/CollisionShape2D") as CollisionShape2D
+		if body_shape != null:
+			body_shape.scale = Vector2.ONE * 1.18
+		if hurtbox_shape != null:
+			hurtbox_shape.scale = Vector2.ONE * 1.18
 	sprite.play(&"idle")
 	add_to_group("enemies")
 	_sync_player_reference()
@@ -82,6 +99,11 @@ func take_damage(amount: int, direction: Vector2, _is_crit: bool = false) -> voi
 		return
 	current_health -= amount
 	hit_flash_timer = 0.13
+	if is_mini_boss and not is_enraged and current_health <= max_health / 2:
+		is_enraged = true
+		chase_speed *= 1.18
+		contact_damage += 7
+		attack_cooldown = minf(attack_cooldown, 0.35)
 	var push := direction.normalized() if direction.length_squared() > 0.01 else Vector2(-facing_sign, -0.2)
 	velocity += push * 135.0
 	if current_health <= 0:
@@ -114,8 +136,15 @@ func _process_attack(delta: float) -> void:
 		attack_hit_delivered = true
 		if player != null and _player_distance() <= 94.0 and player.has_method("take_damage"):
 			player.call_deferred("take_damage", contact_damage, global_position)
-	if state_time >= 0.62:
-		attack_cooldown = 1.15
+	# The enrage phase adds one clearly timed follow-up swipe instead of an
+	# invisible stat spike, making the mini-boss harder but still readable.
+	if is_enraged and not attack_second_hit_delivered and state_time >= 0.48:
+		attack_second_hit_delivered = true
+		if player != null and _player_distance() <= 108.0 and player.has_method("take_damage"):
+			player.call_deferred("take_damage", int(round(contact_damage * 0.65)), global_position)
+	var attack_duration := 0.82 if is_enraged else 0.62
+	if state_time >= attack_duration:
+		attack_cooldown = 0.78 if is_enraged else 1.15
 		_set_state(State.CHASE if _player_distance() <= 400.0 else State.PATROL)
 
 
@@ -126,6 +155,7 @@ func _set_state(next_state: State) -> void:
 	state_time = 0.0
 	if state == State.ATTACK:
 		attack_hit_delivered = false
+		attack_second_hit_delivered = false
 		sprite.play(&"attack")
 	elif state == State.PATROL:
 		sprite.play(&"idle")
@@ -165,9 +195,14 @@ func _sync_player_reference() -> void:
 
 func _update_visuals() -> void:
 	sprite.flip_h = facing_sign < 0.0
-	sprite.modulate = Color(3.2, 2.2, 1.5, 1.0) if hit_flash_timer > 0.0 else Color.WHITE
+	if hit_flash_timer > 0.0:
+		sprite.modulate = Color(3.2, 2.2, 1.5, 1.0)
+	elif is_enraged:
+		sprite.modulate = Color(1.35, 0.62, 0.36, 1.0)
+	else:
+		sprite.modulate = Color.WHITE
 	var pulse := 0.74 + sin(Time.get_ticks_msec() * 0.007) * 0.12
-	glow_light.energy = 1.18 if state == State.ATTACK else pulse
+	glow_light.energy = (1.52 if is_enraged else 1.18) if state == State.ATTACK else (pulse + (0.28 if is_enraged else 0.0))
 
 
 func _die() -> void:
@@ -178,7 +213,10 @@ func _die() -> void:
 	state = State.DEAD
 	emit_signal("defeated")
 	if drops_glut_schluessel:
-		LootDropper.spawn_independent_drops(self, [{"item": "glut_schluessel", "chance": 1.0}])
+		LootDropper.spawn_independent_drops(self, [
+			{"item": "glut_schluessel", "chance": 1.0, "persistent_reward": true},
+			{"item": "lumora", "chance": 1.0, "persistent_reward": true}
+		])
 	else:
 		LootDropper.spawn_independent_drops(self, [{"item": "copper_nugget", "chance": 0.38}])
 	set_collision_layer_value(3, false)

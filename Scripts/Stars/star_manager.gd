@@ -218,6 +218,10 @@ func _on_star_captured(star_id: String) -> void:
 func _get_missing_star_ids() -> Array[String]:
 	var missing_star_ids: Array[String] = []
 	for star_id in StarCatalog.get_all_star_ids():
+		# Lumora is the Glutkaefer's guaranteed story reward. Other stars may
+		# still use free encounters, but Lumora must never bypass that milestone.
+		if star_id == "lumora":
+			continue
 		if not inv.contains_item(star_id):
 			missing_star_ids.append(star_id)
 	return missing_star_ids

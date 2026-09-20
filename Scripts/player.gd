@@ -3871,6 +3871,15 @@ func restore_environmental_health(amount: int) -> void:
 	_restore_health(amount)
 
 
+func restore_companion_health(amount: int) -> void:
+	# Companion healing is an earned, passive benefit.  It must not be gated by
+	# the unrelated regeneration skill (which is reserved for the player's own
+	# activated healing ability), but still obeys multiplayer authority.
+	if amount <= 0 or not is_multiplayer_authority() or current_health >= max_health:
+		return
+	_restore_health(amount)
+
+
 func _grant_guardian_barrier(amount: float) -> void:
 	mana_shield_active = true
 	mana_shield_health = clamp(mana_shield_health + amount, 0.0, max_mana_shield_health)

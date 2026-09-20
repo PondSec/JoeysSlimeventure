@@ -279,18 +279,51 @@ func _build_cave_network_result(seed: int) -> Dictionary:
 	var exit: Vector2i = exit_zones[rng.randi_range(0, exit_zones.size() - 1)] as Vector2i
 	exit = Vector2i(clampi(exit.x, margin, level_size.x - margin), clampi(exit.y, top + 4, bottom - 3))
 
-	var hubs: Array = [
-		spawn,
-		Vector2i(left + 10, clampi(spawn.y + 10 + rng.randi_range(-2, 3), top + 3, bottom - 3)),
-		Vector2i(int(level_size.x * 0.42), bottom - 3),
-		Vector2i(right - 15, bottom - 9),
-		Vector2i(right - 7, int(level_size.y * 0.50)),
-		Vector2i(int(level_size.x * 0.64), top + 3),
-		Vector2i(int(level_size.x * 0.34), top + 6),
-		Vector2i(left + 7, int(level_size.y * 0.47)),
-		Vector2i(int(level_size.x * 0.52), int(level_size.y * 0.48)),
-		exit
-	]
+	# Do not repeat one compulsory, giant downward shaft at every spawn.  Each
+	# seeded profile starts with a short readable stretch, then takes a distinct
+	# clockwise, counter-clockwise or lower-loop route through the cave network.
+	var network_variant := rng.randi_range(0, 2)
+	var hubs: Array = []
+	match network_variant:
+		0:
+			hubs = [
+				spawn,
+				Vector2i(left + 15, clampi(spawn.y + rng.randi_range(-2, 3), top + 3, bottom - 3)),
+				Vector2i(int(level_size.x * 0.42), bottom - 3),
+				Vector2i(right - 15, bottom - 9),
+				Vector2i(right - 7, int(level_size.y * 0.50)),
+				Vector2i(int(level_size.x * 0.64), top + 3),
+				Vector2i(int(level_size.x * 0.34), top + 6),
+				Vector2i(left + 7, int(level_size.y * 0.47)),
+				Vector2i(int(level_size.x * 0.52), int(level_size.y * 0.48)),
+				exit
+			]
+		1:
+			hubs = [
+				spawn,
+				Vector2i(left + 19, clampi(spawn.y + rng.randi_range(-3, 1), top + 3, bottom - 3)),
+				Vector2i(int(level_size.x * 0.40), top + 8),
+				Vector2i(right - 16, top + 7),
+				Vector2i(right - 7, int(level_size.y * 0.52)),
+				Vector2i(int(level_size.x * 0.66), bottom - 4),
+				Vector2i(int(level_size.x * 0.34), bottom - 6),
+				Vector2i(left + 8, int(level_size.y * 0.58)),
+				Vector2i(int(level_size.x * 0.50), int(level_size.y * 0.47)),
+				exit
+			]
+		_:
+			hubs = [
+				spawn,
+				Vector2i(left + 12, clampi(spawn.y + rng.randi_range(1, 4), top + 3, bottom - 3)),
+				Vector2i(int(level_size.x * 0.32), int(level_size.y * 0.61)),
+				Vector2i(int(level_size.x * 0.58), bottom - 4),
+				Vector2i(right - 8, bottom - 8),
+				Vector2i(right - 12, top + 9),
+				Vector2i(int(level_size.x * 0.46), top + 4),
+				Vector2i(left + 8, int(level_size.y * 0.42)),
+				Vector2i(int(level_size.x * 0.57), int(level_size.y * 0.50)),
+				exit
+			]
 	# Mesoskalige Traversierungsroute: die vielen kurzen Anker halten jeden
 	# Auf- und Abstieg im konservativen Sprungbudget, die sichtbare Hoehle bleibt
 	# trotzdem ein zusammenhaengendes, schwer lesbares Netz.
@@ -373,7 +406,7 @@ func _build_cave_network_result(seed: int) -> Dictionary:
 		rooms.append({"id": "network_hub_%d" % hub_index, "role": ROOM_ROLE_LANDMARK if hub_index == 4 else ROOM_ROLE_VERTICAL, "entry_node": hubs[hub_index], "exit_node": hubs[hub_index]})
 	var quest_anchors := _build_quest_anchors(path, side_lines, {})
 	var validation := ChapterTraversalValidator.validate_layout({"grid": final_grid, "level_size": level_size, "mobility_profile": mobility_profile, "rooms": rooms, "critical_path_nodes": path, "side_path_lines": side_lines, "pickups": pickups, "mandatory_quest_targets": _mandatory_targets_from_anchors(quest_anchors), "spawn": spawn, "exit": exit})
-	validation["layout_signature"] = "organic_network"
+	validation["layout_signature"] = "organic_network_%d" % network_variant
 	validation["branch_signature"] = "reconnecting_loops"
 	validation["vertical_signature"] = "layered_ring"
 	validation["room_variety_score"] = 7.0

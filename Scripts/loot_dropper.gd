@@ -24,13 +24,14 @@ static func spawn_independent_drops(source: Node2D, definitions: Array[Dictionar
 		var minimum := maxi(1, int(definition.get("min_count", 1)))
 		var maximum := maxi(minimum, int(definition.get("max_count", minimum)))
 		for index: int in range(randi_range(minimum, maximum)):
-			_spawn_pickup(parent, source.global_position, item, index)
+			_spawn_pickup(parent, source.global_position, item, index, bool(definition.get("persistent_reward", false)))
 
 
-static func _spawn_pickup(parent: Node, source_position: Vector2, item: InvItem, index: int) -> void:
+static func _spawn_pickup(parent: Node, source_position: Vector2, item: InvItem, index: int, persistent_reward: bool = false) -> void:
 	var pickup := ItemRegistry.create_pickup_for_item(item)
 	if pickup == null:
 		return
+	pickup.set("is_persistent_reward", persistent_reward)
 	var world_position := source_position + Vector2(randf_range(-9.0, 9.0), -4.0 * index)
 	if parent is Node2D:
 		pickup.position = (parent as Node2D).to_local(world_position)

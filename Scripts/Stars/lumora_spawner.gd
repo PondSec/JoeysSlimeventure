@@ -14,6 +14,9 @@ func _ready():
 		return
 	# Finde den Spieler
 	player = get_tree().get_first_node_in_group("players")
+	if not _is_lumora_story_unlocked():
+		# Lumora is awarded by the Glutkaefer mini-boss, not a free encounter.
+		return
 	
 	# 🔥 NEU: Prüfe zuerst ob bereits eine permanente Lumora existiert
 	if _has_permanent_lumora():
@@ -79,6 +82,8 @@ func _start_spawn_check():
 	check_timer.start()
 
 func _try_spawn_lumora():
+	if not _is_lumora_story_unlocked():
+		return
 	if _is_chapter_runtime():
 		return
 	# 🔥 NEU: Kein Spawning wenn bereits permanente Lumora existiert
@@ -96,6 +101,13 @@ func _try_spawn_lumora():
 	var spawn_pos = _calculate_spawn_position()
 	if spawn_pos != Vector2.ZERO:
 		_spawn_lumora(spawn_pos)
+
+
+func _is_lumora_story_unlocked() -> bool:
+	if FileAccess.file_exists(SaveService.path_for("lumora_runtime")):
+		return true
+	var progress := get_node_or_null("/root/ChapterProgress")
+	return progress != null and progress.has_method("has_reward") and bool(progress.call("has_reward", "glutkaefer_defeated"))
 
 func _calculate_spawn_position() -> Vector2:
 	var viewport_rect = get_viewport().get_visible_rect()

@@ -54,9 +54,8 @@ func configure(new_level: Dictionary, new_player: Node2D, new_gate: Node2D, new_
 	_lock_exit()
 	_connect_boss()
 	if _has_level_two_resonance():
-		# This first preview is deliberately user-led: the level transition and
-		# title finish first, then Joey's first intentional movement starts it.
-		call_deferred("_play_resonance_sequence_preview", true)
+		_show_feedback("Resonanz: Triff die nummerierten Glocken mit deinem Angriff – immer 1 → 2 → 3.", "info")
+		call_deferred("_play_resonance_sequence_preview", false)
 	if _all_objectives_complete():
 		_unlock_exit()
 
@@ -128,6 +127,7 @@ func _spawn_quest_objects() -> void:
 			_spawn_substeps(str(objective.get("id", "")), "motion_sigil", int(objective.get("chain_count", 4)))
 		elif kind == "timing":
 			_spawn_substeps(str(objective.get("id", "")), "light_rune", int(objective.get("rune_count", 3)))
+	_refresh_tracker()
 
 
 func _spawn_object(anchor: Dictionary, objective: Dictionary) -> void:
@@ -151,6 +151,16 @@ func _spawn_object(anchor: Dictionary, objective: Dictionary) -> void:
 	var sequence_order := 0
 	if level_two_resonance:
 		sequence_order = _sequence_display_order(objective, _anchor_index(anchor))
+		var order_label := Label.new()
+		order_label.name = "ResonanceOrder"
+		order_label.text = str(sequence_order)
+		order_label.position = Vector2(-9.0, -54.0)
+		order_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		order_label.add_theme_font_size_override("font_size", 24)
+		order_label.add_theme_color_override("font_color", Color(0.92, 0.98, 1.0, 1.0))
+		order_label.add_theme_color_override("font_outline_color", Color(0.05, 0.16, 0.28, 1.0))
+		order_label.add_theme_constant_override("outline_size", 5)
+		node.add_child(order_label)
 	var glow := PointLight2D.new()
 	glow.texture = load("res://Assets/Light/light.webp") as Texture2D
 	if level_one_vein:
@@ -774,8 +784,32 @@ func _refresh_tracker() -> void:
 		var state: Dictionary = objective_state.get(str(objective.get("id", "")), {}) as Dictionary
 		lines.append("%s  %d / %d" % [str(objective.get("title", "")), int(state.get("current", 0)), int(state.get("required", 1))])
 		if _is_level_two_resonance(str(objective.get("type", ""))):
-			lines.append("Schlagfolge: Zahlen 1 → 2 → 3")
+			var sequence: Array = objective.get("sequence", []) as Array
+			var current := int(state.get("current", 0))
+			var next_order := current + 1
+			if current < sequence.size():
+				next_order = _sequence_display_order(objective, int(sequence[current]))
+			lines.append("Mit ANGREIFEN treffen · nächste Glocke: %d" % next_order)
 	tracker.text = "\n".join(lines)
+	_highlight_next_resonance_bell()
+
+
+func _highlight_next_resonance_bell() -> void:
+	var objective := _objective_by_id("echo_sequence")
+	if objective.is_empty():
+		return
+	var state: Dictionary = objective_state.get("echo_sequence", {}) as Dictionary
+	var sequence: Array = objective.get("sequence", []) as Array
+	var current := int(state.get("current", 0))
+	var next_index := int(sequence[current]) if current < sequence.size() else -1
+	for object_index: int in range(objects.size()):
+		var entry: Dictionary = objects[object_index] as Dictionary
+		if not bool(entry.get("level_two_resonance", false)):
+			continue
+		var glow := entry.get("glow") as PointLight2D
+		if glow != null:
+			glow.energy = 0.95 if int(entry.get("index", -1)) == next_index else 0.26
+			glow.color = Color(0.92, 0.98, 1.0, 1.0) if int(entry.get("index", -1)) == next_index else Color(0.72, 0.90, 1.0, 1.0)
 
 
 func _show_feedback(message: String, toast_type: String) -> void:

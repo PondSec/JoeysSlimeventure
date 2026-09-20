@@ -177,10 +177,7 @@ func _ready() -> void:
 	# Wenn permanent, aktiviere alle Systeme
 	if is_permanent:
 		print(\"✅ Permanente Lumora geladen - Alle Systeme aktiviert\")
-		can_attack = true
-		_heal_timer.start()
-		_damage_timer.start()
-		_autosave_timer.start()
+		_activate_companion_systems()
 		# Deaktiviere Catch-System komplett
 		if catch_indicator:
 			catch_indicator.visible = false
@@ -502,20 +499,28 @@ func _complete_catch():
 func _activate_post_catch_systems():
 	print(\"🔮 Aktiviere Lumora-Systeme nach dem Fang...\")
 	
-	# Aktiviere alle Timer
-	_heal_timer.start()
-	_damage_timer.start()
-	_autosave_timer.start()
-	
-	# Aktiviere Angriffe
-	can_attack = true
+	_activate_companion_systems()
 	
 	# Aktiviere Buff-System
 	print(\"✅ Lumora-Systeme aktiviert: Heilen, Buffs, Angriffe\")
 
+func _activate_companion_systems():
+	if not is_permanent or not is_caught:
+		return
+	# Timers may be created after a legacy spawner assigns Lumora. Starting an
+	# already running Timer is harmless and keeps both spawn paths reliable.
+	if _heal_timer:
+		_heal_timer.start()
+	if _damage_timer:
+		_damage_timer.start()
+	if _autosave_timer:
+		_autosave_timer.start()
+	can_attack = true
+
 func _activate_initial_buffs():
 	if _player and _player.has_method(\"apply_buff\"):
-		_player.heal(50)
+		if _player.has_method(\"restore_companion_health\"):
+			_player.call(\"restore_companion_health\", 50)
 		_player.apply_buff(\"speed_boost\", 1.5)
 		_player.apply_buff(\"damage_boost\", 1.3)
 		_show_buff_label(\"✨ Gefangen!\", Color(0.7, 0.9, 1.0), 1.5, 2.0)
@@ -610,11 +615,11 @@ func _on_heal_timer_timeout() -> void:
 	if not is_caught or not _player:  # 🔥 NEU: Nur wenn gefangen
 		return
 		
-	if _player.has_method(\"heal\"):
+	if _player.has_method(\"restore_companion_health\"):
 		var actual_heal_amount = heal_amount
 		if _is_player_low_health:
 			actual_heal_amount *= 2
-		_player.heal(actual_heal_amount)
+		_player.call(\"restore_companion_health\", actual_heal_amount)
 		_create_heal_effect()
 		_show_buff_label(\"♥\", Color(0.4,1.0,0.4,0.8), 1.2, 0.8)
 
@@ -813,6 +818,7 @@ func _show_buff_label(text: String, color: Color = Color(1,1,1), scale: float = 
 func _load_permanent_state():
 	is_permanent = bool(SaveService.read_variant(save_path, false))
 	if is_permanent:
+		is_caught = true
 		print(\"📁 Lumora Save-Datei gefunden - is_permanent: \", is_permanent)
 
 func _save_permanent_state():
@@ -840,6 +846,7 @@ func _load_skill_data() -> void:
 func assign_player(player_node: Node2D):
 	player_path = player_node.get_path()
 	_player = player_node
+	_activate_companion_systems()
 	print(\"Lumora wurde Spieler \", player_node.name, \" zugewiesen\")
 
 func delete_save_data():

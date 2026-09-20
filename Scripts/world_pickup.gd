@@ -3,6 +3,7 @@ extends RigidBody2D
 @export var lifetime: float = 120.0
 @export var item: InvItem
 @export var is_critical: bool = false
+@export var is_persistent_reward: bool = false
 
 var damage_amount: float = 0.0
 var hover_phase := 0.0
@@ -12,6 +13,7 @@ var sprite_base_scale := Vector2.ONE
 
 
 func _ready() -> void:
+	add_to_group("world_pickups")
 	# Generated chapter terrain uses collision layer 2 while old scenes use
 	# layer 1. Listening to both prevents dropped loot from falling through
 	# the procedural cave floor and becoming unreachable inside the terrain.
@@ -36,9 +38,12 @@ func _ready() -> void:
 		spawn_tween.tween_property(sprite, "scale", sprite_base_scale, 0.14).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 
 	hover_phase = randf() * TAU
-	await get_tree().create_timer(lifetime).timeout
-	if is_inside_tree():
-		queue_free()
+	# Quest/boss rewards must never quietly despawn while the player clears a
+	# fight or makes room in the inventory.
+	if not is_persistent_reward:
+		await get_tree().create_timer(lifetime).timeout
+		if is_inside_tree():
+			queue_free()
 
 
 func _process(delta: float) -> void:
