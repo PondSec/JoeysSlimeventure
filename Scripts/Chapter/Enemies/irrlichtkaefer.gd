@@ -1,5 +1,7 @@
 extends CharacterBody2D
 
+const LootDropper := preload("res://Scripts/loot_dropper.gd")
+
 signal defeated
 
 enum State {
@@ -70,6 +72,7 @@ func _ready() -> void:
 	current_health = max_health
 	home_position = global_position
 	orbit_side = -1.0 if randf() < 0.5 else 1.0
+	attack_cooldown = randf_range(0.35, 1.15)
 	_build_sprite_frames()
 	add_to_group("enemies")
 	_sync_player_reference()
@@ -113,14 +116,14 @@ func _physics_process(delta: float) -> void:
 
 
 func take_damage(amount: int, direction: Vector2, _is_crit: bool = false) -> void:
-	if is_dead:
+	if is_dead or current_health <= 0:
 		return
 	current_health -= amount
 	hit_flash_timer = 0.14
 	var push := direction.normalized() if direction.length_squared() > 0.01 else Vector2(-facing_sign, -0.2)
 	velocity += push * 145.0
 	if current_health <= 0:
-		_die()
+		call_deferred("_die")
 
 
 func _process_patrol(delta: float) -> void:
@@ -244,7 +247,7 @@ func _try_jump_small_obstacle() -> void:
 func _update_visuals() -> void:
 	sprite.flip_h = facing_sign < 0.0
 	if hit_flash_timer > 0.0:
-		sprite.modulate = Color(1.0, 0.82, 1.0, 1.0)
+		sprite.modulate = Color(3.4, 3.4, 3.4, 1.0)
 	else:
 		sprite.modulate = Color.WHITE
 
@@ -265,11 +268,13 @@ func _update_visuals() -> void:
 
 
 func _on_hitbox_body_entered(body: Node2D) -> void:
-	if is_dead or contact_cooldown > 0.0 or not body.is_in_group("players"):
+	# The beetle is dangerous during its visible dart, never while it merely
+	# stalks beside the player.
+	if is_dead or contact_cooldown > 0.0 or state != State.DART or state_time < 0.055 or not body.is_in_group("players"):
 		return
 	contact_cooldown = CONTACT_COOLDOWN
 	if body.has_method("take_damage"):
-		body.call("take_damage", contact_damage, global_position)
+		body.call_deferred("take_damage", contact_damage, global_position)
 
 
 func _die() -> void:
@@ -278,9 +283,17 @@ func _die() -> void:
 	is_dead = true
 	state = State.DEAD
 	emit_signal("defeated")
+	LootDropper.spawn_independent_drops(self, [
+		{"item": "health_heart", "chance": 0.54},
+		{"item": "copper_nugget", "chance": 0.50},
+		{"item": "iron_nugget", "chance": 0.18},
+		{"item": "irrlicht_carapace", "chance": 0.08},
+		{"item": "irrlicht_eye", "chance": 0.025},
+		{"item": "gold_nugget", "chance": 0.012}
+	])
 	set_collision_layer_value(1, false)
 	set_collision_mask_value(1, false)
-	hitbox.monitoring = false
+	hitbox.set_deferred("monitoring", false)
 	velocity = Vector2.ZERO
 	glow_light.energy = 0.0
 	sprite.play(&"death")

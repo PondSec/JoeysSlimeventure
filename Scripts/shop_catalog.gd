@@ -19,15 +19,9 @@ const ITEM_META := {
 		"rarity": "common",
 		"legendary": false,
 	},
-	"silver_nugget": {
-		"display_name": "Silver Nugget",
-		"description": "Poliertes Metall fuer staerkere Deals. Legacy-Iron zaehlt ebenfalls als Silber.",
-		"rarity": "uncommon",
-		"legendary": false,
-	},
 	"iron_nugget": {
 		"display_name": "Iron Nugget",
-		"description": "Aelteres Metall aus bestehenden Saves. Im Shop wird es als Silber anerkannt.",
+		"description": "Robustes Metall fuer staerkere Deals und Handwerk.",
 		"rarity": "uncommon",
 		"legendary": false,
 	},
@@ -92,10 +86,10 @@ const CURRENCIES := {
 		"icon_item_name": "copper_nugget",
 		"accent": Color("cf8a5a"),
 	},
-	"silver": {
-		"display_name": "Silber",
-		"accepted_item_names": ["silver_nugget", "iron_nugget"],
-		"icon_item_name": "silver_nugget",
+	"iron": {
+		"display_name": "Eisen",
+		"accepted_item_names": ["iron_nugget"],
+		"icon_item_name": "iron_nugget",
 		"accent": Color("b8cee8"),
 	},
 	"gold": {
@@ -109,12 +103,12 @@ const CURRENCIES := {
 const PERMANENT_OFFERS := [
 	{"item_name": "stone", "price": {"currency": "copper", "amount": 5}},
 	{"item_name": "bat_claw", "price": {"currency": "copper", "amount": 8}},
-	{"item_name": "silver_nugget", "price": {"currency": "copper", "amount": 15}},
+	{"item_name": "iron_nugget", "price": {"currency": "copper", "amount": 15}},
 ]
 
 const FEATURED_POOL := [
-	{"item_name": "iron_nugget", "price": {"currency": "silver", "amount": 2}},
-	{"item_name": "gold_nugget", "price": {"currency": "silver", "amount": 4}},
+	{"item_name": "iron_nugget", "price": {"currency": "iron", "amount": 2}},
+	{"item_name": "gold_nugget", "price": {"currency": "iron", "amount": 4}},
 	{"item_name": "golem_heart", "price": {"currency": "gold", "amount": 2}},
 	{"item_name": "bat_artefact", "price": {"currency": "gold", "amount": 3}},
 ]

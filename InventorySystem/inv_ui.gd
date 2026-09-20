@@ -2,6 +2,7 @@ extends Control
 
 const FONT_PATH := "res://Assets/GUI/Font/PixelatedEleganceRegular-ovyAA.ttf"
 const ItemRegistry := preload("res://Scripts/item_registry.gd")
+const CraftingCatalog := preload("res://Scripts/crafting_catalog.gd")
 const UI_ROOT_BG := Color(0.08, 0.1, 0.16, 0.96)
 const UI_SECTION_BG := Color(0.05, 0.08, 0.12, 0.94)
 const UI_SECTION_BG_ALT := Color(0.08, 0.12, 0.09, 0.94)
@@ -22,6 +23,7 @@ var inv: Inv = preload("res://InventorySystem/playerinv.tres")
 @onready var equipment_panel: PanelContainer = $Frame/RootPanel/ContentMargin/ContentRow/LeftColumn/EquipmentPanel
 @onready var bag_panel: PanelContainer = $Frame/RootPanel/ContentMargin/ContentRow/RightColumn/BagPanel
 @onready var hotbar_panel: PanelContainer = $Frame/RootPanel/ContentMargin/ContentRow/RightColumn/HotbarPanel
+@onready var right_column: VBoxContainer = $Frame/RootPanel/ContentMargin/ContentRow/RightColumn
 @onready var bag_grid: GridContainer = $Frame/RootPanel/ContentMargin/ContentRow/RightColumn/BagPanel/BagMargin/BagContent/BagScroll/BagGrid
 @onready var hotbar_grid: GridContainer = $Frame/RootPanel/ContentMargin/ContentRow/RightColumn/HotbarPanel/HotbarMargin/HotbarContent/HotbarGrid
 @onready var equipment_slots_row: HBoxContainer = $Frame/RootPanel/ContentMargin/ContentRow/LeftColumn/EquipmentPanel/EquipmentMargin/EquipmentContent/EquipmentSlots
@@ -40,6 +42,13 @@ var dragging_item: Control = null
 var dragging_slot_ref: Dictionary = {}
 var hovered_slot_ref: Dictionary = {}
 var biome_panel_skins: Array[Dictionary] = []
+var craft_slots: Array[InvSlot] = []
+var craft_slot_nodes: Array[Control] = []
+var craft_result_slot := InvSlot.new()
+var craft_result_node: Control
+var craft_result_label: Label
+var craft_button: Button
+var crafting_panel: PanelContainer
 
 
 func _ready() -> void:
@@ -51,6 +60,7 @@ func _ready() -> void:
 	_apply_styles()
 	_build_biome_skin()
 	_build_slot_views()
+	_build_crafting_panel()
 	add_to_group("biome_aware_ui")
 
 	inv.update.connect(update_slots)
@@ -138,6 +148,7 @@ func open() -> void:
 
 
 func close() -> void:
+	_return_crafting_ingredients()
 	visible = false
 	is_open = false
 	tooltip.hide_tooltip()
@@ -157,9 +168,17 @@ func update_slots() -> void:
 			var equip_slot := inv.get_equipped_slot(slot_name)
 			equipment_slot_nodes[slot_name].call("update", equip_slot)
 
+	for index in range(craft_slot_nodes.size()):
+		craft_slot_nodes[index].call("update", craft_slots[index])
+	_update_crafting_result()
+
 	var weapon_item := inv.get_equipped_item("weapon")
 	if player_preview and player_preview.has_method("set_preview_item"):
 		player_preview.call("set_preview_item", weapon_item if weapon_item else ItemRegistry.get_default_weapon())
+		var player := get_tree().get_first_node_in_group("players")
+		var hero_form_active := player != null and bool(player.get("is_hero_form_active"))
+		if player_preview.has_method("set_hero_form_active"):
+			player_preview.call("set_hero_form_active", hero_form_active)
 
 
 func _build_slot_views() -> void:
@@ -219,6 +238,95 @@ func _build_slot_views() -> void:
 			slot_lookup[slot] = {"kind": "equipment", "slot_name": slot_name}
 
 
+func _build_crafting_panel() -> void:
+	craft_slots.clear()
+	craft_slot_nodes.clear()
+	for _index in range(9):
+		var crafting_slot := InvSlot.new()
+		crafting_slot.amount = 0
+		craft_slots.append(crafting_slot)
+
+	crafting_panel = PanelContainer.new()
+	crafting_panel.name = "CraftingPanel"
+	crafting_panel.add_theme_stylebox_override("panel", _make_flat_style(Color(0.0, 0.0, 0.0, 0.0), Color.TRANSPARENT, 0, 0, 0))
+	right_column.add_child(crafting_panel)
+	right_column.move_child(crafting_panel, hotbar_panel.get_index())
+	var cave_skin := _create_biome_panel(CAVE_INVENTORY_PANEL, "CaveSkin")
+	var lush_skin := _create_biome_panel(LUSH_INVENTORY_PANEL, "LushSkin")
+	crafting_panel.add_child(cave_skin)
+	crafting_panel.add_child(lush_skin)
+	crafting_panel.move_child(cave_skin, 0)
+	crafting_panel.move_child(lush_skin, 1)
+	lush_skin.modulate.a = 0.0
+	biome_panel_skins.append({"cave": cave_skin, "lush": lush_skin})
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 14)
+	margin.add_theme_constant_override("margin_top", 10)
+	margin.add_theme_constant_override("margin_right", 14)
+	margin.add_theme_constant_override("margin_bottom", 10)
+	crafting_panel.add_child(margin)
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 6)
+	margin.add_child(content)
+	var title := Label.new()
+	title.text = "3×3 HANDWERK"
+	_style_label(title, 15, UI_TEXT, 2)
+	content.add_child(title)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 14)
+	content.add_child(row)
+	var grid := GridContainer.new()
+	grid.columns = 3
+	grid.add_theme_constant_override("h_separation", 5)
+	grid.add_theme_constant_override("v_separation", 5)
+	row.add_child(grid)
+	for index in range(9):
+		var slot := _create_slot_instance()
+		slot.custom_minimum_size = Vector2(44.0, 44.0)
+		grid.add_child(slot)
+		craft_slot_nodes.append(slot)
+		slot_lookup[slot] = {"kind": "craft", "index": index}
+
+	var output := VBoxContainer.new()
+	output.add_theme_constant_override("separation", 3)
+	row.add_child(output)
+	var result_title := Label.new()
+	result_title.text = "ERGEBNIS"
+	_style_label(result_title, 11, UI_TEXT_MUTED, 2)
+	output.add_child(result_title)
+	craft_result_node = _create_slot_instance()
+	craft_result_node.custom_minimum_size = Vector2(52.0, 52.0)
+	craft_result_node.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	output.add_child(craft_result_node)
+	craft_result_label = Label.new()
+	craft_result_label.custom_minimum_size = Vector2(112.0, 20.0)
+	craft_result_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_style_label(craft_result_label, 10, UI_TEXT_MUTED, 1)
+	output.add_child(craft_result_label)
+	craft_button = Button.new()
+	craft_button.text = "HERSTELLEN"
+	craft_button.disabled = true
+	craft_button.pressed.connect(_craft_current_recipe)
+	output.add_child(craft_button)
+
+
+func _update_crafting_result() -> void:
+	if craft_result_node == null:
+		return
+	var recipe := CraftingCatalog.find_recipe(craft_slots)
+	var result := CraftingCatalog.get_result(recipe)
+	craft_result_slot.item = result
+	craft_result_slot.amount = 1 if result else 0
+	craft_result_node.call("update", craft_result_slot)
+	if result:
+		craft_result_label.text = "%s\nKlick: herstellen" % result.get_display_name()
+		craft_button.disabled = not inv.can_insert(result)
+	else:
+		craft_result_label.text = "Muster einsetzen"
+		craft_button.disabled = true
+
+
 func _create_slot_instance() -> Control:
 	var slot := slot_scene.instantiate() as Control
 	slot.custom_minimum_size = Vector2(56.0, 56.0)
@@ -255,6 +363,12 @@ func _complete_drag(target_ref: Dictionary) -> void:
 
 	if source_kind == "inventory" and target_kind == "inventory":
 		inv.swap_slots(int(dragging_origin.get("index", -1)), int(target_ref.get("index", -1)))
+	elif source_kind == "inventory" and target_kind == "craft":
+		_move_one_from_inventory_to_craft(int(dragging_origin.get("index", -1)), int(target_ref.get("index", -1)))
+	elif source_kind == "craft" and target_kind == "inventory":
+		_move_one_from_craft_to_inventory(int(dragging_origin.get("index", -1)))
+	elif source_kind == "craft" and target_kind == "craft":
+		_swap_crafting_slots(int(dragging_origin.get("index", -1)), int(target_ref.get("index", -1)))
 	elif source_kind == "inventory" and target_kind == "equipment":
 		inv.swap_inventory_with_equipment(int(dragging_origin.get("index", -1)), String(target_ref.get("slot_name", "")))
 	elif source_kind == "equipment" and target_kind == "inventory":
@@ -297,6 +411,12 @@ func _can_drop_into(source_ref: Dictionary, target_ref: Dictionary) -> bool:
 		return true
 	if source_kind == "inventory" and target_kind == "inventory":
 		return true
+	if source_kind == "inventory" and target_kind == "craft":
+		return target_slot.item == null
+	if source_kind == "craft" and target_kind == "inventory":
+		return inv.can_insert(source_slot.item)
+	if source_kind == "craft" and target_kind == "craft":
+		return true
 	return false
 
 
@@ -311,7 +431,80 @@ func _resolve_slot(slot_ref: Dictionary) -> InvSlot:
 				return inv.slots[index]
 		"equipment":
 			return inv.get_equipped_slot(String(slot_ref.get("slot_name", "")))
+		"craft":
+			var index := int(slot_ref.get("index", -1))
+			if index >= 0 and index < craft_slots.size():
+				return craft_slots[index]
 	return null
+
+
+func _move_one_from_inventory_to_craft(inventory_index: int, craft_index: int) -> void:
+	if inventory_index < 0 or inventory_index >= inv.slots.size() or craft_index < 0 or craft_index >= craft_slots.size():
+		return
+	var source := inv.slots[inventory_index]
+	var target := craft_slots[craft_index]
+	if source.item == null or target.item != null:
+		return
+	target.item = source.item
+	target.amount = 1
+	source.amount -= 1
+	if source.amount <= 0:
+		source.item = null
+		source.amount = 0
+	inv.notify_changed()
+
+
+func _move_one_from_craft_to_inventory(craft_index: int) -> void:
+	if craft_index < 0 or craft_index >= craft_slots.size():
+		return
+	var source := craft_slots[craft_index]
+	if source.item == null:
+		return
+	if inv.Insert(source.item):
+		source.item = null
+		source.amount = 0
+
+
+func _swap_crafting_slots(first_index: int, second_index: int) -> void:
+	if first_index < 0 or first_index >= craft_slots.size() or second_index < 0 or second_index >= craft_slots.size():
+		return
+	var first := craft_slots[first_index]
+	var second := craft_slots[second_index]
+	var item := first.item
+	first.item = second.item
+	second.item = item
+	first.amount = 1 if first.item else 0
+	second.amount = 1 if second.item else 0
+	update_slots()
+
+
+func _craft_current_recipe() -> void:
+	var recipe := CraftingCatalog.find_recipe(craft_slots)
+	var result := CraftingCatalog.get_result(recipe)
+	if result == null:
+		return
+	if not inv.can_insert(result):
+		_show_inventory_toast("Kein freier Platz fuer das Ergebnis.", "error")
+		return
+	for slot in craft_slots:
+		slot.item = null
+		slot.amount = 0
+	if inv.Insert(result):
+		_show_inventory_toast("Hergestellt: %s" % result.get_display_name(), "reward")
+	update_slots()
+
+
+func _return_crafting_ingredients() -> void:
+	for slot in craft_slots:
+		if slot.item and inv.Insert(slot.item):
+			slot.item = null
+			slot.amount = 0
+
+
+func _show_inventory_toast(message: String, toast_type: String) -> void:
+	var player := get_tree().get_first_node_in_group("players")
+	if player and player.has_method("_show_feedback_toast"):
+		player.call("_show_feedback_toast", message, toast_type)
 
 
 func _get_slot_ref_under_mouse() -> Dictionary:
@@ -350,12 +543,24 @@ func _cancel_drag() -> void:
 func _create_dragging_item(item: InvItem) -> Control:
 	var drag_item := Control.new()
 	var sprite := Sprite2D.new()
-	sprite.texture = item.texture
-	sprite.scale = Vector2(1.75, 1.75)
+	var display_texture := _get_item_display_texture(item)
+	sprite.texture = display_texture
+	var texture_size := display_texture.get_size() if display_texture else Vector2.ONE
+	var scale_factor := 44.0 / maxf(texture_size.x, texture_size.y)
+	sprite.scale = Vector2.ONE * scale_factor
 	drag_item.add_child(sprite)
 	get_parent().add_child(drag_item)
 	drag_item.position = get_global_mouse_position()
 	return drag_item
+
+
+func _get_item_display_texture(item: InvItem) -> Texture2D:
+	if item.world_texture_region.has_area():
+		var cropped := AtlasTexture.new()
+		cropped.atlas = item.texture
+		cropped.region = item.world_texture_region
+		return cropped
+	return item.texture
 
 
 func _apply_styles() -> void:

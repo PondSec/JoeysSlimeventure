@@ -1,5 +1,7 @@
 extends CharacterBody2D
 
+const LootDropper := preload("res://Scripts/loot_dropper.gd")
+
 ## Leuchtmaul is deliberately rooted in place. It lights a dark pocket of
 ## cave, waits for Joey to pass, then commits to a clearly readable bite.
 signal defeated
@@ -19,8 +21,7 @@ const BITE_FRAMES := [
 	preload("res://Assets/Enemies/Leuchtmaul/frames/bite_01.png"),
 	preload("res://Assets/Enemies/Leuchtmaul/frames/bite_02.png"),
 	preload("res://Assets/Enemies/Leuchtmaul/frames/bite_03.png"),
-	preload("res://Assets/Enemies/Leuchtmaul/frames/bite_04.png"),
-	preload("res://Assets/Enemies/Leuchtmaul/frames/bite_05.png")
+	preload("res://Assets/Enemies/Leuchtmaul/frames/bite_04.png")
 ]
 const RECOIL_FRAME := preload("res://Assets/Enemies/Leuchtmaul/frames/recoil_00.png")
 const DEATH_FRAMES := [
@@ -34,7 +35,7 @@ const DEATH_FRAMES := [
 
 const GRAVITY := 1180.0
 const FRAME_SECONDS := 0.105
-const BASE_SPRITE_SCALE := Vector2(0.30, 0.30)
+const BASE_SPRITE_SCALE := Vector2(0.24, 0.24)
 const NORMAL_LIGHT := Color(0.30, 1.0, 0.89, 1.0)
 const RECOIL_LIGHT := Color(0.16, 0.42, 0.45, 1.0)
 
@@ -125,14 +126,14 @@ func _physics_process(delta: float) -> void:
 
 
 func take_damage(amount: int, direction := Vector2.ZERO, _is_crit: bool = false) -> void:
-	if is_dead:
+	if is_dead or current_health <= 0:
 		return
 	current_health -= maxi(0, amount)
 	hit_flash_timer = 0.13
 	if direction.length_squared() > 0.01:
 		facing_sign = -signf(direction.x)
 	if current_health <= 0:
-		_die()
+		call_deferred("_die")
 
 
 func _process_idle() -> void:
@@ -195,7 +196,7 @@ func _update_lighting() -> void:
 
 func _update_sprite() -> void:
 	if hit_flash_timer > 0.0:
-		sprite.modulate = Color(1.0, 0.84, 0.88, 1.0)
+		sprite.modulate = Color(3.4, 3.4, 3.4, 1.0)
 	else:
 		# The glow lives on the mushroom itself; its point light is deliberately
 		# almost imperceptible so it cannot bleach surrounding cave geometry.
@@ -224,8 +225,10 @@ func _set_frame(texture: Texture2D) -> void:
 
 func _set_bite_active(active: bool) -> void:
 	bite_active = active
-	bite_area.monitoring = active
-	bite_area.monitorable = active
+	# This function can be reached from a hit signal while physics queries are
+	# flushing.  Deferred toggles avoid an invalid collision-state mutation.
+	bite_area.set_deferred("monitoring", active)
+	bite_area.set_deferred("monitorable", active)
 
 
 func _try_bite(body: Node) -> void:
@@ -236,7 +239,7 @@ func _try_bite(body: Node) -> void:
 	bite_hit_applied = true
 	hit_cooldown = 0.65
 	if body.has_method("take_damage"):
-		body.call("take_damage", bite_damage, global_position)
+		body.call_deferred("take_damage", bite_damage, global_position)
 
 
 func _on_bite_area_body_entered(body: Node2D) -> void:
@@ -259,6 +262,12 @@ func _die() -> void:
 	state = State.DEAD
 	state_time = 0.0
 	emit_signal("defeated")
+	LootDropper.spawn_independent_drops(self, [
+		{"item": "health_heart", "chance": 0.52},
+		{"item": "copper_nugget", "chance": 0.34},
+		{"item": "iron_nugget", "chance": 0.14},
+		{"item": "bat_artefact", "chance": 0.015}
+	])
 	set_collision_layer_value(1, false)
 	set_collision_mask_value(1, false)
 	_set_bite_active(false)

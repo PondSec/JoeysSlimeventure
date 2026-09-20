@@ -1,5 +1,8 @@
 extends CharacterBody2D
 
+const LootDropper := preload("res://Scripts/loot_dropper.gd")
+const SONIC_WAVE_SCENE := preload("res://Scenes/Projectiles/bat_ultrasound_wave.tscn")
+
 # Einstellungen
 const SPEED = 140.0
 const FAST_SPEED = 220.0
@@ -11,10 +14,18 @@ const RESPAWN_COOLDOWN = 10
 const BASE_DETECTION_RADIUS = 150.0
 const NAVIGATION_UPDATE_INTERVAL = 0.5
 const CRITICAL_HIT_CHANCE = 0.3
-const DODGE_CHANCE = 0.25
+const DODGE_CHANCE = 0.22
+const DODGE_COOLDOWN_MIN = 1.65
+const DODGE_COOLDOWN_MAX = 2.35
+const DODGE_DASH_SPEED = 430.0
+const DODGE_DASH_DURATION = 0.16
 const MAX_HEALTH = 50
 const ACCELERATION = 8.0
 const DECELERATION = 10.0
+const SONIC_MIN_RANGE = 132.0
+const SONIC_MAX_RANGE = 288.0
+const SONIC_COOLDOWN = 3.15
+const SONIC_TELEGRAPH_DURATION = 0.38
 
 # Variablen
 var navigation_update_timer = 0.0
@@ -27,12 +38,17 @@ var is_knocked_back := false
 var is_stunned := false
 var is_dodging := false
 var last_dodge_time := 0.0
+var dodge_cooldown := 0.0
+var dodge_direction := Vector2.ZERO
 var bat_position: Vector2 = Vector2.ZERO
 var player_last_seen_position: Vector2 = Vector2.ZERO
 var time_since_last_seen := 0.0
 var patrol_points := []
 var current_patrol_index := 0
 var should_attack := false
+var sonic_cooldown := 0.9
+var sonic_charge := 0.0
+var sonic_direction := Vector2.ZERO
 
 # Einstellungen
 const PATROL_CHANCE = 0.9  # 30% Chance zu patrouillieren, wenn der Spieler nicht in Sicht ist
@@ -93,6 +109,7 @@ var loot_table = [
 
 func _ready() -> void:
 	randomize()
+	sonic_cooldown = randf_range(0.35, 1.35)
 	add_to_group("enemies")
 	add_to_group("bats")
 	bat_position = global_position
@@ -113,6 +130,12 @@ func _ready() -> void:
 		sound_player.name = "SoundPlayer"
 
 func _physics_process(delta: float) -> void:
+	sonic_cooldown = maxf(sonic_cooldown - delta, 0.0)
+	dodge_cooldown = maxf(dodge_cooldown - delta, 0.0)
+	if player != null and is_instance_valid(player) and _process_sonic_attack(delta):
+		move_and_slide()
+		set_animation()
+		return
 	
 	if normal_hit_streak > 0:
 		streak_timer += delta
@@ -151,7 +174,11 @@ func _physics_process(delta: float) -> void:
 		set_animation()
 		return
 	
-	if is_knocked_back:
+	if is_dodging:
+		# A clean, high-speed retreat is much more readable than the old random
+		# sideways drift and gives the player a clear visual DODGE cue.
+		velocity = dodge_direction * DODGE_DASH_SPEED
+	elif is_knocked_back:
 		handle_knockback(delta)
 	else:
 		handle_state_machine(delta)  # Ersetzt handle_movement
@@ -288,6 +315,38 @@ func can_attack() -> bool:
 			and not is_dodging 
 			and global_position.distance_to(player.global_position) <= ATTACK_RANGE)
 
+
+func _process_sonic_attack(delta: float) -> bool:
+	if sonic_charge > 0.0:
+		sonic_charge -= delta
+		velocity = velocity.lerp(Vector2.ZERO, delta * 9.0)
+		sprite.modulate = Color(0.78, 0.9, 1.0, 1.0)
+		if sonic_charge <= 0.0:
+			_spawn_sonic_wave()
+			sonic_cooldown = SONIC_COOLDOWN * randf_range(0.82, 1.28)
+			sprite.modulate = Color.WHITE
+		return true
+	if sonic_cooldown > 0.0 or is_dead or is_stunned or is_dodging or current_state != "chase":
+		return false
+	var distance := global_position.distance_to(player.global_position)
+	if distance < SONIC_MIN_RANGE or distance > SONIC_MAX_RANGE:
+		return false
+	sonic_direction = (player.global_position - global_position).normalized()
+	sonic_charge = SONIC_TELEGRAPH_DURATION
+	return true
+
+
+func _spawn_sonic_wave() -> void:
+	var wave := SONIC_WAVE_SCENE.instantiate() as Area2D
+	if wave == null:
+		return
+	var launch_direction := sonic_direction if sonic_direction.length_squared() > 0.001 else Vector2.RIGHT
+	var host := get_parent()
+	if host == null:
+		host = get_tree().current_scene
+	host.add_child(wave)
+	wave.call("configure", global_position + launch_direction * 22.0, launch_direction, 260.0, 14)
+
 func handle_chase(delta: float, distance: float) -> void:
 	if should_attack:
 		return
@@ -297,6 +356,8 @@ func handle_chase(delta: float, distance: float) -> void:
 	if distance > actual_detection_radius * 1.2:  # 20% Puffer
 		velocity = Vector2.ZERO
 		decide_next_state()
+		return
+	if _try_dodge_committed_player_attack(distance):
 		return
 	
 	navigation_update_timer -= delta
@@ -376,22 +437,36 @@ func attack() -> void:
 		print("Attack Timer: ", attack_timer, " | Dodging: ", is_dodging)
 
 func dodge() -> void:
+	if is_dead or is_dodging or dodge_cooldown > 0.0:
+		return
 	is_dodging = true
 	last_dodge_time = Time.get_ticks_msec()
+	dodge_cooldown = randf_range(DODGE_COOLDOWN_MIN, DODGE_COOLDOWN_MAX)
 	sound_player.stream = dodge_sound
 	sound_player.play()
 	
-	var dodge_direction = Vector2.RIGHT if randi() % 2 == 0 else Vector2.LEFT
-	dodge_direction = dodge_direction.rotated(randf_range(-PI/4, PI/4))
-	knockback_velocity = dodge_direction * 200
-	is_knocked_back = true
-	
-	var dodge_tween = create_tween()
-	dodge_tween.tween_property(sprite, "modulate:a", 0.5, 0.1)
-	dodge_tween.tween_property(sprite, "modulate:a", 1.0, 0.1)
-	
-	await get_tree().create_timer(0.4).timeout
+	var away := global_position - (player.global_position if is_instance_valid(player) else global_position - Vector2.UP)
+	if away.length_squared() < 0.001:
+		away = Vector2.UP
+	var lateral := Vector2(-away.y, away.x).normalized() * randf_range(-0.20, 0.20)
+	dodge_direction = (away.normalized() + lateral).normalized()
+	await get_tree().create_timer(DODGE_DASH_DURATION).timeout
 	is_dodging = false
+
+
+func _try_dodge_committed_player_attack(distance: float) -> bool:
+	if dodge_cooldown > 0.0 or distance > 112.0 or player == null or not is_instance_valid(player):
+		return false
+	var player_attacking: Variant = player.get("is_attacking")
+	if not (player_attacking is bool and player_attacking):
+		return false
+	# One chance per committed swing window, never a per-frame reroll.
+	dodge_cooldown = randf_range(DODGE_COOLDOWN_MIN, DODGE_COOLDOWN_MAX)
+	if randf() > DODGE_CHANCE:
+		return false
+	dodge_cooldown = 0.0
+	dodge()
+	return true
 
 func perform_critical_hit() -> void:
 	#sound_player.stream = attack_sound
@@ -532,15 +607,13 @@ func set_animation() -> void:
 		animation_player.play("idle")
 
 func take_damage(amount: int, direction: Vector2, is_crit: bool = false) -> void:
-	if is_dead or is_dodging:
+	if is_dead or bat_health <= 0 or is_dodging:
 		return
 	
 	# Apply crit multiplier if it's a crit
 	var final_damage = amount
 	if is_crit:
 		final_damage = ceil(amount * 1.5)  # 50% more damage on crit
-		# Play special crit effects
-		perform_critical_hit_effects()
 	
 	# Schadensreduktion basierend auf der Entfernung.
 	# Falls gerade kein Ziel referenziert ist, soll der Treffer trotzdem gelten.
@@ -555,11 +628,11 @@ func take_damage(amount: int, direction: Vector2, is_crit: bool = false) -> void
 	sound_player.stream = hurt_sound
 	sound_player.pitch_scale = randf_range(0.9, 1.1)
 	sound_player.play()
-	flash_red()
-	apply_knockback()
+	# Player combat applies the shared white hitstop first, followed by one
+	# coherent knockback. Do not start competing per-enemy feedback here.
 	
 	if bat_health <= 0:
-		die()
+		call_deferred("die")
 	else:
 		health_bar.visible = true
 		get_tree().create_timer(2.0).timeout.connect(func(): health_bar.visible = false)
@@ -585,7 +658,7 @@ func perform_critical_hit_effects():
 
 func flash_red() -> void:
 	var flash_tween = create_tween()
-	flash_tween.tween_property(sprite, "modulate", Color(1, 0.3, 0.3), 0.1)
+	flash_tween.tween_property(sprite, "modulate", Color(3.4, 3.4, 3.4, 1.0), 0.06)
 	flash_tween.tween_property(sprite, "modulate", Color.WHITE, 0.2)
 
 func apply_knockback() -> void:
@@ -623,21 +696,15 @@ func die() -> void:
 	respawn()
 
 func drop_loot() -> void:
-	var roll = randf()
-	var cumulative_chance = 0.0
-	
-	for item in loot_table:
-		cumulative_chance += item["chance"]
-		if roll < cumulative_chance:
-			if item["scene"] == null:
-				return
-			
-			var dropped_item = item["scene"].instantiate()
-			dropped_item.global_position = global_position
-			dropped_item.apply_impulse(Vector2(randf_range(-50, 50), -100))
-			dropped_item.apply_torque_impulse(randf_range(-10, 10))
-			get_parent().add_child(dropped_item)
-			return
+	LootDropper.spawn_independent_drops(self, [
+		{"item": "health_heart", "chance": 0.68},
+		{"item": "bat_claw", "chance": 0.38},
+		{"item": "copper_nugget", "chance": 0.58},
+		{"item": "iron_nugget", "chance": 0.28},
+		{"item": "iron_nugget", "chance": 0.16},
+		{"item": "gold_nugget", "chance": 0.055},
+		{"item": "bat_artefact", "chance": 0.025}
+	])
 
 func respawn() -> void:
 	if was_called:  # Gerufene Fledermäuse respawnen nicht

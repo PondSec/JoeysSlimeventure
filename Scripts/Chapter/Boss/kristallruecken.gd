@@ -1,5 +1,7 @@
 extends CharacterBody2D
 
+const LootDropper := preload("res://Scripts/loot_dropper.gd")
+
 signal health_changed(current_health: int, max_health_value: int)
 signal first_damage_taken
 signal boss_died
@@ -460,6 +462,13 @@ func _begin_death() -> void:
 	active_minions.clear()
 	health_changed.emit(0, boss_health)
 	boss_died.emit()
+	LootDropper.spawn_independent_drops(self, [
+		{"item": "health_heart", "chance": 1.0, "min_count": 3, "max_count": 4},
+		{"item": "copper_nugget", "chance": 1.0, "min_count": 2, "max_count": 3},
+		{"item": "iron_nugget", "chance": 1.0, "min_count": 2, "max_count": 3},
+		{"item": "irrlicht_eye", "chance": 0.18},
+		{"item": "gold_nugget", "chance": 0.38, "min_count": 1, "max_count": 2}
+	])
 	sprite.play(&"death")
 
 

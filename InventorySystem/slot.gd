@@ -55,7 +55,7 @@ func update(slot_data: InvSlot) -> void:
 	if item_display:
 		item_display.visible = slot_data.item != null
 		if slot_data.item:
-			item_display.texture = slot_data.item.texture
+			item_display.texture = _get_display_texture(slot_data.item)
 
 	if label:
 		label.visible = slot_data.item != null
@@ -63,6 +63,15 @@ func update(slot_data: InvSlot) -> void:
 			label.text = str(slot_data.amount)
 		else:
 			label.text = ""
+
+
+func _get_display_texture(item: InvItem) -> Texture2D:
+	if item.world_texture_region.has_area():
+		var cropped := AtlasTexture.new()
+		cropped.atlas = item.texture
+		cropped.region = item.world_texture_region
+		return cropped
+	return item.texture
 # Handling mouse events for drag
 func _on_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:

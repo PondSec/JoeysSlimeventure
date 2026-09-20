@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="InvItem" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://InventorySystem/inventory_item.gd" id="1_item"]
+[ext_resource type="Texture2D" path="res://Assets/Items/irrlicht_carapace.png" id="2_texture"]
+
+[resource]
+script = ExtResource("1_item")
+name = "irrlicht_carapace"
+display_name = "Irrlichtpanzer"
+description = "Seltene, schimmernde Chitinplatte. Zusammen mit einem Irrlichtauge und drei Eisen entsteht daraus eine Brustplatte."
+texture = ExtResource("2_texture")
+rarity = "rare"
+stack_size = 32
+world_texture_region = Rect2(180, 270, 900, 720)
+world_scale = 0.052

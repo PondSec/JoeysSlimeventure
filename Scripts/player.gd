@@ -1,5 +1,6 @@
 extends CharacterBody2D
 
+var glow_tween: Tween
 signal glow_changed(is_glowing: bool)
 const ItemRegistry := preload("res://Scripts/item_registry.gd")
 const SwordCatalog := preload("res://Scripts/sword_catalog.gd")
@@ -8,6 +9,8 @@ const CharacterCatalog := preload("res://Scripts/character_catalog.gd")
 const HeroTransformEffectScene := preload("res://Scripts/hero_transform_effect.gd")
 const HeroCombatEffectScene := preload("res://Scripts/hero_combat_effect.gd")
 const DEBUG_UNLOCK_HERO_FORM := true
+
+var enemy_hit_flash_material: ShaderMaterial
 
 var controls_inverted: bool = false
 const SkillProgression := preload("res://Scripts/skill_progression.gd")
@@ -179,6 +182,13 @@ var is_charging: bool = false
 
 # Variablen für Bewegung und Status
 var is_glowing := true
+const GLOW_ENERGY_MAX := 100.0
+const GLOW_ENERGY_DRAIN_PER_SECOND := 7.0
+const GLOW_ENERGY_RECHARGE_PER_SECOND := 18.0
+const GLOW_MIN_ACTIVATION_ENERGY := 12.0
+var glow_energy := GLOW_ENERGY_MAX
+var glow_exhausted := false
+var glow_base_energy := 1.0
 var is_gliding := false
 var is_attacking := false  # Angriffszustand
 var was_in_air := false  # Variable, um zu überprüfen, ob der Spieler gerade in der Luft war
@@ -212,16 +222,19 @@ var dash_cooldown_timer: Timer
 
 var transfer_dialog_scene = preload("res://Scenes/transfer.tscn")
 
-# Konstanten für den Fall-Schaden
-const FALL_DAMAGE_THRESHOLD = 1580  # Y-Position, ab der Schaden verursacht wird
-const FALL_DAMAGE = 30  # Schaden, der beim Fallen verursacht wird
+# A chapter configures this from its generated world. It deliberately starts
+# disabled for menu/test scenes: a local cave depth must never be confused with
+# having fallen out of the world.
+var world_fall_death_y := INF
 
 # Referenzen zu Knoten
 var attack_sprite: AnimatedSprite2D
+var slime_sword_combo_sprite: Sprite2D
 var attack_area: Area2D
 var attack_collision_shape: CollisionShape2D
 var attack_area_base_position := Vector2.ZERO
 var attack_shape_base_scale := Vector2.ONE
+var blade_hit_hull_cache: Dictionary = {}
 var equipped_weapon: InvItem
 var equipped_weapon_name := ""
 var weapon_attack_reach_bonus := 0.0
@@ -241,9 +254,31 @@ var weapon_grip_offset_runtime := Vector2(8.0, -8.0)
 var show_equipped_weapon_visual := true
 var weapon_hold_timer := 0.0
 var weapon_visibility_alpha := 0.0
+var slime_sword_combo_elapsed := 0.0
+var slime_sword_combo_duration := 0.0
+var slime_sword_combo_step := 0
+var slime_sword_combo_showing_recovery := false
 const WEAPON_HOLD_AFTER_ATTACK := 2.0
 const WEAPON_DRAW_FADE_SPEED := 15.0
 const WEAPON_SHEATHE_FADE_SPEED := 7.0
+const SLIME_SWORD_COMBO_MAIN_TEXTURES := [
+	"res://Assets/player/slime/sword_combos/combo_1.png",
+	"res://Assets/player/slime/sword_combos/combo_2.png",
+	"res://Assets/player/slime/sword_combos/combo_3.png",
+]
+const SLIME_SWORD_COMBO_RECOVERY_TEXTURES := [
+	"res://Assets/player/slime/sword_combos/combo_1_end.png",
+	"res://Assets/player/slime/sword_combos/combo_2_end.png",
+	"res://Assets/player/slime/sword_combos/combo_3_end.png",
+]
+const SLIME_SWORD_COMBO_MAIN_FRAME_COUNTS := [3, 6, 12]
+const SLIME_SWORD_COMBO_RECOVERY_FRAME_COUNTS := [4, 3, 6]
+# Match the Hero form's authored tags exactly, including the recovery sheets.
+const DELUXE_SWORD_COMBO_ACTIVE_TIMES := [0.15, 0.273, 0.5]
+const DELUXE_SWORD_COMBO_RECOVERY_TIMES := [0.222, 0.222, 0.3]
+# Slightly larger than the Hero canvas scale so the Sword+FX read cleanly next
+# to Joey's broader silhouette, without changing their authored pivot/timing.
+const SLIME_SWORD_COMBO_SCALE := Vector2(17.5, 17.5)
 var glow_effect: PointLight2D
 @onready var damage_label: Label = $PlayerSprite/CanvasLayer2/DamageLabel# Referenz zum Schadens-Label
 @onready var equipped_weapon_sprite: Sprite2D = $PlayerSprite/EquippedWeaponSprite
@@ -260,6 +295,7 @@ var runtime_landing_animation := "landing"
 var runtime_attack_elapsed := 0.0
 var runtime_turn_timer := 0.0
 var runtime_turn_animation := ""
+var runtime_turn_pending_flip := false
 var runtime_stop_timer := 0.0
 var runtime_fall_transition_timer := 0.0
 var runtime_wall_jump_timer := 0.0
@@ -290,6 +326,39 @@ var hero_slide_direction := 1.0
 var hero_momentum_attack_timer := 0.0
 var hero_current_attack_had_momentum := false
 var hero_hitstop_active := false
+var damage_invulnerability_timer := 0.0
+var attack_sequence_id := 0
+
+# Deluxe hero traversal state. These states deliberately live beside the
+# runtime animator so gameplay and visual ownership cannot drift apart.
+var is_hero_ledge_hanging := false
+var is_hero_ledge_climbing := false
+var hero_ledge_settle_timer := 0.0
+var hero_ledge_reach_timer := 0.0
+var hero_ledge_side := 0.0
+var hero_ledge_top := Vector2.ZERO
+var hero_ledge_climb_start := Vector2.ZERO
+var hero_ledge_climb_target := Vector2.ZERO
+var hero_ledge_climb_elapsed := 0.0
+const HERO_LEDGE_CLIMB_DURATION := 11.0 / 18.0
+const HERO_LEDGE_PROBE_REACH := 18.0
+const HERO_LEDGE_RELEASE_SPEED := 230.0
+const HERO_FALL_TRANSITION_TIME := 0.32
+# The Deluxe hang sheet is centered on its frame, while the grasping hands are
+# visibly above the physics body's origin. Keep the hands on the ledge, not the
+# collision rectangle's midpoint.
+const HERO_LEDGE_HANG_ROOT_BELOW_TOP := 25.0
+# A ledge must have a real vertical face beneath it; tiny steps are traversed
+# by normal movement and must never become a hang point.
+# The hero's physics box is intentionally much smaller than the Deluxe sprite.
+# This is 105% of the rendered feet-to-head height at the current world scale,
+# not 120% of the compact collision box.
+const HERO_LEDGE_MIN_FACE_HEIGHT := 70.0
+const HERO_LEDGE_FACE_SAMPLE_COUNT := 6
+
+# A buffered input chains immediately at the end of the authored strike sheet.
+# Without that input, the matching *_end sheet is allowed to finish in full.
+var hero_combo_queued := false
 
 # Variablen für das Lebenssystem
 var max_health: int = 100
@@ -312,13 +381,26 @@ var current_attack_damage_multiplier := 1.0
 var current_attack_knockback_strength := 220.0
 var current_attack_lunge_strength := 90.0
 var attack_targets_hit := {}
+var attack_hit_window_open := false
+var attack_dash_cancel_ready := false
 var combo_damage_multipliers: Array[float] = []
 var combo_knockback_strengths: Array[float] = []
 var combo_lunge_strengths: Array[float] = []
 var combo_active_times := [0.28, 0.30, 0.33]
 var combo_recovery_times := [0.12, 0.12, 0.15]
-const ATTACK_REACH_SCALES := [2.1, 2.3, 2.5]
-const ATTACK_FORWARD_OFFSETS := [200.0, 230.0, 260.0]
+# Gameplay hitboxes are deliberately compact and live directly under the
+# physics body.  They must never inherit the legacy visual swing's scale.
+## Kept as a compact, character-relative volume (rather than inheriting the
+## oversized visual slash scale), but deliberately reach well beyond the hero's
+## collision body.  A sword swing should connect at its tip, not force contact.
+const ATTACK_HITBOX_SIZES := [Vector2(300.0, 128.0), Vector2(326.0, 140.0), Vector2(356.0, 154.0)]
+const ATTACK_FORWARD_OFFSETS := [165.0, 185.0, 205.0]
+const ATTACK_VERTICAL_OFFSETS := [-52.0, -48.0, -44.0]
+const ATTACK_HIT_WINDOWS := [Vector2(0.035, 0.115), Vector2(0.075, 0.215), Vector2(0.15, 0.385)]
+const HERO_FINISHER_HIT_WINDOWS: Array[Vector2] = [Vector2(0.14, 0.18), Vector2(0.245, 0.29), Vector2(0.355, 0.405)]
+const PLAYER_HURT_INVULNERABILITY := 0.42
+const HERO_COMBAT_AUTO_AIM_RANGE := 460.0
+const ENEMY_DAMAGE_SCALE := 0.82
 const WEAPON_IDLE_POSITION := Vector2(38.0, 24.0)
 const WEAPON_IDLE_ROTATION := 18.0
 const WEAPON_BASE_SCALE := 10.8
@@ -416,8 +498,13 @@ var is_hero_form_active := false
 var is_transforming_hero_form := false
 var hero_transform_target_id := CharacterCatalog.SLIME_ID
 var hero_transform_timer := 0.0
-const HERO_TRANSFORM_DURATION := 0.72
-const HERO_TRANSFORM_SWAP_TIME := 0.32
+const HERO_TRANSFORM_DURATION := 1.08
+const HERO_TRANSFORM_SWAP_TIME := 0.54
+const HERO_TRANSFORM_DEATH_FRAMES := 23
+const HERO_TRANSFORM_HERO_SCALE := Vector2(15.625, 15.625)
+const HERO_TRANSFORM_HERO_POSITION := Vector2(0.000183105, -114.0)
+var transform_death_sprite: Sprite2D
+var transform_holy_light: PointLight2D
 
 var stun_timer: Timer = Timer.new()
 var save_load = preload("res://Scripts/SaveLoad.gd").new()
@@ -474,9 +561,10 @@ func _ready() -> void:
 		load_charge_cooldown()
 	glow_effect = $PlayerGlow
 	glow_effect.visible = false
+	glow_base_energy = glow_effect.energy
 	# Initialisiere Angriffsknoten
 	attack_sprite = $PlayerSprite/AttackSprite
-	attack_area = $PlayerSprite/AttackSprite/AttackArea
+	attack_area = $AttackArea
 	attack_collision_shape = attack_area.get_node_or_null("CollisionShape2D")
 	attack_area_base_position = attack_area.position
 	if attack_collision_shape:
@@ -494,6 +582,7 @@ func _ready() -> void:
 		default_collision_shape_scale = $ColisionArea.scale
 	_apply_default_character_profile()
 	_configure_attack_sprite_visual()
+	_ensure_slime_sword_combo_sprite()
 	_configure_equipped_weapon_sprite()
 	_setup_weapon_afterimages()
 	
@@ -534,6 +623,7 @@ func _ready() -> void:
 	inv.update.connect(update_health_bonus)
 	inv.update.connect(update_damage_bonus)
 	inv.update.connect(update_crit_bonuses)
+	inv.update.connect(update_defense_bonuses)
 	inv.update.connect(_on_inventory_equipment_changed)
 	if not chapter_qa_mode:
 		add_child(api_script)
@@ -546,6 +636,7 @@ func _ready() -> void:
 		api_timer.start()
 		api_script.send_request()
 	_on_inventory_equipment_changed()
+	update_defense_bonuses()
 	# Ausgeruestete Sterne sind Begleiter und gehoeren auch in Kapitellevel.
 	# Fangbegegnungen werden vom StarManager selbst nur ausserhalb des
 	# Kapitelmodus aktiviert.
@@ -917,6 +1008,22 @@ func update_damage_bonus():
 	damage_multiplier = bonus
 	attack_damage = int((base_attack_damage + flat_bonus) * damage_multiplier)
 
+
+func update_defense_bonuses() -> void:
+	var equipment_reduction := 0.0
+	var glow_multiplier := 1.0
+	for item in _get_equipped_items():
+		equipment_reduction += item.damage_reduction_bonus
+		glow_multiplier = min(glow_multiplier, item.glow_range_multiplier)
+	# Keep active-buff reductions intact; this function is called whenever the
+	# inventory changes, not only when a buff refreshes.
+	for buff_type: Variant in active_buffs.keys():
+		if String(buff_type) in ["damage_reduction", "constant_damage_reduction"]:
+			equipment_reduction += float(active_buffs[buff_type])
+	damage_reduction = clampf(equipment_reduction, 0.0, 0.8)
+	if glow_effect:
+		glow_effect.set("custom_range", 300.0 * glow_multiplier)
+
 func update_health_bonus():
 	var bonus = 1.0
 	for item in _get_equipped_items():
@@ -996,7 +1103,86 @@ func _notify_star_finisher() -> void:
 func _configure_attack_sprite_visual() -> void:
 	if attack_sprite == null:
 		return
+	# Legacy slime attack art is superseded by the Deluxe Sword layer below.
+	# Keep this node inert so it can never flash behind the new combo frames.
+	attack_sprite.stop()
+	attack_sprite.visible = false
 	attack_sprite.self_modulate = Color(1.0, 1.0, 1.0, 0.0)
+
+
+func _ensure_slime_sword_combo_sprite() -> void:
+	if slime_sword_combo_sprite != null and is_instance_valid(slime_sword_combo_sprite):
+		return
+
+	slime_sword_combo_sprite = Sprite2D.new()
+	slime_sword_combo_sprite.name = "SlimeSwordComboSprite"
+	slime_sword_combo_sprite.centered = true
+	slime_sword_combo_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	slime_sword_combo_sprite.position = default_player_sprite_position
+	slime_sword_combo_sprite.scale = SLIME_SWORD_COMBO_SCALE
+	slime_sword_combo_sprite.z_index = $PlayerSprite.z_index + 5
+	slime_sword_combo_sprite.visible = false
+	add_child(slime_sword_combo_sprite)
+
+
+func _start_slime_sword_combo_animation(step: int) -> void:
+	_ensure_slime_sword_combo_sprite()
+	if slime_sword_combo_sprite == null or _is_hero_form_active():
+		return
+
+	slime_sword_combo_step = clampi(step, 0, SLIME_SWORD_COMBO_MAIN_TEXTURES.size() - 1)
+	slime_sword_combo_elapsed = 0.0
+	slime_sword_combo_showing_recovery = false
+	slime_sword_combo_duration = float(DELUXE_SWORD_COMBO_ACTIVE_TIMES[slime_sword_combo_step]) + float(DELUXE_SWORD_COMBO_RECOVERY_TIMES[slime_sword_combo_step])
+	_set_slime_sword_combo_sheet(false)
+
+
+func _set_slime_sword_combo_sheet(show_recovery: bool) -> void:
+	if slime_sword_combo_sprite == null:
+		return
+	var texture_paths := SLIME_SWORD_COMBO_RECOVERY_TEXTURES if show_recovery else SLIME_SWORD_COMBO_MAIN_TEXTURES
+	var frame_counts := SLIME_SWORD_COMBO_RECOVERY_FRAME_COUNTS if show_recovery else SLIME_SWORD_COMBO_MAIN_FRAME_COUNTS
+	var frame_count: int = int(frame_counts[slime_sword_combo_step])
+	slime_sword_combo_sprite.texture = CharacterCatalog.load_texture(String(texture_paths[slime_sword_combo_step]))
+	slime_sword_combo_sprite.hframes = frame_count
+	slime_sword_combo_sprite.vframes = 1
+	slime_sword_combo_sprite.frame = 0
+	slime_sword_combo_sprite.flip_h = is_facing_left
+	# Joey's Sword+FX strip shares the exact center of his body sprite. The
+	# authored frame-local arcs stay intact; this does not affect Hero form.
+	slime_sword_combo_sprite.position = default_player_sprite_position
+	slime_sword_combo_sprite.scale = SLIME_SWORD_COMBO_SCALE
+	slime_sword_combo_sprite.visible = slime_sword_combo_sprite.texture != null
+
+
+func _update_slime_sword_combo_animation(delta: float) -> void:
+	if slime_sword_combo_sprite == null:
+		return
+	if _is_hero_form_active() or not is_attacking or slime_sword_combo_duration <= 0.0:
+		slime_sword_combo_sprite.visible = false
+		return
+
+	slime_sword_combo_elapsed += delta
+	var active_duration: float = float(DELUXE_SWORD_COMBO_ACTIVE_TIMES[slime_sword_combo_step])
+	var recovery_duration: float = float(DELUXE_SWORD_COMBO_RECOVERY_TIMES[slime_sword_combo_step])
+	var show_recovery := slime_sword_combo_elapsed >= active_duration
+	if show_recovery != slime_sword_combo_showing_recovery:
+		slime_sword_combo_showing_recovery = show_recovery
+		_set_slime_sword_combo_sheet(show_recovery)
+
+	var segment_duration := recovery_duration if show_recovery else active_duration
+	var segment_elapsed := slime_sword_combo_elapsed - active_duration if show_recovery else slime_sword_combo_elapsed
+	if segment_elapsed >= segment_duration:
+		slime_sword_combo_sprite.visible = false
+		return
+	var frame_counts := SLIME_SWORD_COMBO_RECOVERY_FRAME_COUNTS if show_recovery else SLIME_SWORD_COMBO_MAIN_FRAME_COUNTS
+	var frame_count: int = int(frame_counts[slime_sword_combo_step])
+	var frame_index := mini(int(floor(segment_elapsed / segment_duration * float(frame_count))), frame_count - 1)
+	slime_sword_combo_sprite.frame = frame_index
+	slime_sword_combo_sprite.flip_h = is_facing_left
+	# Both tracks contain only authored visible cells; nothing loops through an
+	# empty source frame between strike and recovery.
+	slime_sword_combo_sprite.visible = true
 
 
 func _configure_equipped_weapon_sprite() -> void:
@@ -1098,6 +1284,16 @@ func _is_hero_form_active() -> bool:
 	return current_character_id == CharacterCatalog.MALE_HERO_ID
 
 
+func _uses_deluxe_sword_combat() -> bool:
+	# Joey's new sword layer uses the same authored three-part combat cadence as
+	# the Hero form; only the character body underneath remains different.
+	return current_character_id == CharacterCatalog.SLIME_ID or _is_hero_form_active()
+
+
+func _is_hero_ledge_busy() -> bool:
+	return _is_hero_form_active() and (is_hero_ledge_hanging or is_hero_ledge_climbing)
+
+
 func _character_can(capability_name: String, default_value: bool = false) -> bool:
 	return bool(current_character_capabilities.get(capability_name, default_value))
 
@@ -1186,6 +1382,33 @@ func _get_collision_half_width_world() -> float:
 	return rect.size.x * collision_shape.scale.x * absf(global_scale.x) * 0.5
 
 
+func _get_collision_half_height_world() -> float:
+	var collision_shape := get_node_or_null("ColisionArea") as CollisionShape2D
+	if collision_shape == null or not (collision_shape.shape is RectangleShape2D):
+		return 28.0
+	var rect := collision_shape.shape as RectangleShape2D
+	return rect.size.y * collision_shape.scale.y * absf(global_scale.y) * 0.5
+
+
+func _can_hero_stand_at(stand_position: Vector2) -> bool:
+	# Test the real standing collision shape at the eventual landing position.
+	# This rejects a pull-up beneath a ceiling or into a narrow overhang before
+	# any traversal state or visual is allowed to change.
+	var collision_shape := get_node_or_null("ColisionArea") as CollisionShape2D
+	if collision_shape == null or collision_shape.shape == null:
+		return false
+	var shape_query := PhysicsShapeQueryParameters2D.new()
+	shape_query.shape = collision_shape.shape
+	var target_transform: Transform2D = collision_shape.global_transform
+	target_transform.origin += stand_position - global_position
+	shape_query.transform = target_transform
+	shape_query.collision_mask = collision_mask
+	shape_query.exclude = [get_rid()]
+	shape_query.collide_with_bodies = true
+	shape_query.collide_with_areas = false
+	return get_world_2d().direct_space_state.intersect_shape(shape_query, 1).is_empty()
+
+
 func _apply_default_character_profile() -> void:
 	_apply_character_profile(CharacterCatalog.SLIME_ID)
 
@@ -1196,6 +1419,11 @@ func _apply_character_profile(character_id: String) -> void:
 		_end_hero_ground_slide(false)
 	current_character_id = character_id
 	is_hero_form_active = current_character_id == CharacterCatalog.MALE_HERO_ID
+	if slime_sword_combo_sprite != null:
+		slime_sword_combo_sprite.visible = false
+		slime_sword_combo_elapsed = 0.0
+		slime_sword_combo_duration = 0.0
+		slime_sword_combo_showing_recovery = false
 	current_character_meta = CharacterCatalog.get_character_meta(current_character_id)
 	current_character_profile = CharacterCatalog.get_runtime_profile(current_character_id)
 	current_character_capabilities = current_character_profile.get("capabilities", {}) as Dictionary
@@ -1230,6 +1458,13 @@ func _apply_character_profile(character_id: String) -> void:
 	weapon_base_scale = float(weapon_visual.get("base_scale", WEAPON_BASE_SCALE))
 	weapon_grip_offset_runtime = weapon_visual.get("grip_offset", WEAPON_GRIP_OFFSET)
 	_configure_character_audio()
+	if _is_hero_form_active():
+		combo_active_times = (hero_combat_config.get("combo_active", [0.15, 0.273, 0.5]) as Array).duplicate()
+		combo_recovery_times = (hero_combat_config.get("combo_recovery", [0.222, 0.222, 0.3]) as Array).duplicate()
+	else:
+		# Joey now plays the same Deluxe Sword tag timing as the Hero form.
+		combo_active_times = DELUXE_SWORD_COMBO_ACTIVE_TIMES.duplicate()
+		combo_recovery_times = DELUXE_SWORD_COMBO_RECOVERY_TIMES.duplicate()
 	_apply_collision_profile("standing")
 	is_wall_sliding = false
 	is_wall_running = false
@@ -1281,12 +1516,18 @@ func _apply_character_profile(character_id: String) -> void:
 	runtime_attack_elapsed = 0.0
 	runtime_turn_timer = 0.0
 	runtime_turn_animation = ""
+	runtime_turn_pending_flip = false
 	runtime_stop_timer = 0.0
 	runtime_fall_transition_timer = 0.0
 	runtime_wall_jump_timer = 0.0
 	runtime_hurt_timer = 0.0
 	runtime_dash_timer = 0.0
 	runtime_death_active = false
+	is_hero_ledge_hanging = false
+	is_hero_ledge_climbing = false
+	hero_ledge_settle_timer = 0.0
+	hero_ledge_reach_timer = 0.0
+	hero_combo_queued = false
 	was_descending = false
 	last_floor_velocity = 0.0
 
@@ -1299,14 +1540,23 @@ func _get_runtime_character_animation_descriptor(animation_name: String) -> Dict
 	if not uses_runtime_character_animation:
 		return {}
 	var animations: Dictionary = current_character_profile.get("animations", {}) as Dictionary
-	if animations.has(animation_name):
-		return (animations[animation_name] as Dictionary).duplicate(true)
+	var resolved_animation_name := animation_name
+	match animation_name:
+		"landing":
+			resolved_animation_name = "run_to_idle"
+		"hard_landing", "ground_slide":
+			resolved_animation_name = "slide"
+	if animations.has(resolved_animation_name):
+		return (animations[resolved_animation_name] as Dictionary).duplicate(true)
 	if animations.has("idle"):
 		return (animations["idle"] as Dictionary).duplicate(true)
 	return {}
 
 
 func _get_runtime_animation_frame_count(descriptor: Dictionary) -> int:
+	var frame_sequence: Array = descriptor.get("frame_sequence", []) as Array
+	if not frame_sequence.is_empty():
+		return frame_sequence.size()
 	var hframes := maxi(int(descriptor.get("hframes", 1)), 1)
 	var vframes := maxi(int(descriptor.get("vframes", 1)), 1)
 	return maxi(int(descriptor.get("frame_count", hframes * vframes)), 1)
@@ -1344,7 +1594,11 @@ func _apply_runtime_animation_frame(animation_name: String, frame_index: int) ->
 	var hframes := maxi(int(descriptor.get("hframes", 1)), 1)
 	var vframes := maxi(int(descriptor.get("vframes", 1)), 1)
 	var frame_count := _get_runtime_animation_frame_count(descriptor)
-	var clamped_frame := clampi(frame_index, 0, frame_count - 1)
+	var source_frame_count := hframes * vframes
+	var animation_frame := clampi(frame_index, 0, frame_count - 1)
+	var frame_sequence: Array = descriptor.get("frame_sequence", []) as Array
+	var source_frame := int(frame_sequence[animation_frame]) if not frame_sequence.is_empty() else animation_frame + maxi(int(descriptor.get("frame_offset", 0)), 0)
+	var clamped_frame := clampi(source_frame, 0, source_frame_count - 1)
 	var frame_size := Vector2(
 		float(texture.get_width()) / float(hframes),
 		float(texture.get_height()) / float(vframes)
@@ -1385,7 +1639,81 @@ func _spawn_transform_effect(to_hero: bool) -> void:
 	var effect := HeroTransformEffectScene.new()
 	effect.z_index = 12
 	effect.configure(to_hero, 118.0)
+	effect.duration = HERO_TRANSFORM_DURATION
 	add_child(effect)
+
+
+func _ensure_transform_holy_light() -> void:
+	if transform_holy_light != null and is_instance_valid(transform_holy_light):
+		return
+	transform_holy_light = PointLight2D.new()
+	transform_holy_light.name = "HeroTransformHolyLight"
+	transform_holy_light.texture = glow_effect.texture if glow_effect != null else null
+	transform_holy_light.color = Color(1.0, 0.98, 0.90, 1.0)
+	transform_holy_light.texture_scale = 1.35
+	transform_holy_light.energy = 0.0
+	transform_holy_light.position = HERO_TRANSFORM_HERO_POSITION + Vector2(0.0, -4.0)
+	transform_holy_light.z_index = 7
+	add_child(transform_holy_light)
+
+
+func _play_holy_transform_light() -> void:
+	_ensure_transform_holy_light()
+	if transform_holy_light == null:
+		return
+	transform_holy_light.visible = true
+	transform_holy_light.energy = 0.0
+	transform_holy_light.texture_scale = 1.08
+	var light_tween := create_tween()
+	light_tween.tween_property(transform_holy_light, "energy", 1.65, 0.16).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	light_tween.parallel().tween_property(transform_holy_light, "texture_scale", 1.42, 0.24).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	light_tween.tween_property(transform_holy_light, "energy", 0.22, 0.48).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	light_tween.parallel().tween_property(transform_holy_light, "texture_scale", 1.22, 0.48).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	light_tween.tween_property(transform_holy_light, "energy", 0.0, 0.20).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	light_tween.tween_callback(func() -> void:
+		if is_instance_valid(transform_holy_light):
+			transform_holy_light.visible = false
+	)
+
+
+func _play_transform_death_sequence(to_hero: bool) -> void:
+	if transform_death_sprite != null and is_instance_valid(transform_death_sprite):
+		transform_death_sprite.queue_free()
+	transform_death_sprite = Sprite2D.new()
+	transform_death_sprite.name = "HeroDeathMorphSprite"
+	transform_death_sprite.texture = CharacterCatalog.load_texture(CharacterCatalog.HERO_DELUXE_SHEETS + "male_hero-death.png")
+	if transform_death_sprite.texture == null:
+		transform_death_sprite.queue_free()
+		transform_death_sprite = null
+		return
+	transform_death_sprite.hframes = HERO_TRANSFORM_DEATH_FRAMES
+	transform_death_sprite.vframes = 1
+	transform_death_sprite.position = HERO_TRANSFORM_HERO_POSITION
+	transform_death_sprite.scale = HERO_TRANSFORM_HERO_SCALE
+	transform_death_sprite.flip_h = is_facing_left
+	transform_death_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	transform_death_sprite.z_index = $PlayerSprite.z_index + 6
+	add_child(transform_death_sprite)
+
+	var frame_time := HERO_TRANSFORM_DURATION / float(HERO_TRANSFORM_DEATH_FRAMES)
+	for step in range(HERO_TRANSFORM_DEATH_FRAMES):
+		if transform_death_sprite == null or not is_instance_valid(transform_death_sprite):
+			return
+		transform_death_sprite.frame = HERO_TRANSFORM_DEATH_FRAMES - 1 - step if to_hero else step
+		if step == HERO_TRANSFORM_DEATH_FRAMES - 5:
+			var fade_tween := create_tween()
+			fade_tween.tween_property(transform_death_sprite, "modulate:a", 0.0, frame_time * 4.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+		await get_tree().create_timer(frame_time).timeout
+	if transform_death_sprite != null and is_instance_valid(transform_death_sprite):
+		transform_death_sprite.queue_free()
+		transform_death_sprite = null
+
+
+func _set_transform_body_alpha(alpha: float) -> void:
+	var body_alpha := clampf(alpha, 0.0, 1.0)
+	$PlayerSprite.modulate = Color(1.0, 1.0, 1.0, body_alpha)
+	if runtime_body_sprite != null and is_instance_valid(runtime_body_sprite):
+		runtime_body_sprite.modulate = Color(1.0, 1.0, 1.0, body_alpha)
 
 
 func toggle_hero_form() -> void:
@@ -1415,7 +1743,10 @@ func _start_hero_form_transform(transform_to_hero: bool) -> void:
 
 	var outgoing := _get_active_body_sprite()
 	_spawn_transform_effect(transform_to_hero)
-	_spawn_transform_echo(outgoing, Color(0.48, 1.0, 0.64, 0.62), Vector2(-10.0 if is_facing_left else 10.0, -10.0), 0.34)
+	_spawn_transform_echo(outgoing, Color(0.96, 0.98, 0.88, 0.52), Vector2(-7.0 if is_facing_left else 7.0, -6.0), 0.26)
+	_play_transform_death_sequence(transform_to_hero)
+	_play_holy_transform_light()
+	_set_transform_body_alpha(0.0)
 	$Camera2D.shake(1.2, 0.22)
 	_squash_player_sprite(Vector2(1.08, 0.9), 0.18)
 	_play_dash_sfx()
@@ -1432,13 +1763,16 @@ func _start_hero_form_transform(transform_to_hero: bool) -> void:
 	_update_runtime_character_animation(0.0)
 	_update_equipped_weapon_visual(true)
 	var incoming := _get_active_body_sprite()
-	_spawn_transform_echo(incoming, Color(1.0, 0.78, 0.98, 0.5) if transform_to_hero else Color(0.62, 1.0, 0.68, 0.5), Vector2.ZERO, 0.26)
+	_spawn_transform_echo(incoming, Color(1.0, 0.94, 0.78, 0.35), Vector2.ZERO, 0.24)
+	var reveal_tween := create_tween()
+	reveal_tween.tween_property($PlayerSprite, "modulate:a", 1.0, maxf(HERO_TRANSFORM_DURATION - HERO_TRANSFORM_SWAP_TIME - 0.08, 0.08)).set_delay(0.08).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 
 	await get_tree().create_timer(maxf(HERO_TRANSFORM_DURATION - HERO_TRANSFORM_SWAP_TIME, 0.05)).timeout
 	if not is_instance_valid(self):
 		return
 	is_transforming_hero_form = false
 	hero_transform_timer = 0.0
+	_set_transform_body_alpha(1.0)
 	_squash_player_sprite(Vector2(0.96, 1.06), 0.16)
 
 
@@ -1448,13 +1782,21 @@ func _resolve_runtime_animation_name() -> String:
 	if runtime_hurt_timer > 0.0:
 		return "hurt"
 	if is_attacking:
-		var attack_name := "attack_%d" % (current_attack_step + 1)
+		var attack_name := "combo_%d" % (current_attack_step + 1)
 		var active_window: float = float(combo_active_times[current_attack_step])
 		if runtime_attack_elapsed > active_window and not _get_runtime_character_animation_descriptor("%s_end" % attack_name).is_empty():
 			return "%s_end" % attack_name
 		return attack_name
+	if is_hero_ledge_climbing:
+		return "ledge_climb"
+	if is_hero_ledge_hanging:
+		if hero_ledge_reach_timer > 0.0:
+			return "ledge_reach"
+		if hero_ledge_settle_timer > 0.0:
+			return "ledge_grab"
+		return "ledge_hang"
 	if is_hero_ground_sliding:
-		return "ground_slide"
+		return "slide"
 	if is_landing:
 		if not _get_runtime_character_animation_descriptor(runtime_landing_animation).is_empty():
 			return runtime_landing_animation
@@ -1475,9 +1817,13 @@ func _resolve_runtime_animation_name() -> String:
 		if runtime_fall_transition_timer > 0.0:
 			return "fall"
 		return "fall_loop"
-	if abs(velocity.x) > maxf(RUN_SPEED * 0.72, 120.0):
+	# Animation follows the player's present movement intent rather than waiting
+	# for inertial velocity to cross zero.  This keeps a sprint visually running
+	# while the character brakes and reverses direction.
+	var intended_speed: float = absf(direction.x) * float(current_speed)
+	if intended_speed > maxf(RUN_SPEED * 0.72, 120.0) or absf(velocity.x) > maxf(RUN_SPEED * 0.86, 160.0):
 		return "run"
-	if abs(velocity.x) > 14.0:
+	if intended_speed > 14.0 or absf(velocity.x) > 14.0:
 		return "walk"
 	return "idle"
 
@@ -1488,7 +1834,7 @@ func _update_runtime_character_animation(delta: float) -> void:
 
 	if not is_on_floor() and velocity.y > 22.0:
 		if not was_descending:
-			runtime_fall_transition_timer = _get_runtime_animation_length("fall")
+			runtime_fall_transition_timer = maxf(_get_runtime_animation_length("fall"), HERO_FALL_TRANSITION_TIME)
 			runtime_animation_state = ""
 		was_descending = true
 	elif is_on_floor() or velocity.y <= 0.0:
@@ -1516,7 +1862,11 @@ func _update_runtime_character_animation(delta: float) -> void:
 	var fps := maxf(float(descriptor.get("fps", 1.0)), 0.01)
 	var frame_index := int(floor(runtime_animation_elapsed * fps))
 	if bool(descriptor.get("loop", false)):
-		frame_index %= frame_count
+		var loop_start_frame: int = clampi(int(descriptor.get("loop_start_frame", 0)), 0, frame_count - 1)
+		if loop_start_frame > 0 and frame_index >= frame_count:
+			frame_index = loop_start_frame + (frame_index - frame_count) % (frame_count - loop_start_frame)
+		else:
+			frame_index %= frame_count
 	else:
 		frame_index = mini(frame_index, frame_count - 1)
 
@@ -1706,10 +2056,24 @@ func update_facing_direction():
 	if !is_multiplayer_authority():
 		return
 
-	var previous_facing := is_facing_left
-	
-	if abs(direction.x) > 0.0:
+	# Deluxe wall/ledge frames are authored facing right. Derive one stable
+	# horizontal flip from the contacted surface and do not let mouse facing
+	# re-flip the sprite in the same physics frame.
+	if is_wall_sliding:
+		# The Deluxe wall-slide sheet's native orientation is opposite to the
+		# generic movement sprite, so wall contact needs the inverted facing.
+		is_facing_left = last_wall_normal.x < 0.0
+	elif is_hero_ledge_hanging or is_hero_ledge_climbing:
+		is_facing_left = hero_ledge_side < 0.0
+	elif abs(direction.x) > 0.0:
+		# Input owns the movement-facing direction.  In particular, do not write
+		# this in handle_input(): update_facing_direction needs the old value to
+		# reliably start the authored walk/run-turn animation on a reversal.
 		is_facing_left = direction.x < 0
+	elif _face_nearest_hero_combat_target():
+		# Without movement input Hero still watches the nearest threat. Attacks
+		# also aim explicitly just before their first active frame.
+		pass
 	elif Input.is_action_pressed("left"):
 		is_facing_left = true
 	elif Input.is_action_pressed("right"):
@@ -1718,23 +2082,81 @@ func update_facing_direction():
 		var mouse_pos = get_global_mouse_position()
 		is_facing_left = mouse_pos.x < global_position.x
 
-	if uses_runtime_character_animation and previous_facing != is_facing_left and is_on_floor() and not is_attacking and not is_landing and not is_dashing and not is_hero_ground_sliding:
-		var speed: float = absf(velocity.x)
-		if speed > maxf(RUN_SPEED * 0.72, 120.0):
-			runtime_turn_animation = "run_turn"
-		elif speed > 40.0:
-			runtime_turn_animation = "walk_turn"
-		else:
-			runtime_turn_animation = "idle_turn"
-		runtime_turn_timer = _get_runtime_animation_length(runtime_turn_animation)
-		runtime_animation_state = ""
+	var can_play_turn := uses_runtime_character_animation and is_on_floor() and not is_attacking and not is_landing and not is_dashing and not is_hero_ground_sliding and not is_wall_sliding and not is_hero_ledge_hanging and not is_hero_ledge_climbing
+	var visible_facing_left: bool = $PlayerSprite.flip_h
+	if can_play_turn:
+		if runtime_turn_pending_flip:
+			# A second reversal before the turn ends means the player returned to
+			# the direction that is still visible. Cancel cleanly instead of playing
+			# a mirrored turn sheet in the wrong direction.
+			if is_facing_left == visible_facing_left:
+				runtime_turn_pending_flip = false
+				runtime_turn_timer = 0.0
+				runtime_turn_animation = ""
+				runtime_animation_state = ""
+		elif is_facing_left != visible_facing_left:
+			# The turn sheets contain the actual body rotation. Keep the old flip
+			# for their full duration; only the final frame receives the new facing.
+			var speed: float = maxf(absf(velocity.x), absf(direction.x) * current_speed)
+			if speed > maxf(RUN_SPEED * 0.72, 120.0):
+				runtime_turn_animation = "run_turn"
+			elif speed > 40.0:
+				runtime_turn_animation = "walk_turn"
+			else:
+				runtime_turn_animation = "idle_turn"
+			runtime_turn_timer = _get_runtime_animation_length(runtime_turn_animation)
+			runtime_turn_pending_flip = true
+			runtime_animation_state = ""
+	else:
+		# Combat, air movement and traversal never wait for a turn sheet.
+		runtime_turn_pending_flip = false
+		runtime_turn_timer = 0.0
 
-	$PlayerSprite.flip_h = is_facing_left
-	$PlayerSprite/AttackSprite.flip_h = is_facing_left
+	_apply_visible_facing()
 	_update_equipped_weapon_visual()
 	
 	# Blickrichtung an alle Clients synchronisieren
 	sync_facing_direction.rpc(is_facing_left)
+
+
+func _apply_visible_facing() -> void:
+	if $PlayerSprite == null:
+		return
+	# Hero turn frames are already rotating the character. Flipping this node
+	# before they finish causes the exact pop-back/pop-forward seen on reversal.
+	if uses_runtime_character_animation and runtime_turn_pending_flip and runtime_turn_timer > 0.0:
+		return
+	$PlayerSprite.flip_h = is_facing_left
+	if $PlayerSprite/AttackSprite:
+		$PlayerSprite/AttackSprite.flip_h = is_facing_left
+
+
+func _face_nearest_hero_combat_target() -> bool:
+	if not _uses_deluxe_sword_combat():
+		return false
+	var nearest: Node2D
+	var nearest_distance_squared := HERO_COMBAT_AUTO_AIM_RANGE * HERO_COMBAT_AUTO_AIM_RANGE
+	for candidate in get_tree().get_nodes_in_group("enemies"):
+		if not (candidate is Node2D) or not is_instance_valid(candidate):
+			continue
+		var enemy := candidate as Node2D
+		var dead_value: Variant = enemy.get("is_dead")
+		if dead_value is bool and dead_value:
+			continue
+		var health: Variant = enemy.get("current_health")
+		if (health is int or health is float) and float(health) <= 0.0:
+			continue
+		var distance_squared := global_position.distance_squared_to(enemy.global_position)
+		if distance_squared < nearest_distance_squared:
+			nearest = enemy
+			nearest_distance_squared = distance_squared
+	if nearest == null:
+		return false
+	var horizontal_offset := nearest.global_position.x - global_position.x
+	if absf(horizontal_offset) < 3.0:
+		return false
+	is_facing_left = horizontal_offset < 0.0
+	return true
 
 @rpc("any_peer", "call_local", "unreliable")
 func sync_facing_direction(new_facing: bool):
@@ -1757,7 +2179,7 @@ func _process(delta: float) -> void:
 	if is_landing and !Input.is_action_just_pressed("Attack") and !Input.is_action_just_pressed("Glow"):
 		return
 	
-	if global_position.y > 2000:
+	if global_position.y > world_fall_death_y:
 		current_health = 0
 		update_health_bar()
 		stop_healing()
@@ -1773,7 +2195,7 @@ func _process(delta: float) -> void:
 		return
 	
 	# Angriff ausführen oder für Combo puffern
-	if Input.is_action_just_pressed("Attack"):
+	if Input.is_action_just_pressed("Attack") and not _is_hero_ledge_busy():
 		perform_attack()
 	
 	if Input.is_action_just_pressed("throw_slimeball") and slimeball_scene and not _is_hero_form_active():
@@ -1781,9 +2203,7 @@ func _process(delta: float) -> void:
 
 	# Leuchteffekt umschalten
 	if Input.is_action_just_pressed("Glow"):
-		is_glowing = !is_glowing
-		update_glow_state()
-		sync_glow_state.rpc(is_glowing)
+		toggle_glow()
 
 	if Input.is_action_just_pressed("drop_item"):  
 		drop_hotbar_item()
@@ -1792,6 +2212,11 @@ func _process(delta: float) -> void:
 		print("Charge completed!")
 
 	_update_equipped_weapon_visual()
+
+func set_world_fall_death_y(death_y: float) -> void:
+	# Keep a sane margin even if a caller provides an invalid map extent.
+	world_fall_death_y = death_y if is_finite(death_y) else INF
+
 
 func _physics_process(delta: float) -> void:
 	if is_multiplayer_authority():
@@ -1808,6 +2233,7 @@ func _physics_process(delta: float) -> void:
 			update_position.rpc(position, velocity)
 			return
 		handle_input()
+		_update_glow_energy(delta)
 		_check_lumora_interaction()
 		_process_combat_timers(delta)
 		handle_sticky_form_timers(delta)
@@ -1815,17 +2241,19 @@ func _physics_process(delta: float) -> void:
 		if is_in_water:
 			apply_water_physics(delta)
 		else:
-			handle_jump_mechanics(delta)
-			handle_wall_mechanics(delta)
-			handle_dash(delta)
-			handle_wall_run(delta)
-			handle_slime_wings(delta)
+			var ledge_locked := _handle_hero_ledge(delta)
+			if not ledge_locked:
+				handle_jump_mechanics(delta)
+				handle_wall_mechanics(delta)
+				handle_dash(delta)
+				handle_wall_run(delta)
+				handle_slime_wings(delta)
+
+				if not is_gliding and not is_dashing and not is_sticky_form_active and not is_hero_ground_sliding:
+					apply_gravity(delta)
+
+				handle_sticky_form_mechanics(delta)
 			
-			if not is_gliding and not is_dashing and not is_sticky_form_active and not is_hero_ground_sliding:
-				apply_gravity(delta)
-			
-			handle_sticky_form_mechanics(delta)
-		
 			move_and_slide()
 			_process_active_attack_overlaps()
 			update_facing_direction()
@@ -1844,6 +2272,8 @@ func _physics_process(delta: float) -> void:
 			mana_shield_regen_timer = 0.0
 
 func _process_combat_timers(delta: float) -> void:
+	if damage_invulnerability_timer > 0.0:
+		damage_invulnerability_timer = maxf(damage_invulnerability_timer - delta, 0.0)
 	if wall_detach_timer > 0.0:
 		wall_detach_timer = maxf(wall_detach_timer - delta, 0.0)
 	if wall_jump_input_lock > 0.0:
@@ -1859,6 +2289,7 @@ func _process_combat_timers(delta: float) -> void:
 
 	if weapon_visual_anim_time < weapon_visual_anim_duration:
 		weapon_visual_anim_time = min(weapon_visual_anim_time + delta, weapon_visual_anim_duration)
+	_update_slime_sword_combo_animation(delta)
 
 	if is_attacking:
 		runtime_attack_elapsed += delta
@@ -1867,6 +2298,17 @@ func _process_combat_timers(delta: float) -> void:
 
 	if runtime_turn_timer > 0.0:
 		runtime_turn_timer = max(runtime_turn_timer - delta, 0.0)
+		if runtime_turn_timer <= 0.0 and runtime_turn_pending_flip:
+			# Commit the new visual direction only after the authored turn sheet's
+			# last frame has been displayed.
+			runtime_turn_pending_flip = false
+			_apply_visible_facing()
+	elif runtime_turn_pending_flip:
+		# A turn interrupted by jumping, dashing or attacking must not leave the
+		# renderer facing the old direction.
+		if is_attacking or is_dashing or not is_on_floor():
+			runtime_turn_pending_flip = false
+			_apply_visible_facing()
 
 	if runtime_stop_timer > 0.0:
 		runtime_stop_timer = max(runtime_stop_timer - delta, 0.0)
@@ -2023,9 +2465,9 @@ func handle_input():
 	if is_attacking and !is_dashing:
 		direction.x *= 0.45
 	
-	# Blickrichtung aktualisieren
-	if direction.x != 0:
-		is_facing_left = direction.x < 0
+	# Facing is applied centrally in update_facing_direction after movement has
+	# been simulated.  That preserves the previous direction long enough to
+	# select the correct Deluxe turn transition on the same physics tick.
 
 func charge():
 	if not has_ult_skill:
@@ -2385,7 +2827,7 @@ func _should_start_hero_slide_from_input() -> bool:
 
 func handle_wall_mechanics(delta):
 	var on_air_wall := is_on_wall() and not is_on_floor() and wall_detach_timer <= 0.0
-	var can_slime_wall_slide := has_wall_slide_skill and _character_can("wall_slide", true)
+	var can_wall_slide := _character_can("wall_slide", false) and (_is_hero_form_active() or has_wall_slide_skill)
 	var can_hero_wall_jump := _character_can("wall_jump_without_slide", false)
 
 	if not on_air_wall:
@@ -2396,24 +2838,174 @@ func handle_wall_mechanics(delta):
 			wall_stick_timer -= delta
 		return
 
-	var current_wall_normal = get_wall_normal()
+	var current_wall_normal: Vector2 = get_wall_normal()
 	if current_wall_normal != last_wall_normal:
 		can_wall_jump = true
 		last_wall_normal = current_wall_normal
 
 	var can_start_slide := velocity.y >= -18.0
-	if can_slime_wall_slide and can_start_slide:
+	var is_pressing_into_wall: bool = absf(direction.x) > 0.1 and signf(direction.x) == -current_wall_normal.x
+	if can_wall_slide and can_start_slide and is_pressing_into_wall:
 		is_wall_sliding = true
 		velocity.y = move_toward(velocity.y, minf(velocity.y, wall_slide_speed_cap), WALL_SLIDE_DECELERATION * delta)
 		wall_stick_timer = WALL_STICK_TIME
 		if Input.is_action_just_pressed("up") and can_wall_jump:
-			_perform_profile_wall_jump(current_wall_normal, false)
+			_perform_profile_wall_jump(current_wall_normal, _is_hero_form_active())
 	elif can_hero_wall_jump:
 		is_wall_sliding = false
 		if Input.is_action_just_pressed("up") and can_wall_jump:
 			_perform_profile_wall_jump(current_wall_normal, true)
 	else:
 		is_wall_sliding = false
+
+
+func _handle_hero_ledge(delta: float) -> bool:
+	if not _is_hero_form_active() or not _character_can("ledge_grab", false):
+		return false
+
+	if is_hero_ledge_climbing:
+		hero_ledge_climb_elapsed = minf(hero_ledge_climb_elapsed + delta, HERO_LEDGE_CLIMB_DURATION)
+		# The climb sheet already moves the body from below the lip to the top.
+		# Moving CharacterBody2D as well would make the hero visibly float.
+		velocity = Vector2.ZERO
+		if hero_ledge_climb_elapsed >= HERO_LEDGE_CLIMB_DURATION:
+			global_position = hero_ledge_climb_target
+			is_hero_ledge_climbing = false
+			is_hero_ledge_hanging = false
+			wall_detach_timer = WALL_DETACH_GRACE
+			runtime_stop_timer = _get_runtime_animation_length("run_to_idle")
+			runtime_animation_state = ""
+		return true
+
+	if is_hero_ledge_hanging:
+		var hang_input := direction.x
+		velocity = Vector2.ZERO
+		direction.x = 0.0
+		if hero_ledge_settle_timer > 0.0:
+			hero_ledge_settle_timer = maxf(hero_ledge_settle_timer - delta, 0.0)
+			return true
+		if hero_ledge_reach_timer > 0.0:
+			hero_ledge_reach_timer = maxf(hero_ledge_reach_timer - delta, 0.0)
+			return true
+		if Input.is_action_just_pressed("up"):
+			var stand_target := _get_hero_ledge_climb_target()
+			if _can_hero_stand_at(stand_target):
+				_start_hero_ledge_climb()
+			else:
+				# There is no clearance above this real cliff. Keep the body locked
+				# to the hang point and only play the authored reach-and-return.
+				hero_ledge_reach_timer = _get_runtime_animation_length("ledge_reach")
+				runtime_animation_state = ""
+		elif Input.is_action_just_pressed("down") or (absf(hang_input) > 0.1 and signf(hang_input) != hero_ledge_side):
+			_release_hero_ledge()
+		return true
+
+	if is_on_floor() or is_dashing or is_attacking or velocity.y < 0.0 or wall_detach_timer > 0.0:
+		return false
+
+	var travel_side: float = signf(direction.x)
+	if travel_side == 0.0:
+		travel_side = signf(velocity.x)
+	if travel_side == 0.0:
+		return false
+	# A ledge grab must be intentional: the player has to hold towards the wall.
+	if signf(direction.x) != travel_side:
+		return false
+
+	var ledge := _find_hero_ledge(travel_side)
+	if ledge.is_empty():
+		return false
+
+	hero_ledge_side = travel_side
+	hero_ledge_top = ledge.get("top", global_position) as Vector2
+	global_position = ledge.get("hang_position", global_position) as Vector2
+	velocity = Vector2.ZERO
+	is_wall_sliding = false
+	is_hero_ledge_hanging = true
+	hero_ledge_settle_timer = _get_runtime_animation_length("ledge_grab")
+	hero_ledge_reach_timer = 0.0
+	runtime_animation_state = ""
+	_squash_player_sprite(Vector2(0.94, 1.06), 0.10)
+	return true
+
+
+func _find_hero_ledge(side: float) -> Dictionary:
+	var space_state := get_world_2d().direct_space_state
+	var half_width := _get_collision_half_width_world()
+	var half_height := _get_collision_half_height_world()
+	var chest_y := global_position.y - half_height * 0.42
+	var wall_from := Vector2(global_position.x + side * maxf(half_width - 2.0, 2.0), chest_y)
+	var wall_to := wall_from + Vector2(side * HERO_LEDGE_PROBE_REACH, 0.0)
+	var wall_query := PhysicsRayQueryParameters2D.create(wall_from, wall_to, 0xFFFFFFFF, [get_rid()])
+	var wall_hit := space_state.intersect_ray(wall_query)
+	if wall_hit.is_empty():
+		return {}
+
+	# The upper probe has to be clear, otherwise this is a full-height wall.
+	var head_from := global_position + Vector2(side * maxf(half_width - 1.0, 2.0), -half_height - 4.0)
+	var head_to := head_from + Vector2(side * HERO_LEDGE_PROBE_REACH, 0.0)
+	var head_query := PhysicsRayQueryParameters2D.create(head_from, head_to, 0xFFFFFFFF, [get_rid()])
+	if not space_state.intersect_ray(head_query).is_empty():
+		return {}
+
+	# Locate the horizontal top surface just beyond the wall face.
+	var top_x := (wall_hit.get("position", wall_to) as Vector2).x + side * 4.0
+	var top_from := Vector2(top_x, global_position.y - half_height - 28.0)
+	var top_to := top_from + Vector2(0.0, half_height + 64.0)
+	var top_query := PhysicsRayQueryParameters2D.create(top_from, top_to, 0xFFFFFFFF, [get_rid()])
+	var top_hit := space_state.intersect_ray(top_query)
+	if top_hit.is_empty():
+		return {}
+
+	var top := top_hit.get("position", top_to) as Vector2
+	if top.y < global_position.y - half_height - 54.0 or top.y > global_position.y + 8.0:
+		return {}
+
+	# Do not latch onto a single-tile step. A usable ledge needs a continuous
+	# wall face at least as tall as the hero, otherwise the climb destination
+	# would either be inside a ceiling or on a surface too short to stand on.
+	# Test the whole face, rather than only its lowest point. A single low point
+	# can hit unrelated geometry beneath a short ledge and falsely validate it.
+	for sample_index in range(1, HERO_LEDGE_FACE_SAMPLE_COUNT + 1):
+		var sample_ratio: float = float(sample_index) / float(HERO_LEDGE_FACE_SAMPLE_COUNT)
+		var face_y: float = top.y + HERO_LEDGE_MIN_FACE_HEIGHT * sample_ratio
+		var face_from := Vector2(top.x - side * HERO_LEDGE_PROBE_REACH, face_y)
+		var face_to := face_from + Vector2(side * HERO_LEDGE_PROBE_REACH * 2.0, 0.0)
+		var face_query := PhysicsRayQueryParameters2D.create(face_from, face_to, 0xFFFFFFFF, [get_rid()])
+		if space_state.intersect_ray(face_query).is_empty():
+			return {}
+	return {
+		"top": top,
+		"hang_position": Vector2(top.x - side * (half_width + 2.0), top.y + HERO_LEDGE_HANG_ROOT_BELOW_TOP),
+	}
+
+
+func _get_hero_ledge_climb_target() -> Vector2:
+	return Vector2(
+		hero_ledge_top.x + hero_ledge_side * (_get_collision_half_width_world() + 4.0),
+		hero_ledge_top.y - _get_collision_ground_offset_world() - 1.0
+	)
+
+
+func _start_hero_ledge_climb() -> void:
+	is_hero_ledge_hanging = false
+	is_hero_ledge_climbing = true
+	hero_ledge_settle_timer = 0.0
+	hero_ledge_reach_timer = 0.0
+	hero_ledge_climb_elapsed = 0.0
+	hero_ledge_climb_start = global_position
+	hero_ledge_climb_target = _get_hero_ledge_climb_target()
+	runtime_animation_state = ""
+	$Camera2D.shake(0.75, 0.08)
+	_squash_player_sprite(Vector2(0.92, 1.10), 0.12)
+
+
+func _release_hero_ledge() -> void:
+	is_hero_ledge_hanging = false
+	hero_ledge_reach_timer = 0.0
+	velocity = Vector2(-hero_ledge_side * HERO_LEDGE_RELEASE_SPEED, 135.0)
+	wall_detach_timer = WALL_DETACH_GRACE
+	runtime_animation_state = ""
 
 
 func _perform_profile_wall_jump(wall_normal: Vector2, hero_kick: bool) -> void:
@@ -2493,8 +3085,19 @@ func _get_preferred_dash_direction() -> Vector2:
 func dash(dir: Vector2):
 	if !has_dash_skill:
 		return
-	if is_dashing or is_hero_ground_sliding or not can_dash or is_stunned or is_charging:
+	if is_dashing or is_hero_ground_sliding or _is_hero_ledge_busy() or not can_dash or is_stunned or is_charging:
 		return
+	if is_attacking:
+		# Let an intentional dodge cancel recovery, never the active strike.  This
+		# preserves the committed hit frame while removing the sluggish "stuck in
+		# animation" feeling after a miss.
+		if not _is_hero_form_active() or not attack_dash_cancel_ready:
+			return
+		attack_sequence_id += 1
+		hero_combo_queued = false
+		is_attacking = false
+		attack_dash_cancel_ready = false
+		_set_attack_hitbox_active(false)
 
 	if dir == Vector2.ZERO:
 		dir = _get_preferred_dash_direction()
@@ -2504,7 +3107,9 @@ func dash(dir: Vector2):
 	dash_direction = dir.normalized()
 	dash_elapsed = 0.0
 	dash_invulnerability_timer = DASH_INVULNERABILITY_TIME
-	runtime_dash_timer = dash_duration
+	# Movement ends on the responsive dash timing; the Deluxe visual continues
+	# through its final two frames instead of being cut short.
+	runtime_dash_timer = maxf(dash_duration, _get_runtime_animation_length("dash"))
 	runtime_animation_state = ""
 	dash_timer.wait_time = dash_duration
 	dash_cooldown_timer.wait_time = dash_cooldown
@@ -2719,7 +3324,7 @@ func is_in_air() -> bool:
 	return not is_on_floor()
 
 func _on_attack_area_body_entered(body):
-	_try_attack_hit(body)
+	_queue_attack_hit(body)
 	
 	# **Luftdruck auf Blätter anwenden**
 	apply_sword_air_pressure()
@@ -2727,11 +3332,12 @@ func _on_attack_area_body_entered(body):
 func _process_active_attack_overlaps() -> void:
 	if not is_attacking or not attack_area or not attack_area.monitoring:
 		return
+	_sync_attack_hitbox_to_visible_blade()
 
 	for body in attack_area.get_overlapping_bodies():
-		_try_attack_hit(body)
+		_queue_attack_hit(body)
 
-func _try_attack_hit(body: Node) -> void:
+func _queue_attack_hit(body: Node) -> void:
 	if not is_attacking or not is_multiplayer_authority():
 		return
 	if not (body is Node2D):
@@ -2757,15 +3363,29 @@ func _try_attack_hit(body: Node) -> void:
 	if is_crit:
 		damage *= current_crit_multiplier
 	var knockback_direction := (target_body.global_position - global_position).normalized()
+	# The health change and impact must occur in the same frame as the visible
+	# sword contact.  Enemy death/drop cleanup itself is deferred in each enemy,
+	# so this remains safe inside an Area2D callback without delayed damage.
+	_resolve_attack_hit(target_body, damage, knockback_direction, is_crit)
+
+
+func _resolve_attack_hit(target_body: Node2D, damage: float, knockback_direction: Vector2, is_crit: bool) -> void:
+	if not is_instance_valid(target_body):
+		return
 
 	_notify_star_damage(damage)
 
 	var landed_finisher := false
+	var hit_confirmed := true
 	if target_body.is_in_group("players"):
 		target_body.take_damage.rpc(int(damage), global_position)
 	else:
-		_apply_damage_to_enemy(target_body, int(damage), knockback_direction, is_crit)
+		hit_confirmed = _apply_damage_to_enemy(target_body, int(damage), knockback_direction, is_crit)
+		if not hit_confirmed:
+			_spawn_feedback_text("DODGE", Color(0.68, 0.88, 1.0), 0.92)
+			return
 		landed_finisher = target_body.is_in_group("enemies") and _is_target_defeated(target_body)
+		_apply_enemy_hit_feedback(target_body, knockback_direction, current_attack_knockback_strength)
 
 	if _is_hero_form_active():
 		_apply_hero_hit_feedback(target_body, is_crit, landed_finisher)
@@ -2773,8 +3393,8 @@ func _try_attack_hit(body: Node) -> void:
 	weapon_hit_counter += 1
 	_apply_weapon_hit_effects(target_body, int(damage), knockback_direction, is_crit, landed_finisher)
 
-	var shake_intensity := 1.4 + current_attack_knockback_strength * 0.002
-	$Camera2D.shake(shake_intensity, 0.08)
+	# _apply_enemy_hit_feedback owns the one impact shake. Stacking the legacy
+	# random shake here made fast combos read as noise instead of impact.
 	_play_hit_particles(Color(1.0, 0.82, 0.45, 1.0) if is_crit else Color(1.0, 0.34, 0.34, 1.0))
 	_play_melee_impact(is_crit)
 	if landed_finisher:
@@ -2811,14 +3431,21 @@ func _apply_hero_hit_feedback(target_body: Node2D, is_crit: bool, landed_finishe
 	var target_position := target_body.global_position if is_instance_valid(target_body) else global_position + Vector2((-1.0 if is_facing_left else 1.0) * 56.0, -28.0)
 	var effect_color := Color(1.0, 0.9, 0.5, 1.0) if is_crit or landed_finisher else Color(0.7, 0.96, 1.0, 1.0)
 	_spawn_hero_combat_effect("hit", target_position, effect_color, 1.1 if is_crit or landed_finisher else 0.92)
-	$Camera2D.shake(2.0 if is_crit or landed_finisher else 1.25, 0.07)
+	# The shared hit response supplies every normal hit's small directional
+	# impulse. Only a finisher gets a stronger accent.
+	if landed_finisher:
+		if $Camera2D.has_method("impact_shake"):
+			$Camera2D.impact_shake((global_position - target_position).normalized(), 2.0, 0.085)
+		else:
+			$Camera2D.shake(1.2, 0.07)
 
 	if not is_on_floor() and Input.is_action_pressed("down"):
 		velocity.y = minf(velocity.y, -360.0)
 		hero_momentum_attack_timer = maxf(hero_momentum_attack_timer, 0.42)
 		_show_feedback_banner("POGO", Color(0.75, 1.0, 0.92, 1.0), 0.22)
 
-	_run_hero_hitstop(float(hero_combat_config.get("hitstop", 0.042)) * (1.4 if is_crit or landed_finisher else 1.0))
+	# Hitstop is intentionally local to the struck sprite in
+	# _apply_enemy_hit_feedback; never freeze the complete screen here.
 
 
 func _run_hero_hitstop(duration: float) -> void:
@@ -2832,11 +3459,17 @@ func _run_hero_hitstop(duration: float) -> void:
 	hero_hitstop_active = false
 
 
-func _apply_damage_to_enemy(target: Node, damage_amount: int, knockback_direction: Vector2, is_crit: bool) -> void:
+func _apply_damage_to_enemy(target: Node, damage_amount: int, knockback_direction: Vector2, is_crit: bool) -> bool:
 	if not target or not target.has_method("take_damage"):
-		return
+		return false
+	# Dodging enemies are deliberately invulnerable.  Return a result so the
+	# player gets an explicit DODGE cue instead of a fake damage number.
+	var dodge_value: Variant = target.get("is_dodging")
+	if dodge_value is bool and dodge_value:
+		return false
 
 	var take_damage_arg_count := 0
+	var health_before := _get_target_combat_health(target)
 	for method_data in target.get_method_list():
 		if method_data.get("name", "") == "take_damage":
 			take_damage_arg_count = method_data.get("args", []).size()
@@ -2844,13 +3477,96 @@ func _apply_damage_to_enemy(target: Node, damage_amount: int, knockback_directio
 
 	match take_damage_arg_count:
 		0:
-			return
+			return false
 		1:
 			target.take_damage(damage_amount)
 		2:
 			target.take_damage(damage_amount, knockback_direction)
 		_:
 			target.take_damage(damage_amount, knockback_direction, is_crit)
+	var health_after := _get_target_combat_health(target)
+	return health_before < 0.0 or health_after < health_before
+
+
+func _get_target_combat_health(target: Node) -> float:
+	for health_name in ["current_health", "health", "bat_health", "golem_health"]:
+		var health_value: Variant = target.get(health_name)
+		if health_value is int or health_value is float:
+			return float(health_value)
+	return -1.0
+
+
+func _apply_enemy_hit_feedback(target: Node2D, knockback_direction: Vector2, knockback_strength: float) -> void:
+	# A follow-up contact (for example a later sword-spin pulse) is still a real
+	# hit.  It refreshes the local freeze instead of being silently discarded,
+	# while keeping one coherent knockback at the end of the impact string.
+	var hitstop_until := Time.get_ticks_msec() * 0.001 + 0.5
+	if target.has_meta("combat_hitstop"):
+		target.set_meta("combat_hitstop_until", hitstop_until)
+		target.set_meta("combat_hitstop_direction", knockback_direction)
+		target.set_meta("combat_hitstop_strength", knockback_strength)
+		return
+	target.set_meta("combat_hitstop", true)
+	target.set_meta("combat_hitstop_until", hitstop_until)
+	target.set_meta("combat_hitstop_direction", knockback_direction)
+	target.set_meta("combat_hitstop_strength", knockback_strength)
+	target.set_physics_process(false)
+	var visual := target.get_node_or_null("Sprite2D") as CanvasItem
+	if visual == null:
+		visual = target.get_node_or_null("AnimatedSprite2D") as CanvasItem
+	var original_material: Material
+	if visual != null:
+		original_material = visual.material
+		# Force the texture itself to a plain white silhouette, preserving only its
+		# alpha.  Keep modulation at white: this is a crisp hit flash, not bloom.
+		visual.material = _get_enemy_hit_flash_material()
+		visual.self_modulate = Color.WHITE
+	# The target turns into a white silhouette before its AI freezes.  Keep the
+	# camera response tiny and directional so it punctuates the contact without
+	# becoming a constant screen wobble during combos.
+	if $Camera2D.has_method("impact_shake"):
+		$Camera2D.impact_shake(-knockback_direction, 1.15, 0.055)
+	# Every confirmed melee hit gets the same readable impact pause.  The enemy
+	# is held first, then physically displaced; its chase state cannot erase the
+	# knockback on the very next frame.
+	while is_instance_valid(target):
+		var until_value: Variant = target.get_meta("combat_hitstop_until", hitstop_until)
+		var remaining := float(until_value) - Time.get_ticks_msec() * 0.001
+		if remaining <= 0.0:
+			break
+		await get_tree().create_timer(minf(remaining, 0.05), true, false, true).timeout
+	if not is_instance_valid(target):
+		return
+	var stored_direction: Variant = target.get_meta("combat_hitstop_direction", knockback_direction)
+	var stored_strength: Variant = target.get_meta("combat_hitstop_strength", knockback_strength)
+	var push_direction := (stored_direction as Vector2).normalized()
+	if push_direction.length_squared() <= 0.001:
+		push_direction = Vector2.LEFT if is_facing_left else Vector2.RIGHT
+	var push_distance := clampf(float(stored_strength) * 0.14, 32.0, 72.0)
+	var knockback_tween := target.create_tween()
+	knockback_tween.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	knockback_tween.tween_property(target, "global_position", target.global_position + push_direction * push_distance, 0.16)
+	await knockback_tween.finished
+	if not is_instance_valid(target):
+		return
+	if visual != null and is_instance_valid(visual):
+		visual.self_modulate = Color.WHITE
+		visual.material = original_material
+	target.set_physics_process(true)
+	target.remove_meta("combat_hitstop")
+	target.remove_meta("combat_hitstop_until")
+	target.remove_meta("combat_hitstop_direction")
+	target.remove_meta("combat_hitstop_strength")
+
+
+func _get_enemy_hit_flash_material() -> ShaderMaterial:
+	if enemy_hit_flash_material != null:
+		return enemy_hit_flash_material
+	var shader := Shader.new()
+	shader.code = "shader_type canvas_item;\nvoid fragment() { vec4 tex = texture(TEXTURE, UV); COLOR = vec4(1.0, 1.0, 1.0, tex.a) * COLOR; }"
+	enemy_hit_flash_material = ShaderMaterial.new()
+	enemy_hit_flash_material.shader = shader
+	return enemy_hit_flash_material
 
 
 func _is_target_defeated(target: Node) -> bool:
@@ -3060,6 +3776,14 @@ func _restore_health(amount: int) -> void:
 	update_health_bar()
 
 
+func restore_environmental_health(amount: int) -> void:
+	# Environmental sanctuaries such as the rare blue Moonbell are independent
+	# of the regeneration skill and therefore must always be able to heal Joey.
+	if current_health >= max_health:
+		return
+	_restore_health(amount)
+
+
 func _grant_guardian_barrier(amount: float) -> void:
 	mana_shield_active = true
 	mana_shield_health = clamp(mana_shield_health + amount, 0.0, max_mana_shield_health)
@@ -3146,7 +3870,8 @@ func die() -> void:
 	velocity = Vector2.ZERO
 
 	if runtime_death_active:
-		var death_wait := clampf(_get_runtime_animation_length("death"), 0.35, 0.85)
+		# Death is intentionally never shortened: the Deluxe sheet has 23 frames.
+		var death_wait := maxf(_get_runtime_animation_length("death"), 0.35)
 		await get_tree().create_timer(death_wait).timeout
 
 	# Kollisionsabfrage deaktivieren, damit Items nicht aufgesammelt werden
@@ -3296,12 +4021,22 @@ func _create_world_pickup(item_or_name: Variant) -> RigidBody2D:
 # Angriff ausführen
 @rpc("call_local", "reliable")
 func perform_attack() -> void:
-	if _is_gameplay_input_blocked() or is_stunned or is_charging or is_teleporting:
+	if _is_gameplay_input_blocked() or _is_hero_ledge_busy() or is_stunned or is_charging or is_teleporting:
 		return
 
+	var uses_deluxe_combo := _uses_deluxe_sword_combat()
 	if is_attacking:
+		if uses_deluxe_combo:
+			if current_attack_step < 2:
+				# A press during wind-up is intentionally retained until the authored
+				# cancel window; responsive does not mean every frame can cancel.
+				hero_combo_queued = true
+			return
 		queued_attack_timer = ATTACK_QUEUE_TIME
 		return
+	# Do not let an idle mouse position make a close-range hero swing start
+	# backwards.  This is also applied before the first animation frame.
+	_face_nearest_hero_combat_target()
 
 	var now = Time.get_ticks_msec() / 1000.0
 	if now - last_attack_time < attack_cooldown:
@@ -3317,16 +4052,22 @@ func perform_attack() -> void:
 		_end_hero_ground_slide(false)
 
 	stop_healing()
+	attack_sequence_id += 1
+	var sequence_id := attack_sequence_id
 	is_attacking = true
+	hero_combo_queued = false
+	attack_hit_window_open = false
+	attack_dash_cancel_ready = false
+	_set_attack_hitbox_active(false)
 	attack_targets_hit.clear()
 	last_attack_time = now
 	
 	if combo_reset_timer > 0.0:
-		attack_combo_count = min(attack_combo_count + 1, MAX_COMBO)
+		attack_combo_count = min(attack_combo_count + 1, 3 if uses_deluxe_combo else MAX_COMBO)
 	else:
 		attack_combo_count = 1
 
-	var combo_index: int = clampi(attack_combo_count - 1, 0, MAX_COMBO - 1)
+	var combo_index: int = clampi(attack_combo_count - 1, 0, 2 if uses_deluxe_combo else MAX_COMBO - 1)
 	current_attack_step = combo_index % 3
 	current_attack_damage_multiplier = combo_damage_multipliers[combo_index]
 	current_attack_knockback_strength = combo_knockback_strengths[combo_index]
@@ -3348,16 +4089,80 @@ func perform_attack() -> void:
 
 	sync_attack.rpc(current_attack_step)  # Synchronisiere den Angriff mit allen Clients
 
-	await get_tree().create_timer(combo_active_times[current_attack_step]).timeout
-	attack_area.monitoring = false
+	var primary_duration := float(combo_active_times[current_attack_step])
+	var hit_windows: Array[Vector2] = [ATTACK_HIT_WINDOWS[clampi(current_attack_step, 0, ATTACK_HIT_WINDOWS.size() - 1)]]
+	if uses_deluxe_combo and current_attack_step == 2:
+		# The authored spin has three distinct sword contacts.  Every pulse gets
+		# its own target registry, so a target only receives the contacts it is
+		# physically inside for (one, two, or all three).
+		hit_windows = HERO_FINISHER_HIT_WINDOWS
+	var elapsed_attack_time := 0.0
+	for pulse_index in range(hit_windows.size()):
+		var requested_window := hit_windows[pulse_index]
+		var hit_start := clampf(requested_window.x, elapsed_attack_time, maxf(primary_duration - 0.01, 0.0))
+		var hit_end := clampf(requested_window.y, hit_start + 0.01, primary_duration)
+		if hit_start > elapsed_attack_time:
+			await get_tree().create_timer(hit_start - elapsed_attack_time).timeout
+		if not is_instance_valid(self) or sequence_id != attack_sequence_id or not is_attacking:
+			return
+		attack_targets_hit.clear()
+		_set_attack_hitbox_active(true)
+		if _is_hero_form_active():
+			var effect_facing := -1.0 if is_facing_left else 1.0
+			_spawn_hero_slash_effect(current_attack_step, effect_facing)
+		await get_tree().create_timer(maxf(hit_end - hit_start, 0.01)).timeout
+		if not is_instance_valid(self) or sequence_id != attack_sequence_id:
+			return
+		_set_attack_hitbox_active(false)
+		attack_dash_cancel_ready = uses_deluxe_combo
+		elapsed_attack_time = hit_end
+
+	var tail_duration := primary_duration - elapsed_attack_time
+	if tail_duration > 0.0:
+		await get_tree().create_timer(tail_duration).timeout
+	if not is_instance_valid(self) or sequence_id != attack_sequence_id or not is_attacking:
+		return
+	if uses_deluxe_combo and hero_combo_queued and current_attack_step < 2:
+		hero_combo_queued = false
+		is_attacking = false
+		queued_attack_timer = 0.0
+		perform_attack()
+		return
 
 	await get_tree().create_timer(combo_recovery_times[current_attack_step]).timeout
+	if not is_instance_valid(self) or sequence_id != attack_sequence_id:
+		return
+	# Late presses during the authored recovery are still valid chain inputs.
+	# This is the same "read intent, not one exact frame" principle as a jump
+	# buffer, while keeping the visual recovery readable.
+	if uses_deluxe_combo and hero_combo_queued and current_attack_step < 2:
+		hero_combo_queued = false
+		is_attacking = false
+		queued_attack_timer = 0.0
+		perform_attack()
+		return
 	is_attacking = false
 	damage_timer.start()
+	if uses_deluxe_combo:
+		# Missing the input window ends the chain completely, so the matching
+		# recovery animation genuinely returns to idle instead of skipping ahead.
+		attack_combo_count = 0
+		combo_reset_timer = 0.0
 
 	if queued_attack_timer > 0.0:
 		queued_attack_timer = 0.0
 		perform_attack()
+
+
+func _set_attack_hitbox_active(active: bool) -> void:
+	attack_hit_window_open = active
+	if attack_area == null:
+		return
+	attack_area.monitoring = active
+	if active:
+		_sync_attack_hitbox_to_visible_blade()
+		_process_active_attack_overlaps()
+		apply_sword_air_pressure()
 
 
 func _spawn_hero_slash_effect(combo_index: int, facing_sign: float) -> void:
@@ -3383,31 +4188,226 @@ func _spawn_hero_slash_effect(combo_index: int, facing_sign: float) -> void:
 func _update_attack_hitbox(step: int) -> void:
 	if not attack_area:
 		return
+	# As soon as the authored Sword+FX frame is available it owns collision.
+	# This fallback only covers the tiny setup interval before frame zero has
+	# reached the renderer (and non-Deluxe legacy attacks).
+	if _sync_attack_hitbox_to_visible_blade():
+		return
 
-	var active_step: int = clampi(step, 0, ATTACK_REACH_SCALES.size() - 1)
-	var reach_scale: float = float(ATTACK_REACH_SCALES[active_step]) * (1.0 + weapon_attack_reach_bonus)
-	var forward_offset: float = float(ATTACK_FORWARD_OFFSETS[active_step])
+	var active_step: int = clampi(step, 0, ATTACK_HITBOX_SIZES.size() - 1)
+	var reach_scale := 1.0 + weapon_attack_reach_bonus
+	var forward_offset: float = float(ATTACK_FORWARD_OFFSETS[active_step]) * reach_scale
 	var facing_sign = -1.0 if is_facing_left else 1.0
-	attack_area.position = Vector2((abs(attack_area_base_position.x) + forward_offset) * facing_sign, attack_area_base_position.y)
+	attack_area.position = Vector2(forward_offset * facing_sign, float(ATTACK_VERTICAL_OFFSETS[active_step]))
 
 	if attack_collision_shape:
-		attack_collision_shape.scale = Vector2(
-			attack_shape_base_scale.x * reach_scale,
-			attack_shape_base_scale.y
-		)
+		attack_collision_shape.position = Vector2.ZERO
+		attack_collision_shape.scale = Vector2.ONE
+		if not (attack_collision_shape.shape is RectangleShape2D):
+			attack_collision_shape.shape = RectangleShape2D.new()
+		(attack_collision_shape.shape as RectangleShape2D).size = ATTACK_HITBOX_SIZES[active_step] * reach_scale
+
+
+func _get_active_blade_visual() -> Sprite2D:
+	if _is_hero_form_active():
+		if runtime_animation_state.begins_with("combo_") and runtime_body_sprite != null and is_instance_valid(runtime_body_sprite):
+			return runtime_body_sprite
+		return null
+	if slime_sword_combo_sprite != null and is_instance_valid(slime_sword_combo_sprite) and slime_sword_combo_sprite.visible:
+		return slime_sword_combo_sprite
+	return null
+
+
+func _sync_attack_hitbox_to_visible_blade() -> bool:
+	if attack_area == null or attack_collision_shape == null or not _uses_deluxe_sword_combat():
+		return false
+	var blade_visual := _get_active_blade_visual()
+	if blade_visual == null or blade_visual.texture == null:
+		return false
+	var local_hull := _get_blade_hull_for_visible_frame(blade_visual, _is_hero_form_active())
+	if local_hull.size() < 3:
+		return false
+
+	# The pixel hull lives in the displayed frame's local coordinates. Transform
+	# every point through the exact Sprite2D that is rendering it, including the
+	# frame scale and the current horizontal flip, then convert it back into the
+	# AttackArea's coordinate space for physics.
+	var collision_points := PackedVector2Array()
+	for point: Vector2 in local_hull:
+		var rendered_point := point
+		if blade_visual.flip_h:
+			rendered_point.x = -rendered_point.x
+		var world_point := blade_visual.to_global(rendered_point)
+		collision_points.append(attack_collision_shape.to_local(world_point))
+	var transformed_hull := Geometry2D.convex_hull(collision_points)
+	if transformed_hull.size() < 3:
+		return false
+
+	attack_area.position = Vector2.ZERO
+	attack_area.rotation = 0.0
+	attack_collision_shape.position = Vector2.ZERO
+	attack_collision_shape.rotation = 0.0
+	attack_collision_shape.scale = Vector2.ONE
+	var blade_shape := attack_collision_shape.shape as ConvexPolygonShape2D
+	if blade_shape == null:
+		blade_shape = ConvexPolygonShape2D.new()
+		attack_collision_shape.shape = blade_shape
+	blade_shape.points = transformed_hull
+	return true
+
+
+func _get_blade_hull_for_visible_frame(visual: Sprite2D, hero_frame: bool) -> PackedVector2Array:
+	var texture := visual.texture
+	if texture == null:
+		return PackedVector2Array()
+	var source_rect := _get_visible_sprite_source_rect(visual)
+	var frame_key := "%s:%d:%d:%d:%d:%s" % [
+		texture.resource_path,
+		int(source_rect.position.x), int(source_rect.position.y),
+		int(source_rect.size.x), int(source_rect.size.y),
+		"hero" if hero_frame else "slime",
+	]
+	if blade_hit_hull_cache.has(frame_key):
+		return blade_hit_hull_cache[frame_key] as PackedVector2Array
+
+	var image := texture.get_image()
+	if image == null or image.is_empty():
+		return PackedVector2Array()
+	var start_x := clampi(int(source_rect.position.x), 0, image.get_width() - 1)
+	var start_y := clampi(int(source_rect.position.y), 0, image.get_height() - 1)
+	var end_x := clampi(int(source_rect.end.x), start_x + 1, image.get_width())
+	var end_y := clampi(int(source_rect.end.y), start_y + 1, image.get_height())
+	var points := PackedVector2Array()
+	# Two-pixel samples preserve the authored sword arc while keeping cache
+	# construction cheap. The slime strip contains sword/FX only; Hero frames
+	# additionally filter for the bright steel/arc palette to exclude his body.
+	for pixel_y in range(start_y, end_y, 2):
+		for pixel_x in range(start_x, end_x, 2):
+			var color := image.get_pixel(pixel_x, pixel_y)
+			if not _is_blade_hit_pixel(color, hero_frame):
+				continue
+			points.append(Vector2(
+				float(pixel_x - start_x) - source_rect.size.x * 0.5,
+				float(pixel_y - start_y) - source_rect.size.y * 0.5
+			))
+	var hull := Geometry2D.convex_hull(points) if points.size() >= 3 else PackedVector2Array()
+	blade_hit_hull_cache[frame_key] = hull
+	return hull
+
+
+func _get_visible_sprite_source_rect(visual: Sprite2D) -> Rect2:
+	if visual.region_enabled and visual.region_rect.size.x > 0.0 and visual.region_rect.size.y > 0.0:
+		return visual.region_rect
+	var texture_size := visual.texture.get_size()
+	var hframes := maxi(visual.hframes, 1)
+	var vframes := maxi(visual.vframes, 1)
+	var frame_size := Vector2(texture_size.x / float(hframes), texture_size.y / float(vframes))
+	var frame_index := clampi(visual.frame, 0, hframes * vframes - 1)
+	return Rect2(
+		Vector2(float(frame_index % hframes) * frame_size.x, float(int(frame_index / hframes)) * frame_size.y),
+		frame_size
+	)
+
+
+func _is_blade_hit_pixel(color: Color, hero_frame: bool) -> bool:
+	if color.a <= 0.12:
+		return false
+	if not hero_frame:
+		return true
+	# Deluxe Hero frames contain the whole body. Only the high-value blade steel,
+	# cyan edge and white swing trail feed the collision hull; skin, cape and
+	# torso pixels can never enlarge an attack into a body-sized hitbox.
+	var bright_steel := color.r >= 0.72 and color.g >= 0.72 and color.b >= 0.72
+	var cyan_edge := color.b >= 0.48 and color.b >= color.r * 1.14 and color.b >= color.g * 1.05
+	return bright_steel or cyan_edge
 
 # Leuchteffekt aktualisieren
 func update_glow_state() -> void:
+
 	if not has_glow_skill:
 		is_glowing = false
-		return
-		
-	glow_effect.visible = is_glowing
+	var energy_ratio := clampf(glow_energy / GLOW_ENERGY_MAX, 0.0, 1.0)
+	var target_energy := glow_base_energy * lerpf(0.42, 1.0, energy_ratio)
+	if glow_tween and glow_tween.is_valid():
+		glow_tween.kill()
+	if is_glowing:
+		# Immer erst bei 0 starten, wenn das Licht vorher aus war.
+		if not glow_effect.visible:
+			glow_effect.energy = 0.0
+		glow_effect.visible = true
+		glow_tween = create_tween()
+		glow_tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+		glow_tween.set_trans(Tween.TRANS_SINE)
+		glow_tween.set_ease(Tween.EASE_IN_OUT)
+		glow_tween.tween_property(
+			glow_effect,
+			"energy",
+			target_energy,
+			0.5
+		)
+	else:
+		# WICHTIG:
+		# Während des gesamten Fade-Outs sichtbar lassen!
+		glow_effect.visible = true
+		glow_tween = create_tween()
+		glow_tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+		glow_tween.set_trans(Tween.TRANS_SINE)
+		glow_tween.set_ease(Tween.EASE_IN_OUT)
+		glow_tween.tween_property(
+			glow_effect,
+			"energy",
+			0.0,
+			0.72
+		)
+		glow_tween.tween_callback(_finish_glow_fade_out)
 	_refresh_player_tuning_from_skills()
-	# EMITTIERE DAS SIGNAL HIER:
 	glow_changed.emit(is_glowing)
 	get_tree().call_group("spikes", "_on_player_glow_changed", is_glowing)
 	sync_glow_state.rpc(is_glowing)
+	if canvas_layer and canvas_layer.has_method("set_glow_charge"):
+		canvas_layer.call(
+			"set_glow_charge",
+			glow_energy,
+			GLOW_ENERGY_MAX,
+			has_glow_skill
+		)
+
+func _finish_glow_fade_out() -> void:
+
+	# Falls während des Fade-Outs wieder eingeschaltet wurde,
+	# NICHT unsichtbar machen.
+	if not is_glowing:
+		glow_effect.energy = 0.0
+		glow_effect.visible = false
+
+func toggle_glow() -> void:
+	if not has_glow_skill:
+		return
+	if not is_glowing and glow_energy < GLOW_MIN_ACTIVATION_ENERGY:
+		_show_feedback_toast("Lichtkern lädt noch", "warning", null)
+		return
+	is_glowing = not is_glowing
+	glow_exhausted = false
+	update_glow_state()
+
+
+func _update_glow_energy(delta: float) -> void:
+	if not has_glow_skill:
+		return
+	if is_glowing:
+		glow_energy = maxf(0.0, glow_energy - GLOW_ENERGY_DRAIN_PER_SECOND * delta)
+		if glow_energy <= 0.0:
+			is_glowing = false
+			if not glow_exhausted:
+				glow_exhausted = true
+				_show_feedback_toast("Lichtkern erschöpft", "warning", null)
+			update_glow_state()
+	else:
+		glow_energy = minf(GLOW_ENERGY_MAX, glow_energy + GLOW_ENERGY_RECHARGE_PER_SECOND * delta)
+		if glow_energy >= GLOW_MIN_ACTIVATION_ENERGY:
+			glow_exhausted = false
+	if canvas_layer and canvas_layer.has_method("set_glow_charge"):
+		canvas_layer.call("set_glow_charge", glow_energy, GLOW_ENERGY_MAX, true)
 
 func set_controls_inverted(inverted: bool):
 	controls_inverted = inverted
@@ -3417,10 +4417,19 @@ func set_controls_inverted(inverted: bool):
 func take_damage(amount: int, hit_source: Vector2):
 	if !is_multiplayer_authority():
 		return
-	if dash_invulnerability_timer > 0.0:
+	if dash_invulnerability_timer > 0.0 or damage_invulnerability_timer > 0.0:
 		return
+	# One hit gets a clear reaction.  Overlapping bodies/projectiles cannot turn
+	# a single mistake into an unreadable burst of contact damage.
+	damage_invulnerability_timer = PLAYER_HURT_INVULNERABILITY
+	if is_attacking:
+		attack_sequence_id += 1
+		hero_combo_queued = false
+		is_attacking = false
+		attack_dash_cancel_ready = false
+		_set_attack_hitbox_active(false)
 	# Schadensreduktion anwenden
-	var reduced_damage = amount * (1.0 - damage_reduction)
+	var reduced_damage = amount * ENEMY_DAMAGE_SCALE * (1.0 - damage_reduction)
 	reduced_damage = max(1, int(reduced_damage))  # Mindestens 1 Schaden
 	amount = reduced_damage
 	
@@ -3486,7 +4495,9 @@ func take_damage(amount: int, hit_source: Vector2):
 	# Tod prüfen
 	if current_health <= 0:
 		current_health = 0
-		die()
+		# Contact damage is delivered from physics callbacks.  Death drops items
+		# and therefore must start outside the active collision query.
+		call_deferred("die")
 	
 	update_health_bar()
 
@@ -3541,6 +4552,17 @@ func heal(amount: int):
 	update_health_bar()
 
 func collect(item) -> bool:
+	if item == null:
+		return false
+	if item.pickup_heal > 0:
+		# Leave a heart in the level when Joey is already at full health; it is a
+		# tactical healing pickup, not an item that should be wasted invisibly.
+		if current_health >= max_health:
+			return false
+		var restored := mini(item.pickup_heal, max_health - current_health)
+		_restore_health(restored)
+		_show_feedback_toast("Lebensherz: +%d LP" % restored, "reward", item.texture)
+		return true
 	var inserted := inv.Insert(item)
 	if inserted:
 		_show_loot_feedback(item)
@@ -3739,15 +4761,17 @@ func sync_attack(combo_step: int = 0):
 	current_attack_step = combo_step
 	runtime_attack_elapsed = 0.0
 	runtime_animation_state = ""
-	_start_weapon_attack_animation(combo_step)
-	if _is_hero_form_active():
-		var facing_sign := -1.0 if is_facing_left else 1.0
-		_spawn_hero_slash_effect(combo_step, facing_sign)
-	$PlayerSprite/AttackSprite.flip_h = is_facing_left
+	if show_equipped_weapon_visual:
+		_start_weapon_attack_animation(combo_step)
+	else:
+		weapon_visual_anim_time = 0.0
+		weapon_visual_anim_duration = 0.0
+	_start_slime_sword_combo_animation(combo_step)
+	if attack_sprite != null:
+		attack_sprite.flip_h = is_facing_left
+		attack_sprite.stop()
 	_update_attack_hitbox(combo_step)
-	$PlayerSprite/AttackSprite.play("swing")
-	$PlayerSprite/AttackSprite.speed_scale = 1.8 + float(combo_step) * 0.18
-	attack_area.monitoring = true
+	_set_attack_hitbox_active(false)
 	_update_equipped_weapon_visual()
 
 @rpc("any_peer", "call_local", "reliable")
@@ -3756,7 +4780,26 @@ func sync_glow_state(new_state: bool):
 		return  # Ignoriere Nachrichten von nicht-autoritativen Clients
 		
 	is_glowing = new_state
-	glow_effect.visible = is_glowing
+	if glow_effect == null:
+		return
+	# Remote state changes share the same visual easing as local input.  Never
+	# assign `visible = false` here: that would cut an active fade-out short.
+	if glow_tween and glow_tween.is_valid():
+		glow_tween.kill()
+	var energy_ratio := clampf(glow_energy / GLOW_ENERGY_MAX, 0.0, 1.0)
+	var target_energy := glow_base_energy * lerpf(0.42, 1.0, energy_ratio)
+	glow_effect.visible = true
+	glow_tween = create_tween()
+	glow_tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	glow_tween.set_trans(Tween.TRANS_SINE)
+	glow_tween.set_ease(Tween.EASE_IN_OUT)
+	if is_glowing:
+		if glow_effect.energy <= 0.01:
+			glow_effect.energy = 0.0
+		glow_tween.tween_property(glow_effect, "energy", target_energy, 0.52)
+	else:
+		glow_tween.tween_property(glow_effect, "energy", 0.0, 0.72)
+		glow_tween.tween_callback(_finish_glow_fade_out)
 
 @rpc("reliable", "call_remote")
 func sync_max_health():
@@ -3869,7 +4912,7 @@ func _on_jump_button_pressed():
 	jump_buffer_time = 0.1
 
 func _on_attack_button_pressed():
-	if _is_gameplay_input_blocked():
+	if _is_gameplay_input_blocked() or _is_hero_ledge_busy():
 		return
 	perform_attack()
 
@@ -3881,9 +4924,7 @@ func _on_dash_button_pressed():
 	dash(dash_dir)
 
 func _on_glow_button_pressed():
-	is_glowing = !is_glowing
-	update_glow_state()
-	sync_glow_state.rpc(is_glowing)
+	toggle_glow()
 
 func _notification(what):
 	if what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:
@@ -4891,6 +5932,7 @@ func _update_stats_from_buffs() -> void:
 	
 	# Endgültigen Schaden berechnen
 	attack_damage = int(base_attack_damage * final_damage_multiplier)
+	update_defense_bonuses()
 	
 	print("🎯 FINAL - Walk: ", WALK_SPEED, " Run: ", RUN_SPEED, " Damage: ", attack_damage, " Reduction: ", damage_reduction)
 

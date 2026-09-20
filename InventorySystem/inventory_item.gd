@@ -13,9 +13,24 @@ class_name InvItem
 @export var throw_damage: float = 0
 @export var drop_chance: float = 0
 @export_enum("resource", "weapon", "relic", "charm", "star") var item_type: String = "resource"
-@export_enum("none", "weapon", "relic", "charm", "star") var equip_slot: String = "none"
+@export_enum("none", "weapon", "armor", "relic", "charm", "star") var equip_slot: String = "none"
 @export var rarity: String = "common"
 @export var stack_size: int = 64
+# Different legacy resources may intentionally represent the same currency.
+# Leave this empty for the item's own name to remain its stack identity.
+@export var stack_key: String = ""
+# World drops can use a tightly cropped part of a supplied transparent canvas.
+# This keeps externally authored pixel art at its intended in-game size without
+# destructively rewriting the original asset.
+@export var world_texture_region: Rect2 = Rect2()
+@export_range(0.01, 2.0, 0.01) var world_scale: float = 1.0
+# Pickup effects are intentionally separate from equipment modifiers: these
+# items are consumed directly in the world and never occupy an inventory slot.
+@export var pickup_heal: int = 0
+@export var permanent_max_health_bonus: int = 0
+@export var permanent_crit_chance_bonus: float = 0.0
+@export_range(0.0, 0.8, 0.001) var damage_reduction_bonus: float = 0.0
+@export_range(0.1, 1.0, 0.01) var glow_range_multiplier: float = 1.0
 @export var attack_power_bonus: int = 0
 @export var attack_speed_bonus: float = 0.0
 @export var attack_reach_bonus: float = 0.0
@@ -32,6 +47,10 @@ func get_display_name() -> String:
 
 func is_stackable() -> bool:
 	return stack_size > 1
+
+
+func get_stack_key() -> String:
+	return stack_key if not stack_key.is_empty() else name
 
 
 func can_equip_to(slot_name: String) -> bool:

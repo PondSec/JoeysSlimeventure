@@ -21,9 +21,10 @@ const KRISTALLRUECKEN_SCENE := preload("res://Scenes/Chapter/Enemies/kristallrue
 const MAGIC_ENERGY_TRAIL := preload("res://Scripts/Chapter/Boss/magic_energy_trail.gd")
 const ESSENCE_FRAGMENT_SCENE := preload("res://Scenes/Chapter/Pickups/essence_fragment.tscn")
 const TORCH_SCENE := preload("res://Scenes/torch.tscn")
-const SPIKE_SCENE := preload("res://Scenes/SpikeNormal.tscn")
+const SPIKE_SCENE := preload("res://Scenes/Spike.tscn")
 const WORM_SCENE := preload("res://Scenes/worm.tscn")
 const VINE_SCENE := preload("res://Scenes/vine.tscn")
+const FALLING_LEAF_SCENE := preload("res://Scenes/Deko/leaf.tscn")
 const MOSS_TILE_PATHS := [
 	"res://Assets/Deko/moss/moss_0.png",
 	"res://Assets/Deko/moss/moss_1.png",
@@ -62,6 +63,12 @@ const DEBUG_OVERLAY_TOGGLE_KEY := KEY_F2
 const TILE_DEBUG_TOGGLE_KEY := KEY_F3
 const GENERATED_PLANT_LIGHTS_ENABLED := true
 const MAX_GENERATED_PLANT_LIGHTS := 8
+const MAX_AMBIENT_LUSH_LEAVES := 12
+const AMBIENT_LUSH_LEAF_MIN_INTERVAL := 1.25
+const AMBIENT_LUSH_LEAF_MAX_INTERVAL := 3.4
+const AMBIENT_LUSH_LEAF_MAX_SOURCE_DISTANCE := 720.0
+const LUSH_MOONBELL_HEAL_RADIUS := 42.0
+const LUSH_MOONBELL_HEAL_INTERVAL := 1.0
 const ENEMY_RESPAWN_DELAY_MIN := 6.0
 const ENEMY_RESPAWN_DELAY_MAX := 10.0
 const ENEMY_RESPAWN_MIN_PLAYER_DISTANCE := 520.0
@@ -111,7 +118,7 @@ const CHAPTER_LUSH_LANDMARK_ORDER := [5, 2, 7, 0, 6, 3, 1, 4]
 const CHAPTER_CAVE_LANDMARK_ORDER := [1, 6, 3, 7, 0, 4, 2, 5]
 const NORMAL_CAVE_FOREGROUND_FRAME_PATH := "res://Assets/Parallax Cave/normal_cave_foreground_frame.png"
 const NORMAL_CAVE_FOREGROUND_SHADER_PATH := "res://Shaders/normal_cave_foreground_transition.gdshader"
-const LUSH_BIOME_TRANSITION_DISTANCE := 280.0
+const LUSH_BIOME_TRANSITION_DISTANCE := 460.0
 const LUSH_BIOME_SPAWN_EXCLUSION_DISTANCE := 640.0
 const MIN_LUSH_BIOME_DENSITY := 4.6
 
@@ -194,6 +201,12 @@ var decoration_alpha_bounds: Dictionary = {}
 var vegetation_motion_nodes: Array[CanvasItem] = []
 var vegetation_motion_shader: Shader
 var generated_plant_light_count: int = 0
+var ceiling_leaf_sources: Array[Dictionary] = []
+var ambient_lush_leaf_count: int = 0
+var ambient_lush_leaf_timer: float = 0.0
+var ambient_lush_leaf_rng := RandomNumberGenerator.new()
+var lush_moonbell_sources: Array[WeakRef] = []
+var lush_moonbell_heal_timer: float = 0.0
 var enemy_population_target: int = 0
 var enemy_respawn_types: Array[String] = []
 var enemy_respawn_timer: float = -1.0
@@ -247,6 +260,8 @@ func _process(delta: float) -> void:
 		return
 	_update_enemy_population(delta)
 	_update_vegetation_motion(delta)
+	_update_ambient_lush_leaves(delta)
+	_update_lush_moonbell_healing(delta)
 	# The ordinary foreground is always present, independent of whether this
 	# seed contains a lush biome.  Keeping it moving here also gives the normal
 	# cave the same depth response as the lush frame.
@@ -736,8 +751,10 @@ func _build_lush_biome_parallax(bounds: Rect2) -> void:
 	if best_grid_x < 0 or best_score < MIN_LUSH_BIOME_DENSITY:
 		return
 
-	# Keep this deliberately local: a dense lush pocket, not an all-map skin.
-	var core_width: float = clampf(bounds.size.x * 0.15, 420.0, 620.0)
+	# A lush biome is a real explorable territory rather than a narrow backdrop
+	# strip. It still leaves normal stone cave on both sides, but has enough
+	# width for continuous moss, large plants and a distinct route identity.
+	var core_width: float = clampf(bounds.size.x * 0.28, 720.0, 1180.0)
 	var center_x: float = float(best_grid_x) * TILE_SIZE + TILE_SIZE * 0.5
 	var region := Rect2(
 		Vector2(center_x - core_width * 0.5, bounds.position.y - 1024.0),
@@ -931,6 +948,10 @@ func _spawn_player() -> void:
 	player = PLAYER_SCENE.instantiate() as CharacterBody2D
 	player.name = "PlayerModel"
 	add_child(player)
+	# Falling is fatal only beyond the physical bottom of this generated world.
+	# The old global Y=2000 threshold cut off valid deep rooms in larger levels.
+	if player.has_method("set_world_fall_death_y"):
+		player.call("set_world_fall_death_y", level_size_pixels.y + WORLD_BOUND_BOTTOM_PADDING)
 	var portal_state: Dictionary = _progress().consume_runtime_player_state()
 	if not portal_state.is_empty() and player.has_method("restore_portal_state"):
 		player.call("restore_portal_state", portal_state)
@@ -968,6 +989,12 @@ func _build_level() -> void:
 	var platforms: Array = active_level.get("platforms", []) as Array
 	vegetation_motion_nodes.clear()
 	generated_plant_light_count = 0
+	ceiling_leaf_sources.clear()
+	ambient_lush_leaf_count = 0
+	ambient_lush_leaf_rng.seed = active_level_seed * 193 + 6221
+	ambient_lush_leaf_timer = ambient_lush_leaf_rng.randf_range(AMBIENT_LUSH_LEAF_MIN_INTERVAL, AMBIENT_LUSH_LEAF_MAX_INTERVAL)
+	lush_moonbell_sources.clear()
+	lush_moonbell_heal_timer = 0.0
 	lush_biome_density.clear()
 	lush_biome_density.resize(level_size_tiles.x)
 	for density_index: int in range(lush_biome_density.size()):
@@ -2018,7 +2045,7 @@ func _spawn_lush_ground_carpet_zones(grid: Array) -> void:
 			if _is_exposed_moss_face(grid, start + Vector2i.LEFT, Vector2i.UP):
 				continue
 			var available: int = _exposed_face_run_length(grid, start, Vector2i.UP, Vector2i.RIGHT, 20)
-			if available < 4 or carpet_rng.randf() > 0.90:
+			if available < 4 or carpet_rng.randf() > 0.82:
 				continue
 			var span: int = mini(available, carpet_rng.randi_range(10, 20))
 			for offset: int in range(span):
@@ -2042,10 +2069,10 @@ func _spawn_lush_canopy_zones(grid: Array) -> void:
 	var placed: int = 0
 	var reserved: Dictionary = {}
 	for grid_y: int in range(2, level_size_tiles.y - 5):
-		if placed >= 10:
+		if placed >= 18:
 			break
 		for grid_x: int in range(2, level_size_tiles.x - 9):
-			if placed >= 10:
+			if placed >= 18:
 				break
 			var start := Vector2i(grid_x, grid_y)
 			if _is_lush_canopy_reserved(reserved, start) or _is_torch_column(grid_x) or not _is_exposed_moss_face(grid, start, Vector2i.DOWN):
@@ -2058,7 +2085,7 @@ func _spawn_lush_canopy_zones(grid: Array) -> void:
 			# Organic cave ceilings are intentionally uneven, so four attached tiles
 			# are enough to seed a large overgrown curtain.  Requiring long perfect
 			# horizontal ceilings made whole seeds miss the landmark vegetation.
-			if available < 4 or canopy_rng.randf() > 0.90:
+			if available < 4 or canopy_rng.randf() > 0.84:
 				continue
 			var span: int = mini(available, canopy_rng.randi_range(4, 14))
 			_reserve_lush_canopy_zone(reserved, start, span)
@@ -2129,6 +2156,9 @@ func _spawn_lush_canopy(start: Vector2i, span: int, canopy_rng: RandomNumberGene
 		_add_lush_plant_glow(sprite, canopy_rng, 0.11, 0.18)
 	_register_vegetation_motion(sprite, sprite.texture, canopy_rng, false)
 	decor_root.add_child(sprite)
+	# Hand-placed vines retain their own leaf emitters. Procedural canopy plants
+	# feed one shared ambience system, avoiding a timer/physics chain per plant.
+	_register_ceiling_leaf_source(sprite, minf(float(span) * TILE_SIZE * 0.36, 58.0), rendered_height * 0.18)
 
 
 func _spawn_generated_flora(grid: Array) -> void:
@@ -2147,7 +2177,7 @@ func _spawn_generated_flora(grid: Array) -> void:
 			if placed >= 320:
 				break
 			var cell := Vector2i(grid_x, grid_y)
-			if not _is_exposed_moss_face(grid, cell, Vector2i.UP) or not _has_ground_moss_shoulders(grid, cell) or _is_torch_column(grid_x) or flora_rng.randf() > 0.78:
+			if not _is_exposed_moss_face(grid, cell, Vector2i.UP) or not _has_ground_moss_shoulders(grid, cell) or _is_torch_column(grid_x) or flora_rng.randf() > 0.68:
 				continue
 			var patch_length: int = flora_rng.randi_range(6, 12)
 			for patch_step: int in range(patch_length):
@@ -2168,7 +2198,7 @@ func _spawn_generated_flora(grid: Array) -> void:
 				return
 			var cell := Vector2i(grid_x, grid_y)
 			for outward: Vector2i in [Vector2i.DOWN]:
-				if not _is_exposed_moss_face(grid, cell, outward) or _is_torch_column(grid_x) or flora_rng.randf() > 0.19:
+				if not _is_exposed_moss_face(grid, cell, outward) or _is_torch_column(grid_x) or flora_rng.randf() > 0.25:
 					continue
 				_spawn_flora_tile(cell, outward, flora_rng, outward == Vector2i.DOWN)
 				placed += 1
@@ -2213,6 +2243,9 @@ func _spawn_flora_tile(cell: Vector2i, outward: Vector2i, flora_rng: RandomNumbe
 		_add_lush_plant_glow(sprite, flora_rng, 0.15, 0.25)
 	_register_vegetation_motion(sprite, sprite.texture, flora_rng, not hanging)
 	decor_root.add_child(sprite)
+	if hanging:
+		var texture_height := float(sprite.texture.get_height()) * absf(sprite.scale.y)
+		_register_ceiling_leaf_source(sprite, maxf(8.0, float(sprite.texture.get_width()) * absf(sprite.scale.x) * 0.24), texture_height * 0.16)
 
 
 func _spawn_lush_flower_landmarks(grid: Array) -> void:
@@ -2394,13 +2427,13 @@ func _spawn_lush_special_blooms(grid: Array) -> void:
 			var key := "%d:%d" % [cell.x, cell.y]
 			if claimed.has(key) or _is_torch_column(grid_x) or not _is_exposed_moss_face(grid, cell, Vector2i.UP) or not _has_ground_moss_shoulders(grid, cell):
 				continue
-			if bloom_rng.randf() > 0.060:
+			if bloom_rng.randf() > 0.078:
 				continue
 			# Wide shoulders preserve readable silhouettes and stop special plants
 			# from merging into accidental walls of leaves.
 			for offset_x: int in range(-2, 3):
 				claimed["%d:%d" % [cell.x + offset_x, cell.y]] = true
-			var is_moonbell: bool = bloom_rng.randf() < 0.42
+			var is_moonbell: bool = bloom_rng.randf() < 0.48
 			var bloom := Sprite2D.new()
 			bloom.name = "GeneratedLushMoonbell" if is_moonbell else "GeneratedLushSunbud"
 			bloom.texture = moonbell if is_moonbell else sunbud
@@ -2414,6 +2447,8 @@ func _spawn_lush_special_blooms(grid: Array) -> void:
 			bloom.self_modulate = Color(0.84, 0.94, 1.08, 1.0) if is_moonbell else Color(1.07, 0.98, 0.76, 1.0)
 			_register_vegetation_motion(bloom, bloom.texture, bloom_rng, true)
 			decor_root.add_child(bloom)
+			if is_moonbell:
+				_register_lush_moonbell(bloom)
 			placed += 1
 
 
@@ -2549,6 +2584,7 @@ func _spawn_lush_light_oasis(floor_cell: Vector2i, ceiling_cell: Vector2i, slant
 	bloom.self_modulate = Color(0.92, 1.22, 1.32, 1.0)
 	_register_vegetation_motion(bloom, bloom.texture, oasis_rng, true)
 	decor_root.add_child(bloom)
+	_register_lush_moonbell(bloom)
 
 	# One modest real light per oasis is enough to illuminate Joey as he walks
 	# through it.  It is intentionally much smaller and weaker than his skill
@@ -2711,6 +2747,94 @@ func _spawn_vine_trail(grid_x: int, grid_y: int, segment_count: int, rotation: f
 			_spawn_lush_glimmer(start_position + Vector2(glimmer_x, glimmer_y), rng, 6 if foreground_vine else 0)
 
 
+func _register_ceiling_leaf_source(source: Sprite2D, horizontal_spread: float, vertical_offset: float) -> void:
+	if source == null:
+		return
+	ceiling_leaf_sources.append({
+		"source": weakref(source),
+		"horizontal_spread": maxf(4.0, horizontal_spread),
+		"vertical_offset": maxf(0.0, vertical_offset),
+	})
+
+
+func _update_ambient_lush_leaves(delta: float) -> void:
+	# This deliberately supplements only generated ceiling plants. Regular vine
+	# scenes already own their authored leaf behaviour, so they are not doubled.
+	if decor_root == null or ceiling_leaf_sources.is_empty() or ambient_lush_leaf_count >= MAX_AMBIENT_LUSH_LEAVES:
+		return
+	if _get_lush_biome_strength(player.global_position) <= 0.04:
+		return
+	ambient_lush_leaf_timer -= delta
+	if ambient_lush_leaf_timer > 0.0:
+		return
+
+	var nearby_sources: Array[Dictionary] = []
+	for source_data: Dictionary in ceiling_leaf_sources:
+		var source_ref := source_data.get("source") as WeakRef
+		var source := source_ref.get_ref() as Sprite2D if source_ref != null else null
+		if source != null and is_instance_valid(source) and source.global_position.distance_to(player.global_position) <= AMBIENT_LUSH_LEAF_MAX_SOURCE_DISTANCE:
+			nearby_sources.append(source_data)
+	if nearby_sources.is_empty():
+		ambient_lush_leaf_timer = 0.55
+		return
+
+	var selected: Dictionary = nearby_sources[ambient_lush_leaf_rng.randi_range(0, nearby_sources.size() - 1)]
+	var selected_ref := selected.get("source") as WeakRef
+	var selected_source := selected_ref.get_ref() as Sprite2D if selected_ref != null else null
+	if selected_source == null or not is_instance_valid(selected_source):
+		ambient_lush_leaf_timer = 0.2
+		return
+
+	var leaf := FALLING_LEAF_SCENE.instantiate() as RigidBody2D
+	if leaf == null:
+		return
+	decor_root.add_child(leaf)
+	var spread := float(selected.get("horizontal_spread", 10.0))
+	var vertical_offset := float(selected.get("vertical_offset", 0.0))
+	leaf.global_position = selected_source.global_position + Vector2(
+		ambient_lush_leaf_rng.randf_range(-spread, spread),
+		vertical_offset + ambient_lush_leaf_rng.randf_range(-3.0, 5.0)
+	)
+	leaf.apply_central_impulse(Vector2(
+		ambient_lush_leaf_rng.randf_range(-9.0, 9.0),
+		ambient_lush_leaf_rng.randf_range(-7.0, -1.0)
+	))
+	leaf.z_index = selected_source.z_index + 1
+	ambient_lush_leaf_count += 1
+	leaf.tree_exiting.connect(_on_ambient_lush_leaf_removed)
+	ambient_lush_leaf_timer = ambient_lush_leaf_rng.randf_range(AMBIENT_LUSH_LEAF_MIN_INTERVAL, AMBIENT_LUSH_LEAF_MAX_INTERVAL)
+
+
+func _on_ambient_lush_leaf_removed() -> void:
+	ambient_lush_leaf_count = maxi(0, ambient_lush_leaf_count - 1)
+
+
+func _register_lush_moonbell(bloom: Sprite2D) -> void:
+	if bloom != null:
+		lush_moonbell_sources.append(weakref(bloom))
+
+
+func _update_lush_moonbell_healing(delta: float) -> void:
+	# Moonbells are a quiet sanctuary, not a regeneration-skill proc: standing
+	# in the rare blue bloom restores exactly one HP per full second.
+	if player == null or not player.has_method("restore_environmental_health"):
+		return
+	var is_touching_moonbell := false
+	for moonbell_ref: WeakRef in lush_moonbell_sources:
+		var moonbell := moonbell_ref.get_ref() as Sprite2D
+		if moonbell != null and is_instance_valid(moonbell) and moonbell.global_position.distance_to(player.global_position) <= LUSH_MOONBELL_HEAL_RADIUS:
+			is_touching_moonbell = true
+			break
+	if not is_touching_moonbell:
+		lush_moonbell_heal_timer = 0.0
+		return
+
+	lush_moonbell_heal_timer += delta
+	while lush_moonbell_heal_timer >= LUSH_MOONBELL_HEAL_INTERVAL:
+		lush_moonbell_heal_timer -= LUSH_MOONBELL_HEAL_INTERVAL
+		player.call("restore_environmental_health", 1)
+
+
 func _is_torch_column(grid_x: int) -> bool:
 	for torch_variant: Variant in active_level.get("torches", []) as Array:
 		if abs(grid_x - int((torch_variant as Dictionary).get("x", -999))) <= 3:
@@ -2810,14 +2934,75 @@ func _spawn_hazard(hazard: Dictionary) -> void:
 	var base_y: int = int(hazard.get("y", 0))
 	var count: int = max(1, int(hazard.get("count", 1)))
 	for offset_index: int in range(count):
+		var floor_cell := _resolve_safe_spike_floor(Vector2i(base_x + offset_index, base_y))
+		if floor_cell == Vector2i.ZERO:
+			# A hazard is never allowed to become a floating trap just because its
+			# authored tile disappeared during terrain resolution.
+			continue
 		var spike: Node2D = SPIKE_SCENE.instantiate() as Node2D
 		if spike == null:
 			continue
 		hazard_root.add_child(spike)
-		# The trimmed spike artwork's last opaque row sits a few pixels above its
-		# Sprite2D frame.  Sink the visual anchor into the floor lip so the teeth
-		# are planted on the rock rather than visibly hovering above it.
-		spike.global_position = _grid_to_world(Vector2i(base_x + offset_index, base_y)) + Vector2(16.0, -12.0)
+		# Spike is a centered Sprite2D. Offset its origin by half a tile so its
+		# opaque bottom edge meets the surface; assigning the raw floor cell would
+		# leave its lower half embedded in the terrain.
+		spike.global_position = _grid_to_world(floor_cell) + Vector2(16.0, -16.0)
+		if player != null:
+			spike.call("_on_player_glow_changed", bool(player.get("is_glowing")))
+
+
+func _resolve_safe_spike_floor(requested: Vector2i) -> Vector2i:
+	# Hazards are authored before final terrain carving.  Resolve them again on
+	# the finished solid grid: a solid floor, two free cells of headroom and no
+	# foreground plant are all mandatory.  The compact search keeps a trap near
+	# its designed encounter instead of relocating it across the room.
+	if solid_grid_cache.is_empty():
+		return Vector2i.ZERO
+	var x_offsets: Array[int] = [0, -1, 1, -2, 2, -3, 3, -4, 4, -5, 5, -6, 6]
+	var y_offsets: Array[int] = [0, -1, 1, -2, 2, -3, 3, -4, 4, -5, 5, -6, 6, -7, 7, -8, 8]
+	for y_offset: int in y_offsets:
+		var floor_y := requested.y + y_offset
+		for x_offset: int in x_offsets:
+			var floor_x := requested.x + x_offset
+			if not _is_valid_spike_floor(floor_x, floor_y):
+				continue
+			var cell := Vector2i(floor_x, floor_y)
+			if _foreground_plant_blocks_spike(cell):
+				continue
+			return cell
+	return Vector2i.ZERO
+
+
+func _is_valid_spike_floor(grid_x: int, floor_y: int) -> bool:
+	if grid_x < 1 or grid_x >= level_size_tiles.x - 1 or floor_y < 2 or floor_y >= level_size_tiles.y - 1:
+		return false
+	if not _is_solid(solid_grid_cache, grid_x, floor_y):
+		return false
+	# Never bury a spike in a wall/ceiling or put it into a one-pixel crack.
+	return not _is_solid(solid_grid_cache, grid_x, floor_y - 1) and not _is_solid(solid_grid_cache, grid_x, floor_y - 2)
+
+
+func _foreground_plant_blocks_spike(floor_cell: Vector2i) -> bool:
+	if decor_root == null:
+		return false
+	var spike_position := _grid_to_world(floor_cell) + Vector2(16.0, -12.0)
+	for child: Node in decor_root.get_children():
+		if not (child is Sprite2D):
+			continue
+		var plant_name := String(child.name)
+		var is_foreground_plant := plant_name.begins_with("GeneratedFlora") \
+			or plant_name.begins_with("GeneratedLushCanopy") \
+			or plant_name.begins_with("GeneratedLushLandmark") \
+			or plant_name.begins_with("GeneratedWind") \
+			or plant_name.begins_with("GeneratedLushMoonbell") \
+			or plant_name.begins_with("GeneratedLushSunbud") \
+			or plant_name.begins_with("GeneratedLushLightOasisPlant")
+		if not is_foreground_plant:
+			continue
+		var plant := child as Sprite2D
+		if absf(plant.global_position.x - spike_position.x) <= 36.0 and absf(plant.global_position.y - spike_position.y) <= 48.0:
+			return true
+	return false
 
 
 func _spawn_torch(torch_data: Dictionary) -> void:

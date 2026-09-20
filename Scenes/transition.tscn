@@ -9,6 +9,8 @@ signal transition_completed
 @onready var color_rect: ColorRect = $ColorRect
 
 var transition_running := false
+var pause_state_before_transition := false
+var hidden_canvas_layers: Array[CanvasLayer] = []
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -21,6 +23,9 @@ func play_transition(scene_path: String, skip_fade_in: bool = false) -> void:
 	if transition_running:
 		return
 	transition_running = true
+	pause_state_before_transition = get_tree().paused
+	get_tree().paused = true
+	_hide_runtime_hud()
 
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	if animation_player != null:
@@ -39,13 +44,18 @@ func play_transition(scene_path: String, skip_fade_in: bool = false) -> void:
 	if change_error != OK:
 		push_error(\"Transition konnte Szene nicht laden: %s\" % scene_path)
 		_set_overlay_alpha(0.0)
+		_restore_runtime_hud()
+		get_tree().paused = pause_state_before_transition
 		transition_running = false
 		queue_free()
 		return
 
 	await get_tree().process_frame
+	_hide_runtime_hud()
 	fade_out()
 	await animation_player.animation_finished
+	_restore_runtime_hud()
+	get_tree().paused = pause_state_before_transition
 	transition_running = false
 	queue_free()
 
@@ -65,6 +75,30 @@ func _set_overlay_alpha(alpha: float) -> void:
 	if color_rect == null:
 		return
 	color_rect.color = Color(color_rect.color.r, color_rect.color.g, color_rect.color.b, alpha)
+
+func _hide_runtime_hud() -> void:
+	for node in get_tree().get_nodes_in_group(\"transition_hud\"):
+		var canvas := node as CanvasLayer
+		if canvas != null and canvas != self and canvas.visible:
+			canvas.visible = false
+			hidden_canvas_layers.append(canvas)
+	for node in get_tree().root.get_children():
+		_collect_canvas_layers(node)
+
+func _collect_canvas_layers(node: Node) -> void:
+	if node != self and node is CanvasLayer:
+		var canvas := node as CanvasLayer
+		if canvas.layer < layer and canvas.visible:
+			canvas.visible = false
+			hidden_canvas_layers.append(canvas)
+	for child in node.get_children():
+		_collect_canvas_layers(child)
+
+func _restore_runtime_hud() -> void:
+	for canvas in hidden_canvas_layers:
+		if is_instance_valid(canvas):
+			canvas.visible = true
+	hidden_canvas_layers.clear()
 "
 
 [sub_resource type="Animation" id="Animation_ah04o"]
@@ -121,7 +155,7 @@ _data = {
 }
 
 [node name="Transition" type="CanvasLayer"]
-layer = 5
+layer = 1000
 script = SubResource("GDScript_jxdek")
 
 [node name="ColorRect" type="ColorRect" parent="."]

@@ -18,8 +18,13 @@ func _ready() -> void:
 	sprite = get_node_or_null("Sprite2D")
 	if sprite:
 		sprite.texture = item.texture if item else sprite.texture
+		if item and item.world_texture_region.has_area():
+			sprite.region_enabled = true
+			sprite.region_rect = item.world_texture_region
+		else:
+			sprite.region_enabled = false
 		sprite_base_position = sprite.position
-		sprite_base_scale = sprite.scale
+		sprite_base_scale = sprite.scale * (item.world_scale if item else 1.0)
 		sprite.scale = sprite_base_scale * 0.85
 		var spawn_tween := create_tween()
 		spawn_tween.tween_property(sprite, "scale", sprite_base_scale * 1.08, 0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)

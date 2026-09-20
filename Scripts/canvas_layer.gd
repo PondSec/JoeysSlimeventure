@@ -14,6 +14,7 @@ const CAVE_HEALTH_FRAME := preload("res://Assets/UI/Health/cave_frame.png")
 const LUSH_HEALTH_FRAME := preload("res://Assets/UI/Health/lush_frame.png")
 const HEALTH_FILL := preload("res://Assets/UI/Health/fill_visible.png")
 const MAX_VISIBLE_TOASTS := 4
+const GAMEPLAY_TOAST_MIN_DURATION := 6.4
 const TOAST_LABELS := {
 	"info": "SYSTEM",
 	"reward": "LOOT",
@@ -68,9 +69,17 @@ var low_health_warning_cooldown := 0.0
 var banner_tween: Tween
 var cave_health_frame: TextureRect
 var lush_health_frame: TextureRect
+var glow_charge_bar: ProgressBar
+var glow_charge_label: Label
+var toast_queue: Array[Dictionary] = []
+var toast_queue_release_pending := false
 
 
 func _ready() -> void:
+	# Pickup messages are HUD feedback, never gameplay simulation.  They must
+	# remain readable through hit-stop and the short pause windows around
+	# transitions, so their own timers always process independently.
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	feedback_font = load(FONT_PATH) as FontFile
 	click_stream = load(UI_CLICK_PATH)
 	confirm_stream = load(UI_CONFIRM_PATH)
@@ -82,6 +91,7 @@ func _ready() -> void:
 
 	_setup_biome_health_skin()
 	_setup_health_chip_bar()
+	_setup_glow_charge_meter()
 	_setup_fullscreen_feedback()
 	_setup_toasts()
 	_setup_action_banner()
@@ -147,6 +157,60 @@ func _create_health_frame(texture: Texture2D, node_name: String, frame_position:
 	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	frame.z_index = 0
 	return frame
+
+
+func _setup_glow_charge_meter() -> void:
+	# A small reserve below HP makes glow a deliberate exploration tool without
+	# competing with the combat HUD or inventory.
+	glow_charge_bar = ProgressBar.new()
+	glow_charge_bar.name = "GlowCharge"
+	glow_charge_bar.position = Vector2(65.0, 72.0)
+	glow_charge_bar.size = Vector2(250.0, 7.0)
+	glow_charge_bar.max_value = 100.0
+	glow_charge_bar.show_percentage = false
+	glow_charge_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	glow_charge_bar.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	glow_charge_bar.z_index = 3
+	var background := StyleBoxFlat.new()
+	background.bg_color = Color(0.015, 0.035, 0.07, 0.9)
+	background.border_color = Color(0.18, 0.42, 0.56, 0.95)
+	background.set_border_width_all(1)
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = Color(0.30, 0.88, 1.0, 0.96)
+	fill.border_color = Color(0.72, 0.98, 1.0, 1.0)
+	fill.set_border_width_all(1)
+	glow_charge_bar.add_theme_stylebox_override("background", background)
+	glow_charge_bar.add_theme_stylebox_override("fill", fill)
+	add_child(glow_charge_bar)
+
+	glow_charge_label = Label.new()
+	glow_charge_label.name = "GlowChargeLabel"
+	glow_charge_label.position = Vector2(20.0, 65.0)
+	glow_charge_label.size = Vector2(42.0, 16.0)
+	glow_charge_label.text = "LICHT"
+	glow_charge_label.add_theme_font_override("font", feedback_font)
+	glow_charge_label.add_theme_font_size_override("font_size", 11)
+	glow_charge_label.add_theme_color_override("font_color", Color(0.62, 0.94, 1.0, 1.0))
+	glow_charge_label.add_theme_color_override("font_outline_color", Color(0.01, 0.03, 0.06, 1.0))
+	glow_charge_label.add_theme_constant_override("outline_size", 2)
+	glow_charge_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	glow_charge_label.z_index = 4
+	add_child(glow_charge_label)
+	glow_charge_bar.visible = false
+	glow_charge_label.visible = false
+
+
+func set_glow_charge(current: float, maximum: float, available: bool) -> void:
+	if glow_charge_bar == null or glow_charge_label == null:
+		return
+	glow_charge_bar.visible = available
+	glow_charge_label.visible = available
+	if not available:
+		return
+	glow_charge_bar.max_value = maxf(maximum, 1.0)
+	glow_charge_bar.value = clampf(current, 0.0, glow_charge_bar.max_value)
+	var ratio := glow_charge_bar.value / glow_charge_bar.max_value
+	glow_charge_label.modulate = Color(1.0, 0.62, 0.38, 1.0) if ratio < 0.18 else Color.WHITE
 
 
 func _process(delta: float) -> void:
@@ -223,7 +287,7 @@ func notify_player_heal(amount: int, current: int, max_health: int) -> void:
 
 func show_loot_toast(item_name: String, icon_texture: Texture2D = null, amount: int = 1) -> void:
 	var quantity_prefix := "+%d " % amount if amount > 1 else "+1 "
-	show_toast(quantity_prefix + item_name, "reward", icon_texture, 3.6)
+	show_toast(quantity_prefix + item_name, "reward", icon_texture, 4.6)
 
 
 func show_notification(message: String) -> void:
@@ -234,15 +298,21 @@ func show_toast(message: String, toast_type: String = "info", icon_texture: Text
 	if not toast_container:
 		return
 	if toast_container.get_child_count() >= MAX_VISIBLE_TOASTS:
-		var oldest_toast: Node = toast_container.get_child(0)
-		if oldest_toast:
-			oldest_toast.queue_free()
+		# Never delete a message just as the player begins to read it. Overflow is
+		# queued and presented as an older toast leaves the lower-right stack.
+		toast_queue.append({
+			"message": message,
+			"toast_type": toast_type,
+			"icon_texture": icon_texture,
+			"display_duration": display_duration,
+		})
+		return
 
 	var effective_icon: Texture2D = icon_texture if icon_texture != null else _get_default_toast_icon(toast_type)
 	var is_default_icon := icon_texture == null and effective_icon != null
 	var toast := PanelContainer.new()
 	toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	toast.custom_minimum_size = Vector2(320, 56)
+	toast.custom_minimum_size = Vector2(350, 62)
 	toast.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	toast.clip_contents = true
 	toast.modulate = Color(1, 1, 1, 0)
@@ -334,6 +404,7 @@ func show_toast(message: String, toast_type: String = "info", icon_texture: Text
 	toast_container.add_child(toast)
 
 	var tween := create_tween()
+	tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
 	tween.set_parallel(true)
 	tween.tween_property(toast, "modulate:a", 1.0, 0.18).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	tween.tween_property(toast, "scale", Vector2.ONE, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
@@ -341,13 +412,13 @@ func show_toast(message: String, toast_type: String = "info", icon_texture: Text
 	if icon_frame:
 		tween.tween_property(icon_frame, "scale", Vector2.ONE, 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tween.set_parallel(false)
-	var toast_duration: float = display_duration if display_duration > 0.0 else (2.1 if toast_type != "reward" else 2.5)
-	tween.tween_interval(toast_duration)
-	tween.set_parallel(true)
-	tween.tween_property(toast, "modulate:a", 0.0, 0.22).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	tween.tween_property(toast, "scale", Vector2(0.97, 0.97), 0.22).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	tween.set_parallel(false)
-	tween.tween_callback(toast.queue_free)
+	# A SceneTreeTimer with `ignore_time_scale` is deliberately used instead of
+	# a tween interval. Gameplay can briefly slow or pause for combat/scene
+	# transitions; that must not make an "item collected" message vanish before
+	# it has been readable in real time.
+	var default_duration := 6.8 if toast_type != "reward" else 7.2
+	var toast_duration: float = maxf(display_duration, GAMEPLAY_TOAST_MIN_DURATION) if display_duration > 0.0 else default_duration
+	_schedule_gameplay_toast_dismissal(toast, toast_duration)
 
 	if toast_type == "reward":
 		_play_reward_sound()
@@ -355,6 +426,50 @@ func show_toast(message: String, toast_type: String = "info", icon_texture: Text
 		_play_ui_sound(click_stream, -1.0)
 	else:
 		_play_ui_sound(confirm_stream if confirm_stream else click_stream)
+
+
+func _schedule_gameplay_toast_dismissal(toast: PanelContainer, display_duration: float) -> void:
+	await get_tree().create_timer(display_duration, true, false, true).timeout
+	if not is_instance_valid(toast):
+		return
+	var fade_tween := create_tween()
+	fade_tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	fade_tween.set_parallel(true)
+	fade_tween.tween_property(toast, "modulate:a", 0.0, 0.26).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	fade_tween.tween_property(toast, "scale", Vector2(0.97, 0.97), 0.26).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	fade_tween.set_parallel(false)
+	fade_tween.tween_callback(func() -> void:
+		if is_instance_valid(toast):
+			toast.queue_free()
+		call_deferred("_show_next_queued_toast")
+	)
+
+
+func _show_next_queued_toast() -> void:
+	if toast_queue_release_pending or toast_queue.is_empty() or toast_container == null:
+		return
+	# Several toasts can finish on the same frame. They must share one deferred
+	# queue drain; otherwise two await continuations can both see a non-empty
+	# queue and the second one receives `nil` from pop_front().
+	toast_queue_release_pending = true
+	# queue_free completes at the end of the frame. Waiting one frame prevents
+	# the old toast from being counted as visible and preserves FIFO ordering.
+	await get_tree().process_frame
+	toast_queue_release_pending = false
+	if toast_container.get_child_count() >= MAX_VISIBLE_TOASTS:
+		return
+	if toast_queue.is_empty():
+		return
+	var queued_value: Variant = toast_queue.pop_front()
+	if not (queued_value is Dictionary):
+		return
+	var queued := queued_value as Dictionary
+	show_toast(
+		str(queued.get("message", "")),
+		str(queued.get("toast_type", "info")),
+		queued.get("icon_texture", null) as Texture2D,
+		float(queued.get("display_duration", -1.0)),
+	)
 
 
 func show_banner(text: String, accent: Color = Color(1.0, 0.76, 0.32), duration: float = 0.45) -> void:
@@ -427,13 +542,15 @@ func _setup_fullscreen_feedback() -> void:
 func _setup_toasts() -> void:
 	toast_container = VBoxContainer.new()
 	toast_container.name = "GameplayToasts"
-	toast_container.anchors_preset = Control.PRESET_TOP_RIGHT
+	toast_container.anchors_preset = Control.PRESET_BOTTOM_RIGHT
 	toast_container.anchor_left = 1.0
+	toast_container.anchor_top = 1.0
 	toast_container.anchor_right = 1.0
-	toast_container.offset_left = -360.0
-	toast_container.offset_top = 28.0
-	toast_container.offset_right = -26.0
-	toast_container.offset_bottom = 420.0
+	toast_container.anchor_bottom = 1.0
+	toast_container.offset_left = -390.0
+	toast_container.offset_top = -438.0
+	toast_container.offset_right = -24.0
+	toast_container.offset_bottom = -28.0
 	toast_container.alignment = BoxContainer.ALIGNMENT_END
 	toast_container.add_theme_constant_override("separation", 8)
 	toast_container.mouse_filter = Control.MOUSE_FILTER_IGNORE

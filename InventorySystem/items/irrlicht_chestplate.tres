@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="InvItem" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://InventorySystem/inventory_item.gd" id="1_item"]
+[ext_resource type="Texture2D" path="res://Assets/Items/irrlicht_chestplate.png" id="2_texture"]
+
+[resource]
+script = ExtResource("1_item")
+name = "irrlicht_chestplate"
+display_name = "Irrlichtbrustplatte"
+description = "Leichte, lebendige Rüstung. Reduziert erlittenen Schaden um 12 % und erhöht Krit-Chance um 4 %. Das Glimmen ist dafür leicht gedämpft."
+texture = ExtResource("2_texture")
+rarity = "epic"
+stack_size = 1
+world_texture_region = Rect2(150, 260, 960, 820)
+world_scale = 0.067
+item_type = "relic"
+equip_slot = "armor"
+crit_chance_bonus = 0.04
+damage_reduction_bonus = 0.12
+glow_range_multiplier = 0.84

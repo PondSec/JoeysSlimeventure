@@ -76,7 +76,7 @@ animations = [{
 }]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_jxxud"]
-size = Vector2(530.398, 223.887)
+size = Vector2(228, 132)
 
 [sub_resource type="Animation" id="Animation_chcy3"]
 length = 0.001
@@ -450,14 +450,12 @@ frame = 7
 frame_progress = 1.0
 speed_scale = 2.0
 
-[node name="AttackArea" type="Area2D" parent="PlayerSprite/AttackSprite"]
-position = Vector2(-31.4635, 42.9863)
-collision_layer = 3
+[node name="AttackArea" type="Area2D" parent="."]
+position = Vector2(142, -52)
+collision_layer = 0
 collision_mask = 3
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="PlayerSprite/AttackSprite/AttackArea"]
-position = Vector2(-8.07776, 3.58154)
-scale = Vector2(0.8, 0.8)
+[node name="CollisionShape2D" type="CollisionShape2D" parent="AttackArea"]
 shape = SubResource("RectangleShape2D_jxxud")
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="."]
@@ -516,14 +514,14 @@ anchor_left = 0.5
 anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = -527.5
-offset_top = -212.0
-offset_right = 527.5
-offset_bottom = -20.0
+offset_left = -340.0
+offset_top = -142.0
+offset_right = 340.0
+offset_bottom = -10.0
 grow_horizontal = 2
 grow_vertical = 0
 scale = Vector2(1, 1)
-pivot_offset = Vector2(527.5, 192)
+pivot_offset = Vector2(340, 132)
 script = ExtResource("17_1u0f7")
 
 [node name="HealthLabel" type="Label" parent="CanvasLayer"]

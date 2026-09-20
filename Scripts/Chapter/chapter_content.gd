@@ -96,6 +96,10 @@ static func get_level_data(chapter_index: int, level_index: int) -> Dictionary:
 
 	var base_level: Dictionary = levels[level_index]
 	var level_copy: Dictionary = base_level.duplicate(true)
+	# Each chapter level gains roughly seven percent of traversable space over
+	# its predecessor. Authored dimensions remain a minimum, while the generator
+	# receives the grown size and validates the resulting route as usual.
+	level_copy["size"] = _get_progressive_chapter_one_size(levels, level_index)
 	level_copy["chapter_index"] = chapter_index
 	level_copy["level_index"] = level_index
 	level_copy["level_label"] = "Level %d / %d" % [level_index + 1, levels.size()]
@@ -103,6 +107,23 @@ static func get_level_data(chapter_index: int, level_index: int) -> Dictionary:
 	level_copy["lesson_focus"] = _chapter_one_lesson_focus(level_index)
 	_normalize_chapter_one_level(level_copy)
 	return level_copy
+
+
+static func _get_progressive_chapter_one_size(levels: Array, level_index: int) -> Vector2i:
+	var first_level: Dictionary = levels[0] as Dictionary
+	var grown_size: Vector2i = first_level.get("size", Vector2i(116, 62)) as Vector2i
+	for index in range(1, level_index + 1):
+		var authored_level: Dictionary = levels[index] as Dictionary
+		var authored_size: Vector2i = authored_level.get("size", grown_size) as Vector2i
+		var seven_percent_larger := Vector2i(
+			ceili(float(grown_size.x) * 1.07),
+			ceili(float(grown_size.y) * 1.07)
+		)
+		grown_size = Vector2i(
+			maxi(authored_size.x, seven_percent_larger.x),
+			maxi(authored_size.y, seven_percent_larger.y)
+		)
+	return grown_size
 
 
 static func _platform(x: int, y: int, width: int, height: int = 1, style: String = "stone") -> Dictionary:

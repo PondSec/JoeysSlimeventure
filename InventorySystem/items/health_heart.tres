@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="InvItem" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://InventorySystem/inventory_item.gd" id="1_item"]
+[ext_resource type="Texture2D" path="res://Assets/Items/health_heart.png" id="2_texture"]
+
+[resource]
+script = ExtResource("1_item")
+name = "health_heart"
+display_name = "Lebensherz"
+description = "Ein warmes Herzfragment. Beim Einsammeln stellt es sofort 14 LP wieder her."
+texture = ExtResource("2_texture")
+rarity = "common"
+stack_size = 1
+world_texture_region = Rect2(436, 456, 384, 352)
+world_scale = 0.12
+pickup_heal = 14

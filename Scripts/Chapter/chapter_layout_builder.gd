@@ -594,7 +594,7 @@ func _network_place_pickups(path: Array, side_lines: Array) -> Array:
 		var anchor: Vector2i = anchors[index] as Vector2i
 		pickup["x"] = anchor.x
 		pickup["y"] = anchor.y - 1
-		pickup["loot_tier"] = "silver" if index % 3 == 0 else "copper"
+		pickup["loot_tier"] = "iron" if index % 3 == 0 else "copper"
 		pickup["message"] = "Eine Erzader glitzert in einer engen Seitentasche."
 		placed.append(pickup)
 	return placed
@@ -2549,14 +2549,14 @@ func _place_pickups() -> Array:
 		var slot: Vector2i = slots[pickup_index] as Vector2i
 		var loot_roll: float = rng.randf()
 		var loot_tier: String = "copper"
-		if loot_roll >= 0.94:
+		if loot_roll >= 0.98:
 			loot_tier = "gold"
 		elif loot_roll >= 0.70:
-			loot_tier = "silver"
+			loot_tier = "iron"
 		pickup_data["loot_tier"] = loot_tier
 		pickup_data["message"] = {
 			"copper": "Kupfererz geborgen.",
-			"silver": "Silbererz geborgen.",
+			"iron": "Eisenerz geborgen.",
 			"gold": "Seltenes Golderz geborgen."
 		}.get(loot_tier, "Kupfererz geborgen.")
 		pickup_data["x"] = slot.x
