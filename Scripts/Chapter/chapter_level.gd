@@ -2683,7 +2683,7 @@ func _spawn_recovery_climb_vines(grid: Array) -> void:
 	if decor_root == null or grid.is_empty():
 		return
 	var candidates: Array[Dictionary] = []
-	for target: Vector2i in _get_recovery_vine_targets():
+	for target: Vector2i in _get_recovery_vine_targets(grid):
 		var candidate := _find_recovery_vine_candidate(grid, target)
 		if not candidate.is_empty():
 			candidates.append(candidate)
@@ -2730,7 +2730,7 @@ func _spawn_recovery_climb_vines(grid: Array) -> void:
 		vine.call("configure", length_pixels, vine_rng.randf_range(-0.07, 0.07))
 
 
-func _get_recovery_vine_targets() -> Array[Vector2i]:
+func _get_recovery_vine_targets(grid: Array) -> Array[Vector2i]:
 	var validation: Dictionary = active_level.get("layout_validation", {}) as Dictionary
 	var source_targets: Array = validation.get("trap_pit_nodes", []) as Array
 	if source_targets.is_empty():
@@ -2755,6 +2755,15 @@ func _get_recovery_vine_targets() -> Array[Vector2i]:
 			if reachable_ids.has(node_id) and not return_ids.has(node_id):
 				source_targets.append(node.get("pos", Vector2i.ZERO) as Vector2i)
 
+	# The validator intentionally samples only a small number of surfaces to
+	# keep generation fast.  That is correct for global path validation, but it
+	# can miss a narrow isolated landing like the ones visible in the reports:
+	# Joey can drop onto it, yet no normal-height route leaves it.  Inspect those
+	# local landings as well, with the *same* real movement simulation.  This is
+	# deliberately limited to deep drops / isolated ledges, not every cavern.
+	for local_target: Vector2i in _find_local_recovery_targets(grid):
+		source_targets.append(local_target)
+
 	var targets: Array[Vector2i] = []
 	var seen: Dictionary = {}
 	for target_variant: Variant in source_targets:
@@ -2767,6 +2776,72 @@ func _get_recovery_vine_targets() -> Array[Vector2i]:
 		seen[target_key] = true
 		targets.append(target)
 	return targets
+
+
+func _find_local_recovery_targets(grid: Array) -> Array[Vector2i]:
+	var mobility: Dictionary = active_level.get("mobility_profile", {}) as Dictionary
+	var readable_drop: int = int(mobility.get("readable_drop_tiles", 5))
+	var targets: Array[Vector2i] = []
+	var checked_spans: Dictionary = {}
+	for grid_y: int in range(2, level_size_tiles.y - 2):
+		var grid_x := 2
+		while grid_x < level_size_tiles.x - 2:
+			if not _is_recovery_surface(grid, grid_x, grid_y):
+				grid_x += 1
+				continue
+			var span_start := grid_x
+			while grid_x + 1 < level_size_tiles.x - 2 and _is_recovery_surface(grid, grid_x + 1, grid_y):
+				grid_x += 1
+			var span_end := grid_x
+			var target := Vector2i(int(round((float(span_start) + float(span_end)) * 0.5)), grid_y)
+			var span_key := "%d:%d:%d" % [span_start, span_end, grid_y]
+			grid_x += 1
+			if checked_spans.has(span_key):
+				continue
+			checked_spans[span_key] = true
+
+			var left_drop := _surface_side_drop(grid, span_start - 1, grid_y)
+			var right_drop := _surface_side_drop(grid, span_end + 1, grid_y)
+			# A single deep drop or a ledge with meaningful drops on both sides is
+			# a place where a missed return path is harmful. Flat floor runs and
+			# ordinary little steps never enter this recovery pass.
+			if maxi(left_drop, right_drop) < readable_drop and mini(left_drop, right_drop) < 3:
+				continue
+			if _has_local_upward_escape(grid, target, mobility):
+				continue
+			targets.append(target)
+	return targets
+
+
+func _is_recovery_surface(grid: Array, grid_x: int, grid_y: int) -> bool:
+	return _is_solid(grid, grid_x, grid_y) \
+		and not _is_solid(grid, grid_x, grid_y - 1) \
+		and not _is_solid(grid, grid_x, grid_y - 2)
+
+
+func _surface_side_drop(grid: Array, grid_x: int, surface_y: int) -> int:
+	if grid_x < 1 or grid_x >= level_size_tiles.x - 1 or _is_solid(grid, grid_x, surface_y - 1):
+		return 0
+	var below_y := surface_y
+	while below_y < level_size_tiles.y - 1 and not _is_solid(grid, grid_x, below_y):
+		below_y += 1
+	return below_y - surface_y
+
+
+func _has_local_upward_escape(grid: Array, target: Vector2i, mobility: Dictionary) -> bool:
+	# Ask the authoritative trajectory simulation rather than guessing from
+	# tile distances.  A wall-slide, a ceiling collision, and the actual slime
+	# body dimensions are all accounted for by the existing validator.
+	const SEARCH_WIDTH := 15
+	const SEARCH_HEIGHT := 16
+	for candidate_y: int in range(maxi(2, target.y - SEARCH_HEIGHT), target.y):
+		for candidate_x: int in range(maxi(2, target.x - SEARCH_WIDTH), mini(level_size_tiles.x - 2, target.x + SEARCH_WIDTH + 1)):
+			var candidate := Vector2i(candidate_x, candidate_y)
+			if not _is_recovery_surface(grid, candidate.x, candidate.y):
+				continue
+			if ChapterTraversalValidator._can_traverse_between(grid, level_size_tiles, target, candidate, mobility):
+				return true
+	return false
 
 
 func _find_recovery_vine_candidate(grid: Array, target: Vector2i) -> Dictionary:
