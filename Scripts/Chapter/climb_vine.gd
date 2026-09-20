@@ -38,7 +38,7 @@ func _physics_process(delta: float) -> void:
 	# pin Joey against one side. Alternating input with the pendulum builds the
 	# satisfying long arc needed for a meaningful jump.
 	if absf(rider_input) > 0.08:
-		if absf(angular_velocity) <= 0.10 and absf(swing_angle) <= 0.045:
+		if absf(angular_velocity) <= 0.10 and absf(swing_angle) <= 0.12:
 			# A vine begins at rest; give the first A/D press enough torque to
 			# establish its initial arc before timing-based pumping takes over.
 			angular_acceleration += rider_input * SWING_PUMP_ACCELERATION * 0.72

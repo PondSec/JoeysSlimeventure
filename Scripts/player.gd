@@ -2280,7 +2280,7 @@ func detach_climb_vine(with_jump: bool) -> void:
 		airtime_started_with_jump = true
 		# Preserve the rope's tangential velocity verbatim. The player therefore
 		# travels in the exact direction and pace of the current pendulum arc.
-		velocity = carry_velocity + Vector2(0.0, VINE_JUMP_UPWARD_SPEED)
+		velocity = carry_velocity + Vector2(0.0, -VINE_JUMP_UPWARD_SPEED)
 		_play_jump_sfx(false)
 		$Camera2D.shake(0.55, 0.055)
 		_squash_player_sprite(Vector2(0.88, 1.10), 0.12)
