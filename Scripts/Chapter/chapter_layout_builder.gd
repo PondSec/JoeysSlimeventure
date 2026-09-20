@@ -17,12 +17,11 @@ const ROOM_ROLE_EXIT := "exit"
 const ROOM_ROLE_BOSS := "boss"
 
 const MAX_GENERATION_ATTEMPTS := 3
-const MAX_CAVE_NETWORK_ATTEMPTS := 6
 const ROOM_OVERLAP_TILES := 4
 const ROOM_PADDING_TILES := 2
 const CONNECTION_PLATFORM_WIDTH := 4
 const BRANCH_CONNECTION_WIDTH := 5
-const QUEST_LAYOUT_VERSION := 2
+const QUEST_LAYOUT_VERSION := 1
 
 static var accepted_layout_cache: Dictionary = {}
 
@@ -69,7 +68,7 @@ func _build(source_level_data: Dictionary, source_level_size: Vector2i, seed: in
 	if layout_style == "graph_hybrid":
 		return _build_graph_hybrid_result()
 	if layout_style == "cave_network":
-		return _build_safe_cave_network_result(seed)
+		return _build_cave_network_result(seed)
 
 	var best_candidate: Dictionary = {}
 	var best_score: float = -INF
@@ -189,39 +188,6 @@ func _build(source_level_data: Dictionary, source_level_size: Vector2i, seed: in
 	return fallback_result
 
 
-func _build_safe_cave_network_result(seed: int) -> Dictionary:
-	# A cave seed must never strand the player in a lower passage before the
-	# double jump exists. Try several deterministic layouts for the same weekly
-	# seed and accept only one that passes the stricter early-game movement check.
-	var best_candidate: Dictionary = {}
-	var best_score := -INF
-	for attempt_index: int in range(MAX_CAVE_NETWORK_ATTEMPTS):
-		var candidate := _build_cave_network_result(seed + attempt_index * 7919)
-		var validation: Dictionary = candidate.get("layout_validation", {}) as Dictionary
-		validation["attempt_index"] = attempt_index
-		validation["generator_seed"] = seed + attempt_index * 7919
-		var score := _score_validation(validation)
-		validation["quality_score"] = score
-		if best_candidate.is_empty() or score > best_score:
-			best_candidate = candidate
-			best_score = score
-		if _is_safe_network_validation(validation):
-			return candidate
-
-	var fallback_result := _build_curated_fallback_result()
-	fallback_result["generator_best_validation"] = (best_candidate.get("layout_validation", {}) as Dictionary).duplicate(true)
-	return fallback_result
-
-
-func _is_safe_network_validation(validation: Dictionary) -> bool:
-	return bool(validation.get("path_valid", false)) \
-		and int(validation.get("invalid_jump_count", 0)) == 0 \
-		and int(validation.get("unreachable_room_count", 0)) == 0 \
-		and int(validation.get("unreachable_quest_target_count", 0)) == 0 \
-		and int(validation.get("trap_pit_count", 0)) == 0 \
-		and bool(validation.get("quest_sequence_valid", true))
-
-
 func _build_graph_hybrid_result() -> Dictionary:
 	# Konstruktiv statt Versuch/Reparatur: eine Schlange aus engen Hoehlenbändern
 	# führt zuverlässig nach unten. Jede Abstiegsstelle liegt innerhalb des
@@ -316,29 +282,27 @@ func _build_cave_network_result(seed: int) -> Dictionary:
 	# Each UUID/weekday seed continuously varies the network instead of choosing
 	# from a few fixed templates. The first segment stays near the spawn height,
 	# so every generated cave starts with readable ground rather than a shaft.
-	# The main route is a bounded random walk, rather than a repeated ring of
-	# fixed upper/lower hubs. The seed still makes it deterministic for the
-	# player/week, while direction reversals and elevation drift create distinct
-	# exploration shapes.
-	var hubs: Array = [spawn]
-	var route_x := spawn.x
-	var route_y := spawn.y
-	var horizontal_direction := 1 if rng.randf() < 0.5 else -1
-	for route_index: int in range(8):
-		if route_index >= 2 and rng.randf() < 0.34:
-			horizontal_direction *= -1
-		var horizontal_step := rng.randi_range(11, 23)
-		var candidate_x := route_x + horizontal_direction * horizontal_step
-		if candidate_x < left + 5 or candidate_x > right - 5:
-			horizontal_direction *= -1
-			candidate_x = route_x + horizontal_direction * horizontal_step
-		var vertical_step := rng.randi_range(-6, 6)
-		if route_index == 0:
-			vertical_step = rng.randi_range(-2, 2)
-		route_x = clampi(candidate_x, left + 5, right - 5)
-		route_y = clampi(route_y + vertical_step, top + 4, bottom - 4)
-		hubs.append(Vector2i(route_x, route_y))
-	hubs.append(exit)
+	var span := right - left
+	var hub_x := func(normalized: float, jitter: int) -> int:
+		return clampi(left + int(round(float(span) * normalized)) + jitter, left + 4, right - 4)
+	var upper_band := func() -> int:
+		return clampi(top + rng.randi_range(4, 13), top + 3, bottom - 10)
+	var lower_band := func() -> int:
+		return clampi(bottom - rng.randi_range(3, 11), top + 10, bottom - 3)
+	var middle_band := func() -> int:
+		return clampi(int(round(lerpf(float(top), float(bottom), rng.randf_range(0.40, 0.63)))), top + 5, bottom - 5)
+	var hubs: Array = [
+		spawn,
+		Vector2i(hub_x.call(rng.randf_range(0.10, 0.20), 0), clampi(spawn.y + rng.randi_range(-3, 4), top + 3, bottom - 3)),
+		Vector2i(hub_x.call(rng.randf_range(0.26, 0.43), 0), lower_band.call()),
+		Vector2i(hub_x.call(rng.randf_range(0.52, 0.72), 0), lower_band.call()),
+		Vector2i(hub_x.call(rng.randf_range(0.78, 0.94), 0), middle_band.call()),
+		Vector2i(hub_x.call(rng.randf_range(0.56, 0.75), 0), upper_band.call()),
+		Vector2i(hub_x.call(rng.randf_range(0.25, 0.49), 0), upper_band.call()),
+		Vector2i(hub_x.call(rng.randf_range(0.06, 0.20), 0), middle_band.call()),
+		Vector2i(hub_x.call(rng.randf_range(0.40, 0.63), 0), middle_band.call()),
+		exit
+	]
 	# Mesoskalige Traversierungsroute: die vielen kurzen Anker halten jeden
 	# Auf- und Abstieg im konservativen Sprungbudget, die sichtbare Hoehle bleibt
 	# trotzdem ein zusammenhaengendes, schwer lesbares Netz.
@@ -365,17 +329,12 @@ func _build_cave_network_result(seed: int) -> Dictionary:
 	# Sekundaere Schleifen und Sackgassen liegen ueber und unter der Pflichtader.
 	# Sie erzeugen echte Richtungsentscheidungen, ohne die Pflichtprogression an
 	# einer optionalen Plattform zu haengen.
-	var loops: Array = []
-	for loop_index: int in range(4):
-		var from_index := rng.randi_range(1, 6)
-		var to_index := clampi(from_index + rng.randi_range(2, 4), from_index + 1, hubs.size() - 2)
-		var loop_from: Vector2i = hubs[from_index] as Vector2i
-		var loop_to: Vector2i = hubs[to_index] as Vector2i
-		var bend := Vector2i(
-			clampi(int(round((loop_from.x + loop_to.x) * 0.5)) + rng.randi_range(-10, 10), left + 3, right - 3),
-			clampi(int(round((loop_from.y + loop_to.y) * 0.5)) + rng.randi_range(-7, 7), top + 3, bottom - 3)
-		)
-		loops.append([loop_from, bend, loop_to])
+	var loops: Array = [
+		[hubs[1], Vector2i(int(level_size.x * 0.22), top + 4), hubs[6]],
+		[hubs[2], Vector2i(int(level_size.x * 0.55), bottom - 2), hubs[4]],
+		[hubs[5], Vector2i(right - 3, top + 11), hubs[4]],
+		[hubs[7], Vector2i(left + 2, int(level_size.y * 0.68)), hubs[2]]
+	]
 	var side_lines: Array = []
 	for loop_index: int in range(loops.size()):
 		var loop: Array = loops[loop_index] as Array
@@ -400,11 +359,7 @@ func _build_cave_network_result(seed: int) -> Dictionary:
 			var pocket_tip: Vector2i = micro_line.back() as Vector2i
 			_carve_organic_blob(grid, pocket_tip, 2.1 + rng.randf_range(0.0, 0.7), 1.8 + rng.randf_range(0.0, 0.6))
 		side_lines.append(micro_line)
-	var dead_end_source: Vector2i = hubs[rng.randi_range(2, hubs.size() - 3)] as Vector2i
-	var dead_end: Vector2i = Vector2i(
-		clampi(dead_end_source.x + rng.randi_range(-16, 16), left + 3, right - 3),
-		clampi(dead_end_source.y + rng.randi_range(-10, 10), top + 3, bottom - 3)
-	)
+	var dead_end: Vector2i = Vector2i(hub_x.call(rng.randf_range(0.70, 0.88), 0), upper_band.call())
 	_carve_tunnel(grid, hubs[5] as Vector2i, dead_end, 2)
 	_carve_organic_blob(grid, dead_end, 3.4, 2.8)
 
@@ -425,34 +380,16 @@ func _build_cave_network_result(seed: int) -> Dictionary:
 	var final_grid: Array = TerrainResolver.duplicate_cells(TerrainResolver.build_logical_map(grid, level_size))
 	_reinforce_network_traversal_geometry(final_grid, path, side_lines)
 	_remove_floating_rock_components(final_grid)
-	_add_network_recovery_terraces(final_grid, hubs)
 	var rooms: Array = []
 	for hub_index: int in range(hubs.size()):
 		rooms.append({"id": "network_hub_%d" % hub_index, "role": ROOM_ROLE_LANDMARK if hub_index == 4 else ROOM_ROLE_VERTICAL, "entry_node": hubs[hub_index], "exit_node": hubs[hub_index]})
 	var quest_anchors := _build_quest_anchors(path, side_lines, {})
-	var validation_mobility := _network_validation_mobility()
-	var validation := ChapterTraversalValidator.validate_layout({"grid": final_grid, "level_size": level_size, "mobility_profile": validation_mobility, "rooms": rooms, "critical_path_nodes": path, "side_path_lines": side_lines, "pickups": pickups, "mandatory_quest_targets": _mandatory_targets_from_anchors(quest_anchors), "spawn": spawn, "exit": exit})
+	var validation := ChapterTraversalValidator.validate_layout({"grid": final_grid, "level_size": level_size, "mobility_profile": mobility_profile, "rooms": rooms, "critical_path_nodes": path, "side_path_lines": side_lines, "pickups": pickups, "mandatory_quest_targets": _mandatory_targets_from_anchors(quest_anchors), "spawn": spawn, "exit": exit})
 	validation["layout_signature"] = "organic_network_seeded"
 	validation["branch_signature"] = "seeded_reconnecting_loops"
 	validation["vertical_signature"] = "seeded_layers"
 	validation["room_variety_score"] = 7.0
 	return {"grid": final_grid, "spawn": spawn, "exit": exit, "platforms": platforms, "pickups": pickups, "enemies": enemies, "hazards": hazards, "torches": torches, "triggers": _place_triggers(), "boss": {}, "worm_count": 0, "layout_validation": validation, "quest_anchors": quest_anchors, "debug_rooms": rooms, "critical_path_nodes": path, "side_path_lines": side_lines, "mobility_profile": mobility_profile}
-
-
-func _network_validation_mobility() -> Dictionary:
-	var current_flags: Dictionary = mobility_profile.get("skill_flags", {}) as Dictionary
-	# Once the player owns double jump, the normal level profile is the correct
-	# budget. Before that, validate against basic jumping only: wall interaction
-	# may help the player, but no required route is allowed to depend on it.
-	if bool(current_flags.get("double_jump", false)):
-		return mobility_profile
-	var baseline_flags: Dictionary = current_flags.duplicate(true)
-	baseline_flags["wall_slide"] = false
-	baseline_flags["double_jump"] = false
-	baseline_flags["wall_run"] = false
-	baseline_flags["dash"] = false
-	baseline_flags["teleport"] = false
-	return ChapterMobilityProfile.build_from_skill_flags(baseline_flags)
 
 
 func _reinforce_network_traversal_geometry(grid: Array, path: Array, side_lines: Array) -> void:
@@ -529,18 +466,14 @@ func _stamp_network_route_ridge(grid: Array, points: Array) -> void:
 				int(round(lerpf(float(from_point.x), float(to_point.x), progress))),
 				int(round(lerpf(float(from_point.y), float(to_point.y), progress)))
 			)
-			# A route is a walkable terrace, not a one-tile rail. The wider ridge
-			# catches short falls and makes every ascent readable with Joey's basic
-			# jump, without relying on a later double-jump unlock.
-			_stamp_rect(grid, ridge_cell.x - 1, ridge_cell.y, 3, 2)
-			_carve_rect(grid, ridge_cell.x - 2, ridge_cell.y - 3, 5, 3)
+			_stamp_rect(grid, ridge_cell.x, ridge_cell.y, 1, 1)
+			_carve_rect(grid, ridge_cell.x - 1, ridge_cell.y - 3, 3, 3)
 
 
 func _network_densify_path(points: Array, salt: int) -> Array:
 	# This deliberately uses the strict part of Joey's profile rather than the
 	# looser general corridor budget: every visible ledge-to-ledge step stays
-	# within one vertical tile and three horizontal tiles. This keeps a route
-	# reversible before double jump is unlocked.
+	# within two vertical tiles and four horizontal tiles.
 	var base: Array = []
 	if points.is_empty():
 		return base
@@ -549,9 +482,9 @@ func _network_densify_path(points: Array, salt: int) -> Array:
 		var target: Vector2i = points[point_index] as Vector2i
 		var current: Vector2i = base.back() as Vector2i
 		var guard := 0
-		while (abs(target.x - current.x) > 3 or abs(target.y - current.y) > 1) and guard < 48:
-			var step_x: int = clampi(target.x - current.x, -3, 3)
-			var step_y: int = clampi(target.y - current.y, -1, 1)
+		while (abs(target.x - current.x) > 4 or abs(target.y - current.y) > 2) and guard < 32:
+			var step_x: int = clampi(target.x - current.x, -4, 4)
+			var step_y: int = clampi(target.y - current.y, -2, 2)
 			if step_x == 0 and step_y != 0:
 				step_x = 1 if guard % 2 == 0 else -1
 			current = Vector2i(
@@ -573,7 +506,7 @@ func _network_densify_path(points: Array, salt: int) -> Array:
 			var candidate_y: int = clampi(point.y + int(round(wave)), ROOM_PADDING_TILES + 2, level_size.y - ROOM_PADDING_TILES - 3)
 			var previous_point: Vector2i = shaped.back() as Vector2i
 			var next_point: Vector2i = base[index + 1] as Vector2i
-			if abs(candidate_y - previous_point.y) <= 1 and abs(next_point.y - candidate_y) <= 1:
+			if abs(candidate_y - previous_point.y) <= 2 and abs(next_point.y - candidate_y) <= 2:
 				point.y = candidate_y
 		_append_path_point(shaped, point)
 	return shaped
@@ -584,19 +517,6 @@ func _carve_network_polyline(grid: Array, points: Array, width_tiles: int) -> vo
 		return
 	for point_index: int in range(points.size() - 1):
 		_carve_tunnel(grid, points[point_index] as Vector2i, points[point_index + 1] as Vector2i, width_tiles)
-
-
-func _add_network_recovery_terraces(grid: Array, hubs: Array) -> void:
-	# Organic chambers are intentionally spacious. Add compact terraces beneath
-	# their main landing so a missed platform never creates a one-way pit.
-	for hub_index: int in range(hubs.size()):
-		var hub: Vector2i = hubs[hub_index] as Vector2i
-		var horizontal_offset := -2 if hub_index % 2 == 0 else 2
-		for depth: int in [2, 4, 6]:
-			var terrace_y := hub.y + depth
-			if terrace_y >= level_size.y - ROOM_PADDING_TILES - 2:
-				continue
-			_stamp_rect(grid, hub.x + horizontal_offset - 2, terrace_y, 5, 1)
 
 
 func _network_micro_branches(path: Array, seed: int) -> Array:
