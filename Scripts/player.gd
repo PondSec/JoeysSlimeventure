@@ -2419,8 +2419,10 @@ func _handle_climb_vine(delta: float) -> bool:
 		detach_climb_vine(true)
 		# Consume this frame's jump so it cannot also become a wall/air jump.
 		return true
+	# W has the negative axis value and must shorten the rope distance (climb
+	# upward); S must lengthen it (climb downward).
 	var vertical_input := Input.get_axis("up_walk", "down")
-	climb_vine_distance -= vertical_input * VINE_CLIMB_SPEED * delta
+	climb_vine_distance += vertical_input * VINE_CLIMB_SPEED * delta
 	if climb_vine.has_method("clamp_climb_distance"):
 		climb_vine_distance = float(climb_vine.call("clamp_climb_distance", climb_vine_distance))
 	var swing_input := direction.x
@@ -2431,10 +2433,21 @@ func _handle_climb_vine(delta: float) -> bool:
 		climb_vine.call("set_rider_input", -swing_input)
 	var hold_position := climb_vine.call("get_grip_position", climb_vine_distance) as Vector2 if climb_vine.has_method("get_grip_position") else global_position
 	var hold_velocity := climb_vine.call("get_hold_velocity", climb_vine_distance) as Vector2 if climb_vine.has_method("get_hold_velocity") else Vector2.ZERO
-	# The vine supplies an angle-relative grip point, keeping Joey on the rope
-	# throughout the entire arc instead of offsetting him to one screen side.
-	global_position = hold_position
-	velocity = hold_velocity
+	# Sweep the actual character body to the next grip point. Directly assigning
+	# global_position used to teleport the sprite through cave walls at a wide
+	# swing angle. A blocked sweep freezes the pendulum at its last safe angle.
+	var grip_motion := hold_position - global_position
+	var grip_collision := KinematicCollision2D.new()
+	if not grip_motion.is_zero_approx() and test_move(global_transform, grip_motion, grip_collision):
+		global_position += grip_collision.get_travel()
+		velocity = Vector2.ZERO
+		if climb_vine.has_method("stop_at_rider_collision"):
+			climb_vine.call("stop_at_rider_collision")
+	else:
+		# The vine supplies an angle-relative grip point, keeping Joey on the rope
+		# throughout the entire arc instead of offsetting him to one screen side.
+		global_position = hold_position
+		velocity = hold_velocity
 	if absf(swing_input) > 0.1:
 		update_facing_direction()
 	if vertical_input > 0.2 and climb_vine_distance >= float(climb_vine.call("clamp_climb_distance", 100000.0)) - 1.0:

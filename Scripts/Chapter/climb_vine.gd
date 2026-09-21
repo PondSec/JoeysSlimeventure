@@ -8,10 +8,14 @@ const SEGMENT_TEXTURE := preload("res://Assets/Chapter/Traversal/climb_vine.png"
 const SEGMENT_HEIGHT := 32.0
 const MIN_CLIMB_DISTANCE := 26.0
 const END_MARGIN := 24.0
-const MAX_SWING_ANGLE := 0.30
-const SWING_PUMP_ACCELERATION := 3.45
-const SWING_DAMPING := 0.34
-const MAX_ANGULAR_SPEED := 3.35
+const MAX_SWING_ANGLE := 0.72
+# Pumping has to be earned through timing.  These deliberately conservative
+# values prevent A/D from acting like a horizontal rocket engine.
+const SWING_PUMP_ACCELERATION := 1.15
+const SWING_START_ACCELERATION_MULTIPLIER := 0.28
+const SWING_PUMP_PHASE_ANGLE := 0.16
+const SWING_DAMPING := 0.42
+const MAX_ANGULAR_SPEED := 1.75
 
 var length_pixels := 256.0
 var swing_angle := 0.0
@@ -33,16 +37,16 @@ func _physics_process(delta: float) -> void:
 	_previous_angle = swing_angle
 	var pendulum_gravity := 980.0 / maxf(length_pixels, 96.0)
 	var angular_acceleration := -pendulum_gravity * sin(swing_angle)
-	# A/D is a timing-based pump, not a horizontal motor. It adds energy only
-	# while the rope already travels in that direction, so holding a key cannot
-	# pin Joey against one side. Alternating input with the pendulum builds the
-	# satisfying long arc needed for a meaningful jump.
+	# A/D is a timing-based pump, not a horizontal motor.  It only adds energy
+	# close to the low point of the arc while the player presses in the current
+	# travel direction. Holding a key at an end of the swing therefore does
+	# nothing useful; the player has to time each pump naturally.
 	if absf(rider_input) > 0.08:
 		if absf(angular_velocity) <= 0.10 and absf(swing_angle) <= 0.12:
-			# A vine begins at rest; give the first A/D press enough torque to
-			# establish its initial arc before timing-based pumping takes over.
-			angular_acceleration += rider_input * SWING_PUMP_ACCELERATION * 0.72
-		elif signf(rider_input) == signf(angular_velocity):
+			# A small nudge gets a completely still vine moving, without granting a
+			# free launch.
+			angular_acceleration += rider_input * SWING_PUMP_ACCELERATION * SWING_START_ACCELERATION_MULTIPLIER
+		elif absf(swing_angle) <= SWING_PUMP_PHASE_ANGLE and signf(rider_input) == signf(angular_velocity):
 			angular_acceleration += rider_input * SWING_PUMP_ACCELERATION
 	angular_acceleration -= angular_velocity * SWING_DAMPING
 	angular_velocity = clampf(angular_velocity + angular_acceleration * delta, -MAX_ANGULAR_SPEED, MAX_ANGULAR_SPEED)
@@ -78,6 +82,16 @@ func end_riding(body: CharacterBody2D) -> void:
 
 func set_rider_input(value: float) -> void:
 	rider_input = clampf(value, -1.0, 1.0)
+
+
+func stop_at_rider_collision() -> void:
+	# The rider reached solid level geometry during this physics frame. Restore
+	# the last safe pendulum angle before the next grip query, so neither Joey
+	# nor the vine's visible chain can continue through the wall.
+	swing_angle = _previous_angle
+	angular_velocity = 0.0
+	rider_input = 0.0
+	rotation = swing_angle
 
 
 func clamp_climb_distance(value: float) -> float:
