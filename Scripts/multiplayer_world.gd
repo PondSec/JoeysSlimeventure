@@ -6,10 +6,12 @@ const PLAYER_SCENE := preload("res://Scenes/player.tscn")
 const PVP_MAX_HIT_RANGE := 240.0
 const PVP_HIT_COOLDOWN_MSEC := 180
 
-@onready var pause_menu: Node = $PauseMenu
+@onready var pause_menu: Node = get_node_or_null("PauseMenu")
 var _last_hit_at: Dictionary = {}
 var _chat_log: RichTextLabel
 var _chat_input: LineEdit
+var _chat_message_count := 0
+var _received_chat_messages: Array[String] = []
 
 
 func _ready() -> void:
@@ -143,8 +145,10 @@ func send_chat(text: String) -> void:
 	if message.is_empty():
 		return
 	if multiplayer.is_server():
-		_broadcast_chat("[color=#93dcff]%s:[/color] %s" % [_player_label(multiplayer.get_unique_id()), message])
+		_broadcast_chat.rpc("[color=#93dcff]%s:[/color] %s" % [_player_label(multiplayer.get_unique_id()), message])
 	else:
+		if OS.is_debug_build():
+			print("[PvP Chat] Sending message to server")
 		_submit_chat.rpc_id(1, message)
 
 
@@ -152,12 +156,18 @@ func send_chat(text: String) -> void:
 func _submit_chat(message: String) -> void:
 	if multiplayer.is_server():
 		var sender := multiplayer.get_remote_sender_id()
-		_broadcast_chat("[color=#93dcff]%s:[/color] %s" % [_player_label(sender), message.strip_edges().substr(0, 180)])
+		if OS.is_debug_build():
+			print("[PvP Chat] Relaying message from %d" % sender)
+		_broadcast_chat.rpc("[color=#93dcff]%s:[/color] %s" % [_player_label(sender), message.strip_edges().substr(0, 180)])
 
 
 @rpc("authority", "reliable")
 func _broadcast_chat(message: String) -> void:
+	if OS.is_debug_build():
+		print("[PvP Chat] Received message: %s" % message)
 	if _chat_log != null:
+		_chat_message_count += 1
+		_received_chat_messages.append(message)
 		_chat_log.append_text(message + "\n")
 		_chat_log.scroll_to_line(_chat_log.get_line_count())
 

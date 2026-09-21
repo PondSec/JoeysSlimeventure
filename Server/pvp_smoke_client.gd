@@ -3,7 +3,7 @@ extends Node
 ## Headless integration client for the dedicated arena. Run two instances with
 ## different --test-id values; each must see both replicated avatars.
 
-const ARENA_SCENE := preload("res://Scenes/world.tscn")
+const ARENA_SCENE := preload("res://Scenes/pvp_arena.tscn")
 
 var _peer: ENetMultiplayerPeer
 var _arena: Node
@@ -11,6 +11,9 @@ var _label := "client"
 var _connected := false
 var _replication_verified := false
 var _combat_submitted := false
+var _ground_verified := false
+var _chat_verified := false
+var _visual_verified := false
 var _host := "127.0.0.1"
 var _port := 5999
 
@@ -42,13 +45,6 @@ func _on_connected() -> void:
 	get_tree().root.get_node("GameManager").is_multiplayer = true
 	_arena = ARENA_SCENE.instantiate()
 	get_tree().root.add_child(_arena)
-	# The production world intentionally applies gravity to a player while it is
-	# waiting for input. The smoke clients have no input/camera loop, so freeze
-	# their local physics before the replication assertion; otherwise they fall
-	# out of the map and make a range test non-deterministic.
-	var own_player := _arena.get_node_or_null(str(multiplayer.get_unique_id())) as Node
-	if own_player != null:
-		own_player.set_physics_process(false)
 	print("[SMOKE %s] Connected to %s:%d as peer %d" % [_label, _host, _port, multiplayer.get_unique_id()])
 	get_tree().create_timer(5.0).timeout.connect(_verify_replication, CONNECT_ONE_SHOT)
 
@@ -68,6 +64,10 @@ func _verify_replication() -> void:
 	if own_player == null:
 		_fail("Own avatar missing")
 		return
+	if own_player is CharacterBody2D and not (own_player as CharacterBody2D).is_on_floor():
+		_fail("Arena spawn has no supporting floor")
+		return
+	_ground_verified = true
 	_replication_verified = true
 	# This makes the server-side hit validation exercise the same RPC path as a
 	# real melee swing without relying on map-specific spawn distances. Only
@@ -87,17 +87,23 @@ func _verify_replication() -> void:
 				own_player.update_position.rpc(own_player.position, Vector2.ZERO)
 			, CONNECT_ONE_SHOT)
 		get_tree().create_timer(1.4).timeout.connect(func() -> void:
-			_arena.call("send_chat", "smoke-chat")
+			# Exercise the same client-to-server RPC used by the chat input. Calling
+			# the RPC directly keeps this headless test independent of keyboard focus.
+			_arena._submit_chat.rpc_id(1, "smoke-chat")
+			own_player.set("is_attacking", true)
+			own_player.set("is_facing_left", true)
+			own_player.call("sync_multiplayer_visual_state", true, str(own_player.get("current_character_id")), true, false, false, "attack")
+			own_player.sync_multiplayer_visual_state.rpc(true, str(own_player.get("current_character_id")), true, false, false, "attack")
 			_arena.call("request_pvp_hit", target_id, 10, own_player.global_position)
 			_combat_submitted = true
 			print("[SMOKE alpha] Combat RPC submitted")
 		, CONNECT_ONE_SHOT)
 	elif _label == "beta":
-		get_tree().create_timer(3.0).timeout.connect(_verify_damage, CONNECT_ONE_SHOT)
+		get_tree().create_timer(3.0).timeout.connect(_verify_remote_effects, CONNECT_ONE_SHOT)
 	print("[SMOKE %s] PASS: peer replication" % _label)
 
 
-func _verify_damage() -> void:
+func _verify_remote_effects() -> void:
 	var own_player := _arena.get_node_or_null(str(multiplayer.get_unique_id()))
 	if own_player == null or not ("current_health" in own_player):
 		_fail("Own avatar health was unavailable")
@@ -105,7 +111,18 @@ func _verify_damage() -> void:
 	if int(own_player.get("current_health")) >= int(own_player.get("max_health")):
 		_fail("Server-authoritative hit did not reduce target health")
 		return
-	print("[SMOKE beta] PASS: server-authoritative combat damage received")
+	var chat_log := _arena.get("_chat_log") as RichTextLabel
+	var received_messages := _arena.get("_received_chat_messages") as Array
+	if chat_log == null or received_messages == null or not received_messages.any(func(message: String) -> bool: return "smoke-chat" in message):
+		_fail("Remote chat was not displayed")
+		return
+	_chat_verified = true
+	var remote_player := _arena.get_node_or_null(str(_arena.call("_player_ids").filter(func(id: int) -> bool: return id != multiplayer.get_unique_id())[0]))
+	if remote_player == null or not bool(remote_player.get("is_attacking")) or not bool(remote_player.get("is_facing_left")):
+		_fail("Remote combat animation state was not replicated")
+		return
+	_visual_verified = true
+	print("[SMOKE beta] PASS: floor, chat, combat, and animation replication")
 
 
 func _finish() -> void:
@@ -117,6 +134,9 @@ func _finish() -> void:
 		return
 	if _label == "alpha" and not _combat_submitted:
 		_fail("Combat request was not submitted")
+		return
+	if _label == "beta" and (not _ground_verified or not _chat_verified or not _visual_verified):
+		_fail("Remote arena checks were incomplete")
 		return
 	print("[SMOKE %s] PASS: integration complete" % _label)
 	get_tree().quit(0)

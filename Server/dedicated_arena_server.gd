@@ -4,7 +4,7 @@ extends Node
 ## the old per-player solo game stub and gives every client a shared match.
 
 const SERVER_PORT := 5999
-const ARENA_SCENE := preload("res://Scenes/world.tscn")
+const ARENA_SCENE := preload("res://Scenes/pvp_arena.tscn")
 
 
 func _ready() -> void:

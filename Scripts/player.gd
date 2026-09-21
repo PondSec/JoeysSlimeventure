@@ -2586,7 +2586,7 @@ func _sync_multiplayer_visual_state(delta: float) -> void:
 	)
 
 
-@rpc("authority", "call_remote", "unreliable")
+@rpc("authority", "call_remote", "reliable")
 func sync_multiplayer_visual_state(
 	new_facing_left: bool,
 	character_id: String,

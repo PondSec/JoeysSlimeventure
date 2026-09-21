@@ -15,6 +15,7 @@ const MAX_COOP_PLAYERS := 4
 
 var peer: MultiplayerPeer
 var is_multiplayer := false
+var is_global_pvp := false
 var is_steam_coop := false
 var is_steam_coop_host := false
 var steam_lobby_id: int = 0
@@ -37,6 +38,7 @@ func join_dedicated_server(host: String = DEDICATED_SERVER_HOST, port: int = DED
 	reset_multiplayer_state()
 	print("[Network] Connecting to PvP server %s:%d" % [host, port])
 	is_multiplayer = true
+	is_global_pvp = true
 	var enet_peer := ENetMultiplayerPeer.new()
 	var error := enet_peer.create_client(host, port)
 	if error != OK:
@@ -171,8 +173,9 @@ func load_game_world() -> void:
 	if _loading_multiplayer_world:
 		return
 	_loading_multiplayer_world = true
-	print("[Network] Loading multiplayer arena")
-	get_tree().change_scene_to_file("res://Scenes/world.tscn")
+	var multiplayer_scene := "res://Scenes/pvp_arena.tscn" if is_global_pvp else "res://Scenes/world.tscn"
+	print("[Network] Loading multiplayer scene %s" % multiplayer_scene)
+	get_tree().change_scene_to_file(multiplayer_scene)
 
 
 func reset_multiplayer_state() -> void:
@@ -182,6 +185,7 @@ func reset_multiplayer_state() -> void:
 	peer = null
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	is_multiplayer = false
+	is_global_pvp = false
 	is_steam_coop = false
 	is_steam_coop_host = false
 	steam_lobby_id = 0
