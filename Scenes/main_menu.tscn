@@ -45,8 +45,6 @@ var toast_settings = {
 	\"position\": \"bottom_right\"
 }
 
-@onready var ip_input: LineEdit = get_node_or_null(\"MultiPlayer/VBoxContainer/IPInput\")
-@onready var port_input: LineEdit = get_node_or_null(\"MultiPlayer/VBoxContainer/PortInput\")
 @onready var pact_notes: Label = get_node_or_null(\"PatchNotes\")
 @onready var volume_slider: HSlider = get_node_or_null(\"SettingsPanel/VBoxContainer/VolumeSlider\")
 
@@ -860,10 +858,15 @@ grow_vertical = 0
 custom_minimum_size = Vector2(100, 100)
 layout_mode = 2
 
+[node name="MatchmakingInfo" type="Label" parent="MultiPlayer/VBoxContainer"]
+layout_mode = 2
+text = "Automatisch weltweit spielen"
+horizontal_alignment = 1
+
 [node name="matchmaking" type="Button" parent="MultiPlayer/VBoxContainer"]
 custom_minimum_size = Vector2(100, 50)
 layout_mode = 2
-text = "Weltweites PvP"
+text = "Match finden"
 
 [node name="SteamCoop" type="Button" parent="MultiPlayer/VBoxContainer"]
 custom_minimum_size = Vector2(100, 50)
