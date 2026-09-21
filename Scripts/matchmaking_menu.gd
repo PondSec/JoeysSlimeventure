@@ -55,17 +55,14 @@ static func open(host: Control, preselected_mode: String = "") -> void:
 	cards.alignment = BoxContainer.ALIGNMENT_CENTER
 	cards.add_theme_constant_override("separation", 18)
 	content.add_child(cards)
-	var selected := preselected_mode
+	# Keep selection in a mutable object shared by every card callback and the
+	# Find Match callback. A scalar captured by a GDScript lambda is copied into
+	# that lambda, so the old code refreshed the visuals but left Find Match with
+	# its original empty selection.
+	var selection_state: Dictionary = {"mode": preselected_mode}
 	for mode: String in MODE_DATA:
-		var card := _make_card(mode, MODE_DATA[mode], selected == mode)
-		card.pressed.connect(func() -> void:
-			selected = mode
-			for other in cards.get_children():
-				other.set_meta("selected", other.get_meta("mode", "") == mode)
-				_refresh_card(other)
-			var data: Dictionary = MODE_DATA[mode]
-			subheading.text = "%s  •  %s" % [data.title, data.description]
-		)
+		var card := _make_card(mode, MODE_DATA[mode], String(selection_state.get("mode", "")) == mode)
+		card.pressed.connect(_select_mode.bind(selection_state, cards, subheading, mode))
 		cards.add_child(card)
 	var status := Label.new()
 	status.name = "QueueStatus"
@@ -85,6 +82,7 @@ static func open(host: Control, preselected_mode: String = "") -> void:
 	find.add_theme_stylebox_override("normal", _panel_style(Color("284b55"), Color("94e4e7"), 2, 10))
 	buttons.add_child(find)
 	find.pressed.connect(func() -> void:
+		var selected := String(selection_state.get("mode", ""))
 		if selected.is_empty():
 			status.text = "Choose a battle first."
 			return
@@ -107,6 +105,16 @@ static func open(host: Control, preselected_mode: String = "") -> void:
 			find.disabled = false
 	if not GameManager.matchmaking_status_changed.is_connected(status_callback):
 		GameManager.matchmaking_status_changed.connect(status_callback)
+
+
+static func _select_mode(selection_state: Dictionary, cards: Container, subheading: Label, mode: String) -> void:
+	selection_state["mode"] = mode
+	for other in cards.get_children():
+		other.set_meta("selected", other.get_meta("mode", "") == mode)
+		_refresh_card(other)
+	var data: Dictionary = MODE_DATA[mode]
+	subheading.text = "%s  •  %s" % [data.title, data.description]
+
 
 static func _make_card(mode: String, data: Dictionary, is_selected: bool) -> Button:
 	var card := Button.new()
