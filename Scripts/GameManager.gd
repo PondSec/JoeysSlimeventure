@@ -26,6 +26,8 @@ const DEDICATED_SERVER_PORT := 443
 const LAN_PVP_SERVER_HOST := "192.168.30.50"
 const LAN_PVP_SERVER_PORT := 5999
 const MAX_COOP_PLAYERS := 4
+const PVP_LOBBY_KIND := "joey_pvp_v1"
+const PVP_LOBBY_SEARCH_LIMIT := 20
 
 var peer: MultiplayerPeer
 var is_multiplayer := false
@@ -33,9 +35,13 @@ var is_global_pvp := false
 var is_steam_coop := false
 var is_steam_coop_host := false
 var steam_lobby_id: int = 0
+var pvp_lobby_id: int = 0
 var _steam_callbacks_connected := false
 var _loading_multiplayer_world := false
 var _using_lan_pvp_fallback := false
+var _pvp_lobby_search_pending := false
+var _pvp_lobby_create_pending := false
+var _pvp_lobby_join_pending := false
 var matchmaking_state: MatchmakingState = MatchmakingState.IDLE
 var selected_match_mode := ""
 
@@ -53,7 +59,12 @@ func _on_steam_initialized(_user_name: String) -> void:
 
 
 func join_dedicated_server(host: String = DEDICATED_SERVER_HOST, port: int = DEDICATED_SERVER_PORT) -> void:
-	reset_multiplayer_state()
+	# Keep the requested mode and its already-admitted Steam lobby while changing
+	# only the gameplay transport.  Resetting them here silently downgraded Team
+	# Battle and Survival to Classic on every client.
+	var requested_mode := selected_match_mode
+	reset_multiplayer_state(false)
+	selected_match_mode = requested_mode
 	is_multiplayer = true
 	is_global_pvp = true
 	_using_lan_pvp_fallback = false
@@ -104,11 +115,21 @@ func start_global_matchmaking(mode: String) -> void:
 	if matchmaking_state in [MatchmakingState.SEARCHING, MatchmakingState.JOINING, MatchmakingState.WAITING_FOR_PLAYERS, MatchmakingState.STARTING, MatchmakingState.IN_MATCH]:
 		print("[MATCHMAKING] Ignored duplicate queue request for %s" % mode)
 		return
+	reset_multiplayer_state()
 	selected_match_mode = mode
+	is_multiplayer = true
+	is_global_pvp = true
+	set_matchmaking_state(MatchmakingState.MODE_SELECTED, _mode_label(mode))
 	matchmaking_state = MatchmakingState.SEARCHING
 	print("[MATCHMAKING] Searching %s" % mode)
 	matchmaking_status_changed.emit("Finding Match…\n%s" % _mode_label(mode))
-	join_dedicated_server()
+	if _steam_pvp_lobby_supported():
+		_begin_steam_pvp_lobby_search()
+	else:
+		# LAN, DRM-free and Steam-runtime-failure builds still use the same
+		# authoritative dedicated queue. They are deliberately not blocked by a
+		# client platform service.
+		join_dedicated_server()
 
 
 func cancel_matchmaking() -> void:
@@ -116,8 +137,7 @@ func cancel_matchmaking() -> void:
 		# The arena removes a queued peer on disconnect.  Closing the peer is the
 		# atomic cancellation path and prevents a stale queue entry.
 		peer.close()
-	matchmaking_state = MatchmakingState.IDLE
-	selected_match_mode = ""
+	reset_multiplayer_state()
 	matchmaking_status_changed.emit("Match search cancelled.")
 
 
@@ -146,12 +166,24 @@ func _connect_steam_callbacks() -> void:
 		steam.lobby_created.connect(_on_steam_lobby_created)
 	if steam.has_signal("lobby_joined"):
 		steam.lobby_joined.connect(_on_steam_lobby_joined)
+	if steam.has_signal("lobby_match_list"):
+		steam.lobby_match_list.connect(_on_pvp_lobby_match_list)
 	if steam.has_signal("join_requested"):
 		steam.join_requested.connect(_on_steam_join_requested)
 	_steam_callbacks_connected = true
 
 
 func _on_steam_lobby_created(result: int, lobby_id: int) -> void:
+	if _pvp_lobby_create_pending:
+		_pvp_lobby_create_pending = false
+		if result != 1:
+			_fallback_to_dedicated_pvp("Steam konnte keine PvP-Lobby erstellen (Code %d)." % result)
+			return
+		pvp_lobby_id = lobby_id
+		_publish_pvp_lobby(lobby_id)
+		print("[Steam PvP] Created lobby %d for %s" % [lobby_id, selected_match_mode])
+		_connect_pvp_lobby_to_dedicated_server()
+		return
 	if not is_steam_coop:
 		return
 	if result != 1:
@@ -177,6 +209,15 @@ func _on_steam_lobby_created(result: int, lobby_id: int) -> void:
 
 
 func _on_steam_lobby_joined(lobby_id: int, _permissions: int, _locked: bool, response: int) -> void:
+	if _pvp_lobby_join_pending:
+		_pvp_lobby_join_pending = false
+		if response != 1:
+			_fallback_to_dedicated_pvp("Steam-Lobby konnte nicht betreten werden (Code %d)." % response)
+			return
+		pvp_lobby_id = lobby_id
+		print("[Steam PvP] Joined lobby %d for %s" % [lobby_id, selected_match_mode])
+		_connect_pvp_lobby_to_dedicated_server()
+		return
 	if not is_steam_coop:
 		return
 	# Steam emits lobby_joined for the lobby creator as well. The creator has
@@ -237,7 +278,7 @@ func load_game_world() -> void:
 	get_tree().change_scene_to_file(multiplayer_scene)
 
 
-func reset_multiplayer_state() -> void:
+func reset_multiplayer_state(release_pvp_lobby: bool = true) -> void:
 	_loading_multiplayer_world = false
 	if peer != null:
 		peer.close()
@@ -248,6 +289,12 @@ func reset_multiplayer_state() -> void:
 	is_steam_coop = false
 	is_steam_coop_host = false
 	steam_lobby_id = 0
+	if release_pvp_lobby:
+		_leave_pvp_lobby()
+		pvp_lobby_id = 0
+		_pvp_lobby_search_pending = false
+		_pvp_lobby_create_pending = false
+		_pvp_lobby_join_pending = false
 	_using_lan_pvp_fallback = false
 	matchmaking_state = MatchmakingState.IDLE
 	selected_match_mode = ""
@@ -282,6 +329,121 @@ func _mode_label(mode: String) -> String:
 		MODE_TEAM_BATTLE: return "Team Battle • 2 vs 2"
 		MODE_CAVE_SURVIVAL: return "Cave Survival • 2 Players"
 		_: return "Match"
+
+
+func _steam_pvp_lobby_supported() -> bool:
+	if not SteamManager.is_initialized or SteamManager.steam == null:
+		return false
+	for method in ["addRequestLobbyListStringFilter", "addRequestLobbyListFilterSlotsAvailable", "addRequestLobbyListResultCountFilter", "requestLobbyList", "createLobby", "joinLobby", "setLobbyData"]:
+		if not SteamManager.steam.has_method(method):
+			return false
+	return SteamManager.steam.has_signal("lobby_match_list")
+
+
+func _begin_steam_pvp_lobby_search() -> void:
+	if not _steam_pvp_lobby_supported():
+		join_dedicated_server()
+		return
+	_pvp_lobby_search_pending = true
+	set_matchmaking_state(MatchmakingState.SEARCHING, "Searching Steam lobbies…\n%s" % _mode_label(selected_match_mode))
+	var steam := SteamManager.steam
+	# Steam clears lobby-list filters after every request; apply all metadata
+	# filters immediately before this individual search.
+	steam.call("addRequestLobbyListStringFilter", "kind", PVP_LOBBY_KIND, 0) # Steam.LOBBY_COMPARISON_EQUAL
+	steam.call("addRequestLobbyListStringFilter", "mode", selected_match_mode, 0)
+	steam.call("addRequestLobbyListStringFilter", "version", _build_version(), 0)
+	steam.call("addRequestLobbyListFilterSlotsAvailable", 1)
+	steam.call("addRequestLobbyListResultCountFilter", PVP_LOBBY_SEARCH_LIMIT)
+	steam.call("requestLobbyList")
+
+
+func _on_pvp_lobby_match_list(lobbies: Array) -> void:
+	if not _pvp_lobby_search_pending or selected_match_mode.is_empty():
+		return
+	_pvp_lobby_search_pending = false
+	var lobby_id := _select_pvp_lobby(lobbies)
+	if lobby_id <= 0:
+		_create_steam_pvp_lobby()
+		return
+	_pvp_lobby_join_pending = true
+	set_matchmaking_state(MatchmakingState.JOINING, "Joining Steam lobby…")
+	SteamManager.steam.call("joinLobby", lobby_id)
+
+
+func _select_pvp_lobby(lobbies: Array) -> int:
+	if SteamManager.steam == null:
+		return 0
+	var capacity := _mode_capacity(selected_match_mode)
+	for entry in lobbies:
+		var lobby_id := _lobby_id_from_search_result(entry)
+		if lobby_id <= 0:
+			continue
+		# The request filters are primary. Member/limit checks protect a race in
+		# which a lobby filled after Steam produced the search result.
+		var members := int(SteamManager.steam.call("getNumLobbyMembers", lobby_id)) if SteamManager.steam.has_method("getNumLobbyMembers") else 0
+		var limit := int(SteamManager.steam.call("getLobbyMemberLimit", lobby_id)) if SteamManager.steam.has_method("getLobbyMemberLimit") else capacity
+		if members < capacity and members < limit:
+			return lobby_id
+	return 0
+
+
+func _lobby_id_from_search_result(entry: Variant) -> int:
+	if entry is int:
+		return int(entry)
+	if entry is Dictionary:
+		var result := entry as Dictionary
+		for key in ["steamIDLobby", "lobby_id", "lobbyID", "id"]:
+			if result.has(key):
+				return int(result[key])
+	return 0
+
+
+func _create_steam_pvp_lobby() -> void:
+	if SteamManager.steam == null:
+		_fallback_to_dedicated_pvp("Steam-Lobby-Service ist nicht verfügbar.")
+		return
+	_pvp_lobby_create_pending = true
+	set_matchmaking_state(MatchmakingState.JOINING, "Creating Steam lobby…")
+	# ELobbyType public = 2. The capacity makes a full 1v1 lobby unavailable to
+	# subsequent searches, which causes Steam to create the next isolated room.
+	SteamManager.steam.call("createLobby", 2, _mode_capacity(selected_match_mode))
+
+
+func _publish_pvp_lobby(lobby_id: int) -> void:
+	if SteamManager.steam == null:
+		return
+	for pair in [["kind", PVP_LOBBY_KIND], ["mode", selected_match_mode], ["version", _build_version()], ["host", DEDICATED_SERVER_HOST], ["port", str(DEDICATED_SERVER_PORT)], ["capacity", str(_mode_capacity(selected_match_mode))]]:
+		SteamManager.steam.call("setLobbyData", lobby_id, pair[0], pair[1])
+
+
+func _connect_pvp_lobby_to_dedicated_server() -> void:
+	if pvp_lobby_id <= 0:
+		_fallback_to_dedicated_pvp("Steam-Lobby-ID fehlt.")
+		return
+	join_dedicated_server()
+
+
+func _fallback_to_dedicated_pvp(reason: String) -> void:
+	print("[Steam PvP] %s Falling back to dedicated matchmaking." % reason)
+	pvp_lobby_id = 0
+	_pvp_lobby_search_pending = false
+	_pvp_lobby_create_pending = false
+	_pvp_lobby_join_pending = false
+	matchmaking_status_changed.emit(reason + " Dedicated matchmaking is used instead.")
+	join_dedicated_server()
+
+
+func _leave_pvp_lobby() -> void:
+	if pvp_lobby_id > 0 and SteamManager.steam != null and SteamManager.steam.has_method("leaveLobby"):
+		SteamManager.steam.call("leaveLobby", pvp_lobby_id)
+
+
+func _mode_capacity(mode: String) -> int:
+	return 4 if mode == MODE_TEAM_BATTLE else 2
+
+
+func _build_version() -> String:
+	return String(ProjectSettings.get_setting("application/config/version", "dev"))
 
 
 func _steam_coop_supported() -> bool:

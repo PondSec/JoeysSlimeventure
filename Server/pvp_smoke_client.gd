@@ -19,6 +19,7 @@ var _host := "127.0.0.1"
 var _port := 5999
 var _test_mode := "classic_pvp"
 var _passive_mode_test := false
+var _test_steam_lobby_id := 0
 
 
 func _ready() -> void:
@@ -35,6 +36,9 @@ func _ready() -> void:
 	var mode_index := args.find("--test-mode")
 	if mode_index >= 0 and mode_index + 1 < args.size():
 		_test_mode = args[mode_index + 1]
+	var steam_lobby_index := args.find("--test-steam-lobby")
+	if steam_lobby_index >= 0 and steam_lobby_index + 1 < args.size():
+		_test_steam_lobby_id = int(args[steam_lobby_index + 1])
 	_passive_mode_test = "--test-passive" in args
 	_peer = ENetMultiplayerPeer.new()
 	var error := _peer.create_client(_host, _port)
@@ -54,6 +58,7 @@ func _on_connected() -> void:
 	_connected = true
 	get_tree().root.get_node("GameManager").is_multiplayer = true
 	get_tree().root.get_node("GameManager").selected_match_mode = _test_mode
+	get_tree().root.get_node("GameManager").pvp_lobby_id = _test_steam_lobby_id
 	_arena = ARENA_SCENE.instantiate()
 	get_tree().root.add_child(_arena)
 	print("[SMOKE %s] Connected to %s:%d as peer %d" % [_label, _host, _port, multiplayer.get_unique_id()])

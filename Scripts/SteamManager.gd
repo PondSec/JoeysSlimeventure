@@ -36,7 +36,16 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
-	if is_initialized and steam != null and steam.has_method("runCallbacks"):
+	if not is_initialized or steam == null:
+		return
+	# GodotSteam 4.22 exposes run_callbacks(). We initialize with embedded
+	# callbacks disabled below so Steam callbacks are pumped exactly once from
+	# this node; mixing both mechanisms can dispatch a completed lobby call
+	# twice and crashed the macOS template during CreateLobby.
+	if steam.has_method("run_callbacks"):
+		steam.call("run_callbacks")
+	elif steam.has_method("runCallbacks"):
+		# Compatibility with older project templates.
 		steam.call("runCallbacks")
 
 
@@ -50,9 +59,9 @@ func _initialize_steam() -> void:
 		return
 	var response: Variant
 	if steam.has_method("steamInitEx"):
-		response = steam.call("steamInitEx", APP_ID, true)
+		response = steam.call("steamInitEx", APP_ID, false)
 	elif steam.has_method("steamInit"):
-		response = steam.call("steamInit", APP_ID, true)
+		response = steam.call("steamInit", APP_ID, false)
 	else:
 		_fail_initialization("GodotSteam build has no Steam initialization API.")
 		return

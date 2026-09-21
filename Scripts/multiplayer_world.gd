@@ -11,12 +11,14 @@ const BOSS_SCENE = preload("res://Scenes/Chapter/Enemies/kristallruecken.tscn")
 const VERSION = "0.0.4.2"
 const FIRST_TO_THREE = 3
 const HIT_RANGE = 240.0
+const MATCH_MODES := ["classic_pvp", "team_battle", "cave_survival"]
 
 enum State { WAITING, COUNTDOWN, PLAYING, ROUND_END, RESULTS, WAVE_COUNTDOWN, WAVE_ACTIVE, WAVE_COMPLETE }
 
 var player_names = {}
-var player_queue_mode = {}
-var queues = {"classic_pvp": [], "team_battle": [], "cave_survival": []}
+var player_queue_key = {}
+var queues = {}
+var queue_specs = {}
 var rooms = {}
 var player_room = {}
 var next_room_id = 1
@@ -60,7 +62,7 @@ func _process(_delta: float) -> void:
 
 
 func _request_selected_mode() -> void:
-	_request_queue.rpc_id(1, GameManager.selected_match_mode if not GameManager.selected_match_mode.is_empty() else "classic_pvp", VERSION)
+	_request_queue.rpc_id(1, GameManager.selected_match_mode if not GameManager.selected_match_mode.is_empty() else "classic_pvp", VERSION, GameManager.pvp_lobby_id)
 
 
 @rpc("any_peer", "reliable")
@@ -146,40 +148,62 @@ func _register_player_name(value: String) -> void:
 
 
 @rpc("any_peer", "reliable")
-func _request_queue(mode: String, version: String) -> void:
+func _request_queue(mode: String, version: String, steam_lobby_id: int = 0) -> void:
 	if not multiplayer.is_server(): return
 	var id = multiplayer.get_remote_sender_id()
-	if version != VERSION or not queues.has(mode):
+	if version != VERSION or not mode in MATCH_MODES:
 		_queue_status.rpc_id(id, "Matchmaking error: incompatible game version.")
 		return
 	if player_room.has(id): return
 	_remove_from_queue(id)
-	player_queue_mode[id] = mode
-	queues[mode].append(id)
-	print("[MATCHMAKING] Searching %s for peer %d" % [mode, id])
+	var queue_key := _queue_key(mode, steam_lobby_id)
+	if not queues.has(queue_key):
+		queues[queue_key] = []
+		queue_specs[queue_key] = {"mode": mode, "steam_lobby_id": steam_lobby_id}
+	player_queue_key[id] = queue_key
+	queues[queue_key].append(id)
+	print("[MATCHMAKING] Searching %s for peer %d in %s" % [mode, id, queue_key])
 	_queue_status.rpc_id(id, "Finding Match…\n%s" % _mode_label(mode))
 	_try_create_rooms()
 
 
 func _remove_from_queue(id: int) -> void:
-	var old = String(player_queue_mode.get(id, ""))
-	if queues.has(old): queues[old].erase(id)
-	player_queue_mode.erase(id)
+	var old_key = String(player_queue_key.get(id, ""))
+	if queues.has(old_key):
+		queues[old_key].erase(id)
+		if queues[old_key].is_empty():
+			queues.erase(old_key)
+			queue_specs.erase(old_key)
+	player_queue_key.erase(id)
+
+
+func _queue_key(mode: String, steam_lobby_id: int) -> String:
+	# A Steam lobby is the admission ticket for one public room. Clients using
+	# different full lobbies can reach this process at the same instant, but they
+	# must never be mixed merely because their UDP packets arrived interleaved.
+	return "%s|steam:%d" % [mode, steam_lobby_id] if steam_lobby_id > 0 else "%s|direct" % mode
 
 
 func _try_create_rooms() -> void:
-	for mode in queues.keys():
+	for queue_key in queues.keys():
+		var spec: Dictionary = queue_specs.get(queue_key, {})
+		var mode := String(spec.get("mode", ""))
+		if mode.is_empty():
+			continue
 		var required = 4 if mode == "team_battle" else 2
-		while queues[mode].size() >= required:
+		while queues.has(queue_key) and queues[queue_key].size() >= required:
 			var members: Array[int] = []
 			for _n in range(required):
-				var id = int(queues[mode].pop_front())
+				var id = int(queues[queue_key].pop_front())
 				members.append(id)
-				player_queue_mode.erase(id)
-			_create_room(mode, members)
+				player_queue_key.erase(id)
+			_create_room(mode, members, int(spec.get("steam_lobby_id", 0)))
+		if queues.has(queue_key) and queues[queue_key].is_empty():
+			queues.erase(queue_key)
+			queue_specs.erase(queue_key)
 
 
-func _create_room(mode: String, members: Array[int]) -> void:
+func _create_room(mode: String, members: Array[int], steam_lobby_id: int = 0) -> void:
 	var room_id = next_room_id
 	next_room_id += 1
 	var teams = {}
@@ -191,8 +215,8 @@ func _create_room(mode: String, members: Array[int]) -> void:
 		teams[id] = "A" if mode == "cave_survival" or (mode == "team_battle" and index < 2) or (mode == "classic_pvp" and index == 0) else "B"
 		alive[id] = true
 		player_room[id] = room_id
-	rooms[room_id] = {"id": room_id, "mode": mode, "members": members, "teams": teams, "alive": alive, "scores": {"A": 0, "B": 0}, "state": State.WAITING, "round": 0, "wave": 0, "kills": 0, "bosses": 0, "finished": false, "transitioning": false, "rematch_votes": {}}
-	print("[MATCH] Created room %d (%s): %s" % [room_id, mode, members])
+	rooms[room_id] = {"id": room_id, "mode": mode, "steam_lobby_id": steam_lobby_id, "members": members, "teams": teams, "alive": alive, "scores": {"A": 0, "B": 0}, "state": State.WAITING, "round": 0, "wave": 0, "kills": 0, "bosses": 0, "finished": false, "transitioning": false, "rematch_votes": {}}
+	print("[MATCH] Created room %d (%s, Steam lobby %d): %s" % [room_id, mode, steam_lobby_id, members])
 	# The authoritative avatars also belong to a room before any client gets a
 	# node-RPC path for them.  They deliberately do not exist during queueing.
 	for id in members:
@@ -630,9 +654,10 @@ func _register_rematch_vote(player_id: int) -> void:
 	if room.rematch_votes.size() < room.members.size(): return
 	var members: Array[int] = room.members.duplicate()
 	var mode := String(room.mode)
+	var steam_lobby_id := int(room.get("steam_lobby_id", 0))
 	for member_id in members: player_room.erase(member_id)
 	rooms.erase(room_id)
-	_create_room(mode, members)
+	_create_room(mode, members, steam_lobby_id)
 
 
 func _opposing_team(room: Dictionary, id: int) -> String:
