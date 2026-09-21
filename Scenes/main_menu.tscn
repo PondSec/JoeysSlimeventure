@@ -675,10 +675,7 @@ func _on_quit_button_pressed() -> void:
 	get_tree().quit()
 
 func _on_matchmaking_pressed() -> void:
-	var game_manager = get_node(\"/root/GameManager\")
-	$MultiPlayer/VBoxContainer/matchmaking.disabled = true
-	$MultiPlayer/VBoxContainer/MatchmakingInfo.text = \"Matchsuche läuft …\"
-	game_manager.start_global_pvp_matchmaking()
+	preload(\"res://Scripts/matchmaking_menu.gd\").open(self)
 
 func _on_steam_coop_pressed() -> void:
 	var game_manager = get_node(\"/root/GameManager\")

@@ -7,6 +7,14 @@ signal multiplayer_error(message: String)
 signal matchmaking_status_changed(message: String)
 signal steam_coop_ready(lobby_id: int)
 
+## A menu state is deliberately separate from the authoritative in-arena match
+## state.  The client only requests a mode; the server is the only side that
+## accepts a party and starts a round.
+enum MatchmakingState { IDLE, MODE_SELECTED, SEARCHING, MATCH_FOUND, JOINING, WAITING_FOR_PLAYERS, STARTING, IN_MATCH, MATCH_ENDING, RESULTS, REMATCH_SEARCH, ERROR }
+const MODE_CLASSIC_PVP := "classic_pvp"
+const MODE_TEAM_BATTLE := "team_battle"
+const MODE_CAVE_SURVIVAL := "cave_survival"
+
 ## UDP 443 is relayed by the public reverse proxy to the private arena host.
 ## Keeping PvP on one dedicated endpoint means public matches never expose the
 ## game host's high port and do not depend on Steam P2P connectivity.
@@ -28,6 +36,8 @@ var steam_lobby_id: int = 0
 var _steam_callbacks_connected := false
 var _loading_multiplayer_world := false
 var _using_lan_pvp_fallback := false
+var matchmaking_state: MatchmakingState = MatchmakingState.IDLE
+var selected_match_mode := ""
 
 
 func _ready() -> void:
@@ -84,8 +94,31 @@ func host_steam_coop() -> void:
 func start_global_pvp_matchmaking() -> void:
 	# PvP is always authoritative on our dedicated server. Steam P2P is reserved
 	# for invited co-op games, never for competitive public matches.
-	print("[PvP Matchmaking] Joining the global dedicated queue")
+	start_global_matchmaking(MODE_CLASSIC_PVP)
+
+
+func start_global_matchmaking(mode: String) -> void:
+	if not mode in [MODE_CLASSIC_PVP, MODE_TEAM_BATTLE, MODE_CAVE_SURVIVAL]:
+		_fail_connection("Ungültiger Spielmodus.")
+		return
+	if matchmaking_state in [MatchmakingState.SEARCHING, MatchmakingState.JOINING, MatchmakingState.WAITING_FOR_PLAYERS, MatchmakingState.STARTING, MatchmakingState.IN_MATCH]:
+		print("[MATCHMAKING] Ignored duplicate queue request for %s" % mode)
+		return
+	selected_match_mode = mode
+	matchmaking_state = MatchmakingState.SEARCHING
+	print("[MATCHMAKING] Searching %s" % mode)
+	matchmaking_status_changed.emit("Finding Match…\n%s" % _mode_label(mode))
 	join_dedicated_server()
+
+
+func cancel_matchmaking() -> void:
+	if is_global_pvp and peer != null and multiplayer.multiplayer_peer.has_method("get_connection_status"):
+		# The arena removes a queued peer on disconnect.  Closing the peer is the
+		# atomic cancellation path and prevents a stale queue entry.
+		peer.close()
+	matchmaking_state = MatchmakingState.IDLE
+	selected_match_mode = ""
+	matchmaking_status_changed.emit("Match search cancelled.")
 
 
 func join_steam_lobby(lobby_id: int) -> void:
@@ -176,7 +209,8 @@ func _on_steam_join_requested(lobby_id: int, _friend_id: int) -> void:
 
 func _on_connection_success() -> void:
 	print("[Network] Connected to PvP server")
-	matchmaking_status_changed.emit("Match gefunden – Arena wird geladen …")
+	matchmaking_state = MatchmakingState.JOINING
+	matchmaking_status_changed.emit("Connected — joining the %s queue…" % _mode_label(selected_match_mode))
 	load_game_world()
 
 
@@ -215,6 +249,8 @@ func reset_multiplayer_state() -> void:
 	is_steam_coop_host = false
 	steam_lobby_id = 0
 	_using_lan_pvp_fallback = false
+	matchmaking_state = MatchmakingState.IDLE
+	selected_match_mode = ""
 
 
 func _on_scene_changed() -> void:
@@ -227,6 +263,25 @@ func _fail_connection(message: String) -> void:
 	multiplayer_error.emit(message)
 	reset_multiplayer_state()
 	show_error(message)
+
+
+func set_matchmaking_state(next_state: MatchmakingState, message: String) -> void:
+	matchmaking_state = next_state
+	if not message.is_empty():
+		matchmaking_status_changed.emit(message)
+
+
+func leave_match_to_menu() -> void:
+	reset_multiplayer_state()
+	get_tree().change_scene_to_file("res://Scenes/main_menu.tscn")
+
+
+func _mode_label(mode: String) -> String:
+	match mode:
+		MODE_CLASSIC_PVP: return "Classic PvP • 1 vs 1"
+		MODE_TEAM_BATTLE: return "Team Battle • 2 vs 2"
+		MODE_CAVE_SURVIVAL: return "Cave Survival • 2 Players"
+		_: return "Match"
 
 
 func _steam_coop_supported() -> bool:

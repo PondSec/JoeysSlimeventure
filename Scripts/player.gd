@@ -227,6 +227,12 @@ var transfer_dialog_scene = preload("res://Scenes/transfer.tscn")
 # having fallen out of the world.
 var world_fall_death_y := INF
 
+# The authoritative arena owns round transitions.  These flags only gate local
+# input/visuals; score, death and respawn decisions remain server-side.
+var match_input_locked := false
+var match_managed_life := false
+var match_eliminated := false
+
 # Referenzen zu Knoten
 var attack_sprite: AnimatedSprite2D
 var slime_sword_combo_sprite: Sprite2D
@@ -1969,6 +1975,8 @@ func _start_weapon_attack_animation(step: int) -> void:
 
 
 func _is_gameplay_input_blocked() -> bool:
+	if match_input_locked or match_eliminated:
+		return true
 	var inv_ui := get_node_or_null("CanvasLayer/InvUI")
 	if inv_ui is Control and inv_ui.visible:
 		return true
@@ -2461,6 +2469,18 @@ func _physics_process(delta: float) -> void:
 	if is_multiplayer_authority():
 		if runtime_death_active:
 			_update_runtime_character_animation(delta)
+			return
+		if match_input_locked or match_eliminated:
+			# A countdown must block every movement, skill and attack path, not
+			# merely reduce walk speed.  Clear the active hitbox as a last guard
+			# against a swing which began exactly when the round ended.
+			velocity = Vector2.ZERO
+			direction = Vector2.ZERO
+			is_attacking = false
+			is_dashing = false
+			_set_attack_hitbox_active(false)
+			_update_runtime_character_animation(delta)
+			_publish_network_position()
 			return
 		if is_transforming_hero_form:
 			hero_transform_timer = maxf(hero_transform_timer - delta, 0.0)
@@ -4248,6 +4268,68 @@ func apply_sword_air_pressure():
 
 		leaf.react_to_air_pressure(dir, power)
 
+@rpc("any_peer", "call_local", "reliable")
+func set_match_round_state(locked: bool, managed_life: bool) -> void:
+	# Only the dedicated authority may freeze an arena client.  Local/offline
+	# calls are kept for deterministic editor tests.
+	if multiplayer.has_multiplayer_peer() and not multiplayer.is_server() and multiplayer.get_remote_sender_id() not in [0, 1]:
+		return
+	match_input_locked = locked
+	match_managed_life = managed_life
+	if locked:
+		velocity = Vector2.ZERO
+		direction = Vector2.ZERO
+		is_attacking = false
+		is_dashing = false
+		_set_attack_hitbox_active(false)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func reset_for_match_round(spawn_position: Vector2, locked: bool = true) -> void:
+	if multiplayer.has_multiplayer_peer() and not multiplayer.is_server() and multiplayer.get_remote_sender_id() not in [0, 1]:
+		return
+	current_health = max_health
+	damage_invulnerability_timer = 0.0
+	dash_invulnerability_timer = 0.0
+	runtime_death_active = false
+	runtime_animation_state = ""
+	runtime_hurt_timer = 0.0
+	is_stunned = false
+	is_attacking = false
+	is_dashing = false
+	match_eliminated = false
+	match_managed_life = true
+	match_input_locked = locked
+	velocity = Vector2.ZERO
+	direction = Vector2.ZERO
+	global_position = spawn_position
+	$ColisionArea.set_deferred("disabled", false)
+	visible = true
+	set_process(true)
+	set_physics_process(true)
+	if death_screen != null:
+		death_screen.hide()
+	if uses_runtime_character_animation:
+		_set_runtime_animation("idle", true)
+	update_health_bar()
+	if multiplayer_replication_ready:
+		update_position.rpc(global_position, Vector2.ZERO)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func eliminate_for_match() -> void:
+	if multiplayer.has_multiplayer_peer() and not multiplayer.is_server() and multiplayer.get_remote_sender_id() not in [0, 1]:
+		return
+	match_eliminated = true
+	match_input_locked = true
+	velocity = Vector2.ZERO
+	direction = Vector2.ZERO
+	is_attacking = false
+	_set_attack_hitbox_active(false)
+	$ColisionArea.set_deferred("disabled", true)
+	visible = false
+
+
 @rpc("call_local", "reliable")
 func die() -> void:
 	if runtime_death_active:
@@ -4293,6 +4375,13 @@ func die() -> void:
 	set_process(false)
 	set_physics_process(false)
 	player_died.rpc(name.to_int())
+	# Competitive round management deliberately suppresses the legacy automatic
+	# three-second respawn.  The match authority respawns every participant at a
+	# fair spawn point after it has awarded exactly one round score.
+	if match_managed_life:
+		match_eliminated = true
+		match_input_locked = true
+		return
 	# Death Screen anzeigen
 	if !gm.is_multiplayer:
 		death_screen.show_death_screen()
