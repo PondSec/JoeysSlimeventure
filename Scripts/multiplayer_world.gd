@@ -5,6 +5,7 @@ extends Node2D
 const PLAYER_SCENE := preload("res://Scenes/player.tscn")
 const PVP_MAX_HIT_RANGE := 240.0
 const PVP_HIT_COOLDOWN_MSEC := 180
+const PVP_FALL_DEATH_Y := 650.0
 
 @onready var pause_menu: Node = get_node_or_null("PauseMenu")
 var _last_hit_at: Dictionary = {}
@@ -13,6 +14,7 @@ var _chat_input: LineEdit
 var _chat_message_count := 0
 var _received_chat_messages: Array[String] = []
 var _player_names: Dictionary = {}
+var _join_announced: Dictionary = {}
 var _local_player_name := ""
 
 
@@ -79,10 +81,14 @@ func _on_peer_connected(peer_id: int) -> void:
 
 
 func _on_peer_disconnected(peer_id: int) -> void:
+	var departed_name := _player_label(peer_id)
 	_player_names.erase(peer_id)
+	_join_announced.erase(peer_id)
 	var player := get_node_or_null(str(peer_id))
 	if player != null:
 		player.queue_free()
+	if multiplayer.is_server():
+		_broadcast_chat.rpc("[color=#ffc978]%s left the arena.[/color]" % departed_name)
 
 
 func _spawn_player(peer_id: int, spawn_position: Vector2) -> void:
@@ -97,6 +103,8 @@ func _spawn_player(peer_id: int, spawn_position: Vector2) -> void:
 		player.set("multiplayer_replication_ready", false)
 	add_child(player)
 	player.global_position = spawn_position
+	if player.has_method("set_world_fall_death_y"):
+		player.call("set_world_fall_death_y", PVP_FALL_DEATH_Y)
 
 
 func _register_local_player_name(registered_name: String = "") -> void:
@@ -115,6 +123,9 @@ func _register_player_name(requested_name: String) -> void:
 	var peer_id := multiplayer.get_remote_sender_id()
 	_player_names[peer_id] = _sanitize_player_name(requested_name, peer_id)
 	_sync_player_names.rpc(_player_names)
+	if not _join_announced.has(peer_id):
+		_join_announced[peer_id] = true
+		_broadcast_chat.rpc("[color=#9dffb1]%s joined the arena.[/color]" % _player_label(peer_id))
 
 
 @rpc("authority", "reliable")
@@ -196,9 +207,21 @@ func _validate_and_apply_pvp_hit(attacker_peer_id: int, target_peer_id: int, dam
 	# Damage is invoked only by the authoritative match host/server, but executes
 	# on the victim's authority so local UI, animation and death flow stay intact.
 	target.take_damage.rpc_id(target_peer_id, safe_damage, attacker.global_position)
-	_broadcast_chat.rpc("[color=#ffce78]Hit: %s → %s[/color]" % [_player_label(attacker_peer_id), _player_label(target_peer_id)])
+	# Combat feedback stays visual/audio only. The shared chat is reserved for
+	# players and match events, never a noisy entry for every single hit.
 	if OS.is_debug_build():
 		print("[PvP] Accepted hit %d -> %d for %d" % [attacker_peer_id, target_peer_id, safe_damage])
+
+
+@rpc("any_peer", "reliable")
+func report_pvp_death(fell_from_arena: bool) -> void:
+	if not multiplayer.is_server():
+		return
+	var peer_id := multiplayer.get_remote_sender_id()
+	if peer_id <= 0:
+		return
+	var event_text := "%s fell from the arena." if fell_from_arena else "%s was eliminated."
+	_broadcast_chat.rpc("[color=#ff9a86]" + event_text % _player_label(peer_id) + "[/color]")
 
 
 func _debug_rejected_hit(reason: String, attacker_peer_id: int, target_peer_id: int) -> void:

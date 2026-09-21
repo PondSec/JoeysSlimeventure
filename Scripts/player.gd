@@ -570,10 +570,14 @@ func configure_pvp_arena_camera() -> void:
 	var arena_camera := get_node_or_null("Camera2D") as Camera2D
 	if arena_camera == null:
 		return
-	arena_camera.limit_left = -2048
-	arena_camera.limit_top = -600
-	arena_camera.limit_right = 2048
+	arena_camera.limit_left = -480
+	arena_camera.limit_top = -360
+	arena_camera.limit_right = 480
 	arena_camera.limit_bottom = 596
+	# The campaign zoom (3.5) hides a connected opponent just outside the local
+	# player's tiny viewport. PvP needs enough horizontal context to keep every
+	# initial arena spawn visible while preserving readable combat sprites.
+	arena_camera.zoom = Vector2(2.5, 2.5)
 	arena_camera.limit_smoothed = false
 	arena_camera.position_smoothing_enabled = false
 
@@ -1965,7 +1969,17 @@ func _start_weapon_attack_animation(step: int) -> void:
 
 func _is_gameplay_input_blocked() -> bool:
 	var inv_ui := get_node_or_null("CanvasLayer/InvUI")
-	return inv_ui is Control and inv_ui.visible
+	if inv_ui is Control and inv_ui.visible:
+		return true
+	return _has_text_input_focus()
+
+
+func _has_text_input_focus() -> bool:
+	# PvP chat (and other LineEdits) must own the keyboard completely. Without
+	# this guard, typing a word such as "test" also fires gameplay hotkeys (T
+	# opens item transfer), which steals focus and truncates the chat message.
+	var focused_control := get_viewport().gui_get_focus_owner()
+	return focused_control is LineEdit or focused_control is TextEdit
 
 
 func _weapon_visual_phase() -> float:
@@ -4221,7 +4235,15 @@ func apply_sword_air_pressure():
 
 @rpc("call_local", "reliable")
 func die() -> void:
+	if runtime_death_active:
+		return
 	print("Der Spieler ist gestorben!")
+	var gm = get_node("/root/GameManager")
+	var fell_from_arena := global_position.y > world_fall_death_y
+	if gm.is_multiplayer:
+		var multiplayer_world := get_parent()
+		if multiplayer_world != null and multiplayer_world.has_method("report_pvp_death"):
+			multiplayer_world.report_pvp_death.rpc_id(1, fell_from_arena)
 	runtime_death_active = uses_runtime_character_animation
 	runtime_animation_state = ""
 	runtime_hurt_timer = 0.0
@@ -4239,13 +4261,14 @@ func die() -> void:
 	# Kollisionsabfrage deaktivieren, damit Items nicht aufgesammelt werden
 	$ColisionArea.set_deferred("disabled", true) 
 	# Inventar droppen
-	var gm = get_node("/root/GameManager")
 	if gm.is_multiplayer == false:
 		print("⚠ Multiplayer inaktiv → drop erlaubt")
 		drop_inventory_items()
 	save_game()
 	# Spieler unsichtbar machen
-	if FileAccess.file_exists("user://saves/inventory.save"):
+	# Arena deaths are temporary respawns.  They must never erase a player's
+	# local inventory (the previous unconditional cleanup also ran in PvP).
+	if not gm.is_multiplayer and FileAccess.file_exists("user://saves/inventory.save"):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path("user://saves/inventory.save"))
 		DirAccess.remove_absolute(ProjectSettings.globalize_path("user://saves/charge_cooldown.dat"))
 		print("❌ Inventory-Datei gelöscht – Items werden nicht erneut geladen!")
@@ -4263,12 +4286,14 @@ func die() -> void:
 
 @rpc("any_peer", "reliable")
 func player_died(player_id: int):
-	# Wird auf allen Clients aufgerufen, wenn ein Spieler stirbt
-	if has_node(str(player_id)):
-		var player = get_node(str(player_id))
-		player.visible = false
-		player.set_process(false)
-		player.set_physics_process(false)
+	# This RPC is invoked on every replicated Player node.  Each node therefore
+	# handles only its own id; looking for a child with the peer id here made
+	# remote deaths invisible because Player has no peer-id children.
+	if name.to_int() != player_id:
+		return
+	visible = false
+	set_process(false)
+	set_physics_process(false)
 
 @rpc("call_local", "reliable")
 func respawn() -> void:
@@ -5015,6 +5040,8 @@ func get_selected_hotbar_index() -> int:
 
 func _input(event):
 	if !is_multiplayer_authority():
+		return
+	if _has_text_input_focus():
 		return
 	if not joystick_active:
 		if event is InputEventKey and event.pressed:

@@ -1,16 +1,19 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://Scripts/multiplayer_world.gd" id="1_multiplayer"]
-[ext_resource type="Texture2D" path="res://Assets/Parallax Cave/Lush/lush_biome_deep_backdrop.png" id="2_backdrop"]
-
-[sub_resource type="RectangleShape2D" id="FloorShape"]
-size = Vector2(4096, 96)
+[ext_resource type="Texture2D" path="res://Assets/Parallax Cave/1.png" id="2_cave_back"]
+[ext_resource type="Texture2D" path="res://Assets/Parallax Cave/2.png" id="3_cave_back_detail"]
+[ext_resource type="Texture2D" path="res://Assets/Parallax Cave/4.png" id="4_cave_mid"]
+[ext_resource type="Texture2D" path="res://Assets/Parallax Cave/5.png" id="5_cave_mid_detail"]
+[ext_resource type="Texture2D" path="res://Assets/Parallax Cave/7.png" id="6_cave_front"]
+[ext_resource type="Texture2D" path="res://Assets/Parallax Cave/9.png" id="7_cave_foreground"]
+[ext_resource type="PackedScene" path="res://Scenes/arena.tscn" id="8_arena_layout"]
 
 [sub_resource type="RectangleShape2D" id="WallShape"]
-size = Vector2(96, 1400)
+size = Vector2(96, 956)
 
 [sub_resource type="RectangleShape2D" id="CeilingShape"]
-size = Vector2(4096, 80)
+size = Vector2(960, 80)
 
 [node name="PvPArena" type="Node2D"]
 script = ExtResource("1_multiplayer")
@@ -18,14 +21,69 @@ script = ExtResource("1_multiplayer")
 [node name="ArenaBackdropLayer" type="CanvasLayer" parent="."]
 layer = -20
 
-[node name="Backdrop" type="TextureRect" parent="ArenaBackdropLayer"]
+[node name="CaveBack" type="TextureRect" parent="ArenaBackdropLayer"]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-texture = ExtResource("2_backdrop")
+texture = ExtResource("2_cave_back")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="CaveBackDetail" type="TextureRect" parent="ArenaBackdropLayer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("3_cave_back_detail")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="CaveMid" type="TextureRect" parent="ArenaBackdropLayer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("4_cave_mid")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="CaveMidDetail" type="TextureRect" parent="ArenaBackdropLayer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("5_cave_mid_detail")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="CaveFront" type="TextureRect" parent="ArenaBackdropLayer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("6_cave_front")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="CaveForeground" type="TextureRect" parent="ArenaBackdropLayer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("7_cave_foreground")
 expand_mode = 1
 stretch_mode = 6
 
@@ -38,28 +96,14 @@ grow_vertical = 2
 mouse_filter = 2
 color = Color(0.04, 0.08, 0.15, 0.24)
 
-[node name="ArenaFloorVisual" type="Polygon2D" parent="."]
-polygon = PackedVector2Array(-2048, 500, 2048, 500, 2048, 596, -2048, 596)
-color = Color(0.045, 0.13, 0.17, 1)
-
-[node name="ArenaFloorLine" type="Polygon2D" parent="."]
-polygon = PackedVector2Array(-2048, 496, 2048, 496, 2048, 510, -2048, 510)
-color = Color(0.15, 0.75, 0.55, 0.9)
-
-[node name="Floor" type="StaticBody2D" parent="."]
-collision_layer = 2
-collision_mask = 0
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Floor"]
-position = Vector2(0, 548)
-shape = SubResource("FloorShape")
+[node name="SmashCaveLayout" parent="." instance=ExtResource("8_arena_layout")]
 
 [node name="LeftWall" type="StaticBody2D" parent="."]
 collision_layer = 2
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="LeftWall"]
-position = Vector2(-2048, -100)
+position = Vector2(-528, 118)
 shape = SubResource("WallShape")
 
 [node name="RightWall" type="StaticBody2D" parent="."]
@@ -67,7 +111,7 @@ collision_layer = 2
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="RightWall"]
-position = Vector2(2048, -100)
+position = Vector2(528, 118)
 shape = SubResource("WallShape")
 
 [node name="Ceiling" type="StaticBody2D" parent="."]
@@ -75,17 +119,17 @@ collision_layer = 2
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Ceiling"]
-position = Vector2(0, -600)
+position = Vector2(0, -400)
 shape = SubResource("CeilingShape")
 
 [node name="SpawnA" type="Marker2D" parent="." groups=["spawn_points"]]
-position = Vector2(-330, 420)
+position = Vector2(-90, 340)
 
 [node name="SpawnB" type="Marker2D" parent="." groups=["spawn_points"]]
-position = Vector2(330, 420)
+position = Vector2(90, 340)
 
 [node name="SpawnC" type="Marker2D" parent="." groups=["spawn_points"]]
-position = Vector2(-110, 420)
+position = Vector2(-30, 340)
 
 [node name="SpawnD" type="Marker2D" parent="." groups=["spawn_points"]]
-position = Vector2(110, 420)
+position = Vector2(30, 340)

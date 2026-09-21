@@ -1,0 +1,68 @@
+[gd_scene format=4 uid="uid://gudt0qfc2jri"]
+
+[ext_resource type="Texture2D" uid="uid://82opar247kat" path="res://Assets/Tiles/platformertiles.png" id="2_cave_tiles"]
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_cave"]
+texture = ExtResource("2_cave_tiles")
+texture_region_size = Vector2i(32, 32)
+0:0/0 = 0
+0:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+1:0/0 = 0
+1:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+2:0/0 = 0
+2:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+3:0/0 = 0
+3:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+4:0/0 = 0
+4:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+5:0/0 = 0
+5:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+6:0/0 = 0
+6:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+7:0/0 = 0
+7:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+0:1/0 = 0
+0:1/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+1:1/0 = 0
+1:1/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+2:1/0 = 0
+2:1/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+3:1/0 = 0
+3:1/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+4:1/0 = 0
+4:1/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+5:1/0 = 0
+5:1/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+6:1/0 = 0
+6:1/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+7:1/0 = 0
+7:1/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+0:2/0 = 0
+0:2/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+1:2/0 = 0
+1:2/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+2:2/0 = 0
+2:2/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+3:2/0 = 0
+3:2/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+4:2/0 = 0
+4:2/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+5:2/0 = 0
+5:2/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+6:2/0 = 0
+6:2/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+7:2/0 = 0
+7:2/0/physics_layer_0/polygon_0/points = PackedVector2Array(-16, -16, 16, -16, 16, 16, -16, 16)
+
+[sub_resource type="TileSet" id="TileSet_cave"]
+tile_size = Vector2i(32, 32)
+physics_layer_0/collision_layer = 2
+physics_layer_0/collision_mask = 0
+sources/0 = SubResource("TileSetAtlasSource_cave")
+
+[node name="SmashCaveLayout" type="Node2D" unique_id=1653485156]
+z_index = -1
+
+[node name="CaveTiles" type="TileMapLayer" parent="." unique_id=1453077718]
+tile_map_data = PackedByteArray("AAD7/w0AAAAAAAAAAAD8/w0AAAABAAAAAAD9/w0AAAABAAAAAAD+/w0AAAABAAAAAAD//w0AAAABAAAAAAAAAA0AAAABAAAAAAABAA0AAAABAAAAAAACAA0AAAABAAAAAAADAA0AAAABAAAAAAAEAA0AAAABAAAAAAAFAA0AAAACAAAAAAD7/w4AAAAAAAIAAAD8/w4AAAAHAAAAAGD9/w4AAAABAAEAAAD+/w4AAAABAAEAAAD//w4AAAABAAEAAAAAAA4AAAABAAEAAAABAA4AAAABAAEAAAACAA4AAAABAAEAAAADAA4AAAABAAEAAAAEAA4AAAAHAAAAADAFAA4AAAACAAIAAAD8/w8AAAAAAAIAAAD9/w8AAAAHAAAAAGD+/w8AAAABAAEAAAD//w8AAAABAAEAAAAAAA8AAAABAAEAAAABAA8AAAABAAEAAAACAA8AAAABAAEAAAADAA8AAAAHAAAAADAEAA8AAAACAAIAAAD9/xAAAAAAAAIAAAD+/xAAAAABAAIAAAD//xAAAAABAAIAAAAAABAAAAABAAIAAAABABAAAAABAAIAAAACABAAAAABAAIAAAADABAAAAACAAIAAADz/wsAAAAAAAIAAAD0/wsAAAAFAAAAADD0/wwAAAAAAAIAAAD1/wsAAAABAAEAAAD1/wwAAAABAAIAAAD2/wsAAAABAAEAAAD2/wwAAAABAAIAAAD3/wsAAAAFAAAAAFD3/wwAAAACAAIAAADz/woAAAAAAAAAAAD0/woAAAABAAAAAAD1/woAAAABAAAAAAD2/woAAAABAAAAAAD3/woAAAABAAAAAAD4/woAAAACAAAAAAD4/wsAAAACAAIAAAAJAAsAAAAFAAAAADAJAAwAAAAAAAIAAAAKAAsAAAABAAEAAAAKAAwAAAABAAIAAAALAAsAAAABAAEAAAALAAwAAAABAAIAAAAMAAsAAAAFAAAAAFAMAAwAAAACAAIAAAANAAsAAAACAAIAAAAIAAoAAAAAAAAAAAAIAAsAAAAAAAIAAAAJAAoAAAABAAAAAAAKAAoAAAABAAAAAAALAAoAAAABAAAAAAAMAAoAAAABAAAAAAANAAoAAAACAAAAAAD9/wcAAAAAAAAAAAD9/wgAAAAAAAIAAAD+/wcAAAABAAAAAAD+/wgAAAAFAAAAADD+/wkAAAAAAAIAAAD//wcAAAABAAAAAAD//wgAAAABAAEAAAD//wkAAAABAAIAAAAAAAcAAAABAAAAAAAAAAgAAAABAAEAAAAAAAkAAAABAAIAAAABAAcAAAABAAAAAAABAAgAAAABAAEAAAABAAkAAAABAAIAAAACAAcAAAABAAAAAAACAAgAAAAFAAAAAFACAAkAAAACAAIAAAADAAcAAAACAAAAAAADAAgAAAACAAIAAAA=")
+tile_set = SubResource("TileSet_cave")

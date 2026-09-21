@@ -14,6 +14,7 @@ var _combat_submitted := false
 var _ground_verified := false
 var _chat_verified := false
 var _visual_verified := false
+var _fall_respawn_verified := false
 var _host := "127.0.0.1"
 var _port := 5999
 
@@ -37,7 +38,10 @@ func _ready() -> void:
 	multiplayer.multiplayer_peer = _peer
 	multiplayer.connected_to_server.connect(_on_connected, CONNECT_ONE_SHOT)
 	multiplayer.connection_failed.connect(func() -> void: _fail("Connection failed"), CONNECT_ONE_SHOT)
-	get_tree().create_timer(12.0).timeout.connect(_finish, CONNECT_ONE_SHOT)
+	# Includes the three-second arena respawn after a verified fall.  Keep this
+	# longer than the combat exchange so the regression test observes the full
+	# death/respawn round trip instead of only the initial fall.
+	get_tree().create_timer(16.0).timeout.connect(_finish, CONNECT_ONE_SHOT)
 
 
 func _on_connected() -> void:
@@ -74,8 +78,10 @@ func _verify_replication() -> void:
 	if target_player != null and bool(target_player.get_node("Camera2D").enabled):
 		_fail("Remote avatar camera hijacked the local view")
 		return
-	if _arena.get_node_or_null("ArenaBackdropLayer/Backdrop") == null:
+	if _arena.get_node_or_null("ArenaBackdropLayer/CaveBack") == null:
 		_fail("Arena backdrop was not created")
+		return
+	if not _verify_smash_platform_layout():
 		return
 	_ground_verified = true
 	_replication_verified = true
@@ -88,6 +94,8 @@ func _verify_replication() -> void:
 		_fail("Target avatar missing")
 		return
 	if _label == "alpha":
+		if not _verify_chat_input_keeps_gameplay_hotkeys_quiet(own_player):
+			return
 		own_player.global_position = target_player.global_position - Vector2(48.0, 0.0)
 		# Position replication is deliberately unreliable in the game. Send a few
 		# short-spaced samples here so the integration test validates combat rather
@@ -130,13 +138,68 @@ func _verify_remote_effects() -> void:
 	if chat_log == null or received_messages == null or not received_messages.any(func(message: String) -> bool: return "AlphaSteam:[/color] smoke-chat" in message):
 		_fail("Remote chat was not displayed")
 		return
+	if not received_messages.any(func(message: String) -> bool: return "joined the arena" in message):
+		_fail("Arena join announcement was not displayed")
+		return
+	if received_messages.any(func(message: String) -> bool: return "Hit:" in message):
+		_fail("Combat hit spam leaked into the arena chat")
+		return
 	_chat_verified = true
 	var remote_player := _arena.get_node_or_null(str(_arena.call("_player_ids").filter(func(id: int) -> bool: return id != multiplayer.get_unique_id())[0]))
 	if remote_player == null or not bool(remote_player.get("is_attacking")) or not bool(remote_player.get("is_facing_left")):
 		_fail("Remote combat animation state was not replicated")
 		return
 	_visual_verified = true
+	_verify_fall_death_and_respawn(own_player)
 	print("[SMOKE beta] PASS: floor, chat, combat, and animation replication")
+
+
+func _verify_fall_death_and_respawn(own_player: Node2D) -> void:
+	# A player who leaves every floating island must visibly die and respawn on a
+	# real spawn point.  The arena has no invisible safety floor by design.
+	own_player.global_position = Vector2(0.0, 700.0)
+	get_tree().create_timer(4.2).timeout.connect(func() -> void:
+		if not is_instance_valid(own_player):
+			_fail("Own avatar disappeared after arena fall")
+			return
+		if int(own_player.get("current_health")) != int(own_player.get("max_health")):
+			_fail("Arena fall did not restore health on respawn")
+			return
+		if own_player.global_position.y >= 650.0 or not own_player.visible:
+			_fail("Arena fall did not return the player to a visible spawn point")
+			return
+		_fall_respawn_verified = true
+		print("[SMOKE beta] PASS: fall death and spawn-point respawn")
+	, CONNECT_ONE_SHOT)
+
+
+func _verify_smash_platform_layout() -> bool:
+	var layout := _arena.get_node_or_null("SmashCaveLayout")
+	if layout == null:
+		_fail("Smash cave platform layout was not created")
+		return false
+	var cave_tiles := layout.get_node_or_null("CaveTiles") as TileMapLayer
+	if cave_tiles == null or cave_tiles.get_used_cells().size() < 50:
+		_fail("Arena TileMapLayer did not create the floating cave islands")
+		return false
+	return true
+
+
+func _verify_chat_input_keeps_gameplay_hotkeys_quiet(own_player: Node) -> bool:
+	var chat_input := _arena.get("_chat_input") as LineEdit
+	if chat_input == null:
+		_fail("Arena chat input was not created")
+		return false
+	chat_input.grab_focus()
+	var transfer_key := InputEventKey.new()
+	transfer_key.keycode = KEY_T
+	transfer_key.pressed = true
+	own_player.call("_input", transfer_key)
+	chat_input.release_focus()
+	if get_tree().current_scene.get_node_or_null("Transfer") != null:
+		_fail("Typing in arena chat opened the transfer dialog")
+		return false
+	return true
 
 
 func _finish() -> void:
@@ -149,7 +212,7 @@ func _finish() -> void:
 	if _label == "alpha" and not _combat_submitted:
 		_fail("Combat request was not submitted")
 		return
-	if _label == "beta" and (not _ground_verified or not _chat_verified or not _visual_verified):
+	if _label == "beta" and (not _ground_verified or not _chat_verified or not _visual_verified or not _fall_respawn_verified):
 		_fail("Remote arena checks were incomplete")
 		return
 	print("[SMOKE %s] PASS: integration complete" % _label)

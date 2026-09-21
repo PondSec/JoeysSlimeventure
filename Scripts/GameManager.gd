@@ -4,6 +4,7 @@ extends Node
 ## PvP remains a dedicated ENet arena; both use the same replicated arena scene.
 
 signal multiplayer_error(message: String)
+signal matchmaking_status_changed(message: String)
 signal steam_coop_ready(lobby_id: int)
 
 ## UDP 443 is relayed by the public reverse proxy to the private arena host.
@@ -11,6 +12,11 @@ signal steam_coop_ready(lobby_id: int)
 ## game host's high port and do not depend on Steam P2P connectivity.
 const DEDICATED_SERVER_HOST := "lobby.joeyslime.com"
 const DEDICATED_SERVER_PORT := 443
+# Transparent fallback for players testing from the same private network. Some
+# routers do not support NAT loopback, so their own public address cannot be
+# reached from inside the network even though it works for Internet players.
+const LAN_PVP_SERVER_HOST := "192.168.30.50"
+const LAN_PVP_SERVER_PORT := 5999
 const MAX_COOP_PLAYERS := 4
 
 var peer: MultiplayerPeer
@@ -21,6 +27,7 @@ var is_steam_coop_host := false
 var steam_lobby_id: int = 0
 var _steam_callbacks_connected := false
 var _loading_multiplayer_world := false
+var _using_lan_pvp_fallback := false
 
 
 func _ready() -> void:
@@ -28,6 +35,7 @@ func _ready() -> void:
 	SteamManager.initialized.connect(_on_steam_initialized)
 	if SteamManager.is_initialized:
 		_connect_steam_callbacks()
+	_start_command_line_pvp_test_if_requested()
 
 
 func _on_steam_initialized(_user_name: String) -> void:
@@ -36,9 +44,19 @@ func _on_steam_initialized(_user_name: String) -> void:
 
 func join_dedicated_server(host: String = DEDICATED_SERVER_HOST, port: int = DEDICATED_SERVER_PORT) -> void:
 	reset_multiplayer_state()
-	print("[Network] Connecting to PvP server %s:%d" % [host, port])
 	is_multiplayer = true
 	is_global_pvp = true
+	_using_lan_pvp_fallback = false
+	_connect_to_pvp_endpoint(host, port)
+
+
+func _connect_to_pvp_endpoint(host: String, port: int) -> void:
+	if peer != null:
+		peer.close()
+	peer = null
+	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+	print("[Network] Connecting to PvP server %s:%d" % [host, port])
+	matchmaking_status_changed.emit("Matchsuche läuft …")
 	var enet_peer := ENetMultiplayerPeer.new()
 	var error := enet_peer.create_client(host, port)
 	if error != OK:
@@ -158,10 +176,17 @@ func _on_steam_join_requested(lobby_id: int, _friend_id: int) -> void:
 
 func _on_connection_success() -> void:
 	print("[Network] Connected to PvP server")
+	matchmaking_status_changed.emit("Match gefunden – Arena wird geladen …")
 	load_game_world()
 
 
 func _on_connection_failed() -> void:
+	if is_global_pvp and not _using_lan_pvp_fallback:
+		_using_lan_pvp_fallback = true
+		print("[Network] Public PvP endpoint unavailable; trying LAN fallback")
+		matchmaking_status_changed.emit("Öffentliche Route nicht erreichbar – lokaler Arena-Server wird versucht …")
+		_connect_to_pvp_endpoint(LAN_PVP_SERVER_HOST, LAN_PVP_SERVER_PORT)
+		return
 	_fail_connection("PvP-Server ist nicht erreichbar.")
 
 
@@ -189,6 +214,7 @@ func reset_multiplayer_state() -> void:
 	is_steam_coop = false
 	is_steam_coop_host = false
 	steam_lobby_id = 0
+	_using_lan_pvp_fallback = false
 
 
 func _on_scene_changed() -> void:
@@ -197,6 +223,7 @@ func _on_scene_changed() -> void:
 
 func _fail_connection(message: String) -> void:
 	print("[Network] %s" % message)
+	matchmaking_status_changed.emit(message)
 	multiplayer_error.emit(message)
 	reset_multiplayer_state()
 	show_error(message)
@@ -217,3 +244,16 @@ func _create_steam_multiplayer_peer() -> MultiplayerPeer:
 
 func show_error(message: String) -> void:
 	print("NETWORK ERROR: %s" % message)
+
+
+func _start_command_line_pvp_test_if_requested() -> void:
+	var args := OS.get_cmdline_user_args()
+	var host_index := args.find("--pvp-test-host")
+	if host_index < 0 or host_index + 1 >= args.size():
+		return
+	var host := String(args[host_index + 1])
+	var port := DEDICATED_SERVER_PORT
+	var port_index := args.find("--pvp-test-port")
+	if port_index >= 0 and port_index + 1 < args.size():
+		port = int(args[port_index + 1])
+	call_deferred("join_dedicated_server", host, port)

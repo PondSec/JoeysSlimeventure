@@ -63,12 +63,49 @@ func _ready() -> void:
 	$BackgroundSprite/AnimationPlayer.play(\"loop\")
 	load_settings()
 	set_uuid_label()
+	refresh_uuid_when_steam_is_ready()
+	connect_matchmaking_status()
 	create_game_messages_ui()
 	fetch_game_messages()
 
 func set_uuid_label() -> void:
 	var player_id = load_or_create_player_id()
-	$UUID.text = \"UUID: \" + player_id
+	var steam_name := \"Offline\"
+	var steam_manager := get_node_or_null(\"/root/SteamManager\")
+	if steam_manager != null:
+		var candidate := String(steam_manager.get(\"user_name\")).strip_edges()
+		if not candidate.is_empty():
+			steam_name = candidate
+	$UUID.text = \"UUID: \" + player_id + \" (\" + steam_name + \")\"
+
+func refresh_uuid_when_steam_is_ready() -> void:
+	var steam_manager := get_node_or_null(\"/root/SteamManager\")
+	if steam_manager == null:
+		return
+	if bool(steam_manager.get(\"is_initialized\")):
+		set_uuid_label()
+		return
+	if steam_manager.has_signal(\"initialized\"):
+		steam_manager.initialized.connect(_on_steam_initialized, CONNECT_ONE_SHOT)
+
+func _on_steam_initialized(_steam_name: String) -> void:
+	set_uuid_label()
+
+func connect_matchmaking_status() -> void:
+	var game_manager := get_node_or_null(\"/root/GameManager\")
+	if game_manager == null:
+		return
+	if game_manager.has_signal(\"multiplayer_error\"):
+		game_manager.multiplayer_error.connect(_on_matchmaking_error)
+	if game_manager.has_signal(\"matchmaking_status_changed\"):
+		game_manager.matchmaking_status_changed.connect(_on_matchmaking_status_changed)
+
+func _on_matchmaking_status_changed(message: String) -> void:
+	$MultiPlayer/VBoxContainer/MatchmakingInfo.text = message
+
+func _on_matchmaking_error(message: String) -> void:
+	$MultiPlayer/VBoxContainer/MatchmakingInfo.text = message
+	$MultiPlayer/VBoxContainer/matchmaking.disabled = false
 
 # ---------------------------------------------------
 # 🆕 Game Messages Funktionen
@@ -639,8 +676,9 @@ func _on_quit_button_pressed() -> void:
 
 func _on_matchmaking_pressed() -> void:
 	var game_manager = get_node(\"/root/GameManager\")
+	$MultiPlayer/VBoxContainer/matchmaking.disabled = true
+	$MultiPlayer/VBoxContainer/MatchmakingInfo.text = \"Matchsuche läuft …\"
 	game_manager.start_global_pvp_matchmaking()
-	hide()
 
 func _on_steam_coop_pressed() -> void:
 	var game_manager = get_node(\"/root/GameManager\")
