@@ -15,6 +15,7 @@
 [ext_resource type="Texture2D" uid="uid://byh2v56ttt30u" path="res://Assets/GUI/CreditsButton/button1.png" id="9_oyvpb"]
 [ext_resource type="Texture2D" uid="uid://cfko2vnod3rb" path="res://Assets/GUI/CreditsButton/button1_pressed.png" id="10_0ftmv"]
 [ext_resource type="Texture2D" uid="uid://3taoo46syb47" path="res://Assets/GUI/CreditsButton/button1_hover.png" id="11_xefrf"]
+[ext_resource type="Texture2D" path="res://Assets/early_access.png" id="12_early_access"]
 
 [sub_resource type="GDScript" id="GDScript_yvg2q"]
 resource_name = "menu"
@@ -816,6 +817,16 @@ stretch_mode = 0
 position = Vector2(203, -146)
 scale = Vector2(0.5, 0.5)
 texture = ExtResource("3_s41hg")
+
+[node name="EarlyAccess" type="TextureRect" parent="."]
+layout_mode = 0
+offset_left = 1524.0
+offset_top = 894.0
+offset_right = 1884.0
+offset_bottom = 1038.0
+texture = ExtResource("12_early_access")
+expand_mode = 1
+stretch_mode = 5
 
 [node name="UUID" type="Label" parent="."]
 layout_mode = 0

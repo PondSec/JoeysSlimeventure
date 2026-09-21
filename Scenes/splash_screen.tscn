@@ -1,0 +1,50 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://Scripts/splash_screen.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://Assets/Brand/pondsec_splash.png" id="2_splash"]
+
+[node name="PondSecSplash" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_script")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(1, 1, 1, 1)
+
+[node name="PondSecArtwork" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("2_splash")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="SkipHint" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -56.0
+offset_right = -48.0
+offset_bottom = -24.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_colors/font_color = Color(0.08, 0.08, 0.08, 0.45)
+theme_override_font_sizes/font_size = 18
+text = "Click or press a key to continue"
+horizontal_alignment = 2
