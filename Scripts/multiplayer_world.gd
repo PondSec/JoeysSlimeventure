@@ -33,15 +33,13 @@ var hud_title: Label
 var hud_score: Label
 var hud_countdown: Label
 var results: Control
+var loaded_mode_layout := ""
 
 
 func _ready() -> void:
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
-	if not (multiplayer.is_server() and _is_dedicated_server()):
-		_spawn_player(multiplayer.get_unique_id(), _spawn_position(multiplayer.get_unique_id()))
 	if not multiplayer.is_server():
-		_request_existing_players.rpc_id(1)
 		_register_player_name.rpc_id(1, _local_name())
 		call_deferred("_request_selected_mode")
 	_create_ui()
@@ -62,11 +60,10 @@ func _request_selected_mode() -> void:
 @rpc("any_peer", "reliable")
 func _request_existing_players() -> void:
 	if not multiplayer.is_server(): return
-	var joining = multiplayer.get_remote_sender_id()
-	# Only spawn the joining client's own avatar.  Its room peers are spawned
-	# after matchmaking; this prevents cross-room player visibility.
-	_spawn_player_for_peer.rpc_id(joining, joining, _spawn_position(joining))
-	_grant_replication_ready.rpc_id(joining)
+	# Kept as a compatibility endpoint for older clients.  Players are spawned
+	# only after their room is complete so no lobby or other-room avatar leaks
+	# into this client's scene tree.
+	pass
 
 
 @rpc("authority", "reliable")
@@ -83,9 +80,6 @@ func _grant_replication_ready() -> void:
 func _on_peer_connected(id: int) -> void:
 	if not multiplayer.is_server(): return
 	player_names[id] = _fallback_name(id)
-	_spawn_player(id, _spawn_position(id))
-	_spawn_player_for_peer.rpc_id(id, id, _spawn_position(id))
-	_grant_replication_ready.rpc_id(id)
 
 
 func _on_peer_disconnected(id: int) -> void:
@@ -123,7 +117,6 @@ func _register_player_name(value: String) -> void:
 	if not multiplayer.is_server(): return
 	var id = multiplayer.get_remote_sender_id()
 	player_names[id] = _safe_name(value, id)
-	_broadcast_chat.rpc("[color=#9dffb1]%s joined the arena.[/color]" % player_names[id])
 
 
 @rpc("any_peer", "reliable")
@@ -172,8 +165,12 @@ func _create_room(mode: String, members: Array[int]) -> void:
 		teams[id] = "A" if mode == "cave_survival" or (mode == "team_battle" and index < 2) or (mode == "classic_pvp" and index == 0) else "B"
 		alive[id] = true
 		player_room[id] = room_id
-	rooms[room_id] = {"id": room_id, "mode": mode, "members": members, "teams": teams, "alive": alive, "scores": {"A": 0, "B": 0}, "state": State.WAITING, "round": 0, "wave": 0, "kills": 0, "bosses": 0, "finished": false, "transitioning": false}
+	rooms[room_id] = {"id": room_id, "mode": mode, "members": members, "teams": teams, "alive": alive, "scores": {"A": 0, "B": 0}, "state": State.WAITING, "round": 0, "wave": 0, "kills": 0, "bosses": 0, "finished": false, "transitioning": false, "rematch_votes": {}}
 	print("[MATCH] Created room %d (%s): %s" % [room_id, mode, members])
+	# The authoritative avatars also belong to a room before any client gets a
+	# node-RPC path for them.  They deliberately do not exist during queueing.
+	for id in members:
+		_spawn_player(id, _room_spawn(rooms[room_id], id))
 	# Add each room-mate to each client only now.  Every match is isolated even
 	# though the UDP server hosts several rooms on one process.
 	for receiver in members:
@@ -182,6 +179,8 @@ func _create_room(mode: String, members: Array[int]) -> void:
 			if avatar != null: _spawn_player_for_peer.rpc_id(receiver, visible_id, avatar.global_position)
 		_grant_replication_ready.rpc_id(receiver)
 		_queue_status.rpc_id(receiver, "MATCH FOUND\n%s" % _mode_label(mode))
+	for visible_id in members:
+		_broadcast_room_chat(room_id, "[color=#9dffb1]%s joined the arena.[/color]" % player_names.get(visible_id, _fallback_name(visible_id)))
 	# RPC node paths for every room mate must exist on every participant before
 	# a player-node RPC (reset/freeze) is sent.  The short barrier also avoids
 	# a fast client receiving a round packet before its opponent spawn packet.
@@ -203,8 +202,7 @@ func _start_round(room_id: int) -> void:
 	room.transitioning = true
 	for id in room.members:
 		room.alive[id] = true
-		var avatar = get_node_or_null(str(id))
-		if avatar != null: avatar.reset_for_match_round.rpc_id(id, _room_spawn(room, id), true)
+		_reset_room_avatar.rpc_id(id, id, _room_spawn(room, id), true)
 	rooms[room_id] = room
 	_sync_room(room_id, "ROUND %d" % int(room.round), "3")
 	_countdown(room_id, false)
@@ -218,8 +216,7 @@ func _start_wave(room_id: int) -> void:
 	room.transitioning = true
 	for id in room.members:
 		room.alive[id] = true
-		var avatar = get_node_or_null(str(id))
-		if avatar != null: avatar.reset_for_match_round.rpc_id(id, _room_spawn(room, id), true)
+		_reset_room_avatar.rpc_id(id, id, _room_spawn(room, id), true)
 	rooms[room_id] = room
 	_sync_room(room_id, "BOSS WAVE %d" % int(room.wave) if int(room.wave) % 5 == 0 else "WAVE %d" % int(room.wave), "3")
 	_countdown(room_id, true)
@@ -238,8 +235,7 @@ func _countdown(room_id: int, survival: bool) -> void:
 	room.state = State.WAVE_ACTIVE if survival else State.PLAYING
 	room.transitioning = false
 	for id in room.members:
-		var avatar = get_node_or_null(str(id))
-		if avatar != null: avatar.set_match_round_state.rpc_id(id, false, true)
+		_set_room_avatar_state.rpc_id(id, id, false, true)
 	rooms[room_id] = room
 	_sync_room(room_id, _mode_label(room.mode), "WAVE %d" % int(room.wave) if survival else "FIGHT!")
 	if survival: _spawn_wave_enemies(room_id)
@@ -253,9 +249,102 @@ func _room_spawn(room: Dictionary, id: int) -> Vector2:
 	return (points[order[index % order.size()] % points.size()] as Node2D).global_position
 
 
+# Gameplay RPCs are routed through the always-present arena root.  Sending an
+# RPC directly from Player/<peer id> makes Godot resolve that node path before
+# it can reject an unrelated room; isolated clients deliberately lack it.
+@rpc("authority", "reliable")
+func _reset_room_avatar(player_id: int, spawn_position: Vector2, locked: bool) -> void:
+	var avatar = get_node_or_null(str(player_id))
+	if avatar != null: avatar.reset_for_match_round(spawn_position, locked)
+
+
+@rpc("authority", "reliable")
+func _set_room_avatar_state(player_id: int, locked: bool, managed_life: bool) -> void:
+	var avatar = get_node_or_null(str(player_id))
+	if avatar != null: avatar.set_match_round_state(locked, managed_life)
+
+
+@rpc("authority", "reliable")
+func _apply_room_player_damage(player_id: int, damage: int, origin: Vector2) -> void:
+	var avatar = get_node_or_null(str(player_id))
+	if avatar != null: avatar.take_damage(damage, origin)
+
+
+@rpc("authority", "reliable")
+func _eliminate_room_avatar(player_id: int) -> void:
+	var avatar = get_node_or_null(str(player_id))
+	if avatar != null: avatar.eliminate_for_match()
+
+
+@rpc("authority", "reliable")
+func _receive_room_replication(player_id: int, kind: String, payload: Array) -> void:
+	var avatar = get_node_or_null(str(player_id))
+	if avatar == null: return
+	match kind:
+		"position": avatar.update_position(payload[0], payload[1])
+		"facing": avatar.sync_facing_direction(payload[0])
+		"visual": avatar.sync_multiplayer_visual_state(payload[0], payload[1], payload[2], payload[3], payload[4], payload[5])
+		"attack": avatar.sync_attack(payload[0])
+
+
 func request_pvp_hit(target_id: int, damage: int, origin: Vector2) -> void:
 	if multiplayer.is_server(): _validate_hit(multiplayer.get_unique_id(), target_id, damage, origin)
 	else: _submit_pvp_hit.rpc_id(1, target_id, damage, origin)
+
+
+func relay_player_position(position: Vector2, velocity: Vector2) -> void:
+	if not multiplayer.is_server(): _submit_player_position.rpc_id(1, position, velocity)
+
+
+@rpc("any_peer", "unreliable")
+func _submit_player_position(position: Vector2, velocity: Vector2) -> void:
+	if not multiplayer.is_server(): return
+	var sender := multiplayer.get_remote_sender_id()
+	# The dedicated avatar is the authoritative combat snapshot.  It must track
+	# accepted client movement before range validation or a valid swing would be
+	# measured against the original spawn point.
+	var avatar := get_node_or_null(str(sender)) as CharacterBody2D
+	if avatar != null:
+		avatar.position = position
+		avatar.velocity = velocity
+	_relay_player_rpc(sender, "position", [position, velocity])
+
+
+func relay_player_facing(facing_left: bool) -> void:
+	if not multiplayer.is_server(): _submit_player_facing.rpc_id(1, facing_left)
+
+
+@rpc("any_peer", "unreliable")
+func _submit_player_facing(facing_left: bool) -> void:
+	if multiplayer.is_server(): _relay_player_rpc(multiplayer.get_remote_sender_id(), "facing", [facing_left])
+
+
+func relay_player_visual_state(facing_left: bool, character_id: String, attacking: bool, dashing: bool, transforming: bool, animation_state: String) -> void:
+	if not multiplayer.is_server(): _submit_player_visual.rpc_id(1, facing_left, character_id, attacking, dashing, transforming, animation_state)
+
+
+@rpc("any_peer", "reliable")
+func _submit_player_visual(facing_left: bool, character_id: String, attacking: bool, dashing: bool, transforming: bool, animation_state: String) -> void:
+	if multiplayer.is_server(): _relay_player_rpc(multiplayer.get_remote_sender_id(), "visual", [facing_left, character_id, attacking, dashing, transforming, animation_state])
+
+
+func relay_player_attack(combo_step: int) -> void:
+	if not multiplayer.is_server(): _submit_player_attack.rpc_id(1, combo_step)
+
+
+@rpc("any_peer", "reliable")
+func _submit_player_attack(combo_step: int) -> void:
+	if multiplayer.is_server(): _relay_player_rpc(multiplayer.get_remote_sender_id(), "attack", [combo_step])
+
+
+func _relay_player_rpc(sender: int, kind: String, payload: Array) -> void:
+	var room_id := int(player_room.get(sender, 0))
+	if room_id == 0 or not rooms.has(room_id): return
+	var avatar := get_node_or_null(str(sender))
+	if avatar == null: return
+	for receiver in rooms[room_id].members:
+		if receiver == sender: continue
+		_receive_room_replication.rpc_id(receiver, sender, kind, payload)
 
 
 @rpc("any_peer", "reliable")
@@ -283,8 +372,12 @@ func _validate_hit(attacker_id: int, target_id: int, damage: int, origin: Vector
 	var key = "%d:%d" % [attacker_id, target_id]
 	if Time.get_ticks_msec() - int(hit_time.get(key, 0)) < 180: return
 	hit_time[key] = Time.get_ticks_msec()
+	var approved_damage := clampi(damage, 1, 45)
+	# Apply the health change on the dedicated node first, then send only the
+	# resulting approved hit to the target's room client.
+	target.current_health = max(0, int(target.current_health) - approved_damage)
 	print("[MATCH] Accepted hit %d -> %d" % [attacker_id, target_id])
-	target.take_damage.rpc_id(target_id, clampi(damage, 1, 45), attacker.global_position)
+	_apply_room_player_damage.rpc_id(target_id, target_id, approved_damage, attacker.global_position)
 
 
 @rpc("any_peer", "reliable")
@@ -297,8 +390,7 @@ func report_pvp_death(_fell: bool) -> void:
 	if int(room.state) not in [State.PLAYING, State.WAVE_ACTIVE] or not bool(room.alive.get(id, false)): return
 	room.alive[id] = false
 	rooms[room_id] = room
-	var avatar = get_node_or_null(str(id))
-	if avatar != null: avatar.eliminate_for_match.rpc_id(id)
+	_eliminate_room_avatar.rpc_id(id, id)
 	if room.mode == "cave_survival":
 		for value in room.alive.values():
 			if bool(value): return
@@ -330,8 +422,7 @@ func _end_round(room_id: int, winner: String) -> void:
 	rooms[room_id] = room
 	_sync_room(room_id, "ROUND WON — %s" % _team_label(winner), "%d : %d" % [room.scores.A, room.scores.B])
 	for id in room.members:
-		var avatar = get_node_or_null(str(id))
-		if avatar != null: avatar.set_match_round_state.rpc_id(id, true, true)
+		_set_room_avatar_state.rpc_id(id, id, true, true)
 	await get_tree().create_timer(2.2).timeout
 	if not rooms.has(room_id): return
 	room = rooms[room_id]
@@ -344,7 +435,11 @@ func _spawn_wave_enemies(room_id: int) -> void:
 	var plan = _wave_plan(int(room.wave))
 	for kind in plan.keys():
 		for index in range(int(plan[kind])):
-			_spawn_enemy.rpc(str(kind), _enemy_spawn(room_id, index))
+			var enemy_name := "SurvivalEnemy_r%d_w%d_%s_%d" % [room_id, int(room.wave), str(kind), index]
+			var position := _enemy_spawn(room_id, index + int(room.wave))
+			_spawn_enemy_local(room_id, enemy_name, str(kind), position)
+			for member_id in room.members:
+				_spawn_enemy.rpc_id(member_id, room_id, enemy_name, str(kind), position)
 	_sync_room(room_id, "WAVE %d" % int(room.wave), "Enemies Remaining: %d" % _room_enemy_count(room_id))
 
 
@@ -357,15 +452,21 @@ func _wave_plan(wave: int) -> Dictionary:
 	return {"bat": 2 + wave / 4, "albino": 1 + wave / 6, "wisp": 1 + wave / 5}
 
 
-@rpc("authority", "call_local", "reliable")
-func _spawn_enemy(kind: String, position: Vector2) -> void:
+@rpc("authority", "reliable")
+func _spawn_enemy(room_id: int, enemy_name: String, kind: String, position: Vector2) -> void:
+	_spawn_enemy_local(room_id, enemy_name, kind, position)
+
+
+func _spawn_enemy_local(room_id: int, enemy_name: String, kind: String, position: Vector2) -> void:
+	if has_node(enemy_name): return
 	var scene = BAT_SCENE
 	if kind == "albino": scene = ALBINO_BAT_SCENE
 	elif kind == "wisp": scene = WISP_SCENE
 	elif kind == "boss": scene = BOSS_SCENE
 	var enemy = scene.instantiate()
 	enemy.set_meta("survival_enemy", true)
-	enemy.name = "SurvivalEnemy_%s_%d" % [kind, Time.get_ticks_usec()]
+	enemy.set_meta("survival_room_id", room_id)
+	enemy.name = enemy_name
 	add_child(enemy)
 	enemy.global_position = position
 
@@ -390,13 +491,52 @@ func _check_wave(room_id: int) -> void:
 	if rooms.has(room_id): _start_wave(room_id)
 
 
-func _room_enemy_count(_room_id: int) -> int:
+func _room_enemy_count(room_id: int) -> int:
 	var count = 0
 	for node in get_children():
-		if node.is_in_group("enemies") and bool(node.get_meta("survival_enemy", false)):
+		if node.is_in_group("enemies") and bool(node.get_meta("survival_enemy", false)) and int(node.get_meta("survival_room_id", -1)) == room_id:
 			var dead = node.get("is_dead")
 			if not (dead is bool and dead): count += 1
 	return count
+
+
+func request_survival_enemy_hit(enemy_name: String, damage: int, origin: Vector2, is_crit: bool) -> void:
+	if multiplayer.is_server():
+		_validate_survival_enemy_hit(multiplayer.get_unique_id(), enemy_name, damage, origin, is_crit)
+	else:
+		_submit_survival_enemy_hit.rpc_id(1, enemy_name, damage, origin, is_crit)
+
+
+@rpc("any_peer", "reliable")
+func _submit_survival_enemy_hit(enemy_name: String, damage: int, origin: Vector2, is_crit: bool) -> void:
+	if multiplayer.is_server():
+		_validate_survival_enemy_hit(multiplayer.get_remote_sender_id(), enemy_name, damage, origin, is_crit)
+
+
+func _validate_survival_enemy_hit(attacker_id: int, enemy_name: String, damage: int, origin: Vector2, is_crit: bool) -> void:
+	var room_id := int(player_room.get(attacker_id, 0))
+	if room_id == 0 or not rooms.has(room_id): return
+	var room: Dictionary = rooms[room_id]
+	if room.mode != "cave_survival" or int(room.state) != State.WAVE_ACTIVE or not bool(room.alive.get(attacker_id, false)): return
+	var attacker := get_node_or_null(str(attacker_id)) as Node2D
+	var enemy := get_node_or_null(enemy_name) as Node2D
+	if attacker == null or enemy == null or int(enemy.get_meta("survival_room_id", -1)) != room_id: return
+	if attacker.global_position.distance_to(origin) > 100.0 or attacker.global_position.distance_to(enemy.global_position) > HIT_RANGE: return
+	var approved_damage := clampi(damage, 1, 60)
+	_apply_survival_enemy_damage_local(enemy_name, approved_damage, attacker.global_position, is_crit)
+	for member_id in room.members:
+		_apply_survival_enemy_damage.rpc_id(member_id, enemy_name, approved_damage, attacker.global_position, is_crit)
+
+
+@rpc("authority", "reliable")
+func _apply_survival_enemy_damage(enemy_name: String, damage: int, source: Vector2, is_crit: bool) -> void:
+	_apply_survival_enemy_damage_local(enemy_name, damage, source, is_crit)
+
+
+func _apply_survival_enemy_damage_local(enemy_name: String, damage: int, source: Vector2, is_crit: bool) -> void:
+	var enemy := get_node_or_null(enemy_name)
+	if enemy != null and enemy.has_method("take_damage"):
+		enemy.call("take_damage", damage, (enemy.global_position - source).normalized(), is_crit)
 
 
 func _finish_room(room_id: int, headline: String, winner: String) -> void:
@@ -407,11 +547,37 @@ func _finish_room(room_id: int, headline: String, winner: String) -> void:
 	room.state = State.RESULTS
 	rooms[room_id] = room
 	for id in room.members:
-		var avatar = get_node_or_null(str(id))
-		if avatar != null: avatar.set_match_round_state.rpc_id(id, true, true)
+		_set_room_avatar_state.rpc_id(id, id, true, true)
 	var detail = "Wave Reached: %d\nEnemies Defeated: %d\nBosses Defeated: %d" % [room.wave, room.kills, room.bosses] if room.mode == "cave_survival" else "%s\n%d : %d" % [_team_winner_name(room, winner), room.scores.A, room.scores.B]
 	_sync_room(room_id, headline, detail)
 	print("[MATCH] Room %d finished" % room_id)
+
+
+func request_rematch() -> void:
+	if multiplayer.is_server(): _register_rematch_vote(multiplayer.get_unique_id())
+	else: _submit_rematch_vote.rpc_id(1)
+
+
+@rpc("any_peer", "reliable")
+func _submit_rematch_vote() -> void:
+	if multiplayer.is_server(): _register_rematch_vote(multiplayer.get_remote_sender_id())
+
+
+func _register_rematch_vote(player_id: int) -> void:
+	var room_id := int(player_room.get(player_id, 0))
+	if room_id == 0 or not rooms.has(room_id): return
+	var room: Dictionary = rooms[room_id]
+	if not bool(room.finished): return
+	room.rematch_votes[player_id] = true
+	rooms[room_id] = room
+	for member_id in room.members:
+		_queue_status.rpc_id(member_id, "Rematch ready: %d / %d" % [room.rematch_votes.size(), room.members.size()])
+	if room.rematch_votes.size() < room.members.size(): return
+	var members: Array[int] = room.members.duplicate()
+	var mode := String(room.mode)
+	for member_id in members: player_room.erase(member_id)
+	rooms.erase(room_id)
+	_create_room(mode, members)
 
 
 func _opposing_team(room: Dictionary, id: int) -> String:
@@ -434,10 +600,14 @@ func _sync_room(room_id: int, title: String, emphasis: String) -> void:
 @rpc("authority", "reliable")
 func _sync_room_ui(_room_id: int, teams: Dictionary, scores: Dictionary, mode: String, state: int, title: String, emphasis: String) -> void:
 	if hud_title == null: return
+	if state != State.RESULTS and results != null:
+		results.queue_free()
+		results = null
 	hud_title.text = title
 	hud_score.text = emphasis if state == State.RESULTS else ("WAVE" if mode == "cave_survival" else "%d : %d" % [scores.get("A", 0), scores.get("B", 0)])
 	hud_countdown.text = "" if state == State.RESULTS else emphasis
 	_apply_team_tint(teams, mode)
+	_ensure_mode_layout(mode)
 	if state == State.RESULTS: _show_results(title, emphasis, mode)
 
 
@@ -450,6 +620,33 @@ func _apply_team_tint(teams: Dictionary, mode: String) -> void:
 			avatar.get_node("PlayerSprite").self_modulate = Color.WHITE if teams[id] == own_team else Color(1.0, 0.42, 0.42)
 
 
+func _ensure_mode_layout(mode: String) -> void:
+	if loaded_mode_layout == mode: return
+	loaded_mode_layout = mode
+	var old_layout := get_node_or_null("ModeArenaLayout")
+	if old_layout != null: old_layout.queue_free()
+	if mode == "classic_pvp": return
+	var layout := Node2D.new()
+	layout.name = "ModeArenaLayout"
+	add_child(layout)
+	var points := [Vector2(-340, 230), Vector2(340, 230), Vector2(-205, 72), Vector2(205, 72)]
+	if mode == "cave_survival": points.append_array([Vector2(-405, 115), Vector2(405, 115)])
+	for point in points:
+		var platform := StaticBody2D.new()
+		platform.position = point
+		platform.collision_layer = 2
+		layout.add_child(platform)
+		var shape := RectangleShape2D.new()
+		shape.size = Vector2(184, 30)
+		var collision := CollisionShape2D.new()
+		collision.shape = shape
+		platform.add_child(collision)
+		var island := Polygon2D.new()
+		island.polygon = PackedVector2Array([Vector2(-92, -15), Vector2(92, -15), Vector2(74, 26), Vector2(-74, 26)])
+		island.color = Color("476a62") if mode == "cave_survival" else Color("596478")
+		platform.add_child(island)
+
+
 @rpc("authority", "reliable")
 func _queue_status(message: String) -> void:
 	GameManager.set_matchmaking_state(GameManager.MatchmakingState.WAITING_FOR_PLAYERS, message)
@@ -458,13 +655,24 @@ func _queue_status(message: String) -> void:
 
 func send_chat(text: String) -> void:
 	if text.strip_edges().is_empty(): return
-	if multiplayer.is_server(): _broadcast_chat.rpc("[color=#93dcff]%s:[/color] %s" % [_local_name(), _sanitize_chat(text)])
+	if multiplayer.is_server():
+		var server_room := int(player_room.get(multiplayer.get_unique_id(), 0))
+		if server_room > 0: _broadcast_room_chat(server_room, "[color=#93dcff]%s:[/color] %s" % [_local_name(), _sanitize_chat(text)])
 	else: _submit_chat.rpc_id(1, _sanitize_chat(text))
 
 
 @rpc("any_peer", "reliable")
 func _submit_chat(text: String) -> void:
-	if multiplayer.is_server(): _broadcast_chat.rpc("[color=#93dcff]%s:[/color] %s" % [player_names.get(multiplayer.get_remote_sender_id(), "Player"), _sanitize_chat(text)])
+	if not multiplayer.is_server(): return
+	var sender := multiplayer.get_remote_sender_id()
+	var room_id := int(player_room.get(sender, 0))
+	if room_id > 0: _broadcast_room_chat(room_id, "[color=#93dcff]%s:[/color] %s" % [player_names.get(sender, "Player"), _sanitize_chat(text)])
+
+
+func _broadcast_room_chat(room_id: int, text: String) -> void:
+	if not rooms.has(room_id): return
+	for member_id in rooms[room_id].members:
+		_broadcast_chat.rpc_id(member_id, text)
 
 
 @rpc("authority", "reliable")
@@ -495,7 +703,8 @@ func _show_results(title: String, detail: String, _mode: String) -> void:
 	var body = Label.new(); body.text = detail; body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; body.add_theme_font_size_override("font_size", 22); box.add_child(body)
 	for caption in ["BATTLE AGAIN", "OTHER MODES", "MAIN MENU"]:
 		var button = Button.new(); button.text = caption; button.custom_minimum_size = Vector2(300, 48); box.add_child(button)
-		button.pressed.connect(func(): GameManager.leave_match_to_menu())
+		if caption == "BATTLE AGAIN": button.pressed.connect(func(): request_rematch())
+		else: button.pressed.connect(func(): GameManager.leave_match_to_menu())
 
 
 func _mode_label(mode: String) -> String:

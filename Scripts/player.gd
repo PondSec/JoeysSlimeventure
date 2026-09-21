@@ -1106,8 +1106,14 @@ func update_health_bonus():
 	max_health = int(base_max_health * bonus)
 	current_health = min(current_health, max_health)
 	var gm = get_node_or_null("/root/GameManager")
-	if (gm == null or not gm.is_multiplayer) or (is_multiplayer_authority() and multiplayer_replication_ready):
-		sync_max_health.rpc()
+	# Arena rooms own health updates on the server.  A player-node broadcast here
+	# would target every connected client, including clients that intentionally do
+	# not have this room's avatar in their scene tree.
+	if gm == null or not gm.is_multiplayer:
+		# This is a local inventory recalculation. Combat health is mirrored by
+		# the room authority, so a global Player-node RPC would be both redundant
+		# and invalid for clients that are in another match.
+		sync_max_health()
 	update_health_bar()
 
 
@@ -2218,7 +2224,11 @@ func update_facing_direction():
 	
 	# Blickrichtung an alle Clients synchronisieren
 	if multiplayer_replication_ready:
-		sync_facing_direction.rpc(is_facing_left)
+		var arena := get_parent()
+		if arena != null and arena.has_method("relay_player_facing"):
+			arena.call("relay_player_facing", is_facing_left)
+		else:
+			sync_facing_direction.rpc(is_facing_left)
 
 
 func _apply_visible_facing() -> void:
@@ -2623,7 +2633,7 @@ func _process_combat_timers(delta: float) -> void:
 	if dash_attack_bonus_timer > 0.0:
 		dash_attack_bonus_timer = max(dash_attack_bonus_timer - delta, 0.0)
 
-@rpc("unreliable")  
+@rpc("any_peer", "unreliable")
 func update_position(new_pos: Vector2, new_vel: Vector2):
 	if !is_multiplayer_authority():
 		position = new_pos
@@ -2632,7 +2642,16 @@ func update_position(new_pos: Vector2, new_vel: Vector2):
 
 func _publish_network_position() -> void:
 	if multiplayer_replication_ready:
-		update_position.rpc(position, velocity)
+		var arena := get_parent()
+		if arena != null and arena.has_method("relay_player_position"):
+			arena.call("relay_player_position", position, velocity)
+		else:
+			update_position.rpc(position, velocity)
+
+
+func _is_isolated_match_room() -> bool:
+	var arena := get_parent()
+	return arena != null and arena.has_method("request_pvp_hit") and arena.has_method("relay_player_position")
 
 
 func _sync_multiplayer_visual_state(delta: float) -> void:
@@ -2647,17 +2666,14 @@ func _sync_multiplayer_visual_state(delta: float) -> void:
 	if multiplayer_visual_sync_elapsed < MULTIPLAYER_VISUAL_SYNC_INTERVAL:
 		return
 	multiplayer_visual_sync_elapsed = 0.0
-	sync_multiplayer_visual_state.rpc(
-		is_facing_left,
-		current_character_id,
-		is_attacking,
-		is_dashing,
-		is_transforming_hero_form,
-		runtime_animation_state
-	)
+	var arena := get_parent()
+	if arena != null and arena.has_method("relay_player_visual_state"):
+		arena.call("relay_player_visual_state", is_facing_left, current_character_id, is_attacking, is_dashing, is_transforming_hero_form, runtime_animation_state)
+	else:
+		sync_multiplayer_visual_state.rpc(is_facing_left, current_character_id, is_attacking, is_dashing, is_transforming_hero_form, runtime_animation_state)
 
 
-@rpc("authority", "call_remote", "reliable")
+@rpc("any_peer", "call_remote", "reliable")
 func sync_multiplayer_visual_state(
 	new_facing_left: bool,
 	character_id: String,
@@ -3701,6 +3717,14 @@ func _resolve_attack_hit(target_body: Node2D, damage: float, knockback_direction
 	if target_body.is_in_group("players"):
 		_request_network_player_damage(target_body, int(damage))
 	else:
+		# Survival enemies are shared authoritative objects.  A client may present
+		# the sword contact, but only its room's server replica changes health and
+		# then broadcasts the approved damage to its two participants.
+		if get_parent() != null and target_body.has_meta("survival_enemy") and bool(target_body.get_meta("survival_enemy", false)) and get_parent().has_method("request_survival_enemy_hit"):
+			get_parent().call("request_survival_enemy_hit", String(target_body.name), int(damage), global_position, is_crit)
+			_spawn_feedback_text(str(int(damage)), Color(1.0, 0.62, 0.5), 1.0)
+			_play_melee_impact(is_crit)
+			return
 		# Some enemies own their physical knockback in take_damage(), while
 		# flying enemies deliberately leave it to the shared impact pipeline.
 		# Remembering the pre-hit velocity lets the pipeline add an impulse only
@@ -4313,7 +4337,7 @@ func reset_for_match_round(spawn_position: Vector2, locked: bool = true) -> void
 		_set_runtime_animation("idle", true)
 	update_health_bar()
 	if multiplayer_replication_ready:
-		update_position.rpc(global_position, Vector2.ZERO)
+		_publish_network_position()
 
 
 @rpc("any_peer", "call_local", "reliable")
@@ -4374,7 +4398,11 @@ func die() -> void:
 	# Prozesse stoppen
 	set_process(false)
 	set_physics_process(false)
-	player_died.rpc(name.to_int())
+	# Match deaths are already submitted to the room authority above; broadcasting
+	# this Player-node RPC would address every connected client, including rooms
+	# which intentionally do not instantiate this avatar.
+	if not _is_isolated_match_room():
+		player_died.rpc(name.to_int())
 	# Competitive round management deliberately suppresses the legacy automatic
 	# three-second respawn.  The match authority respawns every participant at a
 	# fair spawn point after it has awarded exactly one round score.
@@ -4428,7 +4456,7 @@ func respawn() -> void:
 	death_screen.hide()
 	if uses_runtime_character_animation:
 		_set_runtime_animation("idle", true)
-	update_position.rpc(global_position, Vector2.ZERO)
+	_publish_network_position()
 
 func drop_inventory_items() -> void:
 	if not inv or inv.slots.size() == 0:
@@ -4570,7 +4598,11 @@ func perform_attack() -> void:
 	if attack_combo_count > 1:
 		_show_feedback_banner("COMBO x%d" % attack_combo_count, Color(0.4, 0.9, 1.0), 0.28)
 
-	sync_attack.rpc(current_attack_step)  # Synchronisiere den Angriff mit allen Clients
+	var arena := get_parent()
+	if arena != null and arena.has_method("relay_player_attack"):
+		arena.call("relay_player_attack", current_attack_step)
+	else:
+		sync_attack.rpc(current_attack_step)
 
 	var primary_duration := float(combo_active_times[current_attack_step])
 	var hit_windows: Array[Vector2] = [ATTACK_HIT_WINDOWS[clampi(current_attack_step, 0, ATTACK_HIT_WINDOWS.size() - 1)]]
@@ -4849,7 +4881,8 @@ func update_glow_state() -> void:
 	_refresh_player_tuning_from_skills()
 	glow_changed.emit(is_glowing)
 	get_tree().call_group("spikes", "_on_player_glow_changed", is_glowing)
-	sync_glow_state.rpc(is_glowing)
+	if not _is_isolated_match_room():
+		sync_glow_state.rpc(is_glowing)
 	if canvas_layer and canvas_layer.has_method("set_glow_charge"):
 		canvas_layer.call(
 			"set_glow_charge",
@@ -5269,7 +5302,7 @@ func _enter_tree():
 		set_process(true)  # Für Animationen etc.
 		set_physics_process(true)  # Für Bewegungsupdates
 
-@rpc("call_local", "reliable")
+@rpc("any_peer", "call_local", "reliable")
 func sync_attack(combo_step: int = 0):
 	is_attacking = true
 	current_attack_step = combo_step
@@ -6049,7 +6082,7 @@ func finish_teleport() -> void:
 	teleport_cooldown_timer.start()
 	
 	# Synchronisiere den Teleport mit anderen Clients (Multiplayer)
-	if is_multiplayer_authority():
+	if is_multiplayer_authority() and not _is_isolated_match_room():
 		sync_teleport.rpc(global_position, is_facing_left)
 	
 	print("Teleportiert zu: ", global_position)
@@ -6123,7 +6156,8 @@ func activate_mana_shield():
 	tween.parallel().tween_property(shield_light, "energy", 1.0, 0.3).from(0.0)
 	
 	# Synchronisiere mit anderen Clients
-	sync_mana_shield_state.rpc(true, max_mana_shield_health)
+	if not _is_isolated_match_room():
+		sync_mana_shield_state.rpc(true, max_mana_shield_health)
 
 func deactivate_mana_shield():
 	if not mana_shield_active:
@@ -6140,7 +6174,8 @@ func deactivate_mana_shield():
 	tween.tween_callback(finalize_deactivation)
 	
 	# Synchronisiere mit anderen Clients
-	sync_mana_shield_state.rpc(false, 0)
+	if not _is_isolated_match_room():
+		sync_mana_shield_state.rpc(false, 0)
 
 func finalize_deactivation():
 	shield_sprite.visible = false
@@ -6243,7 +6278,8 @@ func start_sticky_form():
 	print("Sticky Form aktiviert! Haftet für ", STICKY_FORM_DURATION, " Sekunden an der Wand")
 	
 	# Synchronisiere mit anderen Clients
-	sync_sticky_form_state.rpc(true, STICKY_FORM_DURATION)
+	if not _is_isolated_match_room():
+		sync_sticky_form_state.rpc(true, STICKY_FORM_DURATION)
 
 func end_sticky_form():
 	if not is_sticky_form_active:
@@ -6258,7 +6294,8 @@ func end_sticky_form():
 	print("Sticky Form beendet")
 	
 	# Synchronisiere mit anderen Clients
-	sync_sticky_form_state.rpc(false, 0.0)
+	if not _is_isolated_match_room():
+		sync_sticky_form_state.rpc(false, 0.0)
 
 # RPC für Synchronisation
 @rpc("any_peer", "call_local", "reliable")
@@ -6321,7 +6358,8 @@ func start_gliding() -> void:
 	print("Slime Wings aktiviert - Gleiten!")
 	
 	# Synchronisiere mit anderen Clients
-	sync_glide_state.rpc(true)
+	if not _is_isolated_match_room():
+		sync_glide_state.rpc(true)
 
 func end_gliding() -> void:
 	is_gliding = false
@@ -6329,7 +6367,8 @@ func end_gliding() -> void:
 	print("Gleiten beendet")
 	
 	# Synchronisiere mit anderen Clients
-	sync_glide_state.rpc(false)
+	if not _is_isolated_match_room():
+		sync_glide_state.rpc(false)
 
 func apply_glide_physics(delta: float) -> void:
 	# Reduzierte Schwerkraft beim Gleiten

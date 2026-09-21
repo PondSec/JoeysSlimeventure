@@ -102,7 +102,7 @@ func _verify_replication() -> void:
 		# than failing because its single synthetic movement datagram was dropped.
 		for sample in 4:
 			get_tree().create_timer(0.12 * sample).timeout.connect(func() -> void:
-				own_player.update_position.rpc(own_player.position, Vector2.ZERO)
+				_arena.call("relay_player_position", own_player.position, Vector2.ZERO)
 			, CONNECT_ONE_SHOT)
 		get_tree().create_timer(1.4).timeout.connect(func() -> void:
 			# Register immediately before the reliable chat RPC.  Ordering on the
@@ -115,7 +115,7 @@ func _verify_replication() -> void:
 			own_player.set("is_attacking", true)
 			own_player.set("is_facing_left", true)
 			own_player.call("sync_multiplayer_visual_state", true, str(own_player.get("current_character_id")), true, false, false, "attack")
-			own_player.sync_multiplayer_visual_state.rpc(true, str(own_player.get("current_character_id")), true, false, false, "attack")
+			_arena.call("relay_player_visual_state", true, str(own_player.get("current_character_id")), true, false, false, "attack")
 			_arena.call("request_pvp_hit", target_id, 10, own_player.global_position)
 			_combat_submitted = true
 			print("[SMOKE alpha] Combat RPC submitted")
