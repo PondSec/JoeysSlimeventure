@@ -153,6 +153,13 @@ func _request_stats() -> void:
 	if steam != null and steam.has_method("requestCurrentStats"):
 		if not bool(steam.call("requestCurrentStats")):
 			_log_failure_once("stats", "[Steam] Failed to request current stats.")
+		return
+	# Steamworks SDK 1.61 removed RequestCurrentStats. Current GodotSteam
+	# versions load the local account through RequestUserStats instead.
+	if steam != null and steam.has_method("requestUserStats") and steam.has_method("getSteamID"):
+		steam.call("requestUserStats", steam.call("getSteamID"))
+		return
+	_log_failure_once("stats", "[Steam] This GodotSteam build has no user-stats request API.")
 
 
 func _flush_pending_achievements() -> void:
@@ -163,11 +170,16 @@ func _flush_pending_achievements() -> void:
 
 
 func _connect_stats_signal() -> void:
-	if steam == null or not steam.has_signal("current_stats_received"):
+	if steam == null:
 		return
-	var callback := Callable(self, "_on_current_stats_received")
-	if not steam.is_connected("current_stats_received", callback):
-		steam.connect("current_stats_received", callback)
+	if steam.has_signal("current_stats_received"):
+		var legacy_callback := Callable(self, "_on_current_stats_received")
+		if not steam.is_connected("current_stats_received", legacy_callback):
+			steam.connect("current_stats_received", legacy_callback)
+	if steam.has_signal("user_stats_received"):
+		var callback := Callable(self, "_on_user_stats_received")
+		if not steam.is_connected("user_stats_received", callback):
+			steam.connect("user_stats_received", callback)
 
 
 func _on_current_stats_received(_game_id: Variant = null, result: Variant = true, _user_id: Variant = null) -> void:
@@ -177,7 +189,26 @@ func _on_current_stats_received(_game_id: Variant = null, result: Variant = true
 	if result is int and result != 1:
 		_log_failure_once("stats_received", "[Steam] Failed to receive current stats (result %s)." % result)
 		return
+	_mark_stats_ready()
+
+
+func _on_user_stats_received(game_id: Variant = null, result: Variant = 1, _user_id: Variant = null) -> void:
+	if game_id is int and int(game_id) != APP_ID:
+		return
+	if result is int and result != 1:
+		_log_failure_once("stats_received", "[Steam] Failed to receive user stats (result %s)." % result)
+		return
+	if result is bool and not result:
+		_log_failure_once("stats_received", "[Steam] Failed to receive user stats.")
+		return
+	_mark_stats_ready()
+
+
+func _mark_stats_ready() -> void:
+	if are_stats_ready:
+		return
 	are_stats_ready = true
+	print("[Steam] Stats ready")
 	_flush_pending_achievements()
 	stats_ready.emit()
 
