@@ -641,7 +641,12 @@ func _on_quit_button_pressed() -> void:
 
 func _on_matchmaking_pressed() -> void:
 	var game_manager = get_node(\"/root/GameManager\")
-	game_manager.join_dedicated_server()
+	game_manager.start_global_pvp_matchmaking()
+	hide()
+
+func _on_steam_coop_pressed() -> void:
+	var game_manager = get_node(\"/root/GameManager\")
+	game_manager.host_steam_coop()
 	hide()
 
 func change_scene(scene_path: String) -> void:
@@ -858,7 +863,12 @@ layout_mode = 2
 [node name="matchmaking" type="Button" parent="MultiPlayer/VBoxContainer"]
 custom_minimum_size = Vector2(100, 50)
 layout_mode = 2
-text = "Matchmaking"
+text = "Weltweites PvP"
+
+[node name="SteamCoop" type="Button" parent="MultiPlayer/VBoxContainer"]
+custom_minimum_size = Vector2(100, 50)
+layout_mode = 2
+text = "Freunde-Koop hosten & einladen"
 
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/PlayButton" to="." method="_on_play_button_pressed"]
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/SettingsButton" to="." method="_on_settings_button_pressed"]
@@ -866,4 +876,4 @@ text = "Matchmaking"
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/CreditsButton" to="." method="_on_texture_button_pressed"]
 [connection signal="pressed" from="Buttons/MarginContainer/VBoxContainer/QuitButton" to="." method="_on_quit_button_pressed"]
 [connection signal="pressed" from="MultiPlayer/VBoxContainer/matchmaking" to="." method="_on_matchmaking_pressed"]
-[connection signal="pressed" from="MultiPlayer/VBoxContainer/matchmaking" to="." method="_on_host_game_pressed"]
+[connection signal="pressed" from="MultiPlayer/VBoxContainer/SteamCoop" to="." method="_on_steam_coop_pressed"]

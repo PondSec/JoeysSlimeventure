@@ -7,6 +7,9 @@ const FADE_TIME := 0.45
 var _can_skip := false
 
 func _ready() -> void:
+	if "--dedicated-server" in OS.get_cmdline_args() or "--dedicated-server" in OS.get_cmdline_user_args():
+		call_deferred("_launch_dedicated_server")
+		return
 	modulate.a = 0.0
 	var fade_in := create_tween()
 	fade_in.tween_property(self, "modulate:a", 1.0, FADE_TIME).set_trans(Tween.TRANS_SINE)
@@ -14,6 +17,10 @@ func _ready() -> void:
 	_can_skip = true
 	await get_tree().create_timer(DISPLAY_TIME - 0.35).timeout
 	_show_main_menu()
+
+
+func _launch_dedicated_server() -> void:
+	get_tree().change_scene_to_file("res://Server/dedicated_server.tscn")
 
 func _unhandled_input(event: InputEvent) -> void:
 	if _can_skip and (event.is_action_pressed("ui_accept") or event.is_action_pressed("ui_cancel") or event is InputEventMouseButton):

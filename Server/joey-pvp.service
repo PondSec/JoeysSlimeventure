@@ -1,0 +1,17 @@
+[Unit]
+Description=Joey's Slimeventure dedicated PvP arena
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=rescueadmin
+WorkingDirectory=/opt/joey-pvp
+ExecStart=/opt/joey-pvp/JoeysSlimeventure.x86_64 --headless --dedicated-server
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -80,7 +80,7 @@ func _on_confirm_pressed():
 	var selected_index = item_select.get_selected_id()
 	
 	if receiver_id.is_empty():
-		show_error(\"Bitte Empfänger-ID eingeben\")
+		show_error(\"Steam-Freundesnamen eingeben\")
 		return
 	
 	if selected_index == -1:
@@ -102,7 +102,9 @@ func _on_confirm_pressed():
 		return
 	
 	var item_name = selected_item_slot.item.name
-	player_node.send_item_to_player(receiver_id, item_name)
+	if not player_node.send_item_to_player(receiver_id, item_name):
+		show_error(\"Steam-Freund nicht gefunden oder Transfer nicht verfügbar\")
+		return
 	
 	selected_item_slot.amount -= 1
 	if selected_item_slot.amount <= 0:
@@ -183,7 +185,7 @@ custom_minimum_size = Vector2(50, 50)
 layout_mode = 2
 theme_override_styles/focus = SubResource("StyleBoxTexture_7jn76")
 theme_override_styles/normal = SubResource("StyleBoxTexture_7qt5v")
-placeholder_text = "    Player ID"
+placeholder_text = "    Steam-Freundesname"
 
 [node name="OptionButton" type="OptionButton" parent="Panel/VBoxContainer"]
 texture_filter = 1

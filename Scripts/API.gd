@@ -6,6 +6,7 @@ var url = "https://api.joeyslime.com/items"
 @onready var http_request = $HTTPRequest
 @export var inv: Inv  # Referenz zum Inventar des Spielers
 @onready var player: CharacterBody2D  # Referenz auf den Spieler (ändere dies je nach Struktur)
+var request_in_flight := false
 
 # Definiere PLAYER_ID_PATH hier
 const PLAYER_ID_PATH = "user://saves/player_id.txt"
@@ -15,7 +16,12 @@ func _ready() -> void:
 	var players = get_tree().get_nodes_in_group("players")
 	
 	if players.size() > 0:
-		player = players[0]  # Nehme den ersten Spieler in der Liste
+		for candidate in players:
+			if candidate.is_multiplayer_authority():
+				player = candidate
+				break
+		if player == null:
+			player = players[0]
 		print("Spieler gefunden:", player.name)
 	else:
 		print("Fehler: Kein Spieler in der Gruppe 'players' gefunden.")
@@ -25,6 +31,8 @@ func _ready() -> void:
 	send_request()
 
 func send_request():
+	if request_in_flight:
+		return
 	# UUID aus der Datei laden
 	var player_id = ""
 	if FileAccess.file_exists(PLAYER_ID_PATH):
@@ -35,13 +43,18 @@ func send_request():
 		else:
 			print("❌ Fehler beim Laden der Spieler-ID.")
 	
-	# Füge die player_id als Query-Parameter zur URL hinzu
+	player_id = SteamManager.get_player_identity(player_id)
+	if player_id.is_empty():
+		return
+	request_in_flight = true
+	# Füge die Spieleridentität als Query-Parameter zur URL hinzu
 	var request_url = url + "?player_id=" + player_id
-	
-	# Sende die GET-Anfrage ohne Body
-	http_request.request(request_url)
+	var error: Error = http_request.request(request_url)
+	if error != OK:
+		request_in_flight = false
 
 func _on_request_completed(results, response_code, headers, body):
+	request_in_flight = false
 	if response_code != 200:
 		print("Fehler: API-Antwort ungültig. Code: ", response_code)
 		return

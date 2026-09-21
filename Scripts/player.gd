@@ -515,6 +515,11 @@ const HERO_TRANSFORM_HERO_SCALE := Vector2(15.625, 15.625)
 const HERO_TRANSFORM_HERO_POSITION := Vector2(0.000183105, -114.0)
 var transform_death_sprite: Sprite2D
 var transform_holy_light: PointLight2D
+var multiplayer_visual_sync_elapsed := 0.0
+const MULTIPLAYER_VISUAL_SYNC_INTERVAL := 0.08
+## The arena enables this only after every peer has received this avatar's path.
+## It prevents startup RPCs from racing a remote spawn message.
+var multiplayer_replication_ready := true
 
 var stun_timer: Timer = Timer.new()
 var save_load = preload("res://Scripts/SaveLoad.gd").new()
@@ -550,7 +555,22 @@ var softlock_recovery_host: Node
 var softlock_embedded_timer := 0.0
 var softlock_recovery_cooldown := 0.0
 
+
+func _is_dedicated_server_runtime() -> bool:
+	# Exported services may pass custom flags directly, while local Godot smoke
+	# tests place them after `--`. Accept both forms so headless behavior is
+	# identical in CI, local testing and the deployed systemd service.
+	return "--dedicated-server" in OS.get_cmdline_args() or "--dedicated-server" in OS.get_cmdline_user_args()
+
 func _ready() -> void:
+	# The dedicated match host keeps lightweight avatar nodes solely for their
+	# replicated transforms and RPC paths. It must never open local saves, make
+	# daily-item API calls, or render/UI-initialize a fake player for each peer.
+	if _is_dedicated_server_runtime():
+		set_process(false)
+		set_process_input(false)
+		set_physics_process(false)
+		return
 	var chapter_qa_mode := _is_chapter_qa_mode()
 	if OS.has_feature("mobile") or OS.has_feature("web"):
 		setup_touch_controls()
@@ -647,10 +667,11 @@ func _ready() -> void:
 	inv.update.connect(_on_inventory_equipment_changed)
 	if not chapter_qa_mode:
 		add_child(api_script)
-		# Timer für regelmäßige API-Abfragen (alle 3 Sekunden)
+		# Daily claims are idempotent on the API; a minute is responsive for
+		# transfers without hammering the service or duplicating local drops.
 		var api_timer = Timer.new()
 		add_child(api_timer)
-		api_timer.wait_time = 3.0
+		api_timer.wait_time = 60.0
 		api_timer.autostart = true
 		api_timer.timeout.connect(_on_api_timer_timeout)
 		api_timer.start()
@@ -1051,7 +1072,9 @@ func update_health_bonus():
 
 	max_health = int(base_max_health * bonus)
 	current_health = min(current_health, max_health)
-	sync_max_health.rpc()
+	var gm = get_node_or_null("/root/GameManager")
+	if (gm == null or not gm.is_multiplayer) or (is_multiplayer_authority() and multiplayer_replication_ready):
+		sync_max_health.rpc()
 	update_health_bar()
 
 
@@ -2149,7 +2172,8 @@ func update_facing_direction():
 	_update_equipped_weapon_visual()
 	
 	# Blickrichtung an alle Clients synchronisieren
-	sync_facing_direction.rpc(is_facing_left)
+	if multiplayer_replication_ready:
+		sync_facing_direction.rpc(is_facing_left)
 
 
 func _apply_visible_facing() -> void:
@@ -2201,6 +2225,7 @@ func sync_facing_direction(new_facing: bool):
 
 func _process(delta: float) -> void:
 	_sync_runtime_body_visual()
+	_sync_multiplayer_visual_state(delta)
 
 	if !is_multiplayer_authority():
 		return
@@ -2393,7 +2418,7 @@ func _physics_process(delta: float) -> void:
 			move_and_slide()
 			_update_runtime_character_animation(delta)
 			_sync_runtime_body_visual()
-			update_position.rpc(position, velocity)
+			_publish_network_position()
 			return
 		handle_input()
 		_update_glow_energy(delta)
@@ -2405,7 +2430,7 @@ func _physics_process(delta: float) -> void:
 			_process_active_attack_overlaps()
 			update_animations()
 			_update_runtime_character_animation(delta)
-			update_position.rpc(position, velocity)
+			_publish_network_position()
 		elif is_in_water:
 			apply_water_physics(delta)
 		else:
@@ -2429,7 +2454,7 @@ func _physics_process(delta: float) -> void:
 			update_animations()
 			_update_runtime_character_animation(delta)
 			_update_footsteps()
-			update_position.rpc(position, velocity)
+			_publish_network_position()
 
 	_sync_runtime_body_visual()
 	
@@ -2532,6 +2557,60 @@ func update_position(new_pos: Vector2, new_vel: Vector2):
 	if !is_multiplayer_authority():
 		position = new_pos
 		velocity = new_vel
+
+
+func _publish_network_position() -> void:
+	if multiplayer_replication_ready:
+		update_position.rpc(position, velocity)
+
+
+func _sync_multiplayer_visual_state(delta: float) -> void:
+	if not is_multiplayer_authority():
+		return
+	var gm = get_node_or_null("/root/GameManager")
+	if gm == null or not gm.is_multiplayer:
+		return
+	if not multiplayer_replication_ready:
+		return
+	multiplayer_visual_sync_elapsed += delta
+	if multiplayer_visual_sync_elapsed < MULTIPLAYER_VISUAL_SYNC_INTERVAL:
+		return
+	multiplayer_visual_sync_elapsed = 0.0
+	sync_multiplayer_visual_state.rpc(
+		is_facing_left,
+		current_character_id,
+		is_attacking,
+		is_dashing,
+		is_transforming_hero_form,
+		runtime_animation_state
+	)
+
+
+@rpc("authority", "call_remote", "unreliable")
+func sync_multiplayer_visual_state(
+	new_facing_left: bool,
+	character_id: String,
+	attacking: bool,
+	dashing: bool,
+	transforming: bool,
+	animation_state: String
+) -> void:
+	if is_multiplayer_authority():
+		return
+	is_facing_left = new_facing_left
+	is_attacking = attacking
+	is_dashing = dashing
+	is_transforming_hero_form = transforming
+	runtime_animation_state = animation_state
+	if current_character_id != character_id:
+		_apply_character_profile(character_id)
+		is_hero_form_active = character_id == CharacterCatalog.MALE_HERO_ID
+	if $PlayerSprite != null:
+		$PlayerSprite.flip_h = is_facing_left
+	if $PlayerSprite/AttackSprite != null:
+		$PlayerSprite/AttackSprite.flip_h = is_facing_left
+	_sync_runtime_body_visual()
+	_update_equipped_weapon_visual()
 
 func apply_water_physics(delta: float) -> void:
 	# --- Wasserwiderstand (Drag) ---
@@ -3549,7 +3628,7 @@ func _resolve_attack_hit(target_body: Node2D, damage: float, knockback_direction
 	var landed_finisher := false
 	var hit_confirmed := true
 	if target_body.is_in_group("players"):
-		target_body.take_damage.rpc(int(damage), global_position)
+		_request_network_player_damage(target_body, int(damage))
 	else:
 		# Some enemies own their physical knockback in take_damage(), while
 		# flying enemies deliberately leave it to the shared impact pipeline.
@@ -3965,12 +4044,22 @@ func _apply_weapon_hit_effects(target: Node2D, base_damage: int, knockback_direc
 					_deal_weapon_bonus_damage(extra_target, int(round(base_damage * 0.28)), knockback_direction, Color(0.92, 0.84, 0.62), "")
 
 
+func _request_network_player_damage(target: Node2D, amount: int) -> void:
+	var arena := get_parent()
+	if arena != null and arena.has_method("request_pvp_hit") and target.name.is_valid_int():
+		arena.call("request_pvp_hit", int(target.name), amount, global_position)
+		return
+	# This fallback preserves local/single-player compatibility for scenes that
+	# do not use the replicated arena controller.
+	target.take_damage.rpc(amount, global_position)
+
+
 func _deal_weapon_bonus_damage(target: Node2D, amount: int, knockback_direction: Vector2, color: Color, label: String) -> void:
 	if amount <= 0 or not is_instance_valid(target):
 		return
 
 	if target.is_in_group("players"):
-		target.take_damage.rpc(amount, global_position)
+		_request_network_player_damage(target, amount)
 	else:
 		_apply_damage_to_enemy(target, amount, knockback_direction * 0.55, false)
 
@@ -3989,7 +4078,7 @@ func _run_periodic_weapon_damage(target: Node2D, damage_per_tick: int, ticks: in
 		if not is_instance_valid(target):
 			return
 		if target.is_in_group("players"):
-			target.take_damage.rpc(damage_per_tick, global_position)
+			_request_network_player_damage(target, damage_per_tick)
 		else:
 			_apply_damage_to_enemy(target, damage_per_tick, knockback_direction * 0.25, false)
 		_spawn_feedback_text(str(damage_per_tick), color, 0.72)
@@ -4850,6 +4939,8 @@ func load_game():
 	load_skills()  # Lade auch die Skills
 
 func _exit_tree():
+	if _is_dedicated_server_runtime():
+		return
 	save_game()  # Speichert das Spiel, wenn das Spiel beendet wird
 
 func drop_hotbar_item():
@@ -4935,9 +5026,17 @@ func open_transfer_dialog():
 	dialog.popup_centered()
 	dialog.refresh_item_list()  # Liste beim Öffnen aktualisieren
 
-func send_item_to_player(receiver_id: String, item_name: String) -> void:
+func send_item_to_player(receiver_name: String, item_name: String) -> bool:
+	var receiver_id := SteamManager.resolve_friend_identity(receiver_name)
+	if receiver_id.is_empty():
+		show_notification("Empfänger nicht in deiner Steam-Freundesliste gefunden.")
+		return false
+	var sender_id := SteamManager.get_player_identity("")
+	if sender_id.is_empty():
+		show_notification("Item-Transfer benötigt eine Steam-Anmeldung.")
+		return false
 	var data = {
-		"senderId": str(get_instance_id()),
+		"senderId": sender_id,
 		"receiverId": receiver_id,
 		"itemId": item_name
 	}
@@ -4955,6 +5054,8 @@ func send_item_to_player(receiver_id: String, item_name: String) -> void:
 
 	if error != OK:
 		push_error("Fehler beim Senden des Items: " + str(error))
+		return false
+	return true
 
 func verify_signature(payload: String, signature: String) -> bool:
 	var crypto = Crypto.new()

@@ -27,6 +27,10 @@ var _logged_failures: Dictionary = {}
 
 
 func _ready() -> void:
+	if "--dedicated-server" in OS.get_cmdline_args() or "--dedicated-server" in OS.get_cmdline_user_args():
+		# Competitive ENet matches do not require a logged-in Steam client on the
+		# Linux host. Avoid loading the desktop Steam runtime in the service.
+		return
 	_initialize_steam()
 	CombatEvents.enemy_defeated.connect(_on_enemy_defeated)
 
@@ -100,6 +104,27 @@ func unlock(api_name: String) -> bool:
 
 func is_achievement_unlocked(api_name: String) -> bool:
 	return _is_achievement_unlocked(api_name)
+
+
+func get_player_identity(fallback_identity: String = "") -> String:
+	if is_initialized and steam != null and steam.has_method("getSteamID"):
+		return "steam:%s" % str(steam.call("getSteamID"))
+	return fallback_identity
+
+
+func resolve_friend_identity(friend_name_or_steam_id: String) -> String:
+	if not is_initialized or steam == null:
+		return ""
+	var requested := friend_name_or_steam_id.strip_edges()
+	if requested.begins_with("steam:"):
+		requested = requested.trim_prefix("steam:")
+	var friend_count := int(steam.call("getFriendCount", 4)) if steam.has_method("getFriendCount") else 0
+	for index in range(maxi(friend_count, 0)):
+		var friend_id := str(steam.call("getFriendByIndex", index, 4))
+		var friend_name := str(steam.call("getFriendPersonaName", int(friend_id))) if steam.has_method("getFriendPersonaName") else ""
+		if requested == friend_id or requested.to_lower() == friend_name.to_lower():
+			return "steam:%s" % friend_id
+	return ""
 
 
 func debug_status() -> Dictionary:
