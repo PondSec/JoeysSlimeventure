@@ -80,8 +80,6 @@ func _on_peer_connected(peer_id: int) -> void:
 
 func _on_peer_disconnected(peer_id: int) -> void:
 	_player_names.erase(peer_id)
-	if multiplayer.is_server():
-		_sync_player_names.rpc(_player_names)
 	var player := get_node_or_null(str(peer_id))
 	if player != null:
 		player.queue_free()
