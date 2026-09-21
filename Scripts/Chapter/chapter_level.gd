@@ -1767,10 +1767,9 @@ func _spawn_cave_collision_mesh(grid: Array) -> void:
 
 
 func _spawn_generated_overgrowth(grid: Array) -> void:
-	# Ranken wachsen als kleine, zusammenhaengende Bueschel an natuerlichen
-	# Decken- und Schachtkanten. Einzelne, gleich lange Rasterlinien wirkten wie
-	# Markierungen; unterschiedliche Laengen und versetzte Begleittriebe geben
-	# den Hoehlen das dichte, gemuetliche Dschungel-Gefuehl der Referenz.
+	# Every generated vine starts at a real ceiling edge and grows all the way to
+	# the first floor below it.  Randomly cut-off trails looked suspended in mid
+	# air and made the cave geometry harder to read.
 	var cluster_count: int = 0
 	var previous_cluster_x: int = -99
 	for grid_x: int in range(3, level_size_tiles.x - 4):
@@ -1779,24 +1778,25 @@ func _spawn_generated_overgrowth(grid: Array) -> void:
 		for grid_y: int in range(2, level_size_tiles.y - 9):
 			if not _is_vine_anchor(grid, grid_x, grid_y) or rng.randf() > 0.51:
 				continue
-			var primary_length: int = rng.randi_range(4, 12)
-			if not _has_vine_clearance(grid, grid_x, grid_y, primary_length):
+			var primary_start_y := grid_y + 1
+			var primary_length := _get_grounded_vine_segment_count(grid, grid_x, primary_start_y)
+			if primary_length <= 0:
 				continue
-			_spawn_vine_trail(grid_x, grid_y + 1, primary_length, rng.randf_range(-0.34, 0.34), 0.38)
+			_spawn_vine_trail(grid_x, primary_start_y, primary_length, rng.randf_range(-0.34, 0.34), 0.38)
 
 			var companion_offset: int = -1 if rng.randf() < 0.5 else 1
 			var companion_x: int = grid_x + companion_offset
-			var companion_length: int = maxi(3, primary_length - rng.randi_range(1, 4))
-			if _has_vine_clearance(grid, companion_x, grid_y, companion_length):
-				_spawn_vine_trail(companion_x, grid_y + 1 + rng.randi_range(0, 1), companion_length, float(companion_offset) * 0.42, 0.28)
+			var companion_length := _get_grounded_vine_segment_count(grid, companion_x, primary_start_y)
+			if _is_vine_anchor(grid, companion_x, grid_y) and companion_length > 0:
+				_spawn_vine_trail(companion_x, primary_start_y, companion_length, float(companion_offset) * 0.42, 0.28)
 
-			# Ein dritter, kurzer Trieb bricht die Symmetrie und verbindet die
-			# Saeulen optisch zu einem einzelnen organischen Bueschel.
+			# A third rooted strand keeps clusters organic, but it follows the same
+			# floor rule rather than ending as a floating short tendril.
 			if rng.randf() < 0.84:
 				var tendril_x: int = grid_x - companion_offset
-				var tendril_length: int = rng.randi_range(2, 4)
-				if _has_vine_clearance(grid, tendril_x, grid_y, tendril_length):
-					_spawn_vine_trail(tendril_x, grid_y + 2, tendril_length, float(-companion_offset) * 0.62, 0.22)
+				var tendril_length := _get_grounded_vine_segment_count(grid, tendril_x, primary_start_y)
+				if _is_vine_anchor(grid, tendril_x, grid_y) and tendril_length > 0:
+					_spawn_vine_trail(tendril_x, primary_start_y, tendril_length, float(-companion_offset) * 0.62, 0.22)
 			previous_cluster_x = grid_x
 			cluster_count += 1
 			if cluster_count >= 90:
@@ -3125,6 +3125,23 @@ func _has_vine_clearance(grid: Array, grid_x: int, anchor_y: int, length: int) -
 			if _is_solid(grid, grid_x + offset_x, anchor_y + offset_y):
 				return false
 	return true
+
+
+func _get_grounded_vine_segment_count(grid: Array, grid_x: int, start_y: int) -> int:
+	# `start_y` is the first open tile below a solid ceiling.  The last visual
+	# sprig is placed at the top of the first floor tile, so generated vines
+	# consistently meet a real surface instead of stopping at a random length.
+	var floor_y := _find_climb_vine_floor(grid, grid_x, start_y - 1)
+	if floor_y >= level_size_tiles.y or floor_y <= start_y:
+		return 0
+	if not _has_vine_clearance(grid, grid_x, start_y - 1, floor_y - start_y - 1):
+		return 0
+	var visual_drop_pixels := float(floor_y - start_y) * TILE_SIZE - 5.0
+	# Trails use 22px overlapping authored sprigs.  Do not create a partially
+	# filled long shaft: reject impractically deep decoration rather than
+	# violating the floor-to-ceiling placement rule.
+	var segment_count := int(ceil(visual_drop_pixels / 22.0)) + 1
+	return segment_count if segment_count <= 64 else 0
 
 
 func _spawn_vine_trail(grid_x: int, grid_y: int, segment_count: int, rotation: float, light_energy: float) -> void:
