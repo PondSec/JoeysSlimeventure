@@ -86,12 +86,32 @@ func _on_peer_disconnected(id: int) -> void:
 	_remove_from_queue(id)
 	var room_id = int(player_room.get(id, 0))
 	player_names.erase(id)
+	player_room.erase(id)
 	var player = get_node_or_null(str(id))
 	if player != null: player.queue_free()
 	if room_id > 0 and rooms.has(room_id):
 		var room: Dictionary = rooms[room_id]
+		room.members.erase(id)
+		room.teams.erase(id)
+		room.alive.erase(id)
+		rooms[room_id] = room
 		if not bool(room.finished):
-			_finish_room(room_id, "OPPONENT LEFT", _opposing_team(room, id))
+			call_deferred("_finish_after_disconnect", room_id, _opposing_team(room, id))
+
+
+func _peer_is_connected(id: int) -> bool:
+	return multiplayer.get_peers().has(id)
+
+
+func _finish_after_disconnect(room_id: int, winner: String) -> void:
+	if not rooms.has(room_id) or bool(rooms[room_id].finished): return
+	var has_remaining_peer := false
+	for member_id in rooms[room_id].members:
+		has_remaining_peer = has_remaining_peer or _peer_is_connected(member_id)
+	if has_remaining_peer:
+		_finish_room(room_id, "OPPONENT LEFT", winner)
+	else:
+		rooms.erase(room_id)
 
 
 func _register_local_player_name(registered_name: String = "") -> void:
@@ -174,6 +194,7 @@ func _create_room(mode: String, members: Array[int]) -> void:
 	# Add each room-mate to each client only now.  Every match is isolated even
 	# though the UDP server hosts several rooms on one process.
 	for receiver in members:
+		if not _peer_is_connected(receiver): continue
 		for visible_id in members:
 			var avatar = get_node_or_null(str(visible_id)) as Node2D
 			if avatar != null: _spawn_player_for_peer.rpc_id(receiver, visible_id, avatar.global_position)
@@ -202,7 +223,7 @@ func _start_round(room_id: int) -> void:
 	room.transitioning = true
 	for id in room.members:
 		room.alive[id] = true
-		_reset_room_avatar.rpc_id(id, id, _room_spawn(room, id), true)
+		if _peer_is_connected(id): _reset_room_avatar.rpc_id(id, id, _room_spawn(room, id), true)
 	rooms[room_id] = room
 	_sync_room(room_id, "ROUND %d" % int(room.round), "3")
 	_countdown(room_id, false)
@@ -216,7 +237,7 @@ func _start_wave(room_id: int) -> void:
 	room.transitioning = true
 	for id in room.members:
 		room.alive[id] = true
-		_reset_room_avatar.rpc_id(id, id, _room_spawn(room, id), true)
+		if _peer_is_connected(id): _reset_room_avatar.rpc_id(id, id, _room_spawn(room, id), true)
 	rooms[room_id] = room
 	_sync_room(room_id, "BOSS WAVE %d" % int(room.wave) if int(room.wave) % 5 == 0 else "WAVE %d" % int(room.wave), "3")
 	_countdown(room_id, true)
@@ -235,7 +256,7 @@ func _countdown(room_id: int, survival: bool) -> void:
 	room.state = State.WAVE_ACTIVE if survival else State.PLAYING
 	room.transitioning = false
 	for id in room.members:
-		_set_room_avatar_state.rpc_id(id, id, false, true)
+		if _peer_is_connected(id): _set_room_avatar_state.rpc_id(id, id, false, true)
 	rooms[room_id] = room
 	_sync_room(room_id, _mode_label(room.mode), "WAVE %d" % int(room.wave) if survival else "FIGHT!")
 	if survival: _spawn_wave_enemies(room_id)
@@ -344,7 +365,7 @@ func _relay_player_rpc(sender: int, kind: String, payload: Array) -> void:
 	if avatar == null: return
 	for receiver in rooms[room_id].members:
 		if receiver == sender: continue
-		_receive_room_replication.rpc_id(receiver, sender, kind, payload)
+		if _peer_is_connected(receiver): _receive_room_replication.rpc_id(receiver, sender, kind, payload)
 
 
 @rpc("any_peer", "reliable")
@@ -377,7 +398,7 @@ func _validate_hit(attacker_id: int, target_id: int, damage: int, origin: Vector
 	# resulting approved hit to the target's room client.
 	target.current_health = max(0, int(target.current_health) - approved_damage)
 	print("[MATCH] Accepted hit %d -> %d" % [attacker_id, target_id])
-	_apply_room_player_damage.rpc_id(target_id, target_id, approved_damage, attacker.global_position)
+	if _peer_is_connected(target_id): _apply_room_player_damage.rpc_id(target_id, target_id, approved_damage, attacker.global_position)
 
 
 @rpc("any_peer", "reliable")
@@ -390,7 +411,7 @@ func report_pvp_death(_fell: bool) -> void:
 	if int(room.state) not in [State.PLAYING, State.WAVE_ACTIVE] or not bool(room.alive.get(id, false)): return
 	room.alive[id] = false
 	rooms[room_id] = room
-	_eliminate_room_avatar.rpc_id(id, id)
+	if _peer_is_connected(id): _eliminate_room_avatar.rpc_id(id, id)
 	if room.mode == "cave_survival":
 		for value in room.alive.values():
 			if bool(value): return
@@ -422,7 +443,7 @@ func _end_round(room_id: int, winner: String) -> void:
 	rooms[room_id] = room
 	_sync_room(room_id, "ROUND WON — %s" % _team_label(winner), "%d : %d" % [room.scores.A, room.scores.B])
 	for id in room.members:
-		_set_room_avatar_state.rpc_id(id, id, true, true)
+		if _peer_is_connected(id): _set_room_avatar_state.rpc_id(id, id, true, true)
 	await get_tree().create_timer(2.2).timeout
 	if not rooms.has(room_id): return
 	room = rooms[room_id]
@@ -439,7 +460,7 @@ func _spawn_wave_enemies(room_id: int) -> void:
 			var position := _enemy_spawn(room_id, index + int(room.wave))
 			_spawn_enemy_local(room_id, enemy_name, str(kind), position)
 			for member_id in room.members:
-				_spawn_enemy.rpc_id(member_id, room_id, enemy_name, str(kind), position)
+				if _peer_is_connected(member_id): _spawn_enemy.rpc_id(member_id, room_id, enemy_name, str(kind), position)
 	_sync_room(room_id, "WAVE %d" % int(room.wave), "Enemies Remaining: %d" % _room_enemy_count(room_id))
 
 
@@ -525,7 +546,7 @@ func _validate_survival_enemy_hit(attacker_id: int, enemy_name: String, damage: 
 	var approved_damage := clampi(damage, 1, 60)
 	_apply_survival_enemy_damage_local(enemy_name, approved_damage, attacker.global_position, is_crit)
 	for member_id in room.members:
-		_apply_survival_enemy_damage.rpc_id(member_id, enemy_name, approved_damage, attacker.global_position, is_crit)
+		if _peer_is_connected(member_id): _apply_survival_enemy_damage.rpc_id(member_id, enemy_name, approved_damage, attacker.global_position, is_crit)
 
 
 @rpc("authority", "reliable")
@@ -547,7 +568,7 @@ func _finish_room(room_id: int, headline: String, winner: String) -> void:
 	room.state = State.RESULTS
 	rooms[room_id] = room
 	for id in room.members:
-		_set_room_avatar_state.rpc_id(id, id, true, true)
+		if _peer_is_connected(id): _set_room_avatar_state.rpc_id(id, id, true, true)
 	var detail = "Wave Reached: %d\nEnemies Defeated: %d\nBosses Defeated: %d" % [room.wave, room.kills, room.bosses] if room.mode == "cave_survival" else "%s\n%d : %d" % [_team_winner_name(room, winner), room.scores.A, room.scores.B]
 	_sync_room(room_id, headline, detail)
 	print("[MATCH] Room %d finished" % room_id)
@@ -571,7 +592,7 @@ func _register_rematch_vote(player_id: int) -> void:
 	room.rematch_votes[player_id] = true
 	rooms[room_id] = room
 	for member_id in room.members:
-		_queue_status.rpc_id(member_id, "Rematch ready: %d / %d" % [room.rematch_votes.size(), room.members.size()])
+		if _peer_is_connected(member_id): _queue_status.rpc_id(member_id, "Rematch ready: %d / %d" % [room.rematch_votes.size(), room.members.size()])
 	if room.rematch_votes.size() < room.members.size(): return
 	var members: Array[int] = room.members.duplicate()
 	var mode := String(room.mode)
@@ -594,7 +615,7 @@ func _sync_room(room_id: int, title: String, emphasis: String) -> void:
 	if not rooms.has(room_id): return
 	var room: Dictionary = rooms[room_id]
 	for id in room.members:
-		_sync_room_ui.rpc_id(id, room_id, room.teams, room.scores, room.mode, room.state, title, emphasis)
+		if _peer_is_connected(id): _sync_room_ui.rpc_id(id, room_id, room.teams, room.scores, room.mode, room.state, title, emphasis)
 
 
 @rpc("authority", "reliable")
@@ -672,7 +693,7 @@ func _submit_chat(text: String) -> void:
 func _broadcast_room_chat(room_id: int, text: String) -> void:
 	if not rooms.has(room_id): return
 	for member_id in rooms[room_id].members:
-		_broadcast_chat.rpc_id(member_id, text)
+		if _peer_is_connected(member_id): _broadcast_chat.rpc_id(member_id, text)
 
 
 @rpc("authority", "reliable")

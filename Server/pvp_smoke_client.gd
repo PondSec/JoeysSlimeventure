@@ -17,6 +17,8 @@ var _visual_verified := false
 var _fall_respawn_verified := false
 var _host := "127.0.0.1"
 var _port := 5999
+var _test_mode := "classic_pvp"
+var _passive_mode_test := false
 
 
 func _ready() -> void:
@@ -30,6 +32,10 @@ func _ready() -> void:
 	var port_index := args.find("--test-port")
 	if port_index >= 0 and port_index + 1 < args.size():
 		_port = int(args[port_index + 1])
+	var mode_index := args.find("--test-mode")
+	if mode_index >= 0 and mode_index + 1 < args.size():
+		_test_mode = args[mode_index + 1]
+	_passive_mode_test = "--test-passive" in args
 	_peer = ENetMultiplayerPeer.new()
 	var error := _peer.create_client(_host, _port)
 	if error != OK:
@@ -41,12 +47,13 @@ func _ready() -> void:
 	# Includes the three-second arena respawn after a verified fall.  Keep this
 	# longer than the combat exchange so the regression test observes the full
 	# death/respawn round trip instead of only the initial fall.
-	get_tree().create_timer(16.0).timeout.connect(_finish, CONNECT_ONE_SHOT)
+	get_tree().create_timer(9.0 if _passive_mode_test else 16.0).timeout.connect(_finish, CONNECT_ONE_SHOT)
 
 
 func _on_connected() -> void:
 	_connected = true
 	get_tree().root.get_node("GameManager").is_multiplayer = true
+	get_tree().root.get_node("GameManager").selected_match_mode = _test_mode
 	_arena = ARENA_SCENE.instantiate()
 	get_tree().root.add_child(_arena)
 	print("[SMOKE %s] Connected to %s:%d as peer %d" % [_label, _host, _port, multiplayer.get_unique_id()])
@@ -59,8 +66,9 @@ func _verify_replication() -> void:
 		return
 	var ids: Array[int] = _arena.call("_player_ids")
 	print("[SMOKE %s] Replicated player IDs: %s" % [_label, ids])
-	if ids.size() < 2:
-		_fail("Expected two replicated players, got %d" % ids.size())
+	var expected_players := 4 if _test_mode == "team_battle" else 2
+	if ids.size() < expected_players:
+		_fail("Expected %d replicated players, got %d" % [expected_players, ids.size()])
 		return
 	var own_id: int = multiplayer.get_unique_id()
 	var target_id: int = ids.filter(func(id: int) -> bool: return id != own_id)[0]
@@ -85,6 +93,12 @@ func _verify_replication() -> void:
 		return
 	_ground_verified = true
 	_replication_verified = true
+	if _passive_mode_test:
+		if _test_mode == "cave_survival" and _arena.get_children().filter(func(node: Node) -> bool: return String(node.name).begins_with("SurvivalEnemy_")).is_empty():
+			_fail("Survival wave did not create any room enemy")
+			return
+		print("[SMOKE %s] PASS: %s room setup" % [_label, _test_mode])
+		return
 	# This makes the server-side hit validation exercise the same RPC path as a
 	# real melee swing without relying on map-specific spawn distances. Only
 	# alpha moves: moving both avatars at the same time made the test itself race
@@ -208,6 +222,10 @@ func _finish() -> void:
 		return
 	if not _replication_verified:
 		_fail("Replication verification did not run")
+		return
+	if _passive_mode_test:
+		print("[SMOKE %s] PASS: passive mode integration complete" % _label)
+		get_tree().quit(0)
 		return
 	if _label == "alpha" and not _combat_submitted:
 		_fail("Combat request was not submitted")
