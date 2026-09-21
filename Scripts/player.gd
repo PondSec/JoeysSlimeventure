@@ -562,6 +562,22 @@ func _is_dedicated_server_runtime() -> bool:
 	# identical in CI, local testing and the deployed systemd service.
 	return "--dedicated-server" in OS.get_cmdline_args() or "--dedicated-server" in OS.get_cmdline_user_args()
 
+
+func configure_pvp_arena_camera() -> void:
+	# The standard campaign camera is clamped to a much lower part of the world.
+	# PvP uses a compact arena around y=500, so keep the local view inside its
+	# actual bounds instead of exposing the renderer's default grey clear area.
+	var arena_camera := get_node_or_null("Camera2D") as Camera2D
+	if arena_camera == null:
+		return
+	arena_camera.limit_left = -2048
+	arena_camera.limit_top = -600
+	arena_camera.limit_right = 2048
+	arena_camera.limit_bottom = 596
+	arena_camera.limit_smoothed = false
+	arena_camera.position_smoothing_enabled = false
+
+
 func _ready() -> void:
 	# The dedicated match host keeps lightweight avatar nodes solely for their
 	# replicated transforms and RPC paths. It must never open local saves, make
@@ -584,15 +600,21 @@ func _ready() -> void:
 		set_physics_process(true)
 		
 		# Initialisiere nur für autoritativen Spieler
-		if not chapter_qa_mode:
+		if not chapter_qa_mode and not gm.is_multiplayer:
 			public_key = CryptoKey.new()
 			public_key.load("res://Keys/public.pem")
 	else:
-		$Camera2D.enabled = true
-		set_process_input(true)
+		# A remote avatar must never take over the local view.  Enabling every
+		# spawned Camera2D made the last replicated opponent control the camera,
+		# which exposed the empty area outside the PvP arena on real clients.
+		$Camera2D.enabled = false
+		$CanvasLayer.visible = false
+		$PlayerSprite/CanvasLayer2.visible = false
+		$SkillTreeUI.visible = false
+		set_process_input(false)
 		set_process(true)
 		set_physics_process(true)
-	if not chapter_qa_mode:
+	if not chapter_qa_mode and not gm.is_multiplayer:
 		public_key = CryptoKey.new()
 		# Lade den öffentlichen Schlüssel des Servers
 		public_key.load("res://Keys/public.pem")

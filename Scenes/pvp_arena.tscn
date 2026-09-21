@@ -1,6 +1,7 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://Scripts/multiplayer_world.gd" id="1_multiplayer"]
+[ext_resource type="Texture2D" path="res://Assets/Parallax Cave/Lush/lush_biome_deep_backdrop.png" id="2_backdrop"]
 
 [sub_resource type="RectangleShape2D" id="FloorShape"]
 size = Vector2(4096, 96)
@@ -14,10 +15,36 @@ size = Vector2(4096, 80)
 [node name="PvPArena" type="Node2D"]
 script = ExtResource("1_multiplayer")
 
-[node name="ArenaBackdrop" type="Polygon2D" parent="."]
-polygon = PackedVector2Array(-2048, -600, 2048, -600, 2048, 560, -2048, 560)
-color = Color(0.035, 0.075, 0.13, 1)
-show_behind_parent = true
+[node name="ArenaBackdropLayer" type="CanvasLayer" parent="."]
+layer = -20
+
+[node name="Backdrop" type="TextureRect" parent="ArenaBackdropLayer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("2_backdrop")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="ArenaTint" type="ColorRect" parent="ArenaBackdropLayer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.04, 0.08, 0.15, 0.24)
+
+[node name="ArenaFloorVisual" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(-2048, 500, 2048, 500, 2048, 596, -2048, 596)
+color = Color(0.045, 0.13, 0.17, 1)
+
+[node name="ArenaFloorLine" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(-2048, 496, 2048, 496, 2048, 510, -2048, 510)
+color = Color(0.15, 0.75, 0.55, 0.9)
 
 [node name="Floor" type="StaticBody2D" parent="."]
 collision_layer = 2

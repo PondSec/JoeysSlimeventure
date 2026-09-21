@@ -67,13 +67,23 @@ func _verify_replication() -> void:
 	if own_player is CharacterBody2D and not (own_player as CharacterBody2D).is_on_floor():
 		_fail("Arena spawn has no supporting floor")
 		return
+	if not bool(own_player.get_node("Camera2D").enabled):
+		_fail("Local arena camera was not enabled")
+		return
+	var target_player := _arena.get_node_or_null(str(target_id)) as Node2D
+	if target_player != null and bool(target_player.get_node("Camera2D").enabled):
+		_fail("Remote avatar camera hijacked the local view")
+		return
+	if _arena.get_node_or_null("ArenaBackdropLayer/Backdrop") == null:
+		_fail("Arena backdrop was not created")
+		return
 	_ground_verified = true
 	_replication_verified = true
 	# This makes the server-side hit validation exercise the same RPC path as a
 	# real melee swing without relying on map-specific spawn distances. Only
 	# alpha moves: moving both avatars at the same time made the test itself race
 	# the unreliable position channel instead of testing combat deterministically.
-	var target_player := _arena.get_node_or_null(str(target_id)) as Node2D
+	target_player = _arena.get_node_or_null(str(target_id)) as Node2D
 	if target_player == null:
 		_fail("Target avatar missing")
 		return
@@ -87,6 +97,10 @@ func _verify_replication() -> void:
 				own_player.update_position.rpc(own_player.position, Vector2.ZERO)
 			, CONNECT_ONE_SHOT)
 		get_tree().create_timer(1.4).timeout.connect(func() -> void:
+			# Register immediately before the reliable chat RPC.  Ordering on the
+			# same peer guarantees that the server must apply this display name before
+			# formatting the message it broadcasts to the other client.
+			_arena.call("_register_local_player_name", "AlphaSteam")
 			# Exercise the same client-to-server RPC used by the chat input. Calling
 			# the RPC directly keeps this headless test independent of keyboard focus.
 			_arena._submit_chat.rpc_id(1, "smoke-chat")
@@ -113,7 +127,7 @@ func _verify_remote_effects() -> void:
 		return
 	var chat_log := _arena.get("_chat_log") as RichTextLabel
 	var received_messages := _arena.get("_received_chat_messages") as Array
-	if chat_log == null or received_messages == null or not received_messages.any(func(message: String) -> bool: return "smoke-chat" in message):
+	if chat_log == null or received_messages == null or not received_messages.any(func(message: String) -> bool: return "AlphaSteam:[/color] smoke-chat" in message):
 		_fail("Remote chat was not displayed")
 		return
 	_chat_verified = true

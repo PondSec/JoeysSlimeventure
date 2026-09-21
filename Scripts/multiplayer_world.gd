@@ -12,11 +12,15 @@ var _chat_log: RichTextLabel
 var _chat_input: LineEdit
 var _chat_message_count := 0
 var _received_chat_messages: Array[String] = []
+var _player_names: Dictionary = {}
+var _local_player_name := ""
 
 
 func _ready() -> void:
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
+	_local_player_name = _resolve_local_player_name()
+	_connect_steam_name_updates()
 	if multiplayer.is_server() and _is_dedicated_server_runtime():
 		# A dedicated authority is not a playable combatant. Spawning a fake
 		# server avatar caused it to load local saves/API state and made it a
@@ -25,6 +29,7 @@ func _ready() -> void:
 	_spawn_player(multiplayer.get_unique_id(), _spawn_position(multiplayer.get_unique_id()))
 	if not multiplayer.is_server():
 		_request_existing_players.rpc_id(1)
+		_register_local_player_name()
 	_create_chat_overlay()
 
 
@@ -37,6 +42,7 @@ func _request_existing_players() -> void:
 		var player := get_node_or_null(str(player_id)) as Node2D
 		if player != null:
 			_spawn_player_for_peer.rpc_id(joining_peer, player_id, player.global_position)
+	_sync_player_names.rpc_id(joining_peer, _player_names)
 	# This arrives after all reliable spawn messages from this server. Until then
 	# the joining player's avatar is deliberately unable to publish movement or
 	# animation RPCs to peers which may not have its node path yet.
@@ -57,6 +63,7 @@ func _grant_replication_ready() -> void:
 
 func _on_peer_connected(peer_id: int) -> void:
 	if multiplayer.is_server():
+		_player_names[peer_id] = _fallback_player_name(peer_id)
 		# The joining peer must receive all existing paths first. Reliable RPCs
 		# preserve this ordering, so old clients get the new avatar before it can
 		# publish state and the new client gets every old avatar before its own
@@ -72,6 +79,9 @@ func _on_peer_connected(peer_id: int) -> void:
 
 
 func _on_peer_disconnected(peer_id: int) -> void:
+	_player_names.erase(peer_id)
+	if multiplayer.is_server():
+		_sync_player_names.rpc(_player_names)
 	var player := get_node_or_null(str(peer_id))
 	if player != null:
 		player.queue_free()
@@ -83,10 +93,68 @@ func _spawn_player(peer_id: int, spawn_position: Vector2) -> void:
 	var player := PLAYER_SCENE.instantiate()
 	player.name = str(peer_id)
 	player.set_multiplayer_authority(peer_id)
+	if player.has_method("configure_pvp_arena_camera"):
+		player.call("configure_pvp_arena_camera")
 	if not multiplayer.is_server() and peer_id == multiplayer.get_unique_id():
 		player.set("multiplayer_replication_ready", false)
 	add_child(player)
 	player.global_position = spawn_position
+
+
+func _register_local_player_name(registered_name: String = "") -> void:
+	_local_player_name = _sanitize_player_name(registered_name, multiplayer.get_unique_id()) if not registered_name.strip_edges().is_empty() else _resolve_local_player_name()
+	if multiplayer.is_server():
+		_player_names[multiplayer.get_unique_id()] = _local_player_name
+		_sync_player_names.rpc(_player_names)
+	else:
+		_register_player_name.rpc_id(1, _local_player_name)
+
+
+@rpc("any_peer", "reliable")
+func _register_player_name(requested_name: String) -> void:
+	if not multiplayer.is_server():
+		return
+	var peer_id := multiplayer.get_remote_sender_id()
+	_player_names[peer_id] = _sanitize_player_name(requested_name, peer_id)
+	_sync_player_names.rpc(_player_names)
+
+
+@rpc("authority", "reliable")
+func _sync_player_names(names: Dictionary) -> void:
+	_player_names = names.duplicate()
+
+
+func _connect_steam_name_updates() -> void:
+	var steam_manager := get_node_or_null("/root/SteamManager")
+	if steam_manager != null and steam_manager.has_signal("initialized"):
+		var callback := Callable(self, "_on_steam_initialized")
+		if not steam_manager.is_connected("initialized", callback):
+			steam_manager.connect("initialized", callback)
+
+
+func _on_steam_initialized(persona_name: String) -> void:
+	if not persona_name.strip_edges().is_empty():
+		_local_player_name = _sanitize_player_name(persona_name, multiplayer.get_unique_id())
+		_register_local_player_name()
+
+
+func _resolve_local_player_name() -> String:
+	var steam_manager := get_node_or_null("/root/SteamManager")
+	if steam_manager != null:
+		var persona_name := String(steam_manager.get("user_name"))
+		if not persona_name.strip_edges().is_empty():
+			return _sanitize_player_name(persona_name, multiplayer.get_unique_id())
+	return _fallback_player_name(multiplayer.get_unique_id())
+
+
+func _sanitize_player_name(value: String, peer_id: int) -> String:
+	var sanitized := value.strip_edges().replace("[", "(").replace("]", ")").replace("\n", " ").replace("\r", " ")
+	sanitized = sanitized.substr(0, 32)
+	return sanitized if not sanitized.is_empty() else _fallback_player_name(peer_id)
+
+
+func _fallback_player_name(peer_id: int) -> String:
+	return "Player %d" % peer_id
 
 
 func request_pvp_hit(target_peer_id: int, damage: int, attack_origin: Vector2) -> void:
@@ -141,7 +209,7 @@ func _debug_rejected_hit(reason: String, attacker_peer_id: int, target_peer_id: 
 
 
 func send_chat(text: String) -> void:
-	var message := text.strip_edges().substr(0, 180)
+	var message := _sanitize_chat_message(text)
 	if message.is_empty():
 		return
 	if multiplayer.is_server():
@@ -156,9 +224,12 @@ func send_chat(text: String) -> void:
 func _submit_chat(message: String) -> void:
 	if multiplayer.is_server():
 		var sender := multiplayer.get_remote_sender_id()
+		var safe_message := _sanitize_chat_message(message)
+		if safe_message.is_empty():
+			return
 		if OS.is_debug_build():
 			print("[PvP Chat] Relaying message from %d" % sender)
-		_broadcast_chat.rpc("[color=#93dcff]%s:[/color] %s" % [_player_label(sender), message.strip_edges().substr(0, 180)])
+		_broadcast_chat.rpc("[color=#93dcff]%s:[/color] %s" % [_player_label(sender), safe_message])
 
 
 @rpc("authority", "reliable")
@@ -206,7 +277,13 @@ func _on_chat_submitted(text: String) -> void:
 
 
 func _player_label(peer_id: int) -> String:
-	return "Player %d" % peer_id
+	return String(_player_names.get(peer_id, _fallback_player_name(peer_id)))
+
+
+func _sanitize_chat_message(value: String) -> String:
+	# Chat is displayed through RichTextLabel. Keep player-entered text literal so
+	# it cannot inject BBCode into the arena UI.
+	return value.strip_edges().replace("[", "(").replace("]", ")").replace("\n", " ").replace("\r", " ").substr(0, 180)
 
 
 func _player_ids() -> Array[int]:
