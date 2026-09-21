@@ -39,6 +39,12 @@ var loaded_mode_layout := ""
 func _ready() -> void:
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
+	# The legacy TileMap is decorative as well as collidable, but older exported
+	# builds can contain atlas cells that Godot deliberately skips when their
+	# source texture changes.  Competitive spawns must never depend on that
+	# best-effort artwork: install small, explicit StaticBody2D ledges before a
+	# room can create an avatar, on both the authority and every client.
+	_ensure_spawn_safety_floor()
 	if not multiplayer.is_server():
 		_register_player_name.rpc_id(1, _local_name())
 		call_deferred("_request_selected_mode")
@@ -268,6 +274,34 @@ func _room_spawn(room: Dictionary, id: int) -> Vector2:
 	var index = (room.members as Array).find(id)
 	var order = [0, 2, 1, 3] if room.mode == "team_battle" else [0, 1]
 	return (points[order[index % order.size()] % points.size()] as Node2D).global_position
+
+
+func _ensure_spawn_safety_floor() -> void:
+	if get_node_or_null("SpawnSafetyFloor") != null:
+		return
+	var floor := Node2D.new()
+	floor.name = "SpawnSafetyFloor"
+	add_child(floor)
+	# These two ledges catch Spawn A–D at y=340. Their top is y=368, directly
+	# below a standard player capsule instead of intersecting its spawn point.
+	for center in [Vector2(-145, 383), Vector2(145, 383)]:
+		var platform := StaticBody2D.new()
+		platform.position = center
+		platform.collision_layer = 2
+		platform.collision_mask = 0
+		floor.add_child(platform)
+		var collision := CollisionShape2D.new()
+		var shape := RectangleShape2D.new()
+		shape.size = Vector2(290, 30)
+		collision.shape = shape
+		platform.add_child(collision)
+		# The collision ledge remains visually legible even if the decorative
+		# TileMap cannot load part of its atlas in an older export.
+		if not _is_dedicated_server():
+			var rock := Polygon2D.new()
+			rock.polygon = PackedVector2Array([Vector2(-145, -15), Vector2(145, -15), Vector2(122, 28), Vector2(-122, 28)])
+			rock.color = Color("516878")
+			platform.add_child(rock)
 
 
 # Gameplay RPCs are routed through the always-present arena root.  Sending an
