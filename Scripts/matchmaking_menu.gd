@@ -5,9 +5,9 @@ extends RefCounted
 ## independent and can be opened again after every completed match.
 
 const MODE_DATA := {
-	"classic_pvp": {"title": "CLASSIC PvP", "players": "1 vs 1", "description": "Fight another slime. First to 3 points wins.", "accent": Color("82d9ff")},
-	"team_battle": {"title": "TEAM BATTLE", "players": "2 vs 2", "description": "Fight together with another slime against an enemy team.", "accent": Color("ff8d7a")},
-	"cave_survival": {"title": "CAVE SURVIVAL", "players": "2 Players Co-op", "description": "Survive increasingly dangerous enemy waves together.", "accent": Color("d3b4ff")},
+	"classic_pvp": {"title": "CLASSIC PvP", "players": "1 vs 1", "description": "Fight another slime. First to 3 points wins.", "preview": "⚔  DUEL SPIRE  ⚔", "accent": Color("82d9ff")},
+	"team_battle": {"title": "TEAM BATTLE", "players": "2 vs 2", "description": "Fight together with another slime against an enemy team.", "preview": "✦  TWIN PILLARS  ✦", "accent": Color("ff8d7a")},
+	"cave_survival": {"title": "CAVE SURVIVAL", "players": "2 Players Co-op", "description": "Survive increasingly dangerous enemy waves together.", "preview": "☾  DEEPWAVE DEN  ☾", "accent": Color("d3b4ff")},
 }
 
 static func open(host: Control, preselected_mode: String = "") -> void:
@@ -126,7 +126,7 @@ static func _make_card(mode: String, data: Dictionary, is_selected: bool) -> But
 	preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.add_child(preview)
 	var glyph := Label.new()
-	glyph.text = "✦  FLOATING CAVES  ✦"
+	glyph.text = String(data.preview)
 	glyph.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	glyph.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	glyph.vertical_alignment = VERTICAL_ALIGNMENT_CENTER

@@ -65,8 +65,33 @@ func _ready() -> void:
 	set_uuid_label()
 	refresh_uuid_when_steam_is_ready()
 	connect_matchmaking_status()
+	create_online_battle_entry()
 	create_game_messages_ui()
 	fetch_game_messages()
+
+func create_online_battle_entry() -> void:
+	var menu_stack := $Buttons/MarginContainer/VBoxContainer
+	if menu_stack.get_node_or_null(\"OnlineBattleButton\") != null:
+		return
+	var button := Button.new()
+	button.name = \"OnlineBattleButton\"
+	button.text = \"ONLINE BATTLE\"
+	button.custom_minimum_size = Vector2(400, 62)
+	button.add_theme_font_size_override(\"font_size\", 22)
+	button.add_theme_color_override(\"font_color\", Color(\"dff8ff\"))
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = Color(\"173a50\")
+	normal.border_color = Color(\"70dbe5\")
+	normal.set_border_width_all(2)
+	normal.set_corner_radius_all(8)
+	var hover := normal.duplicate()
+	hover.bg_color = Color(\"24566c\")
+	hover.border_color = Color(\"b4fff3\")
+	button.add_theme_stylebox_override(\"normal\", normal)
+	button.add_theme_stylebox_override(\"hover\", hover)
+	menu_stack.add_child(button)
+	menu_stack.move_child(button, 1)
+	button.pressed.connect(_on_matchmaking_pressed)
 
 func set_uuid_label() -> void:
 	var player_id = load_or_create_player_id()
@@ -875,6 +900,7 @@ offset_bottom = 1095.0
 text = "020394329432894732847847284823"
 
 [node name="MultiPlayer" type="PanelContainer" parent="."]
+visible = false
 custom_minimum_size = Vector2(400, 200)
 layout_mode = 1
 anchors_preset = 3
