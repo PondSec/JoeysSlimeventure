@@ -540,6 +540,16 @@ var last_out_of_water_time := 0.0
 var water_enter_velocity := 0.0
 var is_swimming := false
 
+# Emergency recovery only watches for the collision shape actually being
+# embedded in the generated cave mesh. Normal standing, deliberate waiting,
+# wall slides, menus, teleports and vine traversal never qualify.
+const SOFTLOCK_COLLISION_LAYER := 2
+const SOFTLOCK_EMBEDDED_SECONDS := 3.0
+const SOFTLOCK_RECOVERY_COOLDOWN := 8.0
+var softlock_recovery_host: Node
+var softlock_embedded_timer := 0.0
+var softlock_recovery_cooldown := 0.0
+
 func _ready() -> void:
 	var chapter_qa_mode := _is_chapter_qa_mode()
 	if OS.has_feature("mobile") or OS.has_feature("web"):
@@ -2241,6 +2251,55 @@ func set_world_fall_death_y(death_y: float) -> void:
 	world_fall_death_y = death_y if is_finite(death_y) else INF
 
 
+func set_softlock_recovery_host(host: Node) -> void:
+	softlock_recovery_host = host
+
+
+func notify_softlock_recovered() -> void:
+	softlock_embedded_timer = 0.0
+	softlock_recovery_cooldown = SOFTLOCK_RECOVERY_COOLDOWN
+	velocity = Vector2.ZERO
+	direction = Vector2.ZERO
+	_show_feedback_toast("RECOVERED  •  Returned to level start", "info")
+
+
+func _check_embedded_softlock(delta: float) -> void:
+	softlock_recovery_cooldown = maxf(softlock_recovery_cooldown - delta, 0.0)
+	if softlock_recovery_cooldown > 0.0 \
+		or runtime_death_active \
+		or is_teleporting \
+		or is_dashing \
+		or is_transforming_hero_form \
+		or is_in_water \
+		or climb_vine != null:
+		softlock_embedded_timer = 0.0
+		return
+	if not _is_embedded_in_world_collision():
+		softlock_embedded_timer = 0.0
+		return
+	softlock_embedded_timer += delta
+	if softlock_embedded_timer < SOFTLOCK_EMBEDDED_SECONDS:
+		return
+	softlock_embedded_timer = 0.0
+	if softlock_recovery_host != null and is_instance_valid(softlock_recovery_host) and softlock_recovery_host.has_method("recover_player_from_softlock"):
+		softlock_recovery_host.call("recover_player_from_softlock")
+
+
+func _is_embedded_in_world_collision() -> bool:
+	var body_shape := get_node_or_null("ColisionArea") as CollisionShape2D
+	if body_shape == null or body_shape.shape == null or get_world_2d() == null:
+		return false
+	var query := PhysicsShapeQueryParameters2D.new()
+	query.shape = body_shape.shape
+	query.transform = body_shape.global_transform
+	query.collision_mask = SOFTLOCK_COLLISION_LAYER
+	query.exclude = [get_rid()]
+	query.collide_with_areas = false
+	query.collide_with_bodies = true
+	query.margin = 0.0
+	return not get_world_2d().direct_space_state.intersect_shape(query, 1).is_empty()
+
+
 func attach_climb_vine(vine: Node2D) -> bool:
 	if vine == null or not is_instance_valid(vine) or climb_vine_release_cooldown > 0.0:
 		return false
@@ -2364,6 +2423,7 @@ func _physics_process(delta: float) -> void:
 				handle_sticky_form_mechanics(delta)
 			
 			move_and_slide()
+			_check_embedded_softlock(delta)
 			_process_active_attack_overlaps()
 			update_facing_direction()
 			update_animations()

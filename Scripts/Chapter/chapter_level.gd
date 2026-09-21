@@ -984,6 +984,8 @@ func _spawn_player() -> void:
 	player = PLAYER_SCENE.instantiate() as CharacterBody2D
 	player.name = "PlayerModel"
 	add_child(player)
+	if player.has_method("set_softlock_recovery_host"):
+		player.call("set_softlock_recovery_host", self)
 	# Falling is fatal only beyond the physical bottom of this generated world.
 	# The old global Y=2000 threshold cut off valid deep rooms in larger levels.
 	if player.has_method("set_world_fall_death_y"):
@@ -4001,6 +4003,15 @@ func _position_player_at_spawn() -> void:
 		target_position.y = floor_y - _player_spawn_clearance()
 	player.global_position = target_position
 	player.velocity = Vector2.ZERO
+
+
+func recover_player_from_softlock() -> void:
+	if player == null or not is_instance_valid(player):
+		return
+	_position_player_at_spawn()
+	if player.has_method("notify_softlock_recovered"):
+		player.call("notify_softlock_recovered")
+	print("[Recovery] Player was embedded in terrain and returned to the level spawn.")
 
 
 func _setup_ui() -> void:

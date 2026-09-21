@@ -200,7 +200,10 @@ func _is_achievement_unlocked(api_name: String) -> bool:
 
 func _init_succeeded(response: Variant) -> bool:
 	if response is Dictionary:
-		return int((response as Dictionary).get("status", 0)) == 1
+		# GodotSteam's steamInitEx() reports status 0 for a successful
+		# initialization. Treating 1 as success marked every healthy Steam
+		# session as unavailable, so no achievement API calls ever reached Steam.
+		return int((response as Dictionary).get("status", 1)) == 0
 	if response is bool:
 		return response
 	if response is int:
