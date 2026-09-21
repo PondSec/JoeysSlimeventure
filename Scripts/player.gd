@@ -445,6 +445,7 @@ const WALL_JUMP_BUFFER_TIME = 0.1
 const WALL_JUMP_FORGIVENESS = 0.15
 const VINE_CLIMB_SPEED := 168.0
 const VINE_JUMP_UPWARD_SPEED := 336.0
+const VINE_JUMP_TANGENTIAL_MULTIPLIER := 1.22
 const VINE_REGRAB_COOLDOWN := 0.22
 
 var has_glow_skill := false
@@ -2398,9 +2399,10 @@ func detach_climb_vine(with_jump: bool) -> void:
 	climb_vine_release_cooldown = VINE_REGRAB_COOLDOWN
 	if with_jump:
 		airtime_started_with_jump = true
-		# Preserve the rope's tangential velocity verbatim. The player therefore
-		# travels in the exact direction and pace of the current pendulum arc.
-		velocity = carry_velocity + Vector2(0.0, -VINE_JUMP_UPWARD_SPEED)
+		# Reward a well-timed release with a modest carry boost.  Only the
+		# tangential swing component is amplified; the vertical jump remains
+		# predictable and independent of rope length.
+		velocity = carry_velocity * VINE_JUMP_TANGENTIAL_MULTIPLIER + Vector2(0.0, -VINE_JUMP_UPWARD_SPEED)
 		_play_jump_sfx(false)
 		$Camera2D.shake(0.55, 0.055)
 		_squash_player_sprite(Vector2(0.88, 1.10), 0.12)
