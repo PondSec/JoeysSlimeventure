@@ -27,18 +27,13 @@ func _ready():
 	refresh_item_list()
 
 func _on_about_to_show():
-	# Speichere originale Input-Mappings
-	_save_original_inputs()
-	
-	# Deaktiviere alle relevanten Spiel-Aktionen
-	_disable_game_inputs()
-	
-	# Setze Fokus auf Eingabefeld
+	# Focus is sufficient: Player and hotbar reject gameplay actions while a
+	# LineEdit owns the keyboard. Rewriting the global InputMap caused other
+	# clients in a match to lose controls and could fail to restore on close.
 	receiver_id_input.grab_focus()
 
 func _on_popup_hide():
-	# Stelle originale Input-Mappings wieder her
-	_restore_original_inputs()
+	pass
 
 func _save_original_inputs():
 	var actions = [\"Interact\", \"ult\", \"Attack\", \"Glow\", \"left\", \"right\", \"up\", \"down\", \"inventory\", \"sprint\", \"Pause\", \"drop_item\", \"dash_left\", \"dash_right\", \"dash_up\", \"UI\", \"hotbar_1\", \"hotbar_2\", \"hotbar_3\", \"hotbar_4\", \"hotbar_5\", \"hotbar_6\", \"hotbar_7\", \"hotbar_8\", \"hotbar_9\"]  # Füge alle relevanten Aktionen hinzu
@@ -102,15 +97,9 @@ func _on_confirm_pressed():
 		return
 	
 	var item_name = selected_item_slot.item.name
-	if not player_node.send_item_to_player(receiver_id, item_name):
+	if not player_node.send_item_to_player(receiver_id, item_name, selected_item_slot):
 		show_error(\"Steam-Freund nicht gefunden oder Transfer nicht verfügbar\")
 		return
-	
-	selected_item_slot.amount -= 1
-	if selected_item_slot.amount <= 0:
-		selected_item_slot.item = null
-	
-	player_node.inv.update.emit()
 	refresh_item_list()
 	hide()
 

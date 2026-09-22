@@ -488,7 +488,7 @@ func _die() -> void:
 	emit_signal("defeated")
 	LootDropper.spawn_independent_drops(self, [
 		{"item": "health_heart", "chance": 0.52},
-		{"item": "bat_claw", "chance": 0.26},
+		{"item": "bat_claw", "chance": 0.08},
 		{"item": "copper_nugget", "chance": 0.42},
 		{"item": "iron_nugget", "chance": 0.16},
 		{"item": "gold_nugget", "chance": 0.012}

@@ -168,6 +168,10 @@ func _verify_remote_effects() -> void:
 	if remote_player == null or not bool(remote_player.get("is_attacking")) or not bool(remote_player.get("is_facing_left")):
 		_fail("Remote combat animation state was not replicated")
 		return
+	var opponent_outline := remote_player.get_node_or_null("PvPOpponentOutline") as Sprite2D
+	if opponent_outline == null or not opponent_outline.visible or opponent_outline.texture == null:
+		_fail("Remote PvP opponent outline was not rendered")
+		return
 	_visual_verified = true
 	_verify_fall_death_and_respawn(own_player)
 	print("[SMOKE beta] PASS: floor, chat, combat, and animation replication")

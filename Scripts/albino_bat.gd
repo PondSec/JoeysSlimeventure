@@ -99,7 +99,7 @@ func _resolve_sound_player() -> AudioStreamPlayer2D:
 
 # Loot-Tabelle
 var loot_table = [
-	{ "scene": preload("res://Scenes/Items/bat_claw.tscn"), "chance": 0.08 },
+	{ "scene": preload("res://Scenes/Items/bat_claw.tscn"), "chance": 0.04 },
 	{ "scene": preload("res://Scenes/Items/copper_nugget.tscn"), "chance": 0.15 },
 	{ "scene": preload("res://Scenes/Items/iron_nugget.tscn"), "chance": 0.05 },
 	{ "scene": preload("res://Scenes/Items/gold_nugget.tscn"), "chance": 0.01 },
@@ -699,7 +699,7 @@ func die() -> void:
 func drop_loot() -> void:
 	LootDropper.spawn_independent_drops(self, [
 		{"item": "health_heart", "chance": 0.68},
-		{"item": "bat_claw", "chance": 0.38},
+		{"item": "bat_claw", "chance": 0.12},
 		{"item": "copper_nugget", "chance": 0.58},
 		{"item": "iron_nugget", "chance": 0.28},
 		{"item": "iron_nugget", "chance": 0.16},

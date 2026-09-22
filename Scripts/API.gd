@@ -48,7 +48,7 @@ func send_request():
 		return
 	request_in_flight = true
 	# Füge die Spieleridentität als Query-Parameter zur URL hinzu
-	var request_url = url + "?player_id=" + player_id
+	var request_url = url + "?player_id=" + player_id.uri_encode()
 	var error: Error = http_request.request(request_url)
 	if error != OK:
 		request_in_flight = false

@@ -311,6 +311,8 @@ var runtime_death_active := false
 var was_descending := false
 var last_floor_velocity := 0.0
 var runtime_body_sprite: Sprite2D
+var pvp_opponent_outline: Sprite2D
+var pvp_opponent_highlighted := false
 var runtime_body_base_scale := Vector2.ONE
 var default_player_sprite_texture: Texture2D
 var default_player_sprite_hframes := 1
@@ -334,6 +336,7 @@ var hero_current_attack_had_momentum := false
 var hero_hitstop_active := false
 var damage_invulnerability_timer := 0.0
 var quest_cinematic_invulnerable := false
+var quest_cinematic_input_locked := false
 var attack_sequence_id := 0
 
 # Deluxe hero traversal state. These states deliberately live beside the
@@ -1981,7 +1984,7 @@ func _start_weapon_attack_animation(step: int) -> void:
 
 
 func _is_gameplay_input_blocked() -> bool:
-	if match_input_locked or match_eliminated:
+	if match_input_locked or match_eliminated or quest_cinematic_input_locked:
 		return true
 	var inv_ui := get_node_or_null("CanvasLayer/InvUI")
 	if inv_ui is Control and inv_ui.visible:
@@ -2283,6 +2286,8 @@ func _process(delta: float) -> void:
 	_sync_multiplayer_visual_state(delta)
 
 	if !is_multiplayer_authority():
+		_advance_remote_multiplayer_visual(delta)
+		_update_pvp_opponent_outline()
 		return
 
 	if runtime_death_active:
@@ -2480,6 +2485,18 @@ func _physics_process(delta: float) -> void:
 		if runtime_death_active:
 			_update_runtime_character_animation(delta)
 			return
+		if _is_gameplay_input_blocked():
+			# A focused chat field must own every gameplay key, including movement.
+			# Clearing existing motion also prevents a held A/D key from carrying a
+			# player through the arena while they are writing a message.
+			velocity = Vector2.ZERO
+			direction = Vector2.ZERO
+			is_attacking = false
+			is_dashing = false
+			_set_attack_hitbox_active(false)
+			_update_runtime_character_animation(delta)
+			_publish_network_position()
+			return
 		if match_input_locked or match_eliminated:
 			# A countdown must block every movement, skill and attack path, not
 			# merely reduce walk speed.  Clear the active hitbox as a last guard
@@ -2668,9 +2685,9 @@ func _sync_multiplayer_visual_state(delta: float) -> void:
 	multiplayer_visual_sync_elapsed = 0.0
 	var arena := get_parent()
 	if arena != null and arena.has_method("relay_player_visual_state"):
-		arena.call("relay_player_visual_state", is_facing_left, current_character_id, is_attacking, is_dashing, is_transforming_hero_form, runtime_animation_state)
+		arena.call("relay_player_visual_state", is_facing_left, current_character_id, is_attacking, is_dashing, is_transforming_hero_form, _multiplayer_visual_state())
 	else:
-		sync_multiplayer_visual_state.rpc(is_facing_left, current_character_id, is_attacking, is_dashing, is_transforming_hero_form, runtime_animation_state)
+		sync_multiplayer_visual_state.rpc(is_facing_left, current_character_id, is_attacking, is_dashing, is_transforming_hero_form, _multiplayer_visual_state())
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -2684,20 +2701,118 @@ func sync_multiplayer_visual_state(
 ) -> void:
 	if is_multiplayer_authority():
 		return
+	var was_transforming := is_transforming_hero_form
 	is_facing_left = new_facing_left
 	is_attacking = attacking
 	is_dashing = dashing
 	is_transforming_hero_form = transforming
-	runtime_animation_state = animation_state
+	if transforming and not was_transforming:
+		# Hero Form is a real remote performance, not merely a late sprite swap.
+		# The target is inferred from the form that was visible at the start of
+		# the replicated transformation; the authoritative character ID arrives
+		# with the actual swap a moment later.
+		var transforming_to_hero := current_character_id != CharacterCatalog.MALE_HERO_ID
+		var outgoing := _get_active_body_sprite()
+		_spawn_transform_effect(transforming_to_hero)
+		_spawn_transform_echo(outgoing, Color(0.96, 0.98, 0.88, 0.52), Vector2(-7.0 if is_facing_left else 7.0, -6.0), 0.26)
+		_play_transform_death_sequence(transforming_to_hero)
+		_play_holy_transform_light()
+		_set_transform_body_alpha(0.0)
+	if runtime_animation_state != animation_state:
+		runtime_animation_state = animation_state
+		runtime_animation_elapsed = 0.0
 	if current_character_id != character_id:
 		_apply_character_profile(character_id)
 		is_hero_form_active = character_id == CharacterCatalog.MALE_HERO_ID
+	if not transforming and was_transforming:
+		_set_transform_body_alpha(1.0)
 	if $PlayerSprite != null:
 		$PlayerSprite.flip_h = is_facing_left
 	if $PlayerSprite/AttackSprite != null:
 		$PlayerSprite/AttackSprite.flip_h = is_facing_left
 	_sync_runtime_body_visual()
 	_update_equipped_weapon_visual()
+	_update_pvp_opponent_outline()
+
+
+func _multiplayer_visual_state() -> String:
+	if uses_runtime_character_animation:
+		return runtime_animation_state if not runtime_animation_state.is_empty() else _resolve_runtime_animation_name()
+	if is_attacking:
+		return "attack"
+	if is_wall_sliding:
+		return "wall_slide"
+	if not is_on_floor():
+		return "jump"
+	return "walk" if absf(velocity.x) > 14.0 else "idle"
+
+
+func _advance_remote_multiplayer_visual(delta: float) -> void:
+	if uses_runtime_character_animation:
+		if runtime_animation_state.is_empty():
+			return
+		runtime_animation_elapsed += delta
+		var descriptor := _get_runtime_character_animation_descriptor(runtime_animation_state)
+		if descriptor.is_empty():
+			return
+		var frame_count := _get_runtime_animation_frame_count(descriptor)
+		var frame_index := int(floor(runtime_animation_elapsed * maxf(float(descriptor.get("fps", 1.0)), 0.01)))
+		if bool(descriptor.get("loop", false)):
+			frame_index %= frame_count
+		else:
+			frame_index = mini(frame_index, frame_count - 1)
+		_apply_runtime_animation_frame(runtime_animation_state, frame_index)
+		return
+	# Legacy slime sheets remain driven by AnimationPlayer. Remote avatars do
+	# not run local movement physics, therefore their player must explicitly
+	# play the state received from the authority.
+	var legacy_animation := runtime_animation_state
+	if legacy_animation == "attack":
+		legacy_animation = "idle"
+	if $AnimationPlayer.has_animation(legacy_animation) and $AnimationPlayer.current_animation != legacy_animation:
+		$AnimationPlayer.play(legacy_animation)
+
+
+func set_pvp_opponent_highlight(enabled: bool) -> void:
+	pvp_opponent_highlighted = enabled
+	if enabled:
+		_ensure_pvp_opponent_outline()
+	_update_pvp_opponent_outline()
+
+
+func _ensure_pvp_opponent_outline() -> void:
+	if pvp_opponent_outline != null and is_instance_valid(pvp_opponent_outline):
+		return
+	pvp_opponent_outline = Sprite2D.new()
+	pvp_opponent_outline.name = "PvPOpponentOutline"
+	pvp_opponent_outline.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	pvp_opponent_outline.modulate = Color(1.0, 0.10, 0.16, 0.96)
+	pvp_opponent_outline.visible = false
+	add_child(pvp_opponent_outline)
+
+
+func _update_pvp_opponent_outline() -> void:
+	if not pvp_opponent_highlighted:
+		if pvp_opponent_outline != null:
+			pvp_opponent_outline.visible = false
+		return
+	_ensure_pvp_opponent_outline()
+	var source := _get_active_body_sprite()
+	if source == null or source.texture == null:
+		pvp_opponent_outline.visible = false
+		return
+	pvp_opponent_outline.texture = source.texture
+	pvp_opponent_outline.region_enabled = source.region_enabled
+	pvp_opponent_outline.region_rect = source.region_rect
+	pvp_opponent_outline.hframes = source.hframes
+	pvp_opponent_outline.vframes = source.vframes
+	pvp_opponent_outline.frame = source.frame
+	pvp_opponent_outline.position = source.position
+	pvp_opponent_outline.rotation = source.rotation
+	pvp_opponent_outline.flip_h = source.flip_h
+	pvp_opponent_outline.scale = source.scale * 1.11
+	pvp_opponent_outline.z_index = source.z_index - 1
+	pvp_opponent_outline.visible = source.visible
 
 func apply_water_physics(delta: float) -> void:
 	# --- Wasserwiderstand (Drag) ---
@@ -4945,6 +5060,22 @@ func set_controls_inverted(inverted: bool):
 
 func set_quest_cinematic_invulnerable(enabled: bool) -> void:
 	quest_cinematic_invulnerable = enabled
+	set_quest_cinematic_input_locked(enabled)
+
+
+func set_quest_cinematic_input_locked(enabled: bool) -> void:
+	quest_cinematic_input_locked = enabled
+	if not enabled:
+		return
+	# A camera sequence owns the scene completely. Clear every movement/combat
+	# state once, instead of allowing a held key or queued swing to leak into it.
+	velocity = Vector2.ZERO
+	direction = Vector2.ZERO
+	is_attacking = false
+	is_dashing = false
+	hero_combo_queued = false
+	attack_sequence_id += 1
+	_set_attack_hitbox_active(false)
 
 @rpc("any_peer", "call_local", "reliable")
 func take_damage(amount: int, hit_source: Vector2):
@@ -5156,7 +5287,10 @@ func drop_hotbar_item():
 
 			# **Hier kommt der Wurf-Impuls!**
 			var throw_force = direction * 400 + Vector2(0, -200)  # Starke Wurfkraft + Auftrieb
-			dropped_item.apply_central_impulse(throw_force)
+			if dropped_item.has_method("launch_from"):
+				dropped_item.call("launch_from", self, throw_force)
+			else:
+				dropped_item.apply_central_impulse(throw_force)
 
 			# **Drehung für realistisches Fliegen**
 			dropped_item.angular_velocity = randf_range(-8, 8)  
@@ -5212,7 +5346,7 @@ func open_transfer_dialog():
 	dialog.popup_centered()
 	dialog.refresh_item_list()  # Liste beim Öffnen aktualisieren
 
-func send_item_to_player(receiver_name: String, item_name: String) -> bool:
+func send_item_to_player(receiver_name: String, item_name: String, source_slot: InvSlot = null) -> bool:
 	var receiver_id := SteamManager.resolve_friend_identity(receiver_name)
 	if receiver_id.is_empty():
 		show_notification("Empfänger nicht in deiner Steam-Freundesliste gefunden.")
@@ -5235,11 +5369,12 @@ func send_item_to_player(receiver_name: String, item_name: String) -> bool:
 
 	var http_request = HTTPRequest.new()
 	add_child(http_request)
-	http_request.request_completed.connect(self._on_item_sent.bind(item_name))
+	http_request.request_completed.connect(self._on_item_sent.bind(item_name, source_slot, http_request))
 	var error = http_request.request(url + "transfer-item", headers, HTTPClient.METHOD_POST, payload_string)
 
 	if error != OK:
 		push_error("Fehler beim Senden des Items: " + str(error))
+		http_request.queue_free()
 		return false
 	return true
 
@@ -5248,24 +5383,26 @@ func verify_signature(payload: String, signature: String) -> bool:
 	var sig_bytes = Marshalls.base64_to_raw(signature)
 	return crypto.verify(HashingContext.HASH_SHA256, payload.to_utf8_buffer(), sig_bytes, public_key)
 	
-func _on_item_sent(result: int, response_code: int, headers: PackedStringArray, body: PackedByteArray, item_name: String) -> void:
+func _on_item_sent(result: int, response_code: int, headers: PackedStringArray, body: PackedByteArray, item_name: String, source_slot: InvSlot, request: HTTPRequest) -> void:
 	var response = JSON.parse_string(body.get_string_from_utf8())
 	
 	if response_code == 200:
 		print("Item erfolgreich gesendet: ", response)
+		# Never remove the item before the API has accepted the transfer. The old
+		# optimistic removal could permanently lose the final item in a stack when
+		# a request timed out or the receiver was rejected.
+		if source_slot != null and source_slot.item != null and source_slot.item.name == item_name and source_slot.amount > 0:
+			source_slot.amount -= 1
+			if source_slot.amount <= 0:
+				source_slot.item = null
+			inv.notify_changed()
 		show_notification("Item erfolgreich gesendet!")
 	else:
 		push_error("Fehler beim Senden: ", response)
-		
-		# Falls der Transfer fehlschlägt, das Item wieder hinzufügen
-		for slot in inv.slots:
-			if slot.item and slot.item.name == item_name:
-				slot.amount += 1
-				break
-		
-		inv.notify_changed()
-		save_game()
-		show_notification("Fehler beim Senden: " + str(response.get("error", "Unbekannter Fehler")))
+		var error_message := str(response.get("error", "Unbekannter Fehler")) if response is Dictionary else "Netzwerk- oder Serverfehler"
+		show_notification("Fehler beim Senden: " + error_message)
+	if request != null and is_instance_valid(request):
+		request.queue_free()
 
 func _on_water_area_body_entered(body: Node2D) -> void:
 	if body == self:

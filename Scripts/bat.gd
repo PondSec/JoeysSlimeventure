@@ -1479,7 +1479,7 @@ func die() -> void:
 func drop_loot() -> void:
 	LootDropper.spawn_independent_drops(self, [
 		{"item": "health_heart", "chance": 0.54},
-		{"item": "bat_claw", "chance": 0.25},
+		{"item": "bat_claw", "chance": 0.08},
 		{"item": "copper_nugget", "chance": 0.46},
 		{"item": "iron_nugget", "chance": 0.16},
 		{"item": "iron_nugget", "chance": 0.09},

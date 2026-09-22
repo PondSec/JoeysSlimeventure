@@ -702,6 +702,9 @@ func show_skill_notification(skill_name: String):
 		print(\"Could not find SkillTreeUI to show notification\")
 
 func handle_skill_tree_toggle():
+	var focused_control = get_viewport().gui_get_focus_owner()
+	if focused_control is LineEdit or focused_control is TextEdit:
+		return
 	if Input.is_action_just_pressed(\"skill_tree\"):
 		self.visible = !self.visible
 		if self.visible:

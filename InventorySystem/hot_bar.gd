@@ -43,6 +43,8 @@ var _amount_labels: Array[Label] = []
 var _icon_content_rect_cache: Dictionary = {}
 var _biome_weights := {"cave": 1.0, "lush": 0.0}
 var _item_content_offset := Vector2.ZERO
+var _hotbar_has_items := false
+var _visibility_tween: Tween
 
 
 func _ready() -> void:
@@ -50,6 +52,8 @@ func _ready() -> void:
 	add_to_group("biome_aware_ui")
 	_build_theme_layers()
 	_build_item_layers()
+	visible = false
+	modulate.a = 0.0
 	inv.update.connect(update_hotbar)
 	update_hotbar()
 	_apply_biome_weights()
@@ -287,19 +291,46 @@ func update_hotbar() -> void:
 	if inv.slots.size() < SLOT_COUNT:
 		push_warning("Inventar hat weniger als neun Slots; Hotbar wird nicht aktualisiert.")
 		return
+	var has_any_item := false
 	for slot_index in range(SLOT_COUNT):
 		var inventory_index := inv.slots.size() - SLOT_COUNT + slot_index
 		var slot: InvSlot = inv.slots[inventory_index]
-		var has_item := slot != null and slot.item != null
+		var has_item := slot != null and slot.item != null and slot.amount > 0
+		has_any_item = has_any_item or has_item
 		var icon := _item_icons[slot_index]
 		icon.visible = has_item
 		_apply_item_icon(icon, slot.item.texture if has_item else null)
 		var amount := _amount_labels[slot_index]
 		amount.text = str(slot.amount) if has_item and slot.amount > 1 else ""
 	highlight_selected_slot()
+	_set_hotbar_visibility(has_any_item)
+
+
+func _set_hotbar_visibility(should_show: bool) -> void:
+	if _hotbar_has_items == should_show and visible == should_show:
+		return
+	_hotbar_has_items = should_show
+	if _visibility_tween != null and _visibility_tween.is_valid():
+		_visibility_tween.kill()
+	if should_show:
+		visible = true
+		_visibility_tween = create_tween()
+		_visibility_tween.tween_property(self, "modulate:a", 1.0, 0.24).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		return
+	_visibility_tween = create_tween()
+	_visibility_tween.tween_property(self, "modulate:a", 0.0, 0.20).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	_visibility_tween.tween_callback(func() -> void:
+		if not _hotbar_has_items:
+			visible = false
+	)
 
 
 func _process(_delta: float) -> void:
+	# Chat and text entry own the complete keyboard, including the 1–9 hotbar
+	# actions. This mirrors the player guard and prevents text from changing gear.
+	var focused_control := get_viewport().gui_get_focus_owner()
+	if focused_control is LineEdit or focused_control is TextEdit:
+		return
 	for slot_index in range(SLOT_COUNT):
 		if Input.is_action_just_pressed("hotbar_%d" % (slot_index + 1)):
 			set_selected_slot(slot_index)

@@ -665,9 +665,8 @@ func _play_resonance_sequence_preview(wait_for_first_player_movement: bool) -> v
 		push_error("Resonance preview requires exactly three valid bells.")
 		resonance_preview_active = false
 		return
-	# The tour takes control of the view for several seconds. Joey can still
-	# move, but must never be punished by off-screen enemy damage while reading
-	# the required order.
+	# The tour takes control of the view for several seconds. Joey cannot move
+	# or trigger actions while the camera is away from the player.
 	var protected_player := player
 	_set_resonance_cinematic_protection(protected_player, true)
 	var was_smoothed := camera.position_smoothing_enabled
@@ -725,6 +724,8 @@ func _ordered_resonance_bells() -> Array[Dictionary]:
 func _set_resonance_cinematic_protection(target_player: Node2D, enabled: bool) -> void:
 	if target_player != null and is_instance_valid(target_player) and target_player.has_method("set_quest_cinematic_invulnerable"):
 		target_player.call("set_quest_cinematic_invulnerable", enabled)
+	if target_player != null and is_instance_valid(target_player) and target_player.has_method("set_quest_cinematic_input_locked"):
+		target_player.call("set_quest_cinematic_input_locked", enabled)
 
 
 func _resonance_bell_for_order(sequence_order: int) -> Dictionary:

@@ -10,6 +10,9 @@ var hover_phase := 0.0
 var sprite: Sprite2D
 var sprite_base_position := Vector2.ZERO
 var sprite_base_scale := Vector2.ONE
+var is_thrown := false
+var thrower: Node2D
+var throw_arm_time := 0.0
 
 
 func _ready() -> void:
@@ -54,10 +57,21 @@ func _process(delta: float) -> void:
 	sprite.position = sprite_base_position + Vector2(0.0, sin(hover_phase) * 1.8)
 	sprite.rotation = sin(hover_phase * 0.55) * 0.05
 	sprite.modulate = Color(1, 1, 1, 0.92 + max(sin(hover_phase * 1.7), 0.0) * 0.08)
+	if throw_arm_time > 0.0:
+		throw_arm_time = maxf(0.0, throw_arm_time - delta)
+
+
+func launch_from(source: Node2D, impulse: Vector2) -> void:
+	# Loot only becomes a projectile after an intentional throw. Ground drops
+	# can never hurt enemies merely because they spawn nearby.
+	is_thrown = damage_amount > 0.0
+	thrower = source
+	throw_arm_time = 0.12
+	apply_central_impulse(impulse)
 
 
 func _on_area_2d_body_entered(body: Node2D) -> void:
-	if body.is_in_group("players"):
+	if body.is_in_group("players") and (not is_thrown or body == thrower or throw_arm_time > 0.0):
 		var picked_up := true
 		if body.has_method("collect"):
 			picked_up = body.collect(item)
@@ -65,7 +79,15 @@ func _on_area_2d_body_entered(body: Node2D) -> void:
 			queue_free()
 		return
 
-	if body.is_in_group("enemies"):
+	if is_thrown and throw_arm_time <= 0.0 and body != thrower and (body.is_in_group("enemies") or body.is_in_group("players")) and body.has_method("take_damage"):
 		var direction := (body.global_position - global_position).normalized()
-		body.take_damage(damage_amount, direction, is_critical)
+		if body.is_in_group("players"):
+			# Player damage has a two-argument API while enemy damage also accepts
+			# a critical-hit flag. Calling the enemy signature on a player silently
+			# broke thrown PvP hits.
+			body.take_damage(int(round(damage_amount)), global_position)
+		else:
+			body.take_damage(damage_amount, direction, is_critical)
+		# The item is consumed only by a valid hit. A missed throw remains a
+		# recoverable world pickup instead of silently deleting the stack.
 		queue_free()

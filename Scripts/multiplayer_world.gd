@@ -8,7 +8,7 @@ const BAT_SCENE = preload("res://Scenes/bat.tscn")
 const ALBINO_BAT_SCENE = preload("res://Scenes/albino_bat.tscn")
 const WISP_SCENE = preload("res://Scenes/Chapter/Enemies/irrlichtkaefer.tscn")
 const BOSS_SCENE = preload("res://Scenes/Chapter/Enemies/kristallruecken.tscn")
-const VERSION = "0.0.4.3"
+const VERSION = "0.0.4.4"
 const FIRST_TO_THREE = 3
 const HIT_RANGE = 240.0
 const MATCH_MODES := ["classic_pvp", "team_battle", "cave_survival"]
@@ -692,12 +692,18 @@ func _sync_room_ui(_room_id: int, teams: Dictionary, scores: Dictionary, mode: S
 
 
 func _apply_team_tint(teams: Dictionary, mode: String) -> void:
-	if mode != "team_battle": return
 	var own_team = teams.get(multiplayer.get_unique_id(), "")
 	for id in teams.keys():
 		var avatar = get_node_or_null(str(id))
-		if avatar != null and avatar.has_node("PlayerSprite"):
-			avatar.get_node("PlayerSprite").self_modulate = Color.WHITE if teams[id] == own_team else Color(1.0, 0.42, 0.42)
+		if avatar == null:
+			continue
+		var is_opponent: bool = mode != "cave_survival" and teams[id] != own_team
+		if avatar.has_method("set_pvp_opponent_highlight"):
+			avatar.call("set_pvp_opponent_highlight", is_opponent)
+		if avatar.has_node("PlayerSprite"):
+			# Preserve each character's authored colours; the dedicated red outline
+			# supplies the enemy read without turning the whole sprite into a tint.
+			avatar.get_node("PlayerSprite").self_modulate = Color.WHITE
 
 
 func _ensure_mode_layout(mode: String) -> void:

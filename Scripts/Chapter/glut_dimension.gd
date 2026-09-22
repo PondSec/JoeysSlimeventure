@@ -49,8 +49,10 @@ func _build_arena() -> void:
 
 func _add_wall(center: Vector2, size: Vector2) -> void:
 	var wall := StaticBody2D.new()
-	wall.collision_layer = 1
-	wall.collision_mask = 2
+	# Player bodies listen on layer 2. The old layer-1 floor was rendered but
+	# physically invisible to the player, so every spawn fell through it.
+	wall.collision_layer = 2
+	wall.collision_mask = 0
 	var shape := CollisionShape2D.new()
 	var rectangle := RectangleShape2D.new()
 	rectangle.size = size
