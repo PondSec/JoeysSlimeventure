@@ -16,6 +16,7 @@ var _chat_verified := false
 var _visual_verified := false
 var _typing_verified := false
 var _fall_respawn_verified := false
+var _expect_crown := false
 var _host := "127.0.0.1"
 var _port := 5999
 var _test_mode := "classic_pvp"
@@ -25,6 +26,7 @@ var _test_steam_lobby_id := 0
 
 func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
+	_expect_crown = "--force-early-supporter-crown" in args
 	var label_index := args.find("--test-id")
 	if label_index >= 0 and label_index + 1 < args.size():
 		_label = args[label_index + 1]
@@ -91,6 +93,9 @@ func _verify_replication() -> void:
 	var target_player := _arena.get_node_or_null(str(target_id)) as Node2D
 	if target_player != null and bool(target_player.get_node("Camera2D").enabled):
 		_fail("Remote avatar camera hijacked the local view")
+		return
+	if bool(target_player.get("has_early_supporter_crown")) != _expect_crown:
+		_fail("Remote Early Supporter Crown state was not replicated")
 		return
 	var nameplate := target_player.get_node_or_null("MultiplayerNameplate") if target_player != null else null
 	var name_label := nameplate.get_node_or_null("NameText") as Label if nameplate != null else null
