@@ -10,28 +10,25 @@ class CurrentLevelResource extends Resource:
 @export var spawn_point_name: String = "player_spawn"
 
 func _ready() -> void:
-	
-	# SpawnPoint im aktuellen Level suchen
-	var spawn = get_node(spawn_point_name)
-	if spawn:
-		add_child(player)
-		var level_resource = load("user://saves/current_level.res")
-	
-		if level_resource:
-			var level_scene_path = level_resource.unlocked_level
-			print("Freigeschaltetes Level:", level_scene_path)
-			
-			# Nur Position setzen, wenn das gespeicherte Level NICHT level1.tscn ist
-			if level_scene_path != "res://Scenes/level1.tscn":
-				player.global_position = spawn.global_position
-		else:
-			# Falls keine level_resource geladen werden konnte, Position trotzdem setzen
-			player.global_position = spawn.global_position
-	else:
-		push_warning("Spawnpoint nicht gefunden: " + spawn_point_name)
-	
 	# Aktuelles Level speichern
 	save_current_level()
+	call_deferred("_place_player_at_safe_level_spawn")
+
+
+func _place_player_at_safe_level_spawn() -> void:
+	var spawn := get_node_or_null(spawn_point_name) as Marker2D
+	if spawn == null:
+		push_warning("Spawnpoint nicht gefunden: " + spawn_point_name)
+		return
+	# Player._ready() restores the old save position.  Wait until the TileMap
+	# colliders are registered, then replace that cross-level coordinate with a
+	# validated floor spawn every time this scene is entered.
+	await get_tree().physics_frame
+	if player != null and player.has_method("place_at_safe_spawn"):
+		player.call("place_at_safe_spawn", spawn.global_position, true)
+	elif player != null:
+		player.global_position = spawn.global_position
+		player.velocity = Vector2.ZERO
 
 func save_current_level():
 	var current_level = get_tree().current_scene.scene_file_path

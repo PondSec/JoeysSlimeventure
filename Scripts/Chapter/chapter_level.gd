@@ -260,7 +260,7 @@ func _ready() -> void:
 	_spawn_lush_irrlichtkaefer()
 	_spawn_lush_gluehwuermchen()
 	_configure_runtime_view()
-	await get_tree().process_frame
+	await get_tree().physics_frame
 	_position_player_at_spawn()
 	# This scene is only entered after ChapterProgress has selected a playable
 	# chapter level. Chapter I / Level 1 is the first real cave entry, not a menu
@@ -4018,8 +4018,11 @@ func _position_player_at_spawn() -> void:
 	var floor_y: float = _surface_world_y_from_point(target_position)
 	if floor_y > -INF:
 		target_position.y = floor_y - _player_spawn_clearance()
-	player.global_position = target_position
-	player.velocity = Vector2.ZERO
+	if player.has_method("place_at_safe_spawn"):
+		player.call("place_at_safe_spawn", target_position, false)
+	else:
+		player.global_position = target_position
+		player.velocity = Vector2.ZERO
 
 
 func recover_player_from_softlock() -> void:

@@ -74,7 +74,8 @@ func _ready() -> void:
 	_ensure_baseline_progression()
 	_build_chapter_hub()
 	_position_shop_wagon()
-	await get_tree().process_frame
+	await get_tree().physics_frame
+	_secure_hub_player_spawn()
 	_show_pending_hub_feedback()
 	_begin_intro_if_needed()
 
@@ -93,6 +94,16 @@ func _prepare_player() -> void:
 		return
 	player.global_position = player_spawn.global_position
 	player.velocity = Vector2.ZERO
+
+
+func _secure_hub_player_spawn() -> void:
+	if player == null or player_spawn == null:
+		return
+	if player.has_method("place_at_safe_spawn"):
+		player.call("place_at_safe_spawn", player_spawn.global_position, false)
+	else:
+		player.global_position = player_spawn.global_position
+		player.velocity = Vector2.ZERO
 
 
 func _position_shop_wagon() -> void:

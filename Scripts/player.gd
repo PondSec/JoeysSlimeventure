@@ -1500,6 +1500,94 @@ func _can_hero_stand_at(stand_position: Vector2) -> bool:
 	return get_world_2d().direct_space_state.intersect_shape(shape_query, 1).is_empty()
 
 
+func place_at_safe_spawn(requested_position: Vector2, marker_is_floor: bool = false) -> Vector2:
+	# Saved coordinates are meaningful only in the scene that created them.  On
+	# a level entry, always validate the *real* character collider against the
+	# freshly-built world before accepting a spawn.  Markers authored on a floor
+	# use their floor surface as an anchor; other callers may pass an exact body
+	# origin instead.
+	var intended_position := requested_position
+	if marker_is_floor:
+		intended_position.y -= _get_spawn_ground_clearance()
+	var safe_position := _find_safe_spawn_position(intended_position)
+	global_position = safe_position
+	velocity = Vector2.ZERO
+	direction = Vector2.ZERO
+	return safe_position
+
+
+func _get_spawn_ground_clearance() -> float:
+	var collision_shape := get_node_or_null("ColisionArea") as CollisionShape2D
+	if collision_shape == null or not (collision_shape.shape is RectangleShape2D):
+		return 18.0
+	var rect := collision_shape.shape as RectangleShape2D
+	var total_scale := Vector2(
+		absf(global_scale.x * collision_shape.scale.x),
+		absf(global_scale.y * collision_shape.scale.y)
+	)
+	var half_size := rect.size * total_scale * 0.5
+	var angle := collision_shape.global_rotation
+	return absf(sin(angle)) * half_size.x + absf(cos(angle)) * half_size.y + 2.0
+
+
+func _is_safe_spawn_position(candidate: Vector2) -> bool:
+	var collision_shape := get_node_or_null("ColisionArea") as CollisionShape2D
+	if collision_shape == null or collision_shape.shape == null or get_world_2d() == null:
+		return true
+	var shape_query := PhysicsShapeQueryParameters2D.new()
+	shape_query.shape = collision_shape.shape
+	var target_transform := collision_shape.global_transform
+	target_transform.origin += candidate - global_position
+	shape_query.transform = target_transform
+	shape_query.collision_mask = SOFTLOCK_COLLISION_LAYER
+	shape_query.exclude = [get_rid()]
+	shape_query.collide_with_areas = false
+	shape_query.collide_with_bodies = true
+	shape_query.margin = 0.5
+	return get_world_2d().direct_space_state.intersect_shape(shape_query, 1).is_empty()
+
+
+func _find_safe_spawn_position(intended_position: Vector2) -> Vector2:
+	if get_world_2d() == null:
+		return intended_position
+	# Prefer the authored location, then expand upward and sideways.  Upward is
+	# deliberately preferred so a bad marker inside a floor or wall is resolved
+	# onto a nearby ledge rather than deeper into terrain.
+	var x_offsets: Array[float] = [0.0, -24.0, 24.0, -48.0, 48.0, -96.0, 96.0, -160.0, 160.0, -240.0, 240.0]
+	var y_offsets: Array[float] = [0.0, -16.0, -32.0, -64.0, -96.0, -144.0, -208.0, -288.0, 16.0, 32.0, 64.0, 96.0]
+	var first_clear_position := Vector2.INF
+	for y_offset: float in y_offsets:
+		for x_offset: float in x_offsets:
+			var candidate := intended_position + Vector2(x_offset, y_offset)
+			if not _is_safe_spawn_position(candidate):
+				continue
+			if first_clear_position == Vector2.INF:
+				first_clear_position = candidate
+			var grounded_position := _snap_spawn_position_to_ground(candidate)
+			if grounded_position != Vector2.INF and _is_safe_spawn_position(grounded_position):
+				return grounded_position
+	# A deliberately airborne level entrance is still safer than spawning inside
+	# collision.  Gravity will settle this fallback normally.
+	return first_clear_position if first_clear_position != Vector2.INF else intended_position
+
+
+func _snap_spawn_position_to_ground(candidate: Vector2) -> Vector2:
+	var clearance := _get_spawn_ground_clearance()
+	var query := PhysicsRayQueryParameters2D.create(
+		candidate + Vector2(0.0, -clearance - 8.0),
+		candidate + Vector2(0.0, 256.0)
+	)
+	query.collision_mask = SOFTLOCK_COLLISION_LAYER
+	query.exclude = [get_rid()]
+	query.collide_with_areas = false
+	query.collide_with_bodies = true
+	var hit := get_world_2d().direct_space_state.intersect_ray(query)
+	if hit.is_empty():
+		return Vector2.INF
+	var hit_position := hit.get("position", candidate) as Vector2
+	return Vector2(hit_position.x, hit_position.y - clearance)
+
+
 func _apply_default_character_profile() -> void:
 	_apply_character_profile(CharacterCatalog.SLIME_ID)
 

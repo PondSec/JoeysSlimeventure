@@ -80,6 +80,15 @@ func _spawn_player() -> void:
 		camera.limit_top = -180
 		camera.limit_right = 3040
 		camera.limit_bottom = 840
+	call_deferred("_secure_player_spawn")
+
+
+func _secure_player_spawn() -> void:
+	if player == null or not is_instance_valid(player):
+		return
+	await get_tree().physics_frame
+	if player.has_method("place_at_safe_spawn"):
+		player.call("place_at_safe_spawn", Vector2(150, 530), false)
 
 
 func _spawn_quest_enemies() -> void:
