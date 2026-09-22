@@ -377,6 +377,7 @@ var multiplayer_nameplate_health: TextureProgressBar
 var multiplayer_typing_label: Label
 var multiplayer_typing_timer: Timer
 var multiplayer_typing_step := 0
+var has_early_supporter_crown := false
 # Definiert die Originalfarbe und die Farbe, die bei Schaden angezeigt werden soll
 const COLOR_NORMAL = Color(0.62, 1.0, 0.58)  # Originalfarbe (9fff94 in Hex)
 const COLOR_DAMAGE = Color(1.0, 0.29, 0.29)  # Schadenfarbe (ff4a4a in Hex)
@@ -667,6 +668,7 @@ func _ready() -> void:
 		default_collision_shape_rotation = $ColisionArea.rotation
 		default_collision_shape_scale = $ColisionArea.scale
 	_apply_default_character_profile()
+	_initialize_early_supporter_crown()
 	_configure_attack_sprite_visual()
 	_ensure_slime_sword_combo_sprite()
 	_configure_equipped_weapon_sprite()
@@ -1730,6 +1732,45 @@ func _apply_character_profile(character_id: String) -> void:
 		elif not has_glow_skill:
 			is_glowing = false
 		update_glow_state()
+	_configure_early_supporter_crown()
+
+
+func _initialize_early_supporter_crown() -> void:
+	if is_multiplayer_authority():
+		if not SteamEntitlements.entitlement_refreshed.is_connected(_on_early_supporter_entitlement_refreshed):
+			SteamEntitlements.entitlement_refreshed.connect(_on_early_supporter_entitlement_refreshed)
+		if not SteamEntitlements.early_supporter_crown_equipped_changed.is_connected(_on_early_supporter_entitlement_refreshed):
+			SteamEntitlements.early_supporter_crown_equipped_changed.connect(_on_early_supporter_entitlement_refreshed)
+		_refresh_local_early_supporter_crown()
+	else:
+		set_early_supporter_crown(false)
+
+
+func _on_early_supporter_entitlement_refreshed(_owned: bool) -> void:
+	_refresh_local_early_supporter_crown()
+
+
+func _refresh_local_early_supporter_crown() -> void:
+	if not is_multiplayer_authority():
+		return
+	set_early_supporter_crown(SteamEntitlements.is_early_supporter_crown_equipped())
+
+
+func set_early_supporter_crown(enabled: bool) -> void:
+	var changed := has_early_supporter_crown != enabled
+	has_early_supporter_crown = enabled
+	_configure_early_supporter_crown()
+	if changed and is_multiplayer_authority():
+		var arena := get_parent()
+		if arena != null and arena.has_method("relay_player_crown_entitlement"):
+			arena.call("relay_player_crown_entitlement", enabled)
+
+
+func _configure_early_supporter_crown() -> void:
+	if uses_runtime_character_animation or $PlayerSprite == null:
+		return
+	var texture_path := CharacterCatalog.SLIME_EARLY_SUPPORTER_CROWN_SHEET if has_early_supporter_crown else "res://Assets/slime-sprite2.png"
+	$PlayerSprite.texture = CharacterCatalog.load_texture(texture_path)
 
 
 func _get_runtime_character_animation_descriptor(animation_name: String) -> Dictionary:
@@ -1743,7 +1784,10 @@ func _get_runtime_character_animation_descriptor(animation_name: String) -> Dict
 		"hard_landing", "ground_slide":
 			resolved_animation_name = "slide"
 	if animations.has(resolved_animation_name):
-		return (animations[resolved_animation_name] as Dictionary).duplicate(true)
+		var descriptor := (animations[resolved_animation_name] as Dictionary).duplicate(true)
+		if has_early_supporter_crown and current_character_id == CharacterCatalog.MALE_HERO_ID:
+			return CharacterCatalog.get_hero_early_supporter_crown_descriptor(resolved_animation_name, descriptor)
+		return descriptor
 	if animations.has("idle"):
 		return (animations["idle"] as Dictionary).duplicate(true)
 	return {}

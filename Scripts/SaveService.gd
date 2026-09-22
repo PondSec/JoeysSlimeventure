@@ -116,6 +116,46 @@ func get_pending_achievements() -> Array[String]:
 	return result
 
 
+func has_cosmetic_presentation_claimed(cosmetic_id: String, account_id: String) -> bool:
+	if cosmetic_id.is_empty() or account_id.is_empty():
+		return false
+	var presentations := _cosmetic_presentations()
+	var accounts: Dictionary = presentations.get(cosmetic_id, {}) as Dictionary
+	return bool(accounts.get(account_id, false))
+
+
+func mark_cosmetic_presentation_claimed(cosmetic_id: String, account_id: String) -> bool:
+	if cosmetic_id.is_empty() or account_id.is_empty():
+		return false
+	var presentations := _cosmetic_presentations()
+	var accounts: Dictionary = presentations.get(cosmetic_id, {}) as Dictionary
+	accounts[account_id] = true
+	presentations[cosmetic_id] = accounts
+	manifest["cosmetic_presentations"] = presentations
+	return save_manifest()
+
+
+## Cosmetic preferences are allowed to persist per Steam account. They never
+## grant ownership: callers must still verify the corresponding entitlement.
+func get_cosmetic_preference(cosmetic_id: String, account_id: String, default_value: bool = true) -> bool:
+	if cosmetic_id.is_empty() or account_id.is_empty():
+		return default_value
+	var preferences := _cosmetic_preferences()
+	var accounts: Dictionary = preferences.get(cosmetic_id, {}) as Dictionary
+	return bool(accounts.get(account_id, default_value))
+
+
+func set_cosmetic_preference(cosmetic_id: String, account_id: String, value: bool) -> bool:
+	if cosmetic_id.is_empty() or account_id.is_empty():
+		return false
+	var preferences := _cosmetic_preferences()
+	var accounts: Dictionary = preferences.get(cosmetic_id, {}) as Dictionary
+	accounts[account_id] = value
+	preferences[cosmetic_id] = accounts
+	manifest["cosmetic_preferences"] = preferences
+	return save_manifest()
+
+
 func write_json(path: String, data: Variant) -> bool:
 	return _write_bytes_atomically(path, JSON.stringify(data, "\t").to_utf8_buffer())
 
@@ -197,6 +237,10 @@ func _default_manifest() -> Dictionary:
 		"components": COMPONENT_PATHS.duplicate(true),
 		"statistics": DEFAULT_STATISTICS.duplicate(true),
 		"pending_steam_achievements": [],
+		# This stores only one-time presentation acknowledgements, never DLC
+		# ownership. SteamEntitlements remains the entitlement source of truth.
+		"cosmetic_presentations": {},
+		"cosmetic_preferences": {},
 		"created_unix": int(Time.get_unix_time_from_system()),
 		"updated_unix": int(Time.get_unix_time_from_system()),
 	}
@@ -212,6 +256,10 @@ func _migrate_manifest(source: Dictionary) -> Dictionary:
 		version = 2
 	if not migrated.has("pending_steam_achievements"):
 		migrated["pending_steam_achievements"] = []
+	if not (migrated.get("cosmetic_presentations", {}) is Dictionary):
+		migrated["cosmetic_presentations"] = {}
+	if not (migrated.get("cosmetic_preferences", {}) is Dictionary):
+		migrated["cosmetic_preferences"] = {}
 	var migrated_statistics: Dictionary = migrated.get("statistics", {}) as Dictionary
 	if not (migrated.get("statistics") is Dictionary):
 		migrated_statistics = {}
@@ -236,6 +284,16 @@ func _statistics() -> Dictionary:
 func _pending_achievements() -> Array:
 	var value: Variant = manifest.get("pending_steam_achievements", [])
 	return (value as Array).duplicate() if value is Array else []
+
+
+func _cosmetic_presentations() -> Dictionary:
+	var value: Variant = manifest.get("cosmetic_presentations", {})
+	return (value as Dictionary).duplicate(true) if value is Dictionary else {}
+
+
+func _cosmetic_preferences() -> Dictionary:
+	var value: Variant = manifest.get("cosmetic_preferences", {})
+	return (value as Dictionary).duplicate(true) if value is Dictionary else {}
 
 
 func _ensure_save_directory() -> void:

@@ -8,7 +8,7 @@ const BAT_SCENE = preload("res://Scenes/bat.tscn")
 const ALBINO_BAT_SCENE = preload("res://Scenes/albino_bat.tscn")
 const WISP_SCENE = preload("res://Scenes/Chapter/Enemies/irrlichtkaefer.tscn")
 const BOSS_SCENE = preload("res://Scenes/Chapter/Enemies/kristallruecken.tscn")
-const VERSION = "0.0.4.6"
+const VERSION = "0.0.4.7"
 const FIRST_TO_THREE = 3
 const HIT_RANGE = 240.0
 const MATCH_MODES := ["classic_pvp", "team_battle", "cave_survival"]
@@ -16,6 +16,11 @@ const MATCH_MODES := ["classic_pvp", "team_battle", "cave_survival"]
 enum State { WAITING, COUNTDOWN, PLAYING, ROUND_END, RESULTS, WAVE_COUNTDOWN, WAVE_ACTIVE, WAVE_COMPLETE }
 
 var player_names = {}
+## Cosmetic choices are relayed after local Steam verification. The
+## current ENet arena has no Steam auth ticket verification endpoint, so this
+## is presentation-only and intentionally kept isolated for later server-side
+## ownership validation.
+var player_crown_entitlements = {}
 var player_queue_key = {}
 var queues = {}
 var queue_specs = {}
@@ -49,6 +54,11 @@ func _ready() -> void:
 	_ensure_spawn_safety_floor()
 	if not multiplayer.is_server():
 		_register_player_name.rpc_id(1, _local_name())
+		_register_local_crown_entitlement()
+		if not SteamEntitlements.entitlement_refreshed.is_connected(_on_local_crown_entitlement_refreshed):
+			SteamEntitlements.entitlement_refreshed.connect(_on_local_crown_entitlement_refreshed)
+		if not SteamEntitlements.early_supporter_crown_equipped_changed.is_connected(_on_local_crown_entitlement_refreshed):
+			SteamEntitlements.early_supporter_crown_equipped_changed.connect(_on_local_crown_entitlement_refreshed)
 		call_deferred("_request_selected_mode")
 	_create_ui()
 
@@ -75,11 +85,13 @@ func _request_existing_players() -> void:
 
 
 @rpc("authority", "reliable")
-func _spawn_player_for_peer(id: int, position: Vector2, display_name: String = "") -> void:
+func _spawn_player_for_peer(id: int, position: Vector2, display_name: String = "", has_crown: bool = false) -> void:
 	_spawn_player(id, position)
 	var avatar = get_node_or_null(str(id))
 	if avatar != null and avatar.has_method("set_multiplayer_display_name"):
 		avatar.call("set_multiplayer_display_name", display_name)
+	if avatar != null and avatar.has_method("set_early_supporter_crown"):
+		avatar.call("set_early_supporter_crown", has_crown)
 
 
 @rpc("authority", "reliable")
@@ -110,6 +122,7 @@ func _on_peer_disconnected(id: int) -> void:
 	_remove_from_queue(id)
 	var room_id = int(player_room.get(id, 0))
 	player_names.erase(id)
+	player_crown_entitlements.erase(id)
 	player_room.erase(id)
 	var player = get_node_or_null(str(id))
 	if player != null: player.queue_free()
@@ -154,6 +167,8 @@ func _spawn_player(id: int, position: Vector2) -> void:
 	add_child(player)
 	player.global_position = position
 	if player.has_method("set_world_fall_death_y"): player.set_world_fall_death_y(650.0)
+	if player.has_method("set_early_supporter_crown"):
+		player.call("set_early_supporter_crown", bool(player_crown_entitlements.get(id, false)))
 
 
 @rpc("any_peer", "reliable")
@@ -161,6 +176,45 @@ func _register_player_name(value: String) -> void:
 	if not multiplayer.is_server(): return
 	var id = multiplayer.get_remote_sender_id()
 	player_names[id] = _safe_name(value, id)
+
+
+func _register_local_crown_entitlement() -> void:
+	var has_crown := SteamEntitlements.is_early_supporter_crown_equipped()
+	if multiplayer.is_server():
+		_set_player_crown_entitlement(multiplayer.get_unique_id(), has_crown)
+	else:
+		_register_player_crown_entitlement.rpc_id(1, has_crown)
+
+
+func _on_local_crown_entitlement_refreshed(_owned: bool) -> void:
+	_register_local_crown_entitlement()
+
+
+@rpc("any_peer", "reliable")
+func _register_player_crown_entitlement(has_crown: bool) -> void:
+	if not multiplayer.is_server():
+		return
+	_set_player_crown_entitlement(multiplayer.get_remote_sender_id(), has_crown)
+
+
+func relay_player_crown_entitlement(has_crown: bool) -> void:
+	if multiplayer.is_server():
+		_set_player_crown_entitlement(multiplayer.get_unique_id(), has_crown)
+	else:
+		_register_player_crown_entitlement.rpc_id(1, has_crown)
+
+
+func _set_player_crown_entitlement(player_id: int, has_crown: bool) -> void:
+	player_crown_entitlements[player_id] = has_crown
+	var avatar := get_node_or_null(str(player_id))
+	if avatar != null and avatar.has_method("set_early_supporter_crown"):
+		avatar.call("set_early_supporter_crown", has_crown)
+	var room_id := int(player_room.get(player_id, 0))
+	if room_id == 0 or not rooms.has(room_id):
+		return
+	for receiver in rooms[room_id].members:
+		if receiver != player_id and _peer_is_connected(receiver):
+			_receive_room_replication.rpc_id(receiver, player_id, "crown", [has_crown])
 
 
 @rpc("any_peer", "reliable")
@@ -244,7 +298,7 @@ func _create_room(mode: String, members: Array[int], steam_lobby_id: int = 0) ->
 		for visible_id in members:
 			var avatar = get_node_or_null(str(visible_id)) as Node2D
 			if avatar != null:
-				_spawn_player_for_peer.rpc_id(receiver, visible_id, avatar.global_position, String(player_names.get(visible_id, _fallback_name(visible_id))))
+				_spawn_player_for_peer.rpc_id(receiver, visible_id, avatar.global_position, String(player_names.get(visible_id, _fallback_name(visible_id))), bool(player_crown_entitlements.get(visible_id, false)))
 		_grant_replication_ready.rpc_id(receiver)
 		_queue_status.rpc_id(receiver, "MATCH FOUND\n%s" % _mode_label(mode))
 	for visible_id in members:
@@ -411,6 +465,7 @@ func _receive_room_replication(player_id: int, kind: String, payload: Array) -> 
 		"facing": avatar.sync_facing_direction(payload[0])
 		"visual": avatar.sync_multiplayer_visual_state(payload[0], payload[1], payload[2], payload[3], payload[4], payload[5])
 		"attack": avatar.sync_attack(payload[0])
+		"crown": avatar.set_early_supporter_crown(payload[0])
 
 
 func request_pvp_hit(target_id: int, damage: int, origin: Vector2) -> void:
