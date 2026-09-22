@@ -54,18 +54,17 @@ Expected log examples:
 | --- | --- | --- | --- |
 | `ACH_INTO_THE_DEPTHS` | Into the Depths | Enter the caves for the first time. | `Scripts/Chapter/chapter_level.gd`, after the player has actually been placed in Chapter 1, Level 1 (the first real cave). |
 | `ACH_FIRST_KILL` | First Kill | Defeat your first enemy. | `CombatEvents.enemy_defeated`, emitted only by an existing enemy death routine after player-owned damage. |
-| `STAT_WISP_BEETLES_KILLED` | 10 Wisp Beetles Killed | Kill 10 Wisp Beetles. | `SteamManager`, after `CombatEvents.enemy_defeated` reports ten player-caused deaths whose `chapter_enemy_type` is `irrlichtkaefer`. Progress is stored locally as `statistics.wisp_beetles_defeated`; the Steam achievement is unlocked at 10. |
+| `ACH_WISP_HUNTER` | Wisp Hunter | Defeat 10 Wisp Beetles. | `SteamManager`, after `CombatEvents.enemy_defeated` reports ten player-caused deaths whose `chapter_enemy_type` is `irrlichtkaefer`. It synchronizes `STAT_WISP_BEETLES_KILLED` and unlocks at 10. |
+| `ACH_BELL_RINGER` | Bell Ringer | Activate a Resonance Bell. | `ChapterQuestRuntime`, when the player correctly activates a Chapter I Level 2 resonance bell. |
+| `ACH_MOONFLOWER_BLOOM` | Moonflower Bloom | Open a Moonflower. | `ChapterQuestRuntime`, when the player pollinates the first Chapter I moonbloom. |
+| `ACH_CHAPTER_ONE_CLEAR` | Chapter One Clear | Complete Chapter 1. | `ChapterProgress`, after the final Chapter I level and boss exit complete. |
+| `ACH_ENTER_PVP` | Into the Arena | Enter a PvP match for the first time. | `multiplayer_world`, only after room allocation and avatar replication have completed on the joining client. |
 
-The two achievement definitions are present in Steamworks as client-triggered
-achievements. Future achievements use the same `SteamManager.unlock(api_name)`
-interface; kill-count/type/boss achievements can subscribe to
-`CombatEvents.enemy_defeated` and its persistent statistic.
-
-`STAT_WISP_BEETLES_KILLED` is the exact achievement API name currently entered
-in Steamworks. Its `STAT_` prefix is unusual but valid as long as the saved
-Steamworks entry remains a **client-triggered achievement**, rather than a
-Steam statistic. Its Progress Statistic field should remain `None`, matching
-the current backend configuration.
+All achievement definitions are client-triggered and use the same
+`SteamManager.unlock(api_name)` interface. `STAT_WISP_BEETLES_KILLED` is an
+**INT Steam statistic**, not an achievement: default/minimum `0`, maximum
+`999999`, increment-only, and client-set. `ACH_WISP_HUNTER` references it as
+its progress statistic with the range `0`–`10`.
 
 ## Save format and migration
 

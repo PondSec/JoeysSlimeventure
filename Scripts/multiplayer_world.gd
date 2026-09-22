@@ -82,7 +82,13 @@ func _spawn_player_for_peer(id: int, position: Vector2) -> void:
 @rpc("authority", "reliable")
 func _grant_replication_ready() -> void:
 	var me = get_node_or_null(str(multiplayer.get_unique_id()))
-	if me != null: me.multiplayer_replication_ready = true
+	if me != null:
+		me.multiplayer_replication_ready = true
+		# The server sends this only after an allocated room has spawned every
+		# participant on this client. It is therefore the first reliable point at
+		# which the player has entered a PvP match (not merely opened matchmaking).
+		if not multiplayer.is_server():
+			SteamManager.unlock(SteamManager.ACH_ENTER_PVP)
 
 
 func _on_peer_connected(id: int) -> void:

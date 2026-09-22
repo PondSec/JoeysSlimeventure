@@ -325,6 +325,9 @@ func _complete_active_chapter() -> void:
 	active_level_index = 0
 
 	if finished_chapter == 1:
+		# This is the authoritative completion boundary: all eight Chapter I
+		# levels, including the boss exit, have resolved before this runs.
+		SteamManager.unlock(SteamManager.ACH_CHAPTER_ONE_CLEAR)
 		chapter_rewards["chapter_1_split"] = true
 		pending_hub_banner = "Kapitel I gemeistert"
 		pending_hub_toast = "Die Tuere zu Kapitel II ist jetzt aktiv. Sticky Form ist nun im Skill Tree verfuegbar."

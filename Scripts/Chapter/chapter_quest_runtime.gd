@@ -497,7 +497,16 @@ func _complete_entry(entry: Dictionary) -> void:
 			glow.energy = 0.72
 	if str(entry.get("kind", "")) == "traversal_chain":
 		entry["active_until"] = local_time + 9.0
-	if str(entry.get("kind", "")) == "escort" and wisp != null: wisp_checkpoint = (entry.get("node") as Node2D).global_position
+	if bool(entry.get("level_two_resonance", false)):
+		SteamManager.unlock(SteamManager.ACH_BELL_RINGER)
+	if str(entry.get("kind", "")) == "escort":
+		if wisp != null:
+			wisp_checkpoint = (entry.get("node") as Node2D).global_position
+		# The only escort objective is the Chapter I moonbloom pollination
+		# sequence. Unlock at the first opened bloom so this reflects the player
+		# action, not merely the later level transition.
+		if str(entry.get("objective_id", "")) == "pollinate_moonblooms":
+			SteamManager.unlock(SteamManager.ACH_MOONFLOWER_BLOOM)
 	_record_event(str(entry.get("objective_id", "")), str(entry.get("anchor_id", "")))
 
 

@@ -11,9 +11,12 @@ signal achievement_failed(api_name: String, reason: String)
 
 const APP_ID := 4536840
 const ACH_FIRST_KILL := "ACH_FIRST_KILL"
-# This is the achievement API name configured in Steamworks. Despite the STAT
-# prefix, Steamworks currently defines it as a client-triggered achievement.
-const ACH_WISP_BEETLES_KILLED := "STAT_WISP_BEETLES_KILLED"
+const ACH_WISP_HUNTER := "ACH_WISP_HUNTER"
+const ACH_BELL_RINGER := "ACH_BELL_RINGER"
+const ACH_MOONFLOWER_BLOOM := "ACH_MOONFLOWER_BLOOM"
+const ACH_CHAPTER_ONE_CLEAR := "ACH_CHAPTER_ONE_CLEAR"
+const ACH_ENTER_PVP := "ACH_ENTER_PVP"
+const STAT_WISP_BEETLES_KILLED := "STAT_WISP_BEETLES_KILLED"
 const WISP_BEETLE_KILL_STAT := "wisp_beetles_defeated"
 const WISP_BEETLE_KILL_TARGET := 10
 
@@ -179,8 +182,22 @@ func _on_enemy_defeated(_enemy: Node, enemy_type: String, _total_defeats: int) -
 	if enemy_type != "irrlichtkaefer":
 		return
 	var wisp_beetles_defeated := SaveService.increment_stat(WISP_BEETLE_KILL_STAT)
+	_sync_int_stat(STAT_WISP_BEETLES_KILLED, wisp_beetles_defeated)
 	if wisp_beetles_defeated >= WISP_BEETLE_KILL_TARGET:
-		unlock(ACH_WISP_BEETLES_KILLED)
+		unlock(ACH_WISP_HUNTER)
+
+
+func _sync_int_stat(api_name: String, value: int) -> void:
+	if not is_initialized or not are_stats_ready or steam == null:
+		return
+	if not steam.has_method("setStat"):
+		_log_failure_once("set_stat:" + api_name, "[Steam] This GodotSteam build has no setStat API for %s." % api_name)
+		return
+	if not bool(steam.call("setStat", api_name, maxi(0, value))):
+		_log_failure_once("set_stat_failed:" + api_name, "[Steam] Failed to sync stat: %s" % api_name)
+		return
+	if steam.has_method("storeStats"):
+		steam.call("storeStats")
 
 
 func _request_stats() -> void:
@@ -243,6 +260,7 @@ func _mark_stats_ready() -> void:
 		return
 	are_stats_ready = true
 	print("[Steam] Stats ready")
+	_sync_int_stat(STAT_WISP_BEETLES_KILLED, SaveService.get_stat(WISP_BEETLE_KILL_STAT))
 	_flush_pending_achievements()
 	stats_ready.emit()
 
