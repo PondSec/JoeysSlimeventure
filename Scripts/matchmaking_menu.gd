@@ -5,9 +5,9 @@ extends RefCounted
 ## independent and can be opened again after every completed match.
 
 const MODE_DATA := {
-	"classic_pvp": {"title": "CLASSIC PvP", "players": "1 vs 1", "description": "Fight another slime. First to 3 points wins.", "preview": "⚔  DUEL SPIRE  ⚔", "accent": Color("82d9ff")},
-	"team_battle": {"title": "TEAM BATTLE", "players": "2 vs 2", "description": "Fight together with another slime against an enemy team.", "preview": "✦  TWIN PILLARS  ✦", "accent": Color("ff8d7a")},
-	"cave_survival": {"title": "CAVE SURVIVAL", "players": "2 Players Co-op", "description": "Survive increasingly dangerous enemy waves together.", "preview": "☾  DEEPWAVE DEN  ☾", "accent": Color("d3b4ff")},
+	"classic_pvp": {"title": "CLASSIC PvP", "players": "1 vs 1", "description": "Fight another slime. First to 3 points wins.", "texture": preload("res://Assets/GUI/Matchmaking/classic_pvp.png"), "accent": Color("82d9ff")},
+	"team_battle": {"title": "TEAM BATTLE", "players": "2 vs 2", "description": "Fight together with another slime against an enemy team.", "texture": preload("res://Assets/GUI/Matchmaking/team_battle.png"), "accent": Color("ff8d7a")},
+	"cave_survival": {"title": "CAVE SURVIVAL", "players": "2 Players Co-op", "description": "Survive increasingly dangerous enemy waves together.", "texture": preload("res://Assets/GUI/Matchmaking/cave_survival.png"), "accent": Color("d3b4ff")},
 }
 
 static func open(host: Control, preselected_mode: String = "") -> void:
@@ -44,7 +44,7 @@ static func open(host: Control, preselected_mode: String = "") -> void:
 	content.add_child(heading)
 	var subheading := Label.new()
 	subheading.name = "ModeInfo"
-	subheading.text = "Choose a mode, then find a compatible party."
+	subheading.text = "Select a mode to find a compatible party."
 	subheading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	subheading.add_theme_font_size_override("font_size", 18)
 	subheading.add_theme_color_override("font_color", Color("b7c6d2"))
@@ -55,41 +55,24 @@ static func open(host: Control, preselected_mode: String = "") -> void:
 	cards.alignment = BoxContainer.ALIGNMENT_CENTER
 	cards.add_theme_constant_override("separation", 18)
 	content.add_child(cards)
-	# Keep selection in a mutable object shared by every card callback and the
-	# Find Match callback. A scalar captured by a GDScript lambda is copied into
-	# that lambda, so the old code refreshed the visuals but left Find Match with
-	# its original empty selection.
-	var selection_state: Dictionary = {"mode": preselected_mode}
-	for mode: String in MODE_DATA:
-		var card := _make_card(mode, MODE_DATA[mode], String(selection_state.get("mode", "")) == mode)
-		card.pressed.connect(_select_mode.bind(selection_state, cards, subheading, mode))
-		cards.add_child(card)
 	var status := Label.new()
 	status.name = "QueueStatus"
 	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	status.add_theme_font_size_override("font_size", 17)
 	status.add_theme_color_override("font_color", Color("b7c6d2"))
 	content.add_child(status)
+	# Keep selection in a mutable object shared by every card callback. A scalar
+	# captured by a GDScript lambda is copied into that lambda, which used to make
+	# the old separate Find Match action retain an empty selection.
+	var selection_state: Dictionary = {"mode": preselected_mode}
+	for mode: String in MODE_DATA:
+		var card := _make_card(mode, MODE_DATA[mode], String(selection_state.get("mode", "")) == mode)
+		card.pressed.connect(_select_mode.bind(selection_state, cards, subheading, status, mode))
+		cards.add_child(card)
 	var buttons := HBoxContainer.new()
 	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
 	buttons.add_theme_constant_override("separation", 16)
 	content.add_child(buttons)
-	var find := Button.new()
-	find.name = "FindMatch"
-	find.text = "FIND MATCH"
-	find.custom_minimum_size = Vector2(260, 58)
-	find.add_theme_font_size_override("font_size", 20)
-	find.add_theme_stylebox_override("normal", _panel_style(Color("284b55"), Color("94e4e7"), 2, 10))
-	buttons.add_child(find)
-	find.pressed.connect(func() -> void:
-		var selected := String(selection_state.get("mode", ""))
-		if selected.is_empty():
-			status.text = "Choose a battle first."
-			return
-		find.disabled = true
-		status.text = "Finding Match…\n%s" % String(MODE_DATA[selected].title)
-		GameManager.start_global_matchmaking(selected)
-	)
 	var back := Button.new()
 	back.text = "BACK"
 	back.custom_minimum_size = Vector2(170, 58)
@@ -101,19 +84,19 @@ static func open(host: Control, preselected_mode: String = "") -> void:
 		if not is_instance_valid(status):
 			return
 		status.text = message
-		if "error" in message.to_lower() or "nicht" in message.to_lower():
-			find.disabled = false
 	if not GameManager.matchmaking_status_changed.is_connected(status_callback):
 		GameManager.matchmaking_status_changed.connect(status_callback)
 
 
-static func _select_mode(selection_state: Dictionary, cards: Container, subheading: Label, mode: String) -> void:
+static func _select_mode(selection_state: Dictionary, cards: Container, subheading: Label, status: Label, mode: String) -> void:
 	selection_state["mode"] = mode
 	for other in cards.get_children():
 		other.set_meta("selected", other.get_meta("mode", "") == mode)
 		_refresh_card(other)
 	var data: Dictionary = MODE_DATA[mode]
 	subheading.text = "%s  •  %s" % [data.title, data.description]
+	status.text = "Finding Match…\n%s" % String(data.title)
+	GameManager.start_global_matchmaking(mode)
 
 
 static func _make_card(mode: String, data: Dictionary, is_selected: bool) -> Button:
@@ -128,19 +111,13 @@ static func _make_card(mode: String, data: Dictionary, is_selected: bool) -> But
 	content.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, 18)
 	content.add_theme_constant_override("separation", 12)
 	card.add_child(content)
-	var preview := ColorRect.new()
+	var preview := TextureRect.new()
 	preview.custom_minimum_size = Vector2(0, 150)
-	preview.color = Color(data.accent, 0.24)
+	preview.texture = data.texture
+	preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.add_child(preview)
-	var glyph := Label.new()
-	glyph.text = String(data.preview)
-	glyph.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	glyph.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	glyph.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	glyph.add_theme_font_size_override("font_size", 18)
-	glyph.add_theme_color_override("font_color", data.accent)
-	preview.add_child(glyph)
 	var title := Label.new()
 	title.text = data.title
 	title.add_theme_font_size_override("font_size", 25)

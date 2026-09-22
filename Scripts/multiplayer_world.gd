@@ -8,7 +8,7 @@ const BAT_SCENE = preload("res://Scenes/bat.tscn")
 const ALBINO_BAT_SCENE = preload("res://Scenes/albino_bat.tscn")
 const WISP_SCENE = preload("res://Scenes/Chapter/Enemies/irrlichtkaefer.tscn")
 const BOSS_SCENE = preload("res://Scenes/Chapter/Enemies/kristallruecken.tscn")
-const VERSION = "0.0.4.5"
+const VERSION = "0.0.4.6"
 const FIRST_TO_THREE = 3
 const HIT_RANGE = 240.0
 const MATCH_MODES := ["classic_pvp", "team_battle", "cave_survival"]
@@ -77,6 +77,13 @@ func _request_existing_players() -> void:
 @rpc("authority", "reliable")
 func _spawn_player_for_peer(id: int, position: Vector2) -> void:
 	_spawn_player(id, position)
+
+
+@rpc("authority", "reliable")
+func _set_player_display_name(player_id: int, display_name: String) -> void:
+	var avatar = get_node_or_null(str(player_id))
+	if avatar != null and avatar.has_method("set_multiplayer_display_name"):
+		avatar.call("set_multiplayer_display_name", display_name)
 
 
 @rpc("authority", "reliable")
@@ -233,7 +240,9 @@ func _create_room(mode: String, members: Array[int], steam_lobby_id: int = 0) ->
 		if not _peer_is_connected(receiver): continue
 		for visible_id in members:
 			var avatar = get_node_or_null(str(visible_id)) as Node2D
-			if avatar != null: _spawn_player_for_peer.rpc_id(receiver, visible_id, avatar.global_position)
+			if avatar != null:
+				_spawn_player_for_peer.rpc_id(receiver, visible_id, avatar.global_position)
+				_set_player_display_name.rpc_id(receiver, visible_id, String(player_names.get(visible_id, _fallback_name(visible_id))))
 		_grant_replication_ready.rpc_id(receiver)
 		_queue_status.rpc_id(receiver, "MATCH FOUND\n%s" % _mode_label(mode))
 	for visible_id in members:
@@ -259,7 +268,11 @@ func _start_round(room_id: int) -> void:
 	room.transitioning = true
 	for id in room.members:
 		room.alive[id] = true
+		var authority_avatar = get_node_or_null(str(id))
+		if authority_avatar != null:
+			authority_avatar.current_health = authority_avatar.max_health
 		if _peer_is_connected(id): _reset_room_avatar.rpc_id(id, id, _room_spawn(room, id), true)
+		_sync_room_player_health_to_members(room_id, id)
 	rooms[room_id] = room
 	_sync_room(room_id, "ROUND %d" % int(room.round), "3")
 	_countdown(room_id, false)
@@ -273,7 +286,11 @@ func _start_wave(room_id: int) -> void:
 	room.transitioning = true
 	for id in room.members:
 		room.alive[id] = true
+		var authority_avatar = get_node_or_null(str(id))
+		if authority_avatar != null:
+			authority_avatar.current_health = authority_avatar.max_health
 		if _peer_is_connected(id): _reset_room_avatar.rpc_id(id, id, _room_spawn(room, id), true)
+		_sync_room_player_health_to_members(room_id, id)
 	rooms[room_id] = room
 	_sync_room(room_id, "BOSS WAVE %d" % int(room.wave) if int(room.wave) % 5 == 0 else "WAVE %d" % int(room.wave), "3")
 	_countdown(room_id, true)
@@ -353,6 +370,28 @@ func _set_room_avatar_state(player_id: int, locked: bool, managed_life: bool) ->
 func _apply_room_player_damage(player_id: int, damage: int, origin: Vector2) -> void:
 	var avatar = get_node_or_null(str(player_id))
 	if avatar != null: avatar.take_damage(damage, origin)
+
+
+@rpc("authority", "reliable")
+func _sync_room_player_health(player_id: int, health: int, health_max: int) -> void:
+	var avatar = get_node_or_null(str(player_id))
+	if avatar == null:
+		return
+	avatar.max_health = maxi(1, health_max)
+	avatar.current_health = clampi(health, 0, avatar.max_health)
+	if avatar.has_method("update_health_bar"):
+		avatar.update_health_bar()
+
+
+func _sync_room_player_health_to_members(room_id: int, player_id: int) -> void:
+	if not rooms.has(room_id):
+		return
+	var avatar = get_node_or_null(str(player_id))
+	if avatar == null:
+		return
+	for member_id in rooms[room_id].members:
+		if _peer_is_connected(member_id):
+			_sync_room_player_health.rpc_id(member_id, player_id, int(avatar.current_health), int(avatar.max_health))
 
 
 @rpc("authority", "reliable")
@@ -463,6 +502,7 @@ func _validate_hit(attacker_id: int, target_id: int, damage: int, origin: Vector
 	target.current_health = max(0, int(target.current_health) - approved_damage)
 	print("[MATCH] Accepted hit %d -> %d" % [attacker_id, target_id])
 	if _peer_is_connected(target_id): _apply_room_player_damage.rpc_id(target_id, target_id, approved_damage, attacker.global_position)
+	_sync_room_player_health_to_members(room_id, target_id)
 
 
 @rpc("any_peer", "reliable")

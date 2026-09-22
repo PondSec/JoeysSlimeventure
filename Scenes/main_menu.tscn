@@ -66,6 +66,7 @@ func _ready() -> void:
 	refresh_uuid_when_steam_is_ready()
 	connect_matchmaking_status()
 	create_online_battle_entry()
+	create_achievement_entry()
 	create_game_messages_ui()
 	fetch_game_messages()
 
@@ -92,6 +93,28 @@ func create_online_battle_entry() -> void:
 	menu_stack.add_child(button)
 	menu_stack.move_child(button, 1)
 	button.pressed.connect(_on_matchmaking_pressed)
+
+func create_achievement_entry() -> void:
+	if get_node_or_null(\"AchievementButton\") != null:
+		return
+	var button := TextureButton.new()
+	button.name = \"AchievementButton\"
+	button.texture_normal = load(\"res://Assets/GUI/achievement_trophy.png\")
+	button.ignore_texture_size = true
+	button.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	button.tooltip_text = \"Achievements\"
+	button.position = Vector2(1850, 30)
+	button.size = Vector2(42, 42)
+	button.modulate = Color(1.0, 1.0, 1.0, 0.88)
+	add_child(button)
+	button.pressed.connect(_on_achievement_button_pressed)
+
+func _on_achievement_button_pressed() -> void:
+	if get_node_or_null(\"AchievementGallery\") != null:
+		return
+	var gallery := preload(\"res://Scripts/achievement_gallery.gd\").new()
+	gallery.name = \"AchievementGallery\"
+	add_child(gallery)
 
 func set_uuid_label() -> void:
 	var player_id = load_or_create_player_id()

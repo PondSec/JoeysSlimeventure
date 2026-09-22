@@ -14,6 +14,9 @@ var quest_label: Label
 
 
 func _ready() -> void:
+	# Entering the scene is the authoritative local boundary for the first visit.
+	# SteamManager queues it safely when Steam has not finished loading yet.
+	SteamManager.unlock(SteamManager.ACH_ENTER_EMBER_DIMENSION)
 	_build_arena()
 	_spawn_player()
 	_spawn_quest_enemies()

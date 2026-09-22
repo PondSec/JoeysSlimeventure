@@ -370,9 +370,16 @@ var hero_combo_queued := false
 var max_health: int = 100
 var current_health: int = 100
 var base_max_health = 100
+var multiplayer_display_name := ""
+var multiplayer_nameplate: Node2D
+var multiplayer_nameplate_label: Label
+var multiplayer_nameplate_health: TextureProgressBar
 # Definiert die Originalfarbe und die Farbe, die bei Schaden angezeigt werden soll
 const COLOR_NORMAL = Color(0.62, 1.0, 0.58)  # Originalfarbe (9fff94 in Hex)
 const COLOR_DAMAGE = Color(1.0, 0.29, 0.29)  # Schadenfarbe (ff4a4a in Hex)
+const NAMEPLATE_EMPTY := preload("res://Assets/GUI/Healthbar/off.png")
+const NAMEPLATE_FILL := preload("res://Assets/GUI/Healthbar/over.png")
+const NAMEPLATE_OFFSET := Vector2(0.0, -152.0)
 
 var attack_cooldown := 0.1  # Cooldown zwischen Angriffen
 var last_attack_time := 0.0
@@ -2249,6 +2256,59 @@ func update_health_bar():
 	health_bar.value = current_health
 	health_bar.max_value = max_health
 	_sync_feedback_ui()
+	_update_multiplayer_nameplate()
+
+
+func set_multiplayer_display_name(display_name: String) -> void:
+	multiplayer_display_name = display_name.strip_edges().substr(0, 32)
+	_ensure_multiplayer_nameplate()
+	_update_multiplayer_nameplate()
+
+
+func _ensure_multiplayer_nameplate() -> void:
+	if multiplayer_nameplate != null and is_instance_valid(multiplayer_nameplate):
+		return
+	if _is_dedicated_server_runtime():
+		return
+	multiplayer_nameplate = Node2D.new()
+	multiplayer_nameplate.name = "MultiplayerNameplate"
+	multiplayer_nameplate.position = NAMEPLATE_OFFSET
+	multiplayer_nameplate.z_index = 20
+	add_child(multiplayer_nameplate)
+	multiplayer_nameplate_label = Label.new()
+	multiplayer_nameplate_label.position = Vector2(-62.0, -20.0)
+	multiplayer_nameplate_label.size = Vector2(124.0, 16.0)
+	multiplayer_nameplate_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	multiplayer_nameplate_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	multiplayer_nameplate_label.add_theme_font_size_override("font_size", 10)
+	multiplayer_nameplate_label.add_theme_color_override("font_color", Color("f5fff3"))
+	multiplayer_nameplate_label.add_theme_color_override("font_outline_color", Color("101317"))
+	multiplayer_nameplate_label.add_theme_constant_override("outline_size", 3)
+	multiplayer_nameplate_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	multiplayer_nameplate.add_child(multiplayer_nameplate_label)
+	multiplayer_nameplate_health = TextureProgressBar.new()
+	multiplayer_nameplate_health.position = Vector2(-26.0, -2.0)
+	multiplayer_nameplate_health.size = Vector2(52.0, 7.0)
+	multiplayer_nameplate_health.texture_under = NAMEPLATE_EMPTY
+	multiplayer_nameplate_health.texture_progress = NAMEPLATE_FILL
+	multiplayer_nameplate_health.nine_patch_stretch = false
+	multiplayer_nameplate_health.fill_mode = TextureProgressBar.FILL_LEFT_TO_RIGHT
+	multiplayer_nameplate_health.show_percentage = false
+	multiplayer_nameplate_health.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	multiplayer_nameplate.add_child(multiplayer_nameplate_health)
+
+
+func _update_multiplayer_nameplate() -> void:
+	if multiplayer_nameplate == null or not is_instance_valid(multiplayer_nameplate):
+		return
+	var game_manager := get_node_or_null("/root/GameManager")
+	var should_show := game_manager != null and bool(game_manager.get("is_multiplayer")) and not multiplayer_display_name.is_empty()
+	multiplayer_nameplate.visible = should_show and visible
+	if not should_show:
+		return
+	multiplayer_nameplate_label.text = multiplayer_display_name
+	multiplayer_nameplate_health.max_value = maxi(1, max_health)
+	multiplayer_nameplate_health.value = clampi(current_health, 0, max_health)
 	
 func update_facing_direction():
 	if !is_multiplayer_authority():

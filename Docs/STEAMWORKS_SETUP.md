@@ -59,6 +59,7 @@ Expected log examples:
 | `ACH_MOONFLOWER_BLOOM` | Moonflower Bloom | Open a Moonflower. | `ChapterQuestRuntime`, when the player pollinates the first Chapter I moonbloom. |
 | `ACH_CHAPTER_ONE_CLEAR` | Chapter One Clear | Complete Chapter 1. | `ChapterProgress`, after the final Chapter I level and boss exit complete. |
 | `ACH_ENTER_PVP` | Into the Arena | Enter a PvP match for the first time. | `multiplayer_world`, only after room allocation and avatar replication have completed on the joining client. |
+| `ACH_ENTER_EMBER_DIMENSION` | Into the Ember Dimension | Enter the Ember Dimension for the first time. | `glut_dimension`, immediately after the player enters the Glutdimension scene. |
 
 All achievement definitions are client-triggered and use the same
 `SteamManager.unlock(api_name)` interface. `STAT_WISP_BEETLES_KILLED` is an
