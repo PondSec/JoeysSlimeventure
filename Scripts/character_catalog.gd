@@ -6,43 +6,7 @@ const SLIME_ID := "slime"
 const MALE_HERO_ID := "male_hero"
 const HERO_DELUXE_SHEETS := "res://Assets/player/hero/individual_sheets/"
 const SLIME_EARLY_SUPPORTER_CROWN_SHEET := "res://Assets/slime_early_supporter_crown.png"
-const HERO_EARLY_SUPPORTER_CROWN_SHEET := "res://Assets/player/hero/male_hero_early_supporter_crown.png"
-const HERO_EARLY_SUPPORTER_CROWN_COLUMNS := 16
-const HERO_EARLY_SUPPORTER_CROWN_ROWS := 16
-
-## These are the frame ranges authored in male_hero.aseprite and shown in the
-## supplied timeline. The packed crown sheet preserves that exact order, so the
-## runtime can keep every existing animation timing/sequence without slicing or
-## rebuilding the Hero animation data.
-const HERO_EARLY_SUPPORTER_CROWN_RANGES := {
-	"design": {"start": 0, "count": 1},
-	"idle": {"start": 1, "count": 10},
-	"idle_turn": {"start": 11, "count": 4},
-	"walk": {"start": 15, "count": 10},
-	"walk_turn": {"start": 25, "count": 4},
-	"dash": {"start": 29, "count": 5},
-	"run": {"start": 34, "count": 10},
-	"run_turn": {"start": 44, "count": 4},
-	"run_to_idle": {"start": 48, "count": 7},
-	"slide": {"start": 55, "count": 8},
-	"jump": {"start": 63, "count": 6},
-	"fall": {"start": 69, "count": 4},
-	"fall_loop": {"start": 73, "count": 3},
-	"wall_slide": {"start": 76, "count": 4},
-	"wall_jump": {"start": 80, "count": 4},
-	"ledge_hang": {"start": 84, "count": 7},
-	"ledge_grab": {"start": 84, "count": 7},
-	"ledge_reach": {"start": 91, "count": 11},
-	"ledge_climb": {"start": 91, "count": 11},
-	"combo_1": {"start": 102, "count": 3},
-	"combo_1_end": {"start": 105, "count": 4},
-	"combo_2": {"start": 109, "count": 6},
-	"combo_2_end": {"start": 115, "count": 4},
-	"combo_3": {"start": 119, "count": 12},
-	"combo_3_end": {"start": 131, "count": 6},
-	"hurt": {"start": 137, "count": 6},
-	"death": {"start": 143, "count": 23},
-}
+const HERO_EARLY_SUPPORTER_CROWN_SHEETS := "res://Assets/player/hero/early_supporter_crown_sheets/"
 
 static var _texture_cache: Dictionary = {}
 
@@ -92,25 +56,15 @@ static func load_texture(texture_path: String) -> Texture2D:
 	return texture
 
 
-static func get_hero_early_supporter_crown_descriptor(animation_name: String, source_descriptor: Dictionary) -> Dictionary:
-	var range_data: Dictionary = HERO_EARLY_SUPPORTER_CROWN_RANGES.get(animation_name, {}) as Dictionary
-	if range_data.is_empty():
-		return source_descriptor.duplicate(true)
-	var start := int(range_data.get("start", 0))
-	var count := int(range_data.get("count", 1))
-	var source_sequence: Array = source_descriptor.get("frame_sequence", []) as Array
-	var sequence: Array[int] = []
-	if source_sequence.is_empty():
-		for index in range(count):
-			sequence.append(start + index)
-	else:
-		for frame in source_sequence:
-			sequence.append(start + int(frame))
+static func get_hero_early_supporter_crown_descriptor(_animation_name: String, source_descriptor: Dictionary) -> Dictionary:
 	var crowned_descriptor := source_descriptor.duplicate(true)
-	crowned_descriptor["texture_path"] = HERO_EARLY_SUPPORTER_CROWN_SHEET
-	crowned_descriptor["hframes"] = HERO_EARLY_SUPPORTER_CROWN_COLUMNS
-	crowned_descriptor["vframes"] = HERO_EARLY_SUPPORTER_CROWN_ROWS
-	crowned_descriptor["frame_sequence"] = sequence
+	var source_texture_path := String(crowned_descriptor.get("texture_path", ""))
+	var crown_texture_path := HERO_EARLY_SUPPORTER_CROWN_SHEETS + source_texture_path.get_file()
+	# The crown sheets are exported from the exact Aseprite tags used by the
+	# standard Hero. Keep the original hframes, vframes, frame sequence and
+	# timing intact; only substitute the image file.
+	if ResourceLoader.exists(crown_texture_path):
+		crowned_descriptor["texture_path"] = crown_texture_path
 	return crowned_descriptor
 
 

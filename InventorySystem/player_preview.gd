@@ -3,15 +3,16 @@ extends Control
 const PLAYER_TEXTURE := preload("res://Assets/slime-sprite2.png")
 const CROWNED_PLAYER_TEXTURE := preload("res://Assets/slime_early_supporter_crown.png")
 const HERO_IDLE_TEXTURE := preload("res://Assets/player/hero/individual_sheets/male_hero-idle.png")
-const CROWNED_HERO_SHEET := preload("res://Assets/player/hero/male_hero_early_supporter_crown.png")
+const CROWNED_HERO_IDLE_TEXTURE := preload("res://Assets/player/hero/early_supporter_crown_sheets/male_hero-idle.png")
 const CROWN_ICON := preload("res://Assets/Cosmetics/early_supporter_crown.png")
 const SLIME_FRAME_SIZE := Vector2i(512, 512)
 const HERO_FRAME_SIZE := Vector2i(128, 128)
-const CROWNED_HERO_FRAME_SIZE := Vector2i(104, 104)
 # The Deluxe idle sheet has a 16×32 opaque character inside each 128px cell.
 # Previewing the full transparent cell made the hero appear miniature.
 const HERO_IDLE_CONTENT_RECT := Rect2(50.0, 46.0, 16.0, 32.0)
-const CROWNED_HERO_IDLE_CONTENT_RECT := Rect2(40.0, 37.0, 13.0, 26.0)
+# The crown extends naturally above the normal head bounds. This wider crop
+# keeps the full cosmetic visible while making the Hero preview less oversized.
+const CROWNED_HERO_IDLE_CONTENT_RECT := Rect2(40.0, 24.0, 48.0, 64.0)
 const ItemRegistry := preload("res://Scripts/item_registry.gd")
 
 @onready var body: TextureRect = $Body
@@ -104,11 +105,12 @@ func _make_slime_frame(frame_index: int) -> AtlasTexture:
 func _make_hero_idle_frame(frame_index: int) -> AtlasTexture:
 	var atlas := AtlasTexture.new()
 	if crown_equipped:
-		# Frame 0 is Hero design; authored idle occupies frames 1-10 in the
-		# packed crown sheet, exactly as marked in the supplied Aseprite timeline.
-		atlas.atlas = CROWNED_HERO_SHEET
+		# Exported directly from the Hero's Aseprite idle tag. Its frame layout is
+		# identical to the ordinary individual sheet, so no packed-sheet offsets
+		# can affect the preview.
+		atlas.atlas = CROWNED_HERO_IDLE_TEXTURE
 		atlas.region = Rect2(
-			float((frame_index + 1) * CROWNED_HERO_FRAME_SIZE.x) + CROWNED_HERO_IDLE_CONTENT_RECT.position.x,
+			float(frame_index * HERO_FRAME_SIZE.x) + CROWNED_HERO_IDLE_CONTENT_RECT.position.x,
 			CROWNED_HERO_IDLE_CONTENT_RECT.position.y,
 			CROWNED_HERO_IDLE_CONTENT_RECT.size.x,
 			CROWNED_HERO_IDLE_CONTENT_RECT.size.y
