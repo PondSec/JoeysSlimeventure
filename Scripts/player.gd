@@ -374,6 +374,9 @@ var multiplayer_display_name := ""
 var multiplayer_nameplate: Node2D
 var multiplayer_nameplate_label: Label
 var multiplayer_nameplate_health: TextureProgressBar
+var multiplayer_typing_label: Label
+var multiplayer_typing_timer: Timer
+var multiplayer_typing_step := 0
 # Definiert die Originalfarbe und die Farbe, die bei Schaden angezeigt werden soll
 const COLOR_NORMAL = Color(0.62, 1.0, 0.58)  # Originalfarbe (9fff94 in Hex)
 const COLOR_DAMAGE = Color(1.0, 0.29, 0.29)  # Schadenfarbe (ff4a4a in Hex)
@@ -2276,6 +2279,7 @@ func _ensure_multiplayer_nameplate() -> void:
 	multiplayer_nameplate.z_index = 20
 	add_child(multiplayer_nameplate)
 	multiplayer_nameplate_label = Label.new()
+	multiplayer_nameplate_label.name = "NameText"
 	multiplayer_nameplate_label.position = Vector2(-62.0, -20.0)
 	multiplayer_nameplate_label.size = Vector2(124.0, 16.0)
 	multiplayer_nameplate_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -2287,15 +2291,31 @@ func _ensure_multiplayer_nameplate() -> void:
 	multiplayer_nameplate_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	multiplayer_nameplate.add_child(multiplayer_nameplate_label)
 	multiplayer_nameplate_health = TextureProgressBar.new()
+	multiplayer_nameplate_health.name = "HealthBar"
 	multiplayer_nameplate_health.position = Vector2(-26.0, -2.0)
 	multiplayer_nameplate_health.size = Vector2(52.0, 7.0)
 	multiplayer_nameplate_health.texture_under = NAMEPLATE_EMPTY
 	multiplayer_nameplate_health.texture_progress = NAMEPLATE_FILL
 	multiplayer_nameplate_health.nine_patch_stretch = false
 	multiplayer_nameplate_health.fill_mode = TextureProgressBar.FILL_LEFT_TO_RIGHT
-	multiplayer_nameplate_health.show_percentage = false
 	multiplayer_nameplate_health.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	multiplayer_nameplate.add_child(multiplayer_nameplate_health)
+	multiplayer_typing_label = Label.new()
+	multiplayer_typing_label.name = "TypingIndicator"
+	multiplayer_typing_label.position = Vector2(-20.0, -37.0)
+	multiplayer_typing_label.size = Vector2(40.0, 15.0)
+	multiplayer_typing_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	multiplayer_typing_label.add_theme_font_size_override("font_size", 15)
+	multiplayer_typing_label.add_theme_color_override("font_color", Color("f5fff3"))
+	multiplayer_typing_label.add_theme_color_override("font_outline_color", Color("101317"))
+	multiplayer_typing_label.add_theme_constant_override("outline_size", 3)
+	multiplayer_typing_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	multiplayer_typing_label.visible = false
+	multiplayer_nameplate.add_child(multiplayer_typing_label)
+	multiplayer_typing_timer = Timer.new()
+	multiplayer_typing_timer.wait_time = 0.42
+	multiplayer_typing_timer.timeout.connect(_advance_multiplayer_typing_indicator)
+	multiplayer_nameplate.add_child(multiplayer_typing_timer)
 
 
 func _update_multiplayer_nameplate() -> void:
@@ -2309,6 +2329,27 @@ func _update_multiplayer_nameplate() -> void:
 	multiplayer_nameplate_label.text = multiplayer_display_name
 	multiplayer_nameplate_health.max_value = maxi(1, max_health)
 	multiplayer_nameplate_health.value = clampi(current_health, 0, max_health)
+
+
+func set_multiplayer_chat_typing(is_typing: bool) -> void:
+	_ensure_multiplayer_nameplate()
+	if multiplayer_typing_label == null or multiplayer_typing_timer == null:
+		return
+	if not is_typing:
+		multiplayer_typing_timer.stop()
+		multiplayer_typing_label.visible = false
+		return
+	multiplayer_typing_step = 0
+	multiplayer_typing_label.text = "."
+	multiplayer_typing_label.visible = true
+	multiplayer_typing_timer.start()
+
+
+func _advance_multiplayer_typing_indicator() -> void:
+	if multiplayer_typing_label == null or not multiplayer_typing_label.visible:
+		return
+	multiplayer_typing_step = (multiplayer_typing_step + 1) % 3
+	multiplayer_typing_label.text = ".".repeat(multiplayer_typing_step + 1)
 	
 func update_facing_direction():
 	if !is_multiplayer_authority():

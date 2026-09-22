@@ -75,8 +75,11 @@ func _request_existing_players() -> void:
 
 
 @rpc("authority", "reliable")
-func _spawn_player_for_peer(id: int, position: Vector2) -> void:
+func _spawn_player_for_peer(id: int, position: Vector2, display_name: String = "") -> void:
 	_spawn_player(id, position)
+	var avatar = get_node_or_null(str(id))
+	if avatar != null and avatar.has_method("set_multiplayer_display_name"):
+		avatar.call("set_multiplayer_display_name", display_name)
 
 
 @rpc("authority", "reliable")
@@ -241,8 +244,7 @@ func _create_room(mode: String, members: Array[int], steam_lobby_id: int = 0) ->
 		for visible_id in members:
 			var avatar = get_node_or_null(str(visible_id)) as Node2D
 			if avatar != null:
-				_spawn_player_for_peer.rpc_id(receiver, visible_id, avatar.global_position)
-				_set_player_display_name.rpc_id(receiver, visible_id, String(player_names.get(visible_id, _fallback_name(visible_id))))
+				_spawn_player_for_peer.rpc_id(receiver, visible_id, avatar.global_position, String(player_names.get(visible_id, _fallback_name(visible_id))))
 		_grant_replication_ready.rpc_id(receiver)
 		_queue_status.rpc_id(receiver, "MATCH FOUND\n%s" % _mode_label(mode))
 	for visible_id in members:
@@ -786,6 +788,7 @@ func _queue_status(message: String) -> void:
 
 
 func send_chat(text: String) -> void:
+	_set_local_chat_typing(false)
 	if text.strip_edges().is_empty(): return
 	if multiplayer.is_server():
 		var server_room := int(player_room.get(multiplayer.get_unique_id(), 0))
@@ -799,6 +802,37 @@ func _submit_chat(text: String) -> void:
 	var sender := multiplayer.get_remote_sender_id()
 	var room_id := int(player_room.get(sender, 0))
 	if room_id > 0: _broadcast_room_chat(room_id, "[color=#93dcff]%s:[/color] %s" % [player_names.get(sender, "Player"), _sanitize_chat(text)])
+
+
+func _set_local_chat_typing(is_typing: bool) -> void:
+	var local_id := multiplayer.get_unique_id()
+	if multiplayer.is_server():
+		_set_room_player_typing(local_id, is_typing)
+	else:
+		_submit_chat_typing.rpc_id(1, is_typing)
+
+
+@rpc("any_peer", "unreliable")
+func _submit_chat_typing(is_typing: bool) -> void:
+	if not multiplayer.is_server():
+		return
+	_set_room_player_typing(multiplayer.get_remote_sender_id(), is_typing)
+
+
+func _set_room_player_typing(player_id: int, is_typing: bool) -> void:
+	var room_id := int(player_room.get(player_id, 0))
+	if room_id == 0 or not rooms.has(room_id):
+		return
+	for member_id in rooms[room_id].members:
+		if _peer_is_connected(member_id):
+			_set_player_chat_typing.rpc_id(member_id, player_id, is_typing)
+
+
+@rpc("authority", "unreliable")
+func _set_player_chat_typing(player_id: int, is_typing: bool) -> void:
+	var avatar = get_node_or_null(str(player_id))
+	if avatar != null and avatar.has_method("set_multiplayer_chat_typing"):
+		avatar.call("set_multiplayer_chat_typing", is_typing)
 
 
 func _broadcast_room_chat(room_id: int, text: String) -> void:
@@ -822,7 +856,7 @@ func _create_ui() -> void:
 	var panel = PanelContainer.new(); panel.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT, Control.PRESET_MODE_MINSIZE, 18); panel.offset_left = 20; panel.offset_top = -220; panel.offset_right = 430; panel.offset_bottom = -20; hud.add_child(panel)
 	var chat_box = VBoxContainer.new(); panel.add_child(chat_box)
 	chat_log = RichTextLabel.new(); chat_log.bbcode_enabled = true; chat_log.custom_minimum_size = Vector2(390, 145); chat_box.add_child(chat_log); _chat_log = chat_log
-	chat_input = LineEdit.new(); chat_input.placeholder_text = "Enter: Chat"; chat_input.text_submitted.connect(func(value): send_chat(value); chat_input.clear()); chat_box.add_child(chat_input); _chat_input = chat_input
+	chat_input = LineEdit.new(); chat_input.placeholder_text = "Enter: Chat"; chat_input.text_submitted.connect(func(value): send_chat(value); chat_input.clear(); _set_local_chat_typing(false)); chat_input.focus_entered.connect(func(): _set_local_chat_typing(true)); chat_input.focus_exited.connect(func(): _set_local_chat_typing(false)); chat_box.add_child(chat_input); _chat_input = chat_input
 
 
 func _show_results(title: String, detail: String, _mode: String) -> void:

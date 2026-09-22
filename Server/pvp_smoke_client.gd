@@ -14,6 +14,7 @@ var _combat_submitted := false
 var _ground_verified := false
 var _chat_verified := false
 var _visual_verified := false
+var _typing_verified := false
 var _fall_respawn_verified := false
 var _host := "127.0.0.1"
 var _port := 5999
@@ -91,6 +92,15 @@ func _verify_replication() -> void:
 	if target_player != null and bool(target_player.get_node("Camera2D").enabled):
 		_fail("Remote avatar camera hijacked the local view")
 		return
+	var nameplate := target_player.get_node_or_null("MultiplayerNameplate") if target_player != null else null
+	var name_label := nameplate.get_node_or_null("NameText") as Label if nameplate != null else null
+	var name_health := nameplate.get_node_or_null("HealthBar") as TextureProgressBar if nameplate != null else null
+	if nameplate == null or not nameplate.visible or name_label == null or name_label.text.strip_edges().is_empty():
+		_fail("Remote avatar nameplate was not replicated")
+		return
+	if name_health == null or name_health.texture_under == null or name_health.texture_progress == null:
+		_fail("Remote avatar health bar was not built from the pixel assets")
+		return
 	if _arena.get_node_or_null("ArenaBackdropLayer/CaveBack") == null:
 		_fail("Arena backdrop was not created")
 		return
@@ -115,6 +125,13 @@ func _verify_replication() -> void:
 	if _label == "alpha":
 		if not _verify_chat_input_keeps_gameplay_hotkeys_quiet(own_player):
 			return
+		# Keep the real chat field focused while beta verifies the room-wide typing
+		# signal. This covers the dot indicator without injecting a fake UI state.
+		get_tree().create_timer(3.3).timeout.connect(func() -> void:
+			var typing_input := _arena.get("_chat_input") as LineEdit
+			if typing_input != null:
+				typing_input.grab_focus()
+		, CONNECT_ONE_SHOT)
 		own_player.global_position = target_player.global_position - Vector2(48.0, 0.0)
 		# Position replication is deliberately unreliable in the game. Send a few
 		# short-spaced samples here so the integration test validates combat rather
@@ -152,6 +169,11 @@ func _verify_remote_effects() -> void:
 	if int(own_player.get("current_health")) >= int(own_player.get("max_health")):
 		_fail("Server-authoritative hit did not reduce target health")
 		return
+	var own_nameplate := own_player.get_node_or_null("MultiplayerNameplate")
+	var own_name_health := own_nameplate.get_node_or_null("HealthBar") as TextureProgressBar if own_nameplate != null else null
+	if own_name_health == null or int(own_name_health.value) != int(own_player.get("current_health")):
+		_fail("Nameplate health was not synchronized with the approved PvP hit")
+		return
 	var chat_log := _arena.get("_chat_log") as RichTextLabel
 	var received_messages := _arena.get("_received_chat_messages") as Array
 	if chat_log == null or received_messages == null or not received_messages.any(func(message: String) -> bool: return "AlphaSteam:[/color] smoke-chat" in message):
@@ -174,7 +196,22 @@ func _verify_remote_effects() -> void:
 		return
 	_visual_verified = true
 	_verify_fall_death_and_respawn(own_player)
+	get_tree().create_timer(1.2).timeout.connect(_verify_remote_typing_indicator, CONNECT_ONE_SHOT)
 	print("[SMOKE beta] PASS: floor, chat, combat, and animation replication")
+
+
+func _verify_remote_typing_indicator() -> void:
+	var remote_ids: Array[int] = _arena.call("_player_ids").filter(func(id: int) -> bool: return id != multiplayer.get_unique_id())
+	if remote_ids.is_empty():
+		_fail("Remote player disappeared before typing verification")
+		return
+	var remote_player := _arena.get_node_or_null(str(remote_ids[0]))
+	var typing_indicator := remote_player.get_node_or_null("MultiplayerNameplate/TypingIndicator") as Label if remote_player != null else null
+	if typing_indicator == null or not typing_indicator.visible or typing_indicator.text not in [".", "..", "..."]:
+		_fail("Remote typing indicator was not visible during chat input")
+		return
+	_typing_verified = true
+	print("[SMOKE beta] PASS: remote typing indicator")
 
 
 func _verify_fall_death_and_respawn(own_player: Node2D) -> void:
@@ -239,7 +276,7 @@ func _finish() -> void:
 	if _label == "alpha" and not _combat_submitted:
 		_fail("Combat request was not submitted")
 		return
-	if _label == "beta" and (not _ground_verified or not _chat_verified or not _visual_verified or not _fall_respawn_verified):
+	if _label == "beta" and (not _ground_verified or not _chat_verified or not _visual_verified or not _typing_verified or not _fall_respawn_verified):
 		_fail("Remote arena checks were incomplete")
 		return
 	print("[SMOKE %s] PASS: integration complete" % _label)
